@@ -1,0 +1,1388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta name="indigo-page-name" content="Garden">
+    <meta name="indigo-page-icon" content="leaf.fill">
+    <meta name="indigo-page-description" content="Garden — back-door light and side-passage motion">
+    
+    <!-- iOS / macOS Web App (File → Add to Dock on Mac, Share → Add to Home Screen on iPhone). -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Highsteads">
+    <meta name="theme-color" content="#5856d6">
+    <link rel="apple-touch-icon" sizes="180x180" href="/public/dashboards/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="/public/dashboards/apple-touch-icon-167.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="/public/dashboards/apple-touch-icon-152.png">
+    <link rel="apple-touch-icon-precomposed" href="/public/dashboards/apple-touch-icon.png">
+    <title>Garden</title>
+    <style>
+        :root {
+            --bg: #f5f5f7; --card-bg: #ffffff; --text: #1d1d1f;
+            --text-secondary: #86868b; --border: #d2d2d7;
+            --accent: #5856d6; --on-color: #34c759; --off-color: #d2d2d7;
+            --warn: #ff9500; --bad: #ff453a;
+            --shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #000000; --card-bg: #1c1c1e; --text: #f5f5f7;
+                --text-secondary: #98989d; --border: #38383a;
+                --accent: #7d7aff; --on-color: #30d158; --off-color: #48484a;
+                --shadow: 0 1px 3px rgba(0,0,0,0.3);
+            }
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+            background: var(--bg); color: var(--text);
+            padding: max(80px, calc(72px + env(safe-area-inset-top))) 0 max(32px, env(safe-area-inset-bottom));
+            min-height: 100vh; -webkit-overflow-scrolling: touch;
+        }
+        .topbar {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 10;
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            padding: 10px max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left));
+            padding-top: max(10px, env(safe-area-inset-top));
+            margin-bottom: 0;
+        }
+        .topbar-inner {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 10px; flex-wrap: wrap;
+            max-width: 900px; margin: 0 auto;
+        }
+        .topbar h1 { font-size: 18px; font-weight: 600; margin: 0; letter-spacing: -.01em; }
+        .top-jump {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--accent);
+            width: 34px; height: 32px;
+            border-radius: 8px;
+            font-size: 16px; font-weight: 700;
+            cursor: pointer;
+            display: inline-flex; align-items: center; justify-content: center;
+            font-family: inherit;
+            transition: background .15s, color .15s;
+            margin-left: 6px;
+        }
+        .top-jump:hover  { background: var(--bg); }
+        .top-jump:active { background: var(--accent); color: #fff; }
+        /* ── 3-column topbar (Back · Title + Updated · Top) ── */
+        .topbar-3col {
+            display: grid;
+            grid-template-columns: 1fr 2fr 1fr;
+            align-items: center;
+            gap: 8px;
+        }
+        .topbar-3col .hdr-left  { justify-self: start; display: flex; }
+        .topbar-3col .hdr-right { justify-self: end;   display: flex; }
+        .topbar-3col .hdr-center {
+            justify-self: stretch;
+            text-align: center;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1px;
+            line-height: 1.15;
+        }
+        .topbar-3col h1 {
+            font-size: 20px;
+            font-weight: 700;
+            margin: 0;
+            letter-spacing: -0.02em;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
+        }
+        .topbar-3col .topbar-status {
+            font-size: 11px;
+            color: var(--text-secondary);
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .nav-btn {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            color: var(--accent);
+            padding: 8px 14px;
+            border-radius: 10px;
+            font-size: 14px; font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+            text-decoration: none;
+            display: inline-flex; align-items: center; gap: 4px;
+            min-height: 36px;
+            transition: transform 0.08s ease-out, background 0.15s, box-shadow 0.08s, border-color 0.15s;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            white-space: nowrap;
+        }
+        .nav-btn:hover  { background: var(--bg); border-color: var(--accent); }
+        .nav-btn:active {
+            transform: translateY(2px) scale(0.96);
+            background: var(--accent); color: #fff;
+            box-shadow: 0 0 0 rgba(0,0,0,0);
+        }
+
+
+        .hdr-left, .hdr-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .topbar .back-link {
+            color: var(--accent); text-decoration: none; font-size: 14px; font-weight: 500;
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 6px 10px; border-radius: 8px;
+            min-height: 32px;
+            transition: background .15s;
+        }
+        .topbar .back-link:hover { background: var(--bg); }
+        .topbar-status { font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+        .bottombar {
+            position: sticky; bottom: 0; z-index: 10;
+            background: var(--card-bg);
+            border-top: 1px solid var(--border);
+            box-shadow: 0 -1px 3px rgba(0,0,0,0.08);
+            padding: 8px max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left));
+            padding-bottom: max(8px, env(safe-area-inset-bottom));
+            margin-top: 16px;
+        }
+        .bottombar-inner {
+            text-align: center;
+            max-width: 900px; margin: 0 auto;
+            font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums;
+            line-height: 1.4;
+        }
+        .container {
+            max-width: 900px; margin: 0 auto;
+            padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
+        }
+
+        .section-header {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 12px; margin: 16px 4px 8px;
+        }
+        .section-title {
+            font-size: 13px; color: var(--text-secondary);
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .section-action {
+            font-size: 12px; font-weight: 600;
+            color: var(--accent);
+            background: transparent;
+            border: 1px solid var(--accent);
+            border-radius: 999px;
+            padding: 5px 14px;
+            cursor: pointer;
+            min-height: 28px;
+            font-family: inherit;
+            transition: background .15s, color .15s;
+        }
+        .section-action:hover { background: rgba(88,86,214,0.10); }
+        .section-action.is-on  { background: var(--accent); color: #fff; }
+        .section-action:disabled { opacity: 0.5; cursor: default; }
+        @media (prefers-color-scheme: dark) {
+            .section-action:hover { background: rgba(125,122,255,0.18); }
+        }
+
+        /* ── ⓘ info button + details modal ── */
+        .head-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+        .name-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+        }
+        .name-row > :first-child {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .info-btn {
+            width: 24px; height: 24px;
+            border: none; background: transparent;
+            color: var(--text-secondary); font-size: 16px;
+            cursor: pointer; padding: 0; border-radius: 50%;
+            display: inline-flex; align-items: center; justify-content: center;
+            opacity: 0.55; line-height: 1;
+            transition: opacity .15s, background .15s, color .15s;
+            font-family: inherit;
+        }
+        .info-btn:hover { opacity: 1; background: var(--bg); color: var(--text); }
+        .detail-row {
+            display: flex; justify-content: space-between; align-items: baseline;
+            gap: 12px;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 13px;
+        }
+        .detail-row:last-child { border-bottom: none; }
+        .detail-key { color: var(--text-secondary); flex-shrink: 0; }
+        .detail-val { color: var(--text); font-weight: 500; font-variant-numeric: tabular-nums; text-align: right; word-break: break-word; }
+        .detail-group-title {
+            font-size: 11px; color: var(--text-secondary);
+            text-transform: uppercase; letter-spacing: 0.5px;
+            margin: 12px 0 6px;
+        }
+        .raw-toggle {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--accent);
+            padding: 8px 14px;
+            border-radius: 10px;
+            font-size: 13px; font-weight: 500;
+            cursor: pointer;
+            margin-top: 14px;
+            font-family: inherit;
+        }
+        .raw-toggle:hover { background: var(--bg); }
+        .raw-json {
+            max-height: 320px; overflow: auto;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 11px; line-height: 1.45;
+            margin-top: 10px;
+            white-space: pre;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+            gap: 12px;
+        }
+        /* Colour-capable lamps span 2 columns so their preset-chip row
+           (Warm white · Movie · More…) fits without wrapping. On a 1-column
+           grid (iPhone SE) `span 2` clamps to the available track count
+           and just fills the row — no special case needed. */
+        .light-card.is-colour { grid-column: span 2; }
+
+        /* ── Light cards ── */
+        .light-card {
+            background: var(--card-bg); border-radius: 14px; padding: 14px 16px;
+            box-shadow: var(--shadow);
+            display: flex; flex-direction: column; gap: 10px;
+        }
+        .light-card.on { border-left: 3px solid var(--on-color); }
+        .light-head {
+            display: flex; align-items: center; justify-content: space-between; gap: 8px;
+        }
+        .light-name { font-size: 15px; font-weight: 600; flex: 1; min-width: 0; }
+        .light-state { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+        .toggle { position: relative; width: 51px; height: 31px; flex-shrink: 0; cursor: pointer; }
+        .toggle input { opacity: 0; width: 0; height: 0; }
+        .toggle .slider {
+            position: absolute; inset: 0; background: var(--off-color);
+            border-radius: 31px; transition: background 0.25s;
+        }
+        .toggle .slider::before {
+            content: ""; position: absolute; width: 27px; height: 27px;
+            left: 2px; bottom: 2px; background: white; border-radius: 50%;
+            transition: transform 0.25s; box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+        .toggle input:checked + .slider { background: var(--on-color); }
+        .toggle input:checked + .slider::before { transform: translateX(20px); }
+        .toggle input:disabled + .slider { opacity: 0.5; }
+
+        .brightness-row {
+            display: flex; align-items: center; gap: 10px;
+        }
+
+        /* ── Colour-lamp extras: chips on card, full-screen picker modal ── */
+        .light-card.is-colour { cursor: pointer; }
+        .light-card.is-colour:focus-visible {
+            outline: 2px solid var(--accent); outline-offset: 2px;
+        }
+        .presets {
+            display: flex; gap: 6px; flex-wrap: wrap;
+            margin-top: 2px;
+        }
+        .preset-chip {
+            display: inline-flex; align-items: center; gap: 6px;
+            background: var(--bg); color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            padding: 5px 10px; font-size: 12px; font-weight: 500;
+            cursor: pointer; font-family: inherit;
+            min-height: 28px;
+            transition: background .15s, border-color .15s;
+        }
+        .preset-chip:hover { background: var(--card-bg); border-color: var(--accent); }
+        .preset-icon { font-size: 14px; }
+        .preset-swatch {
+            display: inline-block; width: 14px; height: 14px; border-radius: 50%;
+            border: 1px solid var(--border);
+        }
+        .preset-more { color: var(--accent); }
+
+        /* Modal */
+        .modal[hidden] { display: none !important; }
+        .modal {
+            position: fixed; inset: 0; z-index: 100;
+            display: flex; align-items: center; justify-content: center;
+            padding: 16px;
+        }
+        .modal-backdrop {
+            position: absolute; inset: 0;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+        }
+        .modal-card {
+            position: relative; z-index: 1;
+            background: var(--card-bg); color: var(--text);
+            border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+            width: 100%; max-width: 380px;
+            display: flex; flex-direction: column;
+            overflow: hidden;
+        }
+        .modal-head {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+        .modal-head h2 { margin: 0; font-size: 17px; font-weight: 600; }
+        .modal-close {
+            background: transparent; border: none; cursor: pointer;
+            font-size: 22px; line-height: 1; color: var(--text-secondary);
+            width: 32px; height: 32px; border-radius: 8px;
+            font-family: inherit;
+        }
+        .modal-close:hover { background: var(--bg); color: var(--text); }
+        .modal-body { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+        .mode-tabs {
+            display: flex; gap: 6px;
+            background: var(--bg); border-radius: 10px; padding: 4px;
+        }
+        .mode-tab {
+            flex: 1; background: transparent; border: none; cursor: pointer;
+            padding: 8px 12px; font-size: 14px; font-weight: 500;
+            color: var(--text-secondary); border-radius: 8px; font-family: inherit;
+            min-height: 36px;
+        }
+        .mode-tab.is-active {
+            background: var(--card-bg); color: var(--text);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+        }
+        .modal-label {
+            display: flex; flex-direction: column; gap: 8px;
+            font-size: 13px; color: var(--text-secondary);
+        }
+        #ct-slider { width: 100%; height: 36px; }
+        .ct-track {
+            height: 16px; border-radius: 8px;
+            background: linear-gradient(to right, #ffb070 0%, #fff5e6 30%, #ffffff 55%, #d4e8ff 85%, #a0c8ff 100%);
+        }
+        .ct-display {
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 12px; color: var(--text-secondary);
+            font-variant-numeric: tabular-nums;
+        }
+        .ct-current { font-size: 16px; font-weight: 600; color: var(--text); }
+        #rgb-picker {
+            width: 100%; height: 56px; padding: 0; border: 1px solid var(--border);
+            border-radius: 10px; background: var(--bg); cursor: pointer;
+        }
+        .rgb-preview {
+            display: flex; align-items: center; gap: 10px;
+            font-size: 13px; color: var(--text-secondary);
+        }
+        .rgb-preview-swatch {
+            width: 28px; height: 28px; border-radius: 50%;
+            border: 1px solid var(--border);
+        }
+        .modal-actions {
+            padding: 12px 16px;
+            border-top: 1px solid var(--border);
+            display: flex; gap: 10px; justify-content: flex-end;
+        }
+        .modal-btn {
+            padding: 8px 18px; border-radius: 10px; cursor: pointer;
+            font-size: 14px; font-weight: 600; font-family: inherit;
+            min-height: 36px;
+            border: 1px solid var(--border);
+            background: var(--card-bg); color: var(--text);
+        }
+        .modal-btn:hover { background: var(--bg); }
+        .modal-btn-primary {
+            background: var(--accent); color: #fff; border-color: var(--accent);
+        }
+        .modal-btn-primary:hover { background: var(--accent); opacity: 0.9; }
+        .brightness-row .pct {
+            font-size: 12px; color: var(--text-secondary);
+            min-width: 36px; text-align: right; font-variant-numeric: tabular-nums;
+        }
+        input[type="range"].brightness {
+            flex: 1; height: 32px; -webkit-appearance: none; appearance: none;
+            background: linear-gradient(to right, var(--accent) 0%, var(--off-color) 0%);
+            border-radius: 16px; outline: none;
+        }
+        input[type="range"].brightness::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none;
+            width: 26px; height: 26px; border-radius: 50%;
+            background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+            cursor: pointer;
+        }
+
+        /* ── Motion cards ── */
+        .motion-card {
+            background: var(--card-bg); border-radius: 12px; padding: 14px 16px;
+            box-shadow: var(--shadow);
+            display: flex; align-items: center; justify-content: space-between; gap: 12px;
+        }
+        .motion-card.active { border-left: 3px solid var(--warn); }
+        .motion-info { flex: 1; min-width: 0; }
+        .motion-name { font-size: 14px; font-weight: 600; }
+        .motion-state { font-size: 12px; color: var(--text-secondary); margin-top: 2px; font-variant-numeric: tabular-nums; }
+        .motion-dot {
+            width: 14px; height: 14px; border-radius: 50%;
+            background: var(--off-color);
+            flex-shrink: 0;
+        }
+        .motion-card.active .motion-dot {
+            background: var(--warn);
+            box-shadow: 0 0 0 4px rgba(255,149,0,0.18);
+            animation: motion-pulse 1.6s ease-in-out infinite;
+        }
+        @keyframes motion-pulse {
+            0%, 100% { opacity: 1; }
+            50%      { opacity: 0.55; }
+        }
+
+        /* ── Radiator cards (mirror heating.html) ── */
+        .zone {
+            background: var(--card-bg); border-radius: 14px; padding: 14px 16px;
+            box-shadow: var(--shadow);
+            display: flex; flex-direction: column; gap: 10px;
+        }
+        .zone.heating { border-left: 3px solid var(--warn); }
+        .zone-head {
+            display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;
+        }
+        .zone-name { font-size: 15px; font-weight: 600; }
+        .zone-flame { font-size: 16px; opacity: 0; transition: opacity 0.3s; }
+        .zone-flame.on { opacity: 1; }
+        .temps { display: flex; align-items: baseline; gap: 12px; }
+        .cur-temp { font-size: 32px; font-weight: 700; line-height: 1; }
+        .cur-temp.cold { color: #007aff; }
+        .cur-temp.warm { color: var(--warn); }
+        .cur-temp.hot  { color: var(--bad); }
+        .cur-unit { font-size: 16px; color: var(--text-secondary); font-weight: 500; }
+        .setpoint {
+            display: flex; align-items: center; justify-content: space-between;
+            background: var(--bg); border-radius: 10px; padding: 6px 8px;
+        }
+        .setpoint-label { font-size: 12px; color: var(--text-secondary); }
+        .setpoint-val { font-size: 16px; font-weight: 600; min-width: 50px; text-align: center; }
+        .setpoint-btn {
+            width: 36px; height: 36px; border-radius: 10px;
+            border: none; background: var(--off-color); color: var(--text);
+            font-size: 18px; font-weight: 600; cursor: pointer;
+        }
+        .setpoint-btn:active { background: var(--accent); color: white; }
+        .setpoint-btn:disabled { opacity: 0.5; }
+        .zone-meta { font-size: 12px; color: var(--text-secondary); display: flex; gap: 12px; flex-wrap: wrap; }
+
+        .loading { text-align: center; padding: 60px 20px; color: var(--text-secondary); }
+        .spinner {
+            width: 24px; height: 24px; border: 3px solid var(--off-color);
+            border-top-color: var(--accent); border-radius: 50%;
+            animation: spin 0.8s linear infinite; margin: 0 auto 12px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .last-updated { text-align: center; font-size: 12px; color: var(--text-secondary); padding-top: 16px; }
+    </style>
+</head>
+<body>
+    <!-- Colour picker modal — shared by the chip "More…" and the card-body tap. -->
+    <div id="color-modal" class="modal" hidden>
+        <div class="modal-backdrop" onclick="closeColorPicker()"></div>
+        <div class="modal-card" role="dialog" aria-labelledby="color-modal-title">
+            <header class="modal-head">
+                <h2 id="color-modal-title">Colour Lamp</h2>
+                <button class="modal-close" aria-label="Close" onclick="closeColorPicker()">×</button>
+            </header>
+            <div class="modal-body">
+                <div class="mode-tabs">
+                    <button class="mode-tab" id="tab-white" onclick="setMode('white')">White</button>
+                    <button class="mode-tab" id="tab-color" onclick="setMode('color')">Colour</button>
+                </div>
+                <div id="white-panel" class="mode-panel">
+                    <label class="modal-label">
+                        Temperature
+                        <input type="range" id="ct-slider" min="2200" max="6500" step="100" oninput="onCtInput()">
+                    </label>
+                    <div class="ct-display">
+                        <span>2200K · warm</span>
+                        <span class="ct-current" id="ct-value">3000K</span>
+                        <span>6500K · cool</span>
+                    </div>
+                </div>
+                <div id="color-panel" class="mode-panel" hidden>
+                    <label class="modal-label">
+                        Pick a colour
+                        <input type="color" id="rgb-picker" oninput="onRgbInput()">
+                    </label>
+                    <div class="rgb-preview">
+                        <span class="rgb-preview-swatch" id="rgb-swatch"></span>
+                        <span id="rgb-hex">#ffffff</span>
+                    </div>
+                </div>
+            </div>
+            <footer class="modal-actions">
+                <button class="modal-btn" onclick="closeColorPicker()">Cancel</button>
+                <button class="modal-btn modal-btn-primary" onclick="applyColorSelection()">Apply</button>
+            </footer>
+        </div>
+    </div>
+
+
+    <!-- Device details modal — opened from the ⓘ button on any tile. -->
+    <div id="details-modal" class="modal" hidden>
+        <div class="modal-backdrop" onclick="closeDeviceDetails()"></div>
+        <div class="modal-card" role="dialog" aria-labelledby="details-modal-title">
+            <header class="modal-head">
+                <h2 id="details-modal-title">Device</h2>
+                <button class="modal-close" aria-label="Close" onclick="closeDeviceDetails()">×</button>
+            </header>
+            <div class="modal-body">
+                <div id="details-curated"></div>
+                <button class="raw-toggle" onclick="toggleRawDetails()" id="raw-toggle-btn">Show raw JSON</button>
+                <pre class="raw-json" id="details-raw" hidden></pre>
+            </div>
+            <footer class="modal-actions">
+                <button class="modal-btn" onclick="closeDeviceDetails()">Close</button>
+            </footer>
+        </div>
+    </div>
+
+    <header class="topbar">
+        <div class="topbar-inner topbar-3col">
+            <div class="hdr-left">
+                <a class="nav-btn" href="index.html">← Back</a>
+            </div>
+            <div class="hdr-center">
+                <h1>Garden</h1>
+                <span class="topbar-status">Updated <span id="ts">—</span> · Next refresh <span id="cdwn">—</span>s</span>
+            </div>
+            <div class="hdr-right">
+                <button class="nav-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Back to top">↑ Top</button>
+            </div>
+        </div>
+    </header>
+    <div class="container">
+        <div id="content">
+            <div class="loading"><div class="spinner"></div><p>Connecting…</p></div>
+        </div>
+    </div>
+
+    <script src="config.js" onerror="window.INDIGO_CONFIG_MISSING=true"></script>
+    <script>
+    class IndigoAPIError extends Error {
+        constructor(msg, status) { super(msg); this.name = "IndigoAPIError"; this.status = status; }
+    }
+    class IndigoAPI {
+        constructor(config) {
+            const c = config || window.INDIGO_CONFIG || IndigoAPI.getStoredConfig();
+            if (!c) throw new IndigoAPIError("Not configured", 0);
+            this._base = c.baseURL.replace(/\/+$/, "");
+            this._key = c.apiKey;
+            this._authH = [];
+        }
+        static isConfigured() {
+            const c = window.INDIGO_CONFIG || IndigoAPI.getStoredConfig();
+            return !!(c && c.baseURL && c.apiKey);
+        }
+        static getStoredConfig() {
+            try { return JSON.parse(localStorage.getItem("indigo_config") || "null"); } catch { return null; }
+        }
+        static clearConfig() { localStorage.removeItem("indigo_config"); }
+        onAuthFailure(fn) { this._authH.push(fn); }
+        async _fetch(path, opts = {}) {
+            const headers = { Authorization: "Bearer " + this._key, Accept: "application/json", ...(opts.headers || {}) };
+            const r = await fetch(this._base + path, { ...opts, headers });
+            if (r.status === 401 || r.status === 403) {
+                this._authH.forEach(h => h()); throw new IndigoAPIError("Auth failed", r.status);
+            }
+            if (!r.ok) throw new IndigoAPIError("HTTP " + r.status, r.status);
+            const ct = r.headers.get("Content-Type") || "";
+            return ct.includes("json") ? r.json() : null;
+        }
+        async _cmd(message, objectId, parameters) {
+            const body = { message, objectId };
+            if (parameters) body.parameters = parameters;
+            return this._fetch("/v2/api/command", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body)
+            });
+        }
+        getDevices()           { return this._fetch("/v2/api/indigo.devices"); }
+        toggle(id)             { return this._cmd("indigo.device.toggle", id); }
+        turnOn(id)             { return this._cmd("indigo.device.turnOn", id); }
+        turnOff(id)            { return this._cmd("indigo.device.turnOff", id); }
+        setBrightness(id, v)   { return this._cmd("indigo.dimmer.setBrightness", id, { value: v }); }
+        // params: { redLevel, greenLevel, blueLevel, whiteLevel, whiteTemperature } — all optional, 0-100 levels, Kelvin temp.
+        setColorLevels(id, params) { return this._cmd("indigo.dimmer.setColorLevels", id, params); }
+        setHeatSetpoint(id, v) { return this._cmd("indigo.thermostat.setHeatSetpoint", id, { value: v }); }
+        observeAll(cb, ms = 5000) {
+            let last = "";
+            const tick = async () => {
+                try { const d = await this.getDevices(); const j = JSON.stringify(d);
+                      if (j !== last) { last = j; cb(d); } } catch {}
+            };
+            tick();
+            const t = setInterval(tick, ms);
+            return { stop: () => clearInterval(t) };
+        }
+    }
+    </script>
+    <script>
+    // ── Refresh status: drives Updated / Next refresh in both top + bottom bar.
+    const POLL_INTERVAL_MS = 5000;
+    let _lastUpdate = 0;
+    function _pad(n) { return String(n).padStart(2, "0"); }
+    function markRefreshed() {
+        _lastUpdate = Date.now();
+        tickRefreshStatus();
+    }
+    function tickRefreshStatus() {
+        let tsStr = "—";
+        if (_lastUpdate) {
+            const d = new Date(_lastUpdate);
+            tsStr = _pad(d.getHours()) + ":" + _pad(d.getMinutes()) + ":" + _pad(d.getSeconds());
+        }
+        const elapsedS = _lastUpdate ? (Date.now() - _lastUpdate) / 1000 : 0;
+        const cdwn = Math.max(0, Math.round((POLL_INTERVAL_MS / 1000) - elapsedS));
+        for (const id of ["ts", "ts-bot"]) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = tsStr;
+        }
+        for (const id of ["cdwn", "cdwn-bot"]) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = String(cdwn);
+        }
+    }
+    // Heartbeat aligned with the polling cadence so the timestamp advances even
+    // when nothing changes; observeAll callback also calls markRefreshed() for
+    // immediate update when state DOES change.
+    setInterval(markRefreshed, POLL_INTERVAL_MS);
+    // Tick the display every second so the countdown actually counts down.
+    setInterval(tickRefreshStatus, 1000);
+
+    // Garden device IDs.
+    const MAIN_LIGHT_ID  = 0;
+
+    // Single dimmable light on the back door (no colour, no white temp).
+    const LIGHT_ORDER = [
+        10602184,   // Back Door Light (Z2M dimmer)
+    ];
+
+    // Capability detection — applies to ANY light, not a hardcoded ID.
+    // Per the html-pages skill: "Render controls based on the device's
+    // actual capability flags, not on assumptions about device type."
+    function lightSupportsColour(d) {
+        return d.supportsRGB === true
+            || d.supportsWhiteTemperature === true
+            || d.supportsColor === true;
+    }
+
+    // Colour presets for any colour-capable lamp.
+    // Bedside Hue lamps in this room are tunable-white only (no RGB), so the
+    // presets use whiteTemperature + brightness only. Both work on RGB bulbs
+    // too — if a future bedroom lamp has RGB, these still apply correctly.
+    const COLOUR_PRESETS = {
+        warm:    { label: "Warm white", icon: "🌤", mode: "white", whiteTemperature: 2700, brightness: 100 },
+        bedtime: { label: "Bedtime",    icon: "🌙", mode: "white", whiteTemperature: 2700, brightness: 15 },
+    };
+    const LIGHT_IDS    = new Set(LIGHT_ORDER);
+    function lightOrderIndex(d) {
+        const i = LIGHT_ORDER.indexOf(d.id);
+        return i < 0 ? LIGHT_ORDER.length : i;  // unknown lights go last
+    }
+    const TV_IDS = new Set();
+    const MOTION_IDS   = new Set([
+        58983075,     // Side Passage Back Motion   (Z-Wave motion sensor)
+        1266504216,   // Side Passage Middle Motion (Z-Wave motion sensor)
+    ]);
+    const RADIATOR_IDS = new Set();  // No heating in the garden
+
+    // Indigo's REST API requires setHeatSetpoint `value` to be an integer
+    // — half-degree values are rejected with HTTP 400. So step in 1°C.
+    const SETPOINT_MIN    = 5;
+    const SETPOINT_MAX    = 28;
+    const PENDING_TIMEOUT = 4000;
+
+    let indigo = null;
+    const pending = new Map();           // device id -> { v, t }
+    const debounceTimers = {};
+
+    if (!IndigoAPI.isConfigured()) {
+        location.href = "index.html";
+    } else {
+        start();
+    }
+
+    function start() {
+        indigo = new IndigoAPI();
+        indigo.onAuthFailure(() => {
+            IndigoAPI.clearConfig();
+            location.href = "index.html";
+        });
+        indigo.observeAll(d => { markRefreshed(); render(d); }, 5000);
+    }
+
+    function getCurrentTemp(d) {
+        const s = d.states || {};
+        const cand = [s.temperatureInput1, s.temperature, d.displayStateValRaw];
+        for (const v of cand) {
+            const n = parseFloat(v);
+            if (!isNaN(n) && n > -50 && n < 100) return n;
+        }
+        return null;
+    }
+    function getSetpoint(d) {
+        if (d.setpointHeat != null) return parseFloat(d.setpointHeat);
+        const s = d.states || {};
+        const n = parseFloat(s.setpointHeat);
+        return isNaN(n) ? null : n;
+    }
+    function isHeating(d) {
+        const s = d.states || {};
+        const valve = parseFloat(s["valve-position"] || s.valvePosition || 0);
+        const heaterOn = (d.hvacHeaterIsOn === true) || /heat/i.test(d.hvacMode || "");
+        const cur = getCurrentTemp(d);
+        const sp = getSetpoint(d);
+        if (!isNaN(valve) && valve > 0) return true;
+        if (heaterOn && cur != null && sp != null && cur < sp - 0.2) return true;
+        return false;
+    }
+    function tempClass(t) {
+        if (t == null) return "";
+        if (t < 16) return "cold";
+        if (t < 21) return "";
+        if (t < 24) return "warm";
+        return "hot";
+    }
+    function formatWhen(iso) {
+        if (!iso) return "";
+        const t = Date.parse(iso);
+        if (isNaN(t)) return iso;
+        const mins = Math.round((Date.now() - t) / 60000);
+        if (mins < 1) return "just now";
+        if (mins < 60) return mins + "m ago";
+        const hrs = Math.round(mins / 60);
+        if (hrs < 24) return hrs + "h ago";
+        return Math.round(hrs / 24) + "d ago";
+    }
+
+    function render(devices) {
+        window.__lastDevices = devices;  // available to modal seed code
+        const lights    = devices.filter(d => LIGHT_IDS.has(d.id))
+                                 .sort((a, b) => lightOrderIndex(a) - lightOrderIndex(b));
+        const tv        = devices.filter(d => TV_IDS.has(d.id))
+                                 .sort((a, b) => a.name.localeCompare(b.name));
+        const motion    = devices.filter(d => MOTION_IDS.has(d.id))
+                                 .sort((a, b) => a.name.localeCompare(b.name));
+        const radiators = devices.filter(d => RADIATOR_IDS.has(d.id))
+                                 .sort((a, b) => a.name.localeCompare(b.name));
+
+        const lightsOn  = lights.filter(d => d.onState === true).length;
+        const tvOnCount = tv.filter(d => d.onState === true).length;
+        const tvAllOn   = tv.length > 0 && tvOnCount === tv.length;
+        // Motion sensors only — value sensors (lux, °C, voltage) have null onState.
+        const motionCount = motion.filter(d => d.onState === true).length;
+        const heatingAny = radiators.filter(isHeating).length;
+
+        const status = [];
+        status.push(`${lightsOn}/${lights.length} lights on`);
+        if (tv.length) status.push(tvAllOn ? "TV on" : (tvOnCount ? `TV partial` : "TV off"));
+        if (motionCount) status.push(`motion`);
+        if (heatingAny) status.push(`${heatingAny} heating`);
+        let html = "";
+
+        if (lights.length || radiators.length) {
+            // "All On / All Off" applies to every light except the main light.
+            // The radiator(s) sit in the same grid as the lights so the room's
+            // controls appear together — radiator lands next to the ceiling
+            // light in the second row (and the All On/Off button still only
+            // affects the lights themselves).
+            const others      = lights.filter(d => d.id !== MAIN_LIGHT_ID);
+            const allOthersOn = others.length > 0 && others.every(d => d.onState === true);
+            const lbl = allOthersOn ? "All Off" : "All On";
+            html += renderSectionHeader(
+                "Lights",
+                `<button class="section-action${allOthersOn ? ' is-on' : ''}" onclick="toggleLights()">${lbl}</button>`
+            );
+            html += '<div class="grid">' +
+                    lights.map(renderLight).join("") +
+                    radiators.map(renderZone).join("") +
+                    '</div>';
+        }
+
+        if (tv.length) {
+            const someOn = tvOnCount > 0;
+            const lbl = tvAllOn ? "All Off" : (someOn ? "All On" : "All On");
+            const cls = tvAllOn ? "is-on" : "";
+            html += renderSectionHeader(
+                "TV",
+                `<button class="section-action ${cls}" onclick="toggleTv()">${lbl}</button>`
+            );
+            html += '<div class="grid">' + tv.map(renderLight).join("") + '</div>';
+        }
+
+        if (motion.length) {
+            html += renderSectionHeader("Sensors");
+            html += '<div class="grid">' + motion.map(renderMotion).join("") + '</div>';
+        }
+
+        document.getElementById("content").innerHTML = html;
+    }
+
+    function renderSectionHeader(title, actionHtml) {
+        return `<div class="section-header"><span class="section-title">${escapeHtml(title)}</span>${actionHtml || ""}</div>`;
+    }
+
+    function renderLight(d) {
+        const isDimmer = /Dimmer/.test(d.class || "");
+        const onState  = d.onState === true;
+        const bri      = d.brightness != null ? parseInt(d.brightness) : (onState ? 100 : 0);
+        const fillPct  = isDimmer ? bri : (onState ? 100 : 0);
+        const sliderBg = `linear-gradient(to right, var(--accent) ${fillPct}%, var(--off-color) ${fillPct}%)`;
+        const subtitle = isDimmer
+            ? (onState ? `${bri}% · dimmer` : "Off · dimmer")
+            : (onState ? "On · relay" : "Off · relay");
+
+        const sliderHtml = isDimmer ? `
+            <div class="brightness-row" onclick="event.stopPropagation()">
+                <input type="range" class="brightness" min="0" max="100"
+                       value="${bri}" data-id="${d.id}"
+                       style="${sliderBg.replace(/"/g,'&quot;')}"
+                       oninput="onSlider(this)"
+                       onchange="onSliderCommit(this)">
+                <span class="pct" id="pct-${d.id}">${bri}%</span>
+            </div>` : "";
+
+        // Colour-capable lamps get preset chips and a card-level click handler
+        // that opens the full colour picker modal. Detection is by capability
+        // flags, NOT by hardcoded device ID — so any new colour lamp gets
+        // these controls automatically.
+        const isColourLamp = lightSupportsColour(d);
+        const currentColour = colorSwatchCss(d);
+        const chipsHtml = isColourLamp ? `
+            <div class="presets" onclick="event.stopPropagation()">
+                ${Object.entries(COLOUR_PRESETS).map(([key, p]) => `
+                    <button class="preset-chip" onclick="applyPreset('${key}', ${d.id})">
+                        <span class="preset-icon">${p.icon}</span>${escapeHtml(p.label)}
+                    </button>`).join("")}
+                <button class="preset-chip preset-more" onclick="openColorPicker(${d.id})">
+                    <span class="preset-swatch" style="background:${currentColour}"></span>More…
+                </button>
+            </div>` : "";
+
+        const cardAttrs = isColourLamp
+            ? `role="button" tabindex="0" onclick="openColorPicker(${d.id})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openColorPicker(${d.id})}"`
+            : "";
+
+        return `
+            <div class="light-card ${onState ? 'on' : ''} ${isColourLamp ? 'is-colour' : ''}" ${cardAttrs}>
+                <div class="light-head">
+                    <div class="head-text">
+                        <div class="name-row">
+                            <div class="light-name">${escapeHtml(prettyLightName(d.name))}</div>
+                            <button class="info-btn" aria-label="Details"
+                                    onclick="event.stopPropagation(); openDeviceDetails(${d.id})">&#9432;</button>
+                        </div>
+                        <div class="light-state">${escapeHtml(subtitle)}</div>
+                    </div>
+                    <label class="toggle" onclick="event.stopPropagation()">
+                        <input type="checkbox" data-id="${d.id}" ${onState ? 'checked' : ''}
+                               onchange="onToggle(this)">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                ${sliderHtml}
+                ${chipsHtml}
+            </div>`;
+    }
+
+    function colorSwatchCss(d) {
+        const s = d.states || {};
+        const mode = s.colorMode || "";
+        if (mode.includes("temp")) {
+            // Approximate Kelvin to RGB for the swatch indicator.
+            const k = parseFloat(s.colorTemp || s.whiteTemperature || 3000);
+            return kelvinToCss(k);
+        }
+        // Default to RGB mode swatch from current redLevel/greenLevel/blueLevel.
+        const r = Math.round(parseFloat(d.redLevel   || s.redLevel   || 0) * 2.55);
+        const g = Math.round(parseFloat(d.greenLevel || s.greenLevel || 0) * 2.55);
+        const b = Math.round(parseFloat(d.blueLevel  || s.blueLevel  || 0) * 2.55);
+        if (r + g + b === 0) return "var(--off-color)";
+        return `rgb(${r},${g},${b})`;
+    }
+
+    function kelvinToCss(k) {
+        // Crude Kelvin -> RGB approximation, good enough for a swatch.
+        k = Math.max(1000, Math.min(40000, k)) / 100;
+        let r, g, b;
+        if (k <= 66) {
+            r = 255;
+            g = 99.4708025861 * Math.log(k) - 161.1195681661;
+        } else {
+            r = 329.698727446 * Math.pow(k - 60, -0.1332047592);
+            g = 288.1221695283 * Math.pow(k - 60, -0.0755148492);
+        }
+        if (k >= 66)      b = 255;
+        else if (k <= 19) b = 0;
+        else              b = 138.5177312231 * Math.log(k - 10) - 305.0447927307;
+        r = Math.max(0, Math.min(255, Math.round(r)));
+        g = Math.max(0, Math.min(255, Math.round(g)));
+        b = Math.max(0, Math.min(255, Math.round(b)));
+        return `rgb(${r},${g},${b})`;
+    }
+
+    function renderMotion(d) {
+        // Sensor wording branches off the device type and name:
+        //   - Value sensors (no onState):  shows reading + units, no active state
+        //   - Contact-style (window/door): Open / Closed
+        //   - Water-leak sensors:          Leak detected / Dry
+        //   - Everything else (motion):    Motion / Clear
+        const name = d.name || "";
+        const s = d.states || {};
+        const isValue   = d.supportsSensorValue === true && d.onState == null;
+        // Shelly UNI ADC reports voltage in states.voltage but doesn't set
+        // supportsSensorValue — treat as a value sensor.
+        const isVoltage = s.voltage != null && d.sensorValue == null;
+        const isContact = /(Contact Sensor|Door Sensor|Window Sensor|Cupboard Door)/i.test(name);
+        const isLeak    = /(Leak Sensor|Water Leak)/i.test(name);
+        const active = !isValue && !isVoltage && d.onState === true;
+        let label;
+        if (isValue) {
+            // Use the device's preformatted UI string if present (e.g. "686 lux", "12.3 °C").
+            label = s["sensorValue.ui"] || (d.sensorValue != null ? String(d.sensorValue) : "—");
+        } else if (isVoltage) {
+            label = s["voltage.ui"] || (parseFloat(s.voltage).toFixed(2) + " V");
+        } else if (isLeak)   label = active ? "Leak detected" : "Dry";
+        else if (isContact)  label = active ? "Open" : "Closed";
+        else                 label = active ? "Motion" : "Clear";
+        return `
+            <div class="motion-card ${active ? 'active' : ''}">
+                <div class="motion-info">
+                    <div class="name-row">
+                        <div class="motion-name">${escapeHtml(prettyMotionName(d.name))}</div>
+                        <button class="info-btn" aria-label="Details"
+                                onclick="event.stopPropagation(); openDeviceDetails(${d.id})">&#9432;</button>
+                    </div>
+                    <div class="motion-state">
+                        ${label} · ${escapeHtml(formatWhen(d.lastChanged))}
+                    </div>
+                </div>
+                <div class="motion-dot"></div>
+            </div>`;
+    }
+
+    function renderZone(d) {
+        const cur = getCurrentTemp(d);
+        const actualSp = getSetpoint(d);
+        let sp = actualSp;
+        if (pending.has(d.id)) {
+            const p = pending.get(d.id);
+            if (Date.now() - p.t < PENDING_TIMEOUT) sp = p.v;
+            else pending.delete(d.id);
+        }
+        const heating = isHeating(d);
+        const tempStr = cur == null ? "—" : cur.toFixed(1);
+        const spStr   = sp  == null ? "—" : sp.toFixed(1);
+        const tCls    = tempClass(cur);
+        const valve   = parseFloat((d.states || {})["valve-position"] || 0);
+        const valveStr = isNaN(valve) ? "" : `valve ${valve.toFixed(0)}%`;
+        const hvacOff = /off/i.test(d.hvacMode || "");
+        // Binary status: actively heating, fully closed, or system-off.
+        // (Raw d.hvacMode reads "indigo.kHvacMode.Heat" for every RAMSES TRV — useless.)
+        const radStatus = hvacOff ? "Off" : (heating ? "Heating" : "Valve Closed");
+        const canBump = sp != null;
+        const disabledAttr = canBump ? "" : "disabled";
+        return `
+            <div class="zone ${heating ? 'heating' : ''}">
+                <div class="zone-head">
+                    <div class="name-row">
+                        <div class="zone-name">${escapeHtml(d.name.replace(/^Drive /, ''))}</div>
+                        <button class="info-btn" aria-label="Details"
+                                onclick="event.stopPropagation(); openDeviceDetails(${d.id})">&#9432;</button>
+                    </div>
+                    <div class="zone-flame ${heating ? 'on' : ''}">🔥</div>
+                </div>
+                <div class="temps">
+                    <div class="cur-temp ${tCls}">${tempStr}<span class="cur-unit">°C</span></div>
+                </div>
+                <div class="setpoint">
+                    <button class="setpoint-btn" onclick="bumpSetpoint(${d.id}, -1)" aria-label="Decrease" ${disabledAttr}>−</button>
+                    <div>
+                        <div class="setpoint-label">Setpoint</div>
+                        <div class="setpoint-val" id="sp-${d.id}" data-sp="${actualSp == null ? '' : actualSp}">${spStr}°</div>
+                    </div>
+                    <button class="setpoint-btn" onclick="bumpSetpoint(${d.id}, 1)" aria-label="Increase" ${disabledAttr}>+</button>
+                </div>
+                <div class="zone-meta">
+                    <span>${radStatus}</span>
+                </div>
+            </div>`;
+    }
+
+    function prettyLightName(name) {
+        return name.replace(/ Plug$/, "");
+    }
+    function prettyMotionName(name) {
+        return name
+            .replace(/^Side Passage /, "")
+            .replace(/ (Presence|Motion|Contact) Sensor$/, "")
+            .replace(/ Motion$/, "");
+    }
+
+
+    // ── Device details modal ─────────────────────────────────
+    function openDeviceDetails(deviceId) {
+        const dev = (window.__lastDevices || []).find(d => d.id === deviceId);
+        if (!dev) return;
+        document.getElementById("details-modal-title").textContent = dev.name || "Device";
+        document.getElementById("details-curated").innerHTML = renderCuratedDetails(dev);
+        document.getElementById("details-raw").textContent = JSON.stringify(dev, null, 2);
+        document.getElementById("details-raw").hidden = true;
+        document.getElementById("raw-toggle-btn").textContent = "Show raw JSON";
+        document.getElementById("details-modal").hidden = false;
+        document.addEventListener("keydown", _onDetailsKey);
+    }
+    function closeDeviceDetails() {
+        document.getElementById("details-modal").hidden = true;
+        document.removeEventListener("keydown", _onDetailsKey);
+    }
+    function _onDetailsKey(e) {
+        if (e.key === "Escape") closeDeviceDetails();
+    }
+    function toggleRawDetails() {
+        const raw = document.getElementById("details-raw");
+        const btn = document.getElementById("raw-toggle-btn");
+        raw.hidden = !raw.hidden;
+        btn.textContent = raw.hidden ? "Show raw JSON" : "Hide raw JSON";
+    }
+    function _detailRow(k, v) {
+        const safeK = escapeHtml(String(k));
+        const safeV = escapeHtml(String(v == null || v === "" ? "—" : v));
+        return `<div class="detail-row"><span class="detail-key">${safeK}</span><span class="detail-val">${safeV}</span></div>`;
+    }
+    function _detailGroup(title) {
+        return `<div class="detail-group-title">${escapeHtml(title)}</div>`;
+    }
+    function renderCuratedDetails(d) {
+        const cls = (d.class || "").replace("indigo.", "");
+        const s = d.states || {};
+        let out = "";
+        // Identity
+        out += _detailGroup("Identity");
+        out += _detailRow("Name", d.name);
+        out += _detailRow("Type", cls);
+        out += _detailRow("Model", d.model);
+        out += _detailRow("Device ID", d.id);
+        out += _detailRow("Plugin", (d.pluginId || "").replace(/^com\./, ""));
+        // Status & timing
+        out += _detailGroup("Status");
+        if (d.onState != null) out += _detailRow("On state", d.onState ? "On" : "Off");
+        if (d.errorState)      out += _detailRow("Error", d.errorState);
+        out += _detailRow("Last changed", formatWhen(d.lastChanged));
+        if (s.availability)    out += _detailRow("Availability", s.availability);
+        // Type-specific
+        if (/Dimmer/.test(cls)) {
+            out += _detailGroup("Dimmer");
+            if (d.brightness != null) out += _detailRow("Brightness", d.brightness + "%");
+            if (s.colorMode)          out += _detailRow("Colour mode", s.colorMode);
+            if (s.colorTemp || s.whiteTemperature) {
+                out += _detailRow("Colour temp", (s.colorTemp || s.whiteTemperature) + " K");
+            }
+            if (d.redLevel != null && (d.redLevel || d.greenLevel || d.blueLevel)) {
+                out += _detailRow("RGB level", `${Math.round(d.redLevel)}/${Math.round(d.greenLevel)}/${Math.round(d.blueLevel)}`);
+            }
+            const caps = [];
+            if (d.supportsRGB) caps.push("RGB");
+            if (d.supportsWhiteTemperature) caps.push("Colour temp");
+            if (d.supportsOnState) caps.push("On/off");
+            if (caps.length) out += _detailRow("Capabilities", caps.join(", "));
+        } else if (/Relay/.test(cls)) {
+            const opt = (k, suffix) => { if (s[k] != null) out += _detailRow(k.replace(/([A-Z])/g, " $1").replace(/^./, c => c.toUpperCase()), s[k] + (suffix || "")); };
+            // Shelly plugs expose energy data — show when present.
+            out += _detailGroup("Power");
+            opt("powerWatts", " W");
+            opt("currentAmps", " A");
+            opt("voltage", " V");
+            opt("energyKwhToday", " kWh");
+            opt("energyKwhMonth", " kWh");
+            opt("deviceTempC", " °C");
+        } else if (/Thermostat/.test(cls)) {
+            out += _detailGroup("Thermostat");
+            const cur = (function() {
+                for (const v of [s.temperatureInput1, s.temperature, d.displayStateValRaw]) {
+                    const n = parseFloat(v);
+                    if (!isNaN(n) && n > -50 && n < 100) return n;
+                }
+                return null;
+            })();
+            if (cur != null) out += _detailRow("Current temp", cur.toFixed(1) + " °C");
+            if (d.setpointHeat != null) out += _detailRow("Setpoint (heat)", d.setpointHeat + " °C");
+            if (s["valve-position"] != null) out += _detailRow("Valve position", s["valve-position"] + "%");
+            if (d.hvacMode) out += _detailRow("HVAC mode", d.hvacMode.replace(/^indigo\.kHvacMode\./, ""));
+            if (d.hvacHeaterIsOn != null) out += _detailRow("Heater on", d.hvacHeaterIsOn ? "Yes" : "No");
+        } else if (/Sensor/.test(cls)) {
+            out += _detailGroup("Sensor");
+            if (s.battery != null)     out += _detailRow("Battery", s.battery + "%");
+            if (d.batteryLevel != null) out += _detailRow("Battery level", d.batteryLevel + "%");
+            if (s.linkQuality != null) out += _detailRow("Link quality", s.linkQuality + " / 255");
+            if (s.temperature != null) out += _detailRow("Temperature", s.temperature + " °C");
+            if (s.humidity != null)    out += _detailRow("Humidity", s.humidity + "%");
+            if (s.illuminance != null) out += _detailRow("Illuminance", s.illuminance + " lux");
+        }
+        return out;
+    }
+
+    // ── Colour picker (modal) ─────────────────────────────────
+    // Remember the device the modal is editing + last-known UI state.
+    let _activeLampId   = null;
+    let _lastColourState = { mode: "white", ct: 3000, hex: "#ffaa55" };
+    let _pickerMode = "white";
+
+    async function applyPreset(key, deviceId) {
+        const p = COLOUR_PRESETS[key];
+        if (!p || !deviceId) return;
+        // Make sure the lamp is on. Hue commands work when off but won't be visible.
+        try { await indigo.turnOn(deviceId); } catch {}
+        if (p.brightness != null) {
+            try { await indigo.setBrightness(deviceId, p.brightness); } catch {}
+        }
+        const params = {};
+        if (p.mode === "white") {
+            params.whiteTemperature = p.whiteTemperature;
+            if (p.whiteLevel != null) params.whiteLevel = p.whiteLevel;
+        } else {
+            params.redLevel   = p.redLevel;
+            params.greenLevel = p.greenLevel;
+            params.blueLevel  = p.blueLevel;
+        }
+        try { await indigo.setColorLevels(deviceId, params); } catch {}
+    }
+
+    function openColorPicker(deviceId) {
+        if (!deviceId) return;
+        _activeLampId = deviceId;
+        // Seed picker from the device's last known state.
+        const dev = (window.__lastDevices || []).find(d => d.id === deviceId);
+        if (!dev) return;
+        document.getElementById("color-modal-title").textContent = prettyLightName(dev.name);
+
+        const s   = dev.states || {};
+        const mode = (s.colorMode || "").includes("temp") ? "white" : "color";
+        const ct   = Math.round(parseFloat(s.colorTemp || s.whiteTemperature || 3000));
+        const r    = Math.round(parseFloat(dev.redLevel   || s.redLevel   || 100) * 2.55);
+        const g    = Math.round(parseFloat(dev.greenLevel || s.greenLevel || 0)   * 2.55);
+        const b    = Math.round(parseFloat(dev.blueLevel  || s.blueLevel  || 0)   * 2.55);
+        const hex  = "#" + [r, g, b].map(v => v.toString(16).padStart(2, "0")).join("");
+        _lastColourState = { mode, ct: Math.max(2200, Math.min(6500, ct)), hex };
+
+        setMode(mode);
+        document.getElementById("ct-slider").value = _lastColourState.ct;
+        document.getElementById("ct-value").textContent = _lastColourState.ct + "K";
+        document.getElementById("rgb-picker").value = _lastColourState.hex;
+        updateRgbPreview(_lastColourState.hex);
+
+        const modal = document.getElementById("color-modal");
+        modal.hidden = false;
+        // Trap Escape to close
+        document.addEventListener("keydown", _onModalKey);
+    }
+
+    function closeColorPicker() {
+        document.getElementById("color-modal").hidden = true;
+        document.removeEventListener("keydown", _onModalKey);
+    }
+
+    function _onModalKey(e) {
+        if (e.key === "Escape") closeColorPicker();
+    }
+
+    function setMode(mode) {
+        _pickerMode = mode;
+        document.getElementById("tab-white").classList.toggle("is-active", mode === "white");
+        document.getElementById("tab-color").classList.toggle("is-active", mode === "color");
+        document.getElementById("white-panel").hidden = mode !== "white";
+        document.getElementById("color-panel").hidden = mode !== "color";
+    }
+
+    function onCtInput() {
+        const v = parseInt(document.getElementById("ct-slider").value);
+        document.getElementById("ct-value").textContent = v + "K";
+    }
+
+    function onRgbInput() {
+        const hex = document.getElementById("rgb-picker").value;
+        updateRgbPreview(hex);
+    }
+
+    function updateRgbPreview(hex) {
+        document.getElementById("rgb-swatch").style.background = hex;
+        document.getElementById("rgb-hex").textContent = hex.toUpperCase();
+    }
+
+    async function applyColorSelection() {
+        const id = _activeLampId;
+        if (!id) { closeColorPicker(); return; }
+        try { await indigo.turnOn(id); } catch {}
+        if (_pickerMode === "white") {
+            const k = parseInt(document.getElementById("ct-slider").value);
+            // whiteTemperature only — leaves brightness untouched (per your spec).
+            // Hue handles the white/colour mode switch automatically.
+            await indigo.setColorLevels(id, { whiteTemperature: k });
+        } else {
+            const hex = document.getElementById("rgb-picker").value;
+            const r = parseInt(hex.slice(1, 3), 16);
+            const g = parseInt(hex.slice(3, 5), 16);
+            const b = parseInt(hex.slice(5, 7), 16);
+            // 0-255 -> 0-100 levels
+            await indigo.setColorLevels(id, {
+                redLevel:   Math.round(r / 2.55),
+                greenLevel: Math.round(g / 2.55),
+                blueLevel:  Math.round(b / 2.55),
+            });
+        }
+        closeColorPicker();
+    }
+
+    async function toggleLights() {
+        // Smart toggle: if every non-main light is on, turn ALL (except main) off.
+        // Otherwise turn ALL (except main) on. Decide from the rendered DOM state
+        // so the action matches what the user is looking at.
+        const ids = Array.from(LIGHT_IDS).filter(id => id !== MAIN_LIGHT_ID);
+        const allOn = ids.every(id => {
+            const cb = document.querySelector(`.toggle input[data-id="${id}"]`);
+            return cb && cb.checked;
+        });
+        const fn = allOn ? "turnOff" : "turnOn";
+        await Promise.allSettled(ids.map(id => indigo[fn](id).catch(() => {})));
+    }
+
+    async function toggleTv() {
+        // Smart toggle: if any TV device is on, turn ALL off; else turn ALL on.
+        // Decide based on the latest rendered DOM toggle state (matches what the user sees).
+        const ids = Array.from(TV_IDS);
+        const anyOn = ids.some(id => {
+            const cb = document.querySelector(`.toggle input[data-id="${id}"]`);
+            return cb && cb.checked;
+        });
+        const fn = anyOn ? "turnOff" : "turnOn";
+        await Promise.allSettled(ids.map(id => indigo[fn](id).catch(() => {})));
+    }
+
+    async function onToggle(el) {
+        el.disabled = true;
+        try { await indigo.toggle(parseInt(el.dataset.id)); }
+        catch { el.checked = !el.checked; }
+        setTimeout(() => { el.disabled = false; }, 500);
+    }
+
+    function onSlider(el) {
+        const pct = parseInt(el.value);
+        el.style.background = `linear-gradient(to right, var(--accent) ${pct}%, var(--off-color) ${pct}%)`;
+        const lbl = document.getElementById(`pct-${el.dataset.id}`);
+        if (lbl) lbl.textContent = pct + "%";
+    }
+
+    function onSliderCommit(el) {
+        const id = parseInt(el.dataset.id);
+        const value = parseInt(el.value);
+        clearTimeout(debounceTimers[id]);
+        debounceTimers[id] = setTimeout(async () => {
+            try { await indigo.setBrightness(id, value); } catch {}
+        }, 300);
+    }
+
+    async function bumpSetpoint(id, dir) {
+        const el = document.getElementById("sp-" + id);
+        if (!el) return;
+        const actual = parseFloat(el.dataset.sp);
+        if (isNaN(actual)) return;
+        const baseline = pending.has(id) ? pending.get(id).v : actual;
+        // Integer-only steps (Indigo REST API rejects fractional setpoints).
+        let next;
+        if (baseline % 1 === 0) {
+            next = baseline + dir;
+        } else {
+            next = dir > 0 ? Math.ceil(baseline) : Math.floor(baseline);
+        }
+        next = Math.max(SETPOINT_MIN, Math.min(SETPOINT_MAX, next));
+        pending.set(id, { v: next, t: Date.now() });
+        el.textContent = next.toFixed(0) + "°";
+        try {
+            await indigo.setHeatSetpoint(id, next);
+        } catch (e) {
+            pending.delete(id);
+            el.textContent = actual.toFixed(1) + "°";
+        }
+    }
+
+    function escapeHtml(t) {
+        const d = document.createElement("div");
+        d.textContent = String(t == null ? "" : t);
+        return d.innerHTML;
+    }
+    </script>
+
+    <footer class="bottombar">
+        <div class="bottombar-inner">
+            Updated <span id="ts-bot">—</span> · Next refresh <span id="cdwn-bot">—</span>s
+        </div>
+    </footer>
+
+
+    <style>
+        .back-to-top {
+            position: fixed;
+            bottom: max(80px, calc(72px + env(safe-area-inset-bottom)));
+            right: max(16px, env(safe-area-inset-right));
+            width: 44px; height: 44px;
+            border-radius: 50%;
+            background: var(--accent); color: #fff;
+            border: none; cursor: pointer;
+            font-size: 22px; font-weight: 700;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+            opacity: 0; pointer-events: none;
+            transition: opacity 0.25s, transform 0.15s;
+            z-index: 9;
+            font-family: inherit;
+        }
+        .back-to-top.visible { opacity: 0.9; pointer-events: auto; }
+        .back-to-top:hover  { opacity: 1; transform: translateY(-2px); }
+        .back-to-top:active { transform: translateY(0); opacity: 0.85; }
+    </style>
+    <button class="back-to-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Back to top">↑</button>
+    <script>
+        (function() {
+            const btn = document.querySelector(".back-to-top");
+            if (!btn) return;
+            const onScroll = () => {
+                if (window.scrollY > 200) btn.classList.add("visible");
+                else btn.classList.remove("visible");
+            };
+            window.addEventListener("scroll", onScroll, { passive: true });
+            onScroll();
+        })();
+    </script>
+
+</body>
+</html>

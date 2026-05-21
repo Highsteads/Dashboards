@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    
+    <!-- iOS / macOS Web App (File → Add to Dock on Mac, Share → Add to Home Screen on iPhone). -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Highsteads">
+    <meta name="theme-color" content="#5856d6">
+    <link rel="apple-touch-icon" sizes="180x180" href="/public/dashboards/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="/public/dashboards/apple-touch-icon-167.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="/public/dashboards/apple-touch-icon-152.png">
+    <link rel="apple-touch-icon-precomposed" href="/public/dashboards/apple-touch-icon.png">
+    <title>Icon Preview</title>
+    <style>
+        :root {
+            --bg: #f5f5f7; --card-bg: #ffffff; --text: #1d1d1f;
+            --text-secondary: #86868b; --border: #d2d2d7;
+            --accent: #5856d6;
+            --shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #000000; --card-bg: #1c1c1e; --text: #f5f5f7;
+                --text-secondary: #98989d; --border: #38383a;
+                --accent: #7d7aff;
+                --shadow: 0 1px 3px rgba(0,0,0,0.3);
+            }
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+            background: var(--bg); color: var(--text);
+            padding: 24px 16px max(32px, env(safe-area-inset-bottom));
+            min-height: 100vh;
+        }
+        h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+        p.lede { color: var(--text-secondary); margin-bottom: 20px; font-size: 14px; }
+        .back-link {
+            color: var(--accent); text-decoration: none; font-size: 14px; font-weight: 600;
+            display: inline-block; margin-bottom: 16px;
+        }
+        .row {
+            background: var(--card-bg); border-radius: 14px;
+            box-shadow: var(--shadow);
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+        .row h2 {
+            font-size: 13px; color: var(--text-secondary);
+            text-transform: uppercase; letter-spacing: 0.5px;
+            margin-bottom: 12px;
+        }
+        .row-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+        }
+        .icon-box {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 16px 10px;
+            display: flex; flex-direction: column;
+            align-items: center; gap: 6px;
+            text-align: center;
+        }
+        .icon-glyph {
+            font-size: 48px;
+            line-height: 1;
+            height: 56px;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .icon-glyph svg {
+            width: 48px; height: 48px;
+            color: var(--text);
+        }
+        .icon-label { font-size: 11px; color: var(--text-secondary); }
+        .icon-name  { font-size: 13px; font-weight: 600; }
+
+        .card-preview {
+            background: var(--card-bg); border-radius: 14px;
+            padding: 20px 16px;
+            box-shadow: var(--shadow);
+            display: flex; flex-direction: column;
+            align-items: center; gap: 10px;
+            min-height: 120px;
+            justify-content: center;
+        }
+        .card-preview .card-icon {
+            width: 56px; height: 56px;
+            border-radius: 14px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 32px;
+            background: rgba(175, 82, 222, 0.18);
+            color: #af52de;
+        }
+        .card-preview .card-icon svg {
+            width: 36px; height: 36px;
+        }
+        .card-preview .card-title { font-size: 16px; font-weight: 600; }
+        .actual-card-row {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+        }
+    </style>
+</head>
+<body>
+    <a class="back-link" href="index.html">← Back</a>
+    <h1>Icon Preview</h1>
+    <p class="lede">Emoji vs. SF-Symbol-style SVG for Garage, Car, and Living Room. Open this on the iPhone/iPad to see exactly how each renders in iOS Safari.</p>
+
+    <!-- ──────────────  GARAGE  ────────────── -->
+    <div class="row">
+        <h2>Garage</h2>
+        <div class="row-grid">
+            <div class="icon-box">
+                <div class="icon-glyph">🏚️</div>
+                <div class="icon-name">🏚️</div>
+                <div class="icon-label">Current emoji<br>(derelict house)</div>
+            </div>
+            <div class="icon-box">
+                <div class="icon-glyph">
+                    <!-- garage.fill — approximation of SF Symbol -->
+                    <svg viewBox="0 0 32 32" fill="currentColor" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" stroke-linecap="round">
+                        <path d="M3 14 L16 5 L29 14 L29 27 L3 27 Z" fill="none"/>
+                        <rect x="7" y="14" width="18" height="13" fill="none"/>
+                        <line x1="7" y1="18" x2="25" y2="18"/>
+                        <line x1="7" y1="22" x2="25" y2="22"/>
+                        <line x1="7" y1="25.5" x2="25" y2="25.5"/>
+                    </svg>
+                </div>
+                <div class="icon-name">garage</div>
+                <div class="icon-label">SF Symbol outline</div>
+            </div>
+            <div class="icon-box">
+                <div class="icon-glyph">
+                    <!-- garage.fill — filled approximation -->
+                    <svg viewBox="0 0 32 32" fill="currentColor">
+                        <path d="M3 14 L16 5 L29 14 L29 27 L3 27 Z M7 16 V25.5 H25 V16 H7 Z M8.5 17.5 H23.5 V18.7 H8.5 Z M8.5 19.8 H23.5 V21 H8.5 Z M8.5 22.1 H23.5 V23.3 H8.5 Z"/>
+                    </svg>
+                </div>
+                <div class="icon-name">garage.fill</div>
+                <div class="icon-label">SF Symbol filled</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ──────────────  CAR  ────────────── -->
+    <div class="row">
+        <h2>Car (Drive)</h2>
+        <div class="row-grid">
+            <div class="icon-box">
+                <div class="icon-glyph">🚗</div>
+                <div class="icon-name">🚗</div>
+                <div class="icon-label">Current emoji<br>(red hatchback)</div>
+            </div>
+            <div class="icon-box">
+                <div class="icon-glyph">
+                    <!-- car — outline approximation -->
+                    <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M5 19 L7 13 Q8 11 10.5 11 H21.5 Q24 11 25 13 L27 19 L27 23 H5 Z"/>
+                        <circle cx="10" cy="23" r="2.4" fill="currentColor"/>
+                        <circle cx="22" cy="23" r="2.4" fill="currentColor"/>
+                        <line x1="6" y1="19" x2="26" y2="19"/>
+                    </svg>
+                </div>
+                <div class="icon-name">car</div>
+                <div class="icon-label">SF Symbol outline</div>
+            </div>
+            <div class="icon-box">
+                <div class="icon-glyph">
+                    <!-- car.fill -->
+                    <svg viewBox="0 0 32 32" fill="currentColor">
+                        <path d="M5 19 L7 13 Q8 11 10.5 11 H21.5 Q24 11 25 13 L27 19 L27 22 H5 Z M8.5 13 L7 18 H25 L23.5 13 H8.5 Z"/>
+                        <circle cx="10" cy="23" r="2.6"/>
+                        <circle cx="22" cy="23" r="2.6"/>
+                    </svg>
+                </div>
+                <div class="icon-name">car.fill</div>
+                <div class="icon-label">SF Symbol filled</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ──────────────  LIVING ROOM  ────────────── -->
+    <div class="row">
+        <h2>Living Room</h2>
+        <div class="row-grid">
+            <div class="icon-box">
+                <div class="icon-glyph">🛋</div>
+                <div class="icon-name">🛋</div>
+                <div class="icon-label">Current emoji<br>(yellow sofa)</div>
+            </div>
+            <div class="icon-box">
+                <div class="icon-glyph">
+                    <!-- sofa — outline -->
+                    <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M5 17 V14 Q5 11 8 11 H24 Q27 11 27 14 V17"/>
+                        <path d="M3 17 Q3 14.5 5 14.5 Q7 14.5 7 17 V21 H25 V17 Q25 14.5 27 14.5 Q29 14.5 29 17 V22 H3 Z"/>
+                        <line x1="7" y1="22" x2="7" y2="24"/>
+                        <line x1="25" y1="22" x2="25" y2="24"/>
+                    </svg>
+                </div>
+                <div class="icon-name">sofa</div>
+                <div class="icon-label">SF Symbol outline</div>
+            </div>
+            <div class="icon-box">
+                <div class="icon-glyph">
+                    <!-- sofa.fill -->
+                    <svg viewBox="0 0 32 32" fill="currentColor">
+                        <path d="M8 11 H24 Q27 11 27 14 V15.5 Q25.5 16 25.5 18 V20.5 H6.5 V18 Q6.5 16 5 15.5 V14 Q5 11 8 11 Z"/>
+                        <path d="M3 17 Q3 14.5 5 14.5 Q7 14.5 7 17 V22 H4 Q3 22 3 21 Z"/>
+                        <path d="M29 17 Q29 14.5 27 14.5 Q25 14.5 25 17 V22 H28 Q29 22 29 21 Z"/>
+                        <rect x="6" y="20" width="20" height="2.5"/>
+                        <line x1="7.5" y1="22.5" x2="7.5" y2="24.5" stroke="currentColor" stroke-width="1.6"/>
+                        <line x1="24.5" y1="22.5" x2="24.5" y2="24.5" stroke="currentColor" stroke-width="1.6"/>
+                    </svg>
+                </div>
+                <div class="icon-name">sofa.fill</div>
+                <div class="icon-label">SF Symbol filled</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ──────────────  AS DASHBOARD CARDS  ────────────── -->
+    <div class="row">
+        <h2>How they'd look on the hub</h2>
+        <div class="actual-card-row">
+            <div class="card-preview">
+                <div class="card-icon">
+                    <svg viewBox="0 0 32 32" fill="currentColor">
+                        <path d="M3 14 L16 5 L29 14 L29 27 L3 27 Z M7 16 V25.5 H25 V16 H7 Z M8.5 17.5 H23.5 V18.7 H8.5 Z M8.5 19.8 H23.5 V21 H8.5 Z M8.5 22.1 H23.5 V23.3 H8.5 Z"/>
+                    </svg>
+                </div>
+                <div class="card-title">Garage</div>
+            </div>
+            <div class="card-preview">
+                <div class="card-icon">
+                    <svg viewBox="0 0 32 32" fill="currentColor">
+                        <path d="M5 19 L7 13 Q8 11 10.5 11 H21.5 Q24 11 25 13 L27 19 L27 22 H5 Z M8.5 13 L7 18 H25 L23.5 13 H8.5 Z"/>
+                        <circle cx="10" cy="23" r="2.6"/>
+                        <circle cx="22" cy="23" r="2.6"/>
+                    </svg>
+                </div>
+                <div class="card-title">Drive</div>
+            </div>
+            <div class="card-preview">
+                <div class="card-icon">
+                    <svg viewBox="0 0 32 32" fill="currentColor">
+                        <path d="M8 11 H24 Q27 11 27 14 V15.5 Q25.5 16 25.5 18 V20.5 H6.5 V18 Q6.5 16 5 15.5 V14 Q5 11 8 11 Z"/>
+                        <path d="M3 17 Q3 14.5 5 14.5 Q7 14.5 7 17 V22 H4 Q3 22 3 21 Z"/>
+                        <path d="M29 17 Q29 14.5 27 14.5 Q25 14.5 25 17 V22 H28 Q29 22 29 21 Z"/>
+                        <rect x="6" y="20" width="20" height="2.5"/>
+                    </svg>
+                </div>
+                <div class="card-title">Living Room</div>
+            </div>
+        </div>
+    </div>
+
+    <p class="lede" style="margin-top:24px;font-size:12px">
+        Note: these are SVG approximations of Apple's SF Symbols. The real ones — viewable in the free
+        <em>SF Symbols</em> Mac app from <a href="https://developer.apple.com/sf-symbols/" style="color:var(--accent)">developer.apple.com/sf-symbols</a>
+        — are slightly more refined but the visual style is identical: monoline, clean, scales to any size, can be tinted any colour with <code>currentColor</code>.
+    </p>
+</body>
+</html>

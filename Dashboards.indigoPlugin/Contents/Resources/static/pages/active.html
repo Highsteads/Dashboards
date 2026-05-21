@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta name="indigo-page-name" content="Active">
+    <meta name="indigo-page-icon" content="bolt.fill">
+    <meta name="indigo-page-description" content="Devices currently on with toggle controls">
+    
+    <!-- iOS / macOS Web App (File → Add to Dock on Mac, Share → Add to Home Screen on iPhone). -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Highsteads">
+    <meta name="theme-color" content="#5856d6">
+    <link rel="apple-touch-icon" sizes="180x180" href="/public/dashboards/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="/public/dashboards/apple-touch-icon-167.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="/public/dashboards/apple-touch-icon-152.png">
+    <link rel="apple-touch-icon-precomposed" href="/public/dashboards/apple-touch-icon.png">
+    <title>Active Devices</title>
+    <style>
+        :root {
+            --bg: #f5f5f7; --card-bg: #ffffff; --text: #1d1d1f;
+            --text-secondary: #86868b; --border: #d2d2d7;
+            --accent: #5856d6; --on-color: #34c759; --off-color: #d2d2d7;
+            --shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #000000; --card-bg: #1c1c1e; --text: #f5f5f7;
+                --text-secondary: #98989d; --border: #38383a;
+                --accent: #7d7aff; --on-color: #30d158; --off-color: #48484a;
+                --shadow: 0 1px 3px rgba(0,0,0,0.3);
+            }
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+            background: var(--bg); color: var(--text);
+            padding: max(80px, calc(72px + env(safe-area-inset-top))) 0 max(32px, env(safe-area-inset-bottom));
+            min-height: 100vh; -webkit-overflow-scrolling: touch;
+        }
+        .topbar {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 10;
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            padding: 10px max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left));
+            padding-top: max(10px, env(safe-area-inset-top));
+            margin-bottom: 0;
+        }
+        .topbar-inner {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 10px; flex-wrap: wrap;
+            max-width: 900px; margin: 0 auto;
+        }
+        .topbar h1 { font-size: 18px; font-weight: 600; margin: 0; letter-spacing: -.01em; }
+        .top-jump {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--accent);
+            width: 34px; height: 32px;
+            border-radius: 8px;
+            font-size: 16px; font-weight: 700;
+            cursor: pointer;
+            display: inline-flex; align-items: center; justify-content: center;
+            font-family: inherit;
+            transition: background .15s, color .15s;
+            margin-left: 6px;
+        }
+        .top-jump:hover  { background: var(--bg); }
+        .top-jump:active { background: var(--accent); color: #fff; }
+        /* ── 3-column topbar (Back · Title + Updated · Top) ── */
+        .topbar-3col {
+            display: grid;
+            grid-template-columns: 1fr 2fr 1fr;
+            align-items: center;
+            gap: 8px;
+        }
+        .topbar-3col .hdr-left  { justify-self: start; display: flex; }
+        .topbar-3col .hdr-right { justify-self: end;   display: flex; }
+        .topbar-3col .hdr-center {
+            justify-self: stretch;
+            text-align: center;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1px;
+            line-height: 1.15;
+        }
+        .topbar-3col h1 {
+            font-size: 20px;
+            font-weight: 700;
+            margin: 0;
+            letter-spacing: -0.02em;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
+        }
+        .topbar-3col .topbar-status {
+            font-size: 11px;
+            color: var(--text-secondary);
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .nav-btn {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            color: var(--accent);
+            padding: 8px 14px;
+            border-radius: 10px;
+            font-size: 14px; font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+            text-decoration: none;
+            display: inline-flex; align-items: center; gap: 4px;
+            min-height: 36px;
+            transition: transform 0.08s ease-out, background 0.15s, box-shadow 0.08s, border-color 0.15s;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            white-space: nowrap;
+        }
+        .nav-btn:hover  { background: var(--bg); border-color: var(--accent); }
+        .nav-btn:active {
+            transform: translateY(2px) scale(0.96);
+            background: var(--accent); color: #fff;
+            box-shadow: 0 0 0 rgba(0,0,0,0);
+        }
+
+
+        .hdr-left, .hdr-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .topbar .back-link {
+            color: var(--accent); text-decoration: none; font-size: 14px; font-weight: 500;
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 6px 10px; border-radius: 8px;
+            min-height: 32px;
+            transition: background .15s;
+        }
+        .topbar .back-link:hover { background: var(--bg); }
+        .topbar-status { font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+        .bottombar {
+            position: sticky; bottom: 0; z-index: 10;
+            background: var(--card-bg);
+            border-top: 1px solid var(--border);
+            box-shadow: 0 -1px 3px rgba(0,0,0,0.08);
+            padding: 8px max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left));
+            padding-bottom: max(8px, env(safe-area-inset-bottom));
+            margin-top: 16px;
+        }
+        .bottombar-inner {
+            text-align: center;
+            max-width: 900px; margin: 0 auto;
+            font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums;
+            line-height: 1.4;
+        }
+        .container {
+            max-width: 700px; margin: 0 auto;
+            padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
+        }
+        .filter-bar {
+            display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px;
+        }
+        .filter-pill {
+            border: 1px solid var(--border); border-radius: 16px;
+            padding: 6px 14px; font-size: 13px; cursor: pointer;
+            background: var(--card-bg); color: var(--text);
+            min-height: 32px;
+        }
+        .filter-pill.active { background: var(--accent); color: white; border-color: var(--accent); }
+        .device-list { display: flex; flex-direction: column; gap: 8px; }
+        .device-row {
+            background: var(--card-bg); border-radius: 12px; padding: 14px 16px;
+            display: flex; align-items: center; justify-content: space-between;
+            box-shadow: var(--shadow); gap: 12px;
+        }
+        .device-info { flex: 1; min-width: 0; }
+        .device-name { font-size: 16px; font-weight: 500; }
+        .device-state { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+        .device-controls { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+
+        .toggle { position: relative; width: 51px; height: 31px; flex-shrink: 0; cursor: pointer; }
+        .toggle input { opacity: 0; width: 0; height: 0; }
+        .toggle .slider {
+            position: absolute; inset: 0; background: var(--off-color);
+            border-radius: 31px; transition: background 0.25s;
+        }
+        .toggle .slider::before {
+            content: ""; position: absolute; width: 27px; height: 27px;
+            left: 2px; bottom: 2px; background: white; border-radius: 50%;
+            transition: transform 0.25s; box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+        .toggle input:checked + .slider { background: var(--on-color); }
+        .toggle input:checked + .slider::before { transform: translateX(20px); }
+        .toggle input:disabled + .slider { opacity: 0.5; }
+        .brightness {
+            width: 80px; height: 32px; -webkit-appearance: none; appearance: none;
+            background: linear-gradient(to right, var(--accent) 0%, var(--off-color) 0%);
+            border-radius: 16px; outline: none;
+        }
+        .brightness::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none;
+            width: 26px; height: 26px; border-radius: 50%;
+            background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+            cursor: pointer;
+        }
+        .empty { text-align: center; padding: 40px 20px; color: var(--text-secondary); }
+        .loading { text-align: center; padding: 60px 20px; color: var(--text-secondary); }
+        .spinner {
+            width: 24px; height: 24px; border: 3px solid var(--off-color);
+            border-top-color: var(--accent); border-radius: 50%;
+            animation: spin 0.8s linear infinite; margin: 0 auto 12px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .last-updated { text-align: center; font-size: 12px; color: var(--text-secondary); padding-top: 16px; }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <div class="topbar-inner topbar-3col">
+            <div class="hdr-left">
+                <a class="nav-btn" href="index.html">← Back</a>
+            </div>
+            <div class="hdr-center">
+                <h1>Active</h1>
+                <span class="topbar-status">Updated <span id="ts">—</span> · Next refresh <span id="cdwn">—</span>s</span>
+            </div>
+            <div class="hdr-right">
+                <button class="nav-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Back to top">↑ Top</button>
+            </div>
+        </div>
+    </header>
+    <div class="container">
+        <div class="filter-bar" id="filters">
+            <button class="filter-pill active" data-filter="all">All</button>
+            <button class="filter-pill" data-filter="lights">Lights</button>
+            <button class="filter-pill" data-filter="switches">Switches</button>
+            <button class="filter-pill" data-filter="other">Other</button>
+        </div>
+
+        <div id="list"><div class="loading"><div class="spinner"></div><p>Connecting…</p></div></div>
+    </div>
+
+    <script src="config.js" onerror="window.INDIGO_CONFIG_MISSING=true"></script>
+    <script>
+    class IndigoAPIError extends Error {
+        constructor(msg, status) { super(msg); this.name = "IndigoAPIError"; this.status = status; }
+    }
+    class IndigoAPI {
+        constructor(config) {
+            const c = config || window.INDIGO_CONFIG || IndigoAPI.getStoredConfig();
+            if (!c) throw new IndigoAPIError("Not configured", 0);
+            this._base = c.baseURL.replace(/\/+$/, "");
+            this._key = c.apiKey;
+            this._authH = [];
+        }
+        static isConfigured() {
+            const c = window.INDIGO_CONFIG || IndigoAPI.getStoredConfig();
+            return !!(c && c.baseURL && c.apiKey);
+        }
+        static getStoredConfig() {
+            try { return JSON.parse(localStorage.getItem("indigo_config") || "null"); } catch { return null; }
+        }
+        static clearConfig() { localStorage.removeItem("indigo_config"); }
+        onAuthFailure(fn) { this._authH.push(fn); }
+        async _fetch(path, opts = {}) {
+            const headers = { Authorization: "Bearer " + this._key, Accept: "application/json", ...(opts.headers || {}) };
+            const r = await fetch(this._base + path, { ...opts, headers });
+            if (r.status === 401 || r.status === 403) {
+                this._authH.forEach(h => h()); throw new IndigoAPIError("Auth failed", r.status);
+            }
+            if (!r.ok) throw new IndigoAPIError("HTTP " + r.status, r.status);
+            const ct = r.headers.get("Content-Type") || "";
+            return ct.includes("json") ? r.json() : null;
+        }
+        async _cmd(message, objectId, parameters) {
+            const body = { message, objectId };
+            if (parameters) body.parameters = parameters;
+            return this._fetch("/v2/api/command", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body)
+            });
+        }
+        getDevices()         { return this._fetch("/v2/api/indigo.devices"); }
+        toggle(id)           { return this._cmd("indigo.device.toggle", id); }
+        setBrightness(id, v) { return this._cmd("indigo.dimmer.setBrightness", id, { value: v }); }
+        observeAll(cb, ms = 5000) {
+            let last = "";
+            const tick = async () => {
+                try { const d = await this.getDevices(); const j = JSON.stringify(d);
+                      if (j !== last) { last = j; cb(d); } } catch {}
+            };
+            tick();
+            const t = setInterval(tick, ms);
+            return { stop: () => clearInterval(t) };
+        }
+    }
+    </script>
+    <script>
+    // ── Refresh status: drives Updated / Next refresh in both top + bottom bar.
+    const POLL_INTERVAL_MS = 5000;
+    let _lastUpdate = 0;
+    function _pad(n) { return String(n).padStart(2, "0"); }
+    function markRefreshed() {
+        _lastUpdate = Date.now();
+        tickRefreshStatus();
+    }
+    function tickRefreshStatus() {
+        let tsStr = "—";
+        if (_lastUpdate) {
+            const d = new Date(_lastUpdate);
+            tsStr = _pad(d.getHours()) + ":" + _pad(d.getMinutes()) + ":" + _pad(d.getSeconds());
+        }
+        const elapsedS = _lastUpdate ? (Date.now() - _lastUpdate) / 1000 : 0;
+        const cdwn = Math.max(0, Math.round((POLL_INTERVAL_MS / 1000) - elapsedS));
+        for (const id of ["ts", "ts-bot"]) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = tsStr;
+        }
+        for (const id of ["cdwn", "cdwn-bot"]) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = String(cdwn);
+        }
+    }
+    // Heartbeat aligned with the polling cadence so the timestamp advances even
+    // when nothing changes; observeAll callback also calls markRefreshed() for
+    // immediate update when state DOES change.
+    setInterval(markRefreshed, POLL_INTERVAL_MS);
+    // Tick the display every second so the countdown actually counts down.
+    setInterval(tickRefreshStatus, 1000);
+
+    let indigo = null;
+    let currentFilter = "all";
+    let lastDevices = [];
+    const debounceTimers = {};
+
+    if (!IndigoAPI.isConfigured()) {
+        location.href = "index.html";
+    } else {
+        start();
+    }
+
+    function start() {
+        indigo = new IndigoAPI();
+        indigo.onAuthFailure(() => { IndigoAPI.clearConfig(); location.href = "index.html"; });
+        document.querySelectorAll(".filter-pill").forEach(b => {
+            b.addEventListener("click", () => setFilter(b.dataset.filter));
+        });
+        indigo.observeAll(devices => { markRefreshed(); lastDevices = devices; render(); }, 5000);
+    }
+
+    function setFilter(f) {
+        currentFilter = f;
+        document.querySelectorAll(".filter-pill").forEach(b => {
+            b.classList.toggle("active", b.dataset.filter === f);
+        });
+        render();
+    }
+
+    function classify(d) {
+        const cls = d.class || "";
+        const name = (d.name || "").toLowerCase();
+        if (/Dimmer/.test(cls)) return "lights";
+        if (/Relay/.test(cls)) {
+            if (/light|lamp|chandelier|sconce|bulb/.test(name)) return "lights";
+            return "switches";
+        }
+        return "other";
+    }
+
+    function describeState(d) {
+        const cls = (d.class || "").toLowerCase();
+        if (cls.includes("dimmer")) return `${d.brightness != null ? d.brightness : 0}% · ${classify(d)}`;
+        if (cls.includes("thermostat")) return `${d.hvacMode || "heating"}`;
+        return classify(d) === "lights" ? "Light on" : "On";
+    }
+
+    function render() {
+        if (!lastDevices.length) return;
+        const active = lastDevices.filter(d => d.onState === true);
+        const filtered = currentFilter === "all" ? active : active.filter(d => classify(d) === currentFilter);
+
+        const list = document.getElementById("list");
+        if (filtered.length === 0) {
+            list.innerHTML = '<p class="empty">Nothing on in this category.</p>';
+        } else {
+            list.innerHTML = '<div class="device-list">' +
+                filtered
+                    .sort((a, b) => a.name.localeCompare(b.name))
+                    .map(d => renderRow(d)).join("") +
+                '</div>';
+        }
+
+    }
+
+    function renderRow(d) {
+        const isDimmer = /Dimmer/.test(d.class || "");
+        const slider = isDimmer ? `
+            <input type="range" class="brightness" min="0" max="100"
+                   value="${d.brightness != null ? d.brightness : 100}"
+                   data-id="${d.id}"
+                   oninput="onSlider(this)"
+                   onchange="onSliderCommit(this)">` : "";
+        return `
+            <div class="device-row">
+                <div class="device-info">
+                    <div class="device-name">${escapeHtml(d.name)}</div>
+                    <div class="device-state">${escapeHtml(describeState(d))}</div>
+                </div>
+                <div class="device-controls">
+                    ${slider}
+                    <label class="toggle">
+                        <input type="checkbox" data-id="${d.id}" checked
+                               onchange="onToggle(this)">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>`;
+    }
+
+    async function onToggle(el) {
+        el.disabled = true;
+        try { await indigo.toggle(parseInt(el.dataset.id)); }
+        catch { el.checked = !el.checked; }
+        setTimeout(() => { el.disabled = false; }, 500);
+    }
+
+    function onSlider(el) {
+        const pct = parseInt(el.value);
+        el.style.background = `linear-gradient(to right, var(--accent) ${pct}%, var(--off-color) ${pct}%)`;
+    }
+
+    function onSliderCommit(el) {
+        const id = parseInt(el.dataset.id);
+        const value = parseInt(el.value);
+        clearTimeout(debounceTimers[id]);
+        debounceTimers[id] = setTimeout(async () => {
+            try { await indigo.setBrightness(id, value); } catch {}
+        }, 300);
+    }
+
+    function escapeHtml(t) {
+        const d = document.createElement("div");
+        d.textContent = String(t == null ? "" : t);
+        return d.innerHTML;
+    }
+    </script>
+
+    <footer class="bottombar">
+        <div class="bottombar-inner">
+            Updated <span id="ts-bot">—</span> · Next refresh <span id="cdwn-bot">—</span>s
+        </div>
+    </footer>
+
+
+    <style>
+        .back-to-top {
+            position: fixed;
+            bottom: max(80px, calc(72px + env(safe-area-inset-bottom)));
+            right: max(16px, env(safe-area-inset-right));
+            width: 44px; height: 44px;
+            border-radius: 50%;
+            background: var(--accent); color: #fff;
+            border: none; cursor: pointer;
+            font-size: 22px; font-weight: 700;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+            opacity: 0; pointer-events: none;
+            transition: opacity 0.25s, transform 0.15s;
+            z-index: 9;
+            font-family: inherit;
+        }
+        .back-to-top.visible { opacity: 0.9; pointer-events: auto; }
+        .back-to-top:hover  { opacity: 1; transform: translateY(-2px); }
+        .back-to-top:active { transform: translateY(0); opacity: 0.85; }
+    </style>
+    <button class="back-to-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Back to top">↑</button>
+    <script>
+        (function() {
+            const btn = document.querySelector(".back-to-top");
+            if (!btn) return;
+            const onScroll = () => {
+                if (window.scrollY > 200) btn.classList.add("visible");
+                else btn.classList.remove("visible");
+            };
+            window.addEventListener("scroll", onScroll, { passive: true });
+            onScroll();
+        })();
+    </script>
+
+</body>
+</html>

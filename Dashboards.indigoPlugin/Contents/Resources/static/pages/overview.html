@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta name="indigo-page-name" content="Overview">
+    <meta name="indigo-page-icon" content="house.fill">
+    <meta name="indigo-page-description" content="At-a-glance summary of home state">
+    
+    <!-- iOS / macOS Web App (File → Add to Dock on Mac, Share → Add to Home Screen on iPhone). -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Highsteads">
+    <meta name="theme-color" content="#5856d6">
+    <link rel="apple-touch-icon" sizes="180x180" href="/public/dashboards/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="/public/dashboards/apple-touch-icon-167.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="/public/dashboards/apple-touch-icon-152.png">
+    <link rel="apple-touch-icon-precomposed" href="/public/dashboards/apple-touch-icon.png">
+    <title>Home Overview</title>
+    <style>
+        :root {
+            --bg: #f5f5f7; --card-bg: #ffffff; --text: #1d1d1f;
+            --text-secondary: #86868b; --border: #d2d2d7;
+            --accent: #5856d6; --on-color: #34c759; --off-color: #d2d2d7;
+            --warn: #ff9500; --bad: #ff453a;
+            --shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #000000; --card-bg: #1c1c1e; --text: #f5f5f7;
+                --text-secondary: #98989d; --border: #38383a;
+                --accent: #7d7aff; --on-color: #30d158; --off-color: #48484a;
+                --shadow: 0 1px 3px rgba(0,0,0,0.3);
+            }
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+            background: var(--bg); color: var(--text);
+            padding: max(80px, calc(72px + env(safe-area-inset-top))) 0 max(32px, env(safe-area-inset-bottom));
+            min-height: 100vh; -webkit-overflow-scrolling: touch;
+        }
+        .topbar {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 10;
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            padding: 10px max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left));
+            padding-top: max(10px, env(safe-area-inset-top));
+            margin-bottom: 0;
+        }
+        .topbar-inner {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 10px; flex-wrap: wrap;
+            max-width: 900px; margin: 0 auto;
+        }
+        .topbar h1 { font-size: 18px; font-weight: 600; margin: 0; letter-spacing: -.01em; }
+        .top-jump {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--accent);
+            width: 34px; height: 32px;
+            border-radius: 8px;
+            font-size: 16px; font-weight: 700;
+            cursor: pointer;
+            display: inline-flex; align-items: center; justify-content: center;
+            font-family: inherit;
+            transition: background .15s, color .15s;
+            margin-left: 6px;
+        }
+        .top-jump:hover  { background: var(--bg); }
+        .top-jump:active { background: var(--accent); color: #fff; }
+        /* ── 3-column topbar (Back · Title + Updated · Top) ── */
+        .topbar-3col {
+            display: grid;
+            grid-template-columns: 1fr 2fr 1fr;
+            align-items: center;
+            gap: 8px;
+        }
+        .topbar-3col .hdr-left  { justify-self: start; display: flex; }
+        .topbar-3col .hdr-right { justify-self: end;   display: flex; }
+        .topbar-3col .hdr-center {
+            justify-self: stretch;
+            text-align: center;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1px;
+            line-height: 1.15;
+        }
+        .topbar-3col h1 {
+            font-size: 20px;
+            font-weight: 700;
+            margin: 0;
+            letter-spacing: -0.02em;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
+        }
+        .topbar-3col .topbar-status {
+            font-size: 11px;
+            color: var(--text-secondary);
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .nav-btn {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            color: var(--accent);
+            padding: 8px 14px;
+            border-radius: 10px;
+            font-size: 14px; font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+            text-decoration: none;
+            display: inline-flex; align-items: center; gap: 4px;
+            min-height: 36px;
+            transition: transform 0.08s ease-out, background 0.15s, box-shadow 0.08s, border-color 0.15s;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            white-space: nowrap;
+        }
+        .nav-btn:hover  { background: var(--bg); border-color: var(--accent); }
+        .nav-btn:active {
+            transform: translateY(2px) scale(0.96);
+            background: var(--accent); color: #fff;
+            box-shadow: 0 0 0 rgba(0,0,0,0);
+        }
+
+
+        .hdr-left, .hdr-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .topbar .back-link {
+            color: var(--accent); text-decoration: none; font-size: 14px; font-weight: 500;
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 6px 10px; border-radius: 8px;
+            min-height: 32px;
+            transition: background .15s;
+        }
+        .topbar .back-link:hover { background: var(--bg); }
+        .topbar-status { font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+        .bottombar {
+            position: sticky; bottom: 0; z-index: 10;
+            background: var(--card-bg);
+            border-top: 1px solid var(--border);
+            box-shadow: 0 -1px 3px rgba(0,0,0,0.08);
+            padding: 8px max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left));
+            padding-bottom: max(8px, env(safe-area-inset-bottom));
+            margin-top: 16px;
+        }
+        .bottombar-inner {
+            text-align: center;
+            max-width: 900px; margin: 0 auto;
+            font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums;
+            line-height: 1.4;
+        }
+        .container {
+            max-width: 900px; margin: 0 auto;
+            padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
+        }
+        .section-title {
+            font-size: 13px; color: var(--text-secondary);
+            text-transform: uppercase; letter-spacing: 0.5px;
+            margin: 16px 4px 8px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 12px;
+        }
+        .card {
+            background: var(--card-bg); border-radius: 12px; padding: 16px;
+            box-shadow: var(--shadow); position: relative;
+        }
+        .card-label { font-size: 12px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
+        .card-value { font-size: 32px; font-weight: 700; margin-top: 8px; line-height: 1; }
+        .card-sub { font-size: 13px; color: var(--text-secondary); margin-top: 6px; }
+        .card.warn  { border-left: 3px solid var(--warn); }
+        .card.bad   { border-left: 3px solid var(--bad); }
+        .card.ok    { border-left: 3px solid var(--on-color); }
+        .card-value.green { color: var(--on-color); }
+        .card-value.warn  { color: var(--warn); }
+        .card-value.bad   { color: var(--bad); }
+
+        .opens {
+            background: var(--card-bg); border-radius: 12px; padding: 12px 16px;
+            box-shadow: var(--shadow); margin-top: 8px;
+            display: flex; flex-direction: column; gap: 6px;
+        }
+        .open-row {
+            display: flex; justify-content: space-between; font-size: 14px;
+            padding: 4px 0;
+        }
+        .open-row .when { color: var(--text-secondary); font-size: 12px; }
+        .empty { color: var(--text-secondary); font-size: 13px; text-align: center; padding: 8px; }
+
+        .loading { text-align: center; padding: 60px 20px; color: var(--text-secondary); }
+        .spinner {
+            width: 24px; height: 24px; border: 3px solid var(--off-color);
+            border-top-color: var(--accent); border-radius: 50%;
+            animation: spin 0.8s linear infinite; margin: 0 auto 12px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .last-updated { text-align: center; font-size: 12px; color: var(--text-secondary); padding-top: 16px; }
+
+        .pill {
+            display: inline-block; padding: 2px 8px; border-radius: 10px;
+            font-size: 11px; font-weight: 600; margin-left: 6px;
+        }
+        .pill.ok  { background: rgba(52,199,89,0.18); color: var(--on-color); }
+        .pill.bad { background: rgba(255,69,58,0.18); color: var(--bad); }
+        .pill.warn{ background: rgba(255,149,0,0.18); color: var(--warn); }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <div class="topbar-inner topbar-3col">
+            <div class="hdr-left">
+                <a class="nav-btn" href="index.html">← Back</a>
+            </div>
+            <div class="hdr-center">
+                <h1>Overview</h1>
+                <span class="topbar-status">Updated <span id="ts">—</span> · Next refresh <span id="cdwn">—</span>s</span>
+            </div>
+            <div class="hdr-right">
+                <button class="nav-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Back to top">↑ Top</button>
+            </div>
+        </div>
+    </header>
+    <div class="container">
+        <div id="content">
+            <div class="loading"><div class="spinner"></div><p>Connecting…</p></div>
+        </div>
+    </div>
+
+    <script src="config.js" onerror="window.INDIGO_CONFIG_MISSING=true"></script>
+    <script>
+    class IndigoAPIError extends Error {
+        constructor(msg, status) { super(msg); this.name = "IndigoAPIError"; this.status = status; }
+    }
+    class IndigoAPI {
+        constructor(config) {
+            const c = config || window.INDIGO_CONFIG || IndigoAPI.getStoredConfig();
+            if (!c) throw new IndigoAPIError("Not configured", 0);
+            this._base = c.baseURL.replace(/\/+$/, "");
+            this._key = c.apiKey;
+            this._authH = [];
+        }
+        static isConfigured() {
+            const c = window.INDIGO_CONFIG || IndigoAPI.getStoredConfig();
+            return !!(c && c.baseURL && c.apiKey);
+        }
+        static getStoredConfig() {
+            try { return JSON.parse(localStorage.getItem("indigo_config") || "null"); } catch { return null; }
+        }
+        static clearConfig() { localStorage.removeItem("indigo_config"); }
+        onAuthFailure(fn) { this._authH.push(fn); }
+        async _fetch(path, opts = {}) {
+            const headers = { Authorization: "Bearer " + this._key, Accept: "application/json", ...(opts.headers || {}) };
+            const r = await fetch(this._base + path, { ...opts, headers });
+            if (r.status === 401 || r.status === 403) {
+                this._authH.forEach(h => h()); throw new IndigoAPIError("Auth failed", r.status);
+            }
+            if (!r.ok) throw new IndigoAPIError("HTTP " + r.status, r.status);
+            const ct = r.headers.get("Content-Type") || "";
+            return ct.includes("json") ? r.json() : null;
+        }
+        getDevices() { return this._fetch("/v2/api/indigo.devices"); }
+        observeAll(cb, ms = 5000) {
+            let last = "";
+            const tick = async () => {
+                try { const d = await this.getDevices(); const j = JSON.stringify(d);
+                      if (j !== last) { last = j; cb(d); } } catch {}
+            };
+            tick();
+            const t = setInterval(tick, ms);
+            return { stop: () => clearInterval(t) };
+        }
+    }
+    </script>
+    <script>
+    // ── Refresh status: drives Updated / Next refresh in both top + bottom bar.
+    const POLL_INTERVAL_MS = 5000;
+    let _lastUpdate = 0;
+    function _pad(n) { return String(n).padStart(2, "0"); }
+    function markRefreshed() {
+        _lastUpdate = Date.now();
+        tickRefreshStatus();
+    }
+    function tickRefreshStatus() {
+        let tsStr = "—";
+        if (_lastUpdate) {
+            const d = new Date(_lastUpdate);
+            tsStr = _pad(d.getHours()) + ":" + _pad(d.getMinutes()) + ":" + _pad(d.getSeconds());
+        }
+        const elapsedS = _lastUpdate ? (Date.now() - _lastUpdate) / 1000 : 0;
+        const cdwn = Math.max(0, Math.round((POLL_INTERVAL_MS / 1000) - elapsedS));
+        for (const id of ["ts", "ts-bot"]) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = tsStr;
+        }
+        for (const id of ["cdwn", "cdwn-bot"]) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = String(cdwn);
+        }
+    }
+    // Heartbeat aligned with the polling cadence so the timestamp advances even
+    // when nothing changes; observeAll callback also calls markRefreshed() for
+    // immediate update when state DOES change.
+    setInterval(markRefreshed, POLL_INTERVAL_MS);
+    // Tick the display every second so the countdown actually counts down.
+    setInterval(tickRefreshStatus, 1000);
+
+    const SIGEN_ID = 1563154425;
+    const HEATING_TYPES = new Set(["ramsesZoneThermostat"]);
+    const CONTACT_TYPES = new Set(["z2mContactSensor"]);
+    const LOW_BATT_THRESHOLD = 20;
+
+    if (!IndigoAPI.isConfigured()) {
+        location.href = "index.html";
+    } else {
+        const indigo = new IndigoAPI();
+        indigo.onAuthFailure(() => { IndigoAPI.clearConfig(); location.href = "index.html"; });
+        indigo.observeAll(d => { markRefreshed(); render(d); }, 5000);
+    }
+
+    function render(devices) {
+        // Lights = dimmers + relays whose name suggests lighting.
+        // BUT — if a plug is named "X Plug" and there's also a non-plug device
+        // whose name contains "X" (e.g. "Gold Lamp Plug" + "Living Room Gold Lamp"),
+        // the plug is just the upstream power for the real bulb. Exclude it from
+        // the lights count, otherwise we count "on" when the bulb is off.
+        const allNames = devices.map(d => d.name || "");
+        function isUpstreamPlug(d) {
+            const name = d.name || "";
+            if (!/RelayDevice/.test(d.class || "")) return false;
+            if (!/ Plug$/.test(name)) return false;
+            const baseName = name.replace(/ Plug$/, "");
+            // If any OTHER device's name contains the plug's root name, treat
+            // the plug as upstream-power for that device.
+            return allNames.some(n => n !== name && n.includes(baseName));
+        }
+
+        const dimmers = devices.filter(d => /Dimmer/.test(d.class || "") && d.enabled);
+        const relayLights = devices.filter(d =>
+            /RelayDevice/.test(d.class || "") && d.enabled &&
+            /light|lamp|chandelier|sconce|bulb/i.test(d.name || "") &&
+            !isUpstreamPlug(d));
+        const lights = [...dimmers, ...relayLights];
+        const lightsOn = lights.filter(d => d.onState === true).length;
+
+        // Thermostats / heating zones
+        const thermostats = devices.filter(d => /Thermostat/.test(d.class || "") && d.enabled);
+        const heatingZones = thermostats.filter(d => HEATING_TYPES.has(d.deviceTypeId) ||
+                                                    d.pluginId === "uk.co.clives.ramses.esp");
+        const callingForHeat = heatingZones.filter(d => {
+            const v = parseFloat((d.states || {})["valve-position"] || 0);
+            return !isNaN(v) && v > 0;
+        }).length;
+
+        // Contact sensors
+        const contacts = devices.filter(d => CONTACT_TYPES.has(d.deviceTypeId));
+        const openContacts = contacts.filter(d => d.onState === true);
+
+        // Errors and offline
+        const inError = devices.filter(d => d.errorState && d.errorState !== "");
+        const lowBatt = devices.filter(d => {
+            const b = d.batteryLevel;
+            return b != null && b !== "" && parseFloat(b) <= LOW_BATT_THRESHOLD;
+        });
+
+        // Sigenergy snapshot
+        const sigen = devices.find(d => d.id === SIGEN_ID);
+        let energyHtml = "";
+        if (sigen && sigen.states) {
+            const s = sigen.states;
+            const soc  = parseFloat(s.batterySoc || 0).toFixed(0);
+            const pv   = parseInt(s.pvPowerWatts || 0);
+            const home = parseInt(s.homePowerWatts || 0);
+            const grid = parseInt(s.gridPowerWatts || 0);
+            const gridLabel = grid >= 0 ? "Import" : "Export";
+            const gridCls = grid < 0 ? "green" : (grid > 100 ? "warn" : "");
+            energyHtml = `
+                <div class="section-title">Energy</div>
+                <div class="grid">
+                    <div class="card ok"><div class="card-label">Battery SoC</div><div class="card-value green">${soc}%</div><div class="card-sub">${escapeHtml(s.plantRunningState || "")}</div></div>
+                    <div class="card"><div class="card-label">Solar</div><div class="card-value">${pv} W</div><div class="card-sub">PV array</div></div>
+                    <div class="card"><div class="card-label">Home</div><div class="card-value">${home} W</div><div class="card-sub">Consumption</div></div>
+                    <div class="card"><div class="card-label">Grid ${gridLabel}</div><div class="card-value ${gridCls}">${Math.abs(grid)} W</div><div class="card-sub">${escapeHtml(s.gridStatus || "")}</div></div>
+                </div>`;
+        }
+
+        const securityCls = openContacts.length === 0 ? "ok" : "warn";
+        const securityValCls = openContacts.length === 0 ? "green" : "warn";
+
+        const opensHtml = openContacts.length === 0
+            ? '<div class="empty">All contacts closed</div>'
+            : openContacts
+                .sort((a, b) => (b.lastChanged || "").localeCompare(a.lastChanged || ""))
+                .slice(0, 10)
+                .map(d => `
+                    <div class="open-row">
+                        <span>${escapeHtml(d.name.replace(/ Contact Sensor$/, ""))}</span>
+                        <span class="when">${escapeHtml(formatWhen(d.lastChanged))}</span>
+                    </div>`).join("");
+
+        const html = `
+            <div class="section-title">Security</div>
+            <div class="grid">
+                <div class="card ${securityCls}">
+                    <div class="card-label">Contacts Open</div>
+                    <div class="card-value ${securityValCls}">${openContacts.length}</div>
+                    <div class="card-sub">of ${contacts.length} sensors</div>
+                </div>
+                <div class="card ${inError.length ? 'bad' : 'ok'}">
+                    <div class="card-label">Devices in Error</div>
+                    <div class="card-value ${inError.length ? 'bad' : 'green'}">${inError.length}</div>
+                    <div class="card-sub">${inError.length ? "needs attention" : "all healthy"}</div>
+                </div>
+                <div class="card ${lowBatt.length ? 'warn' : 'ok'}">
+                    <div class="card-label">Low Battery</div>
+                    <div class="card-value ${lowBatt.length ? 'warn' : 'green'}">${lowBatt.length}</div>
+                    <div class="card-sub">≤ ${LOW_BATT_THRESHOLD}%</div>
+                </div>
+            </div>
+
+            ${openContacts.length > 0 ? `
+                <div class="section-title">Open Contacts</div>
+                <div class="opens">${opensHtml}</div>` : ''}
+
+            <div class="section-title">Heating</div>
+            <div class="grid">
+                <div class="card ${callingForHeat ? 'warn' : 'ok'}">
+                    <div class="card-label">Calling for Heat</div>
+                    <div class="card-value ${callingForHeat ? 'warn' : 'green'}">${callingForHeat}</div>
+                    <div class="card-sub">of ${heatingZones.length} zones</div>
+                </div>
+                <div class="card">
+                    <div class="card-label">Total Thermostats</div>
+                    <div class="card-value">${thermostats.length}</div>
+                    <div class="card-sub">incl. ${heatingZones.length} RAMSES</div>
+                </div>
+            </div>
+
+            <div class="section-title">Lighting</div>
+            <div class="grid">
+                <div class="card ${lightsOn ? 'warn' : 'ok'}">
+                    <div class="card-label">Lights On</div>
+                    <div class="card-value ${lightsOn ? 'warn' : 'green'}">${lightsOn}</div>
+                    <div class="card-sub">of ${lights.length}</div>
+                </div>
+                <div class="card">
+                    <div class="card-label">Dimmers</div>
+                    <div class="card-value">${dimmers.length}</div>
+                    <div class="card-sub">total</div>
+                </div>
+                <div class="card">
+                    <div class="card-label">Relay Lights</div>
+                    <div class="card-value">${relayLights.length}</div>
+                    <div class="card-sub">total</div>
+                </div>
+            </div>
+
+            ${lightsOn > 0 ? `
+                <div class="section-title">Which Lights</div>
+                <div class="opens">
+                    ${lights
+                        .filter(d => d.onState === true)
+                        .sort((a, b) => (b.lastChanged || "").localeCompare(a.lastChanged || ""))
+                        .map(d => `
+                            <div class="open-row">
+                                <span>${escapeHtml(d.name)}</span>
+                                <span class="when">${escapeHtml(describeLight(d))} · ${escapeHtml(formatWhen(d.lastChanged))}</span>
+                            </div>`).join("")}
+                </div>` : ''}
+
+            ${energyHtml}
+
+            <div class="section-title">System</div>
+            <div class="grid">
+                <div class="card">
+                    <div class="card-label">Devices Total</div>
+                    <div class="card-value">${devices.length}</div>
+                    <div class="card-sub">${devices.filter(d => d.enabled).length} enabled</div>
+                </div>
+            </div>
+        `;
+
+        document.getElementById("content").innerHTML = html;
+    }
+
+    function describeLight(d) {
+        // For dimmers, show the brightness %. For relays, just "on".
+        if (/Dimmer/.test(d.class || "") && d.brightness != null) {
+            return parseInt(d.brightness) + "%";
+        }
+        return "on";
+    }
+
+    function formatWhen(iso) {
+        if (!iso) return "";
+        const t = Date.parse(iso);
+        if (isNaN(t)) return iso;
+        const mins = Math.round((Date.now() - t) / 60000);
+        if (mins < 1) return "now";
+        if (mins < 60) return mins + "m ago";
+        const hrs = Math.round(mins / 60);
+        if (hrs < 24) return hrs + "h ago";
+        return Math.round(hrs / 24) + "d ago";
+    }
+
+    function escapeHtml(t) {
+        const d = document.createElement("div");
+        d.textContent = String(t == null ? "" : t);
+        return d.innerHTML;
+    }
+    </script>
+
+    <footer class="bottombar">
+        <div class="bottombar-inner">
+            Updated <span id="ts-bot">—</span> · Next refresh <span id="cdwn-bot">—</span>s
+        </div>
+    </footer>
+
+
+    <style>
+        .back-to-top {
+            position: fixed;
+            bottom: max(80px, calc(72px + env(safe-area-inset-bottom)));
+            right: max(16px, env(safe-area-inset-right));
+            width: 44px; height: 44px;
+            border-radius: 50%;
+            background: var(--accent); color: #fff;
+            border: none; cursor: pointer;
+            font-size: 22px; font-weight: 700;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+            opacity: 0; pointer-events: none;
+            transition: opacity 0.25s, transform 0.15s;
+            z-index: 9;
+            font-family: inherit;
+        }
+        .back-to-top.visible { opacity: 0.9; pointer-events: auto; }
+        .back-to-top:hover  { opacity: 1; transform: translateY(-2px); }
+        .back-to-top:active { transform: translateY(0); opacity: 0.85; }
+    </style>
+    <button class="back-to-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Back to top">↑</button>
+    <script>
+        (function() {
+            const btn = document.querySelector(".back-to-top");
+            if (!btn) return;
+            const onScroll = () => {
+                if (window.scrollY > 200) btn.classList.add("visible");
+                else btn.classList.remove("visible");
+            };
+            window.addEventListener("scroll", onScroll, { passive: true });
+            onScroll();
+        })();
+    </script>
+
+</body>
+</html>
