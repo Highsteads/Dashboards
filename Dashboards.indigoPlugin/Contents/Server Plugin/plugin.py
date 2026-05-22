@@ -7,9 +7,18 @@
 #              `public/` namespace is the only path that bypasses auth).
 #              Reads INDIGO_URL / INDIGO_API_KEY from IndigoSecrets.py and
 #              writes them into `config.js` alongside the copied pages.
+#              Polls Dahua cameras in a background thread using HTTP Digest
+#              auth (DAHUA_USER / DAHUA_PASS from IndigoSecrets.py) and writes
+#              the JPEGs as cam-<ip>.jpg into the same public folder, so
+#              cameras.html loads them same-origin with no browser auth.
+#              Also runs a tiny HTTP MJPEG proxy on port 8177 that relays each
+#              camera's live multipart/x-mixed-replace stream to the browser,
+#              again handling Digest auth server-side. The page uses MJPEG
+#              for the live grid and falls back to the still snapshot if a
+#              stream connection fails.
 # Author:      CliveS & Claude Opus 4.7
-# Date:        17-05-2026
-# Version:     1.4.0
+# Date:        21-05-2026
+# Version:     1.15.3
 
 try:
     import indigo
@@ -20,6 +29,7 @@ import json
 import os
 import shutil
 import sys as _sys
+import time
 from datetime import datetime
 
 # Capture cwd at module load time — Indigo sets cwd to Contents/Server Plugin/
@@ -47,6 +57,14 @@ try:
     from IndigoSecrets import CLAUDEBRIDGE_BEARER_TOKEN
 except ImportError:
     CLAUDEBRIDGE_BEARER_TOKEN = ""
+try:
+    from IndigoSecrets import DAHUA_USER
+except ImportError:
+    DAHUA_USER = ""
+try:
+    from IndigoSecrets import DAHUA_PASS
+except ImportError:
+    DAHUA_PASS = ""
 
 
 # ============================================================
@@ -54,7 +72,7 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION    = "1.4.0"
+PLUGIN_VERSION    = "1.15.3"
 # Pages are mirrored into Web Assets/public/dashboards/ so IWS serves them
 # WITHOUT HTTP Basic Auth. Indigo only treats the global /public/ namespace
 # as anonymous — per-plugin `public/` subfolders still require auth.
@@ -64,6 +82,64 @@ SIGEN_LEGACY_URL  = "http://192.168.100.160:8179/"
 
 # Source folder inside the plugin bundle that holds the HTML pages we mirror.
 PAGES_SOURCE_DIR  = os.path.join(CONTENTS_DIR, "Resources", "static", "pages")
+
+# Cameras shown on cameras.html. Each entry needs a host, a display name, and
+# a vendor — vendor controls which RTSP / snapshot URL pattern is used. Both
+# vendor families take the shared DAHUA_USER / DAHUA_PASS from IndigoSecrets
+# (the user confirmed all 9 cams use the same admin account).
+#
+# Vendors:
+#   "dahua"     — Dahua / Amcrest / Lorex (Dahua firmware)
+#   "hikvision" — Hikvision / Hilook / LTS (Hikvision firmware)
+CAMERAS = [
+    # Order matters: the first entry is the default "focused" tile on the
+    # cameras.html page — it appears large at the top with the rest as a row
+    # of smaller tiles underneath.
+    {"host": "192.168.100.56", "name": "Garage",           "vendor": "dahua"},
+    {"host": "192.168.100.57", "name": "Front Door",       "vendor": "dahua"},
+    {"host": "192.168.100.68", "name": "Drive",            "vendor": "dahua"},
+    {"host": "192.168.100.61", "name": "Inside Garage",    "vendor": "hikvision"},
+    {"host": "192.168.100.62", "name": "Back Garden",      "vendor": "hikvision"},
+    {"host": "192.168.100.60", "name": "Back Door",        "vendor": "dahua"},
+    {"host": "192.168.100.67", "name": "Patio",            "vendor": "dahua"},
+    {"host": "192.168.100.66", "name": "Rear Garage",      "vendor": "dahua"},
+    {"host": "192.168.100.65", "name": "Left Garage Door", "vendor": "dahua"},
+]
+CAMERA_PORT          = 80                                  # snapshot HTTP port (Dahua & Hikvision)
+CAMERA_POLL_SECONDS  = 2.0                                 # snapshot poll interval per camera (drives the thumbnail tiles; only the 3 still cams are actually polled — live cams skipped)
+LIVE_POOL_SIZE       = 6                                   # how many cameras run live MJPEG on cameras.html. Browsers cap HTTP/1.1 connections per origin at ~6, so don't exceed that.
+SWAP_OUT_HOST        = "192.168.100.60"                    # Back Door — the default-pool cam that gets bumped to still when the user peeks at one of the last-3 cameras. Should be the cam that matters least to keep live continuously.
+CAMERA_HTTP_TIMEOUT  = 15.0                                # per-snapshot timeout (4K snapshots can take 5-10s on busy cams)
+
+# Vendor URL templates: {host} {user} {pass} are substituted. RTSP paths
+# target the mainstream H.264 channel so go2rtc has the highest-quality source
+# to transcode into MJPEG.
+VENDOR_URLS = {
+    "dahua": {
+        "snapshot_path": "/cgi-bin/snapshot.cgi",
+        "rtsp_main":     "rtsp://{user}:{pwd}@{host}:554/cam/realmonitor?channel=1&subtype=0",
+    },
+    "hikvision": {
+        "snapshot_path": "/ISAPI/Streaming/channels/101/picture",
+        "rtsp_main":     "rtsp://{user}:{pwd}@{host}:554/Streaming/Channels/101",
+    },
+}
+
+# MJPEG proxy: tiny HTTP server bound to this port that streams the camera's
+# multipart/x-mixed-replace response straight to the browser. Same trusted-LAN
+# threat model as /public/dashboards/ — no auth on the proxy itself.
+MJPEG_PROXY_PORT     = 8177
+MJPEG_UPSTREAM_TIMEOUT = 8.0
+
+# go2rtc — WebRTC/low-latency video for live.html. The plugin generates a
+# config.yaml at startup (RTSP URLs include DAHUA_USER/DAHUA_PASS) and runs
+# go2rtc as a subprocess. Bind addresses:
+#   :1984 — HTTP API + WebRTC signaling (used by the browser)
+#   :8555 — WebRTC media (TCP, served back to the browser)
+GO2RTC_BIN           = os.path.expanduser("~/bin/go2rtc")
+GO2RTC_API_PORT      = 1984
+GO2RTC_WEBRTC_PORT   = 8555
+GO2RTC_RTSP_PORT     = 8554            # exposed for completeness; not used by the page
 
 
 # ============================================================
@@ -83,16 +159,22 @@ class Plugin(indigo.PluginBase):
     def __init__(self, pluginId, pluginDisplayName, pluginVersion, pluginPrefs):
         super().__init__(pluginId, pluginDisplayName, pluginVersion, pluginPrefs)
 
-        self.api_key = (INDIGO_API_KEY or CLAUDEBRIDGE_BEARER_TOKEN or "").strip()
-        self.api_url = (INDIGO_URL or "").strip()
+        self.api_key     = (INDIGO_API_KEY or CLAUDEBRIDGE_BEARER_TOKEN or "").strip()
+        self.api_url     = (INDIGO_URL or "").strip()
+        self.cam_user    = (DAHUA_USER or "").strip()
+        self.cam_pass    = (DAHUA_PASS or "").strip()
 
         secrets_state = self._secrets_state()
+        cam_state     = self._camera_state()
 
         if log_startup_banner:
             log_startup_banner(pluginId, pluginDisplayName, pluginVersion, extras=[
                 ("Dashboards URL:", f"http://<server>:8176{INDEX_PATH}"),
                 ("Indigo URL:",     self.api_url or "(unset)"),
                 ("API key source:", secrets_state),
+                ("Cameras:",        cam_state),
+                ("MJPEG proxy:",    f"port {MJPEG_PROXY_PORT}"),
+                ("go2rtc / WebRTC:", f"port {GO2RTC_API_PORT}"),
             ])
         else:
             indigo.server.log(f"{pluginDisplayName} v{pluginVersion} starting — credentials: {secrets_state}")
@@ -103,6 +185,11 @@ class Plugin(indigo.PluginBase):
         if CLAUDEBRIDGE_BEARER_TOKEN:
             return "CLAUDEBRIDGE_BEARER_TOKEN (fallback)"
         return "missing — page will prompt for credentials"
+
+    def _camera_state(self):
+        if self.cam_user and self.cam_pass:
+            return f"{len(CAMERAS)} configured (DAHUA_USER/DAHUA_PASS from IndigoSecrets)"
+        return f"{len(CAMERAS)} configured but DAHUA_USER/DAHUA_PASS missing"
 
     def _public_dashboards_dir(self):
         """Absolute path to Web Assets/public/dashboards/ for the current Indigo
@@ -175,6 +262,23 @@ class Plugin(indigo.PluginBase):
         if self.api_url and self.api_key:
             cfg = {"baseURL": self.api_url, "apiKey": self.api_key}
 
+        # Cameras: only publish host list + display names to the browser. The
+        # plugin polls each camera itself with Digest auth and writes the JPEGs
+        # as static files into the public folder, so credentials never leave
+        # the server.
+        cam_cfg = {
+            "hosts":          [c["host"] for c in CAMERAS],
+            "names":          {c["host"]: c["name"] for c in CAMERAS},
+            "slugs":          {c["host"]: self._cam_slug(c["name"]) for c in CAMERAS},
+            "imagePattern":   "cam-{host}.jpg",            # snapshot fallback
+            "pollSeconds":    CAMERA_POLL_SECONDS,
+            "mjpegPort":      MJPEG_PROXY_PORT,            # live MJPEG proxy
+            "mjpegPath":      "/mjpeg/{host}",             # ?subtype=0 (HD) / 1 (SD)
+            "go2rtcPort":     GO2RTC_API_PORT,             # WebRTC backend
+            "livePoolSize":   LIVE_POOL_SIZE,              # how many cams run live at once
+            "swapOutHost":    SWAP_OUT_HOST,               # bumped to still when peeking a non-default cam
+        }
+
         source = self._secrets_state()
         body = (
             "// Generated by Dashboards plugin at startup. Do not edit by hand.\n"
@@ -182,6 +286,7 @@ class Plugin(indigo.PluginBase):
             "// dashboards auto-connect; otherwise the connection form is shown.\n"
             f"window.INDIGO_CONFIG = {json.dumps(cfg)};\n"
             f"window.INDIGO_CONFIG_SOURCE = {json.dumps(source)};\n"
+            f"window.CAMERA_CONFIG = {json.dumps(cam_cfg)};\n"
         )
         path = self._config_js_path()
         try:
@@ -193,15 +298,509 @@ class Plugin(indigo.PluginBase):
             log(f"Failed to write {path}: {e}", level="ERROR")
 
     # --------------------------------------------------------
+    # MJPEG proxy (tiny HTTP server in a daemon thread)
+    # --------------------------------------------------------
+
+    def _start_mjpeg_proxy(self):
+        """Bind a small HTTP server to MJPEG_PROXY_PORT and serve one endpoint
+        per camera. Each request opens an upstream MJPEG stream to the camera
+        (Digest auth) and pipes the multipart bytes straight to the client.
+        Per-request thread because socketserver's ThreadingMixIn handles each
+        connection on its own thread — fine for 3 cameras × a few viewers."""
+        if not (self.cam_user and self.cam_pass):
+            log("[MJPEG] DAHUA_USER/DAHUA_PASS not set — MJPEG proxy disabled",
+                level="WARNING")
+            self._mjpeg_server = None
+            return
+
+        import http.server
+        import socketserver
+        import threading
+        from urllib.parse import urlparse, parse_qs
+
+        # Map host → go2rtc stream slug. The MJPEG proxy targets go2rtc's
+        # transcoded-MJPEG endpoint (mainstream H.264 → MJPEG via ffmpeg) so
+        # the picture stays sharp regardless of how the camera's own MJPEG
+        # substream is configured. Goodbye Garage shimmer.
+        host_to_slug  = {c["host"]: self._cam_slug(c["name"]) for c in CAMERAS}
+        allowed_hosts = set(host_to_slug.keys())
+        plugin_self   = self
+
+        class _Handler(http.server.BaseHTTPRequestHandler):
+            # Silence default per-request access logging — we'd flood the event log.
+            def log_message(self, format, *args):
+                pass
+
+            def do_GET(self):
+                # Routes:
+                #   /mjpeg/<host>?subtype=N    → live multipart stream
+                #   /streams                   → go2rtc /api/streams (with CORS)
+                #   /healthz                   → "ok"
+                parsed = urlparse(self.path)
+                if parsed.path == "/healthz":
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/plain")
+                    self.end_headers()
+                    self.wfile.write(b"ok")
+                    return
+
+                if parsed.path == "/streams":
+                    # Proxy go2rtc's stats JSON. Lets the page poll byte counters
+                    # for the bandwidth indicator without cross-origin headaches.
+                    import urllib.request
+                    try:
+                        with urllib.request.urlopen(
+                                f"http://127.0.0.1:{GO2RTC_API_PORT}/api/streams",
+                                timeout=2.0) as r:
+                            payload = r.read()
+                        self.send_response(200)
+                        self.send_header("Content-Type", "application/json")
+                        self.send_header("Access-Control-Allow-Origin", "*")
+                        self.send_header("Cache-Control", "no-store")
+                        self.send_header("Content-Length", str(len(payload)))
+                        self.end_headers()
+                        self.wfile.write(payload)
+                    except Exception as exc:
+                        self.send_error(502, f"go2rtc unreachable: {exc}")
+                    return
+
+                if not parsed.path.startswith("/mjpeg/"):
+                    self.send_error(404, "not found")
+                    return
+
+                host = parsed.path[len("/mjpeg/"):]
+                if host not in allowed_hosts:
+                    self.send_error(403, "host not allowed")
+                    return
+
+                qs   = parse_qs(parsed.query or "")
+                slug = host_to_slug[host]
+                # All cameras go through go2rtc's ffmpeg-transcoded MJPEG —
+                # works the same for Dahua and Hikvision because go2rtc only
+                # cares about the RTSP source. Local connection, no auth.
+                import requests
+                upstream = (f"http://127.0.0.1:{GO2RTC_API_PORT}/api/stream.mjpeg"
+                            f"?src={slug}_mjpeg")
+                auth     = None
+
+                try:
+                    r = requests.get(
+                        upstream,
+                        auth=auth,
+                        stream=True,
+                        timeout=MJPEG_UPSTREAM_TIMEOUT,
+                    )
+                except Exception as exc:
+                    plugin_self.logger.warning(
+                        f"[MJPEG] {host} upstream connect failed: {exc}")
+                    self.send_error(502, "upstream connect failed")
+                    return
+
+                try:
+                    if r.status_code != 200:
+                        plugin_self.logger.warning(
+                            f"[MJPEG] {host} upstream HTTP {r.status_code}")
+                        self.send_error(502, f"upstream {r.status_code}")
+                        return
+
+                    ct = r.headers.get("Content-Type", "multipart/x-mixed-replace; boundary=myboundary")
+                    self.send_response(200)
+                    self.send_header("Content-Type", ct)
+                    self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+                    self.send_header("Pragma", "no-cache")
+                    self.send_header("Connection", "close")
+                    # CORS: pages are same-host but different port → cross-origin.
+                    # <img> doesn't need CORS but explicit header doesn't hurt.
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.end_headers()
+
+                    for chunk in r.iter_content(chunk_size=16384):
+                        if not chunk:
+                            continue
+                        try:
+                            self.wfile.write(chunk)
+                        except (BrokenPipeError, ConnectionResetError, OSError):
+                            # Client disconnected — close the upstream and bail.
+                            break
+                finally:
+                    try:
+                        r.close()
+                    except Exception:
+                        pass
+
+        class _Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
+            daemon_threads      = True
+            allow_reuse_address = True
+
+        try:
+            srv = _Server(("0.0.0.0", MJPEG_PROXY_PORT), _Handler)
+        except Exception as exc:
+            log(f"[MJPEG] Could not bind :{MJPEG_PROXY_PORT}: {exc}", level="ERROR")
+            self._mjpeg_server = None
+            return
+
+        self._mjpeg_server = srv
+        thread = threading.Thread(target=srv.serve_forever, daemon=True, name="MjpegProxy")
+        thread.start()
+        log(f"[MJPEG] Proxy listening on :{MJPEG_PROXY_PORT}")
+
+    def _stop_mjpeg_proxy(self):
+        if getattr(self, "_mjpeg_server", None):
+            try:
+                self._mjpeg_server.shutdown()
+                self._mjpeg_server.server_close()
+                log("[MJPEG] Proxy stopped")
+            except Exception as exc:
+                log(f"[MJPEG] Shutdown error: {exc}", level="WARNING")
+            self._mjpeg_server = None
+
+    # --------------------------------------------------------
+    # go2rtc lifecycle (WebRTC backend for live.html)
+    # --------------------------------------------------------
+
+    def _go2rtc_dir(self):
+        """Per-plugin prefs folder. Indigo guarantees this path is writeable
+        and survives version upgrades."""
+        base = indigo.server.getInstallFolderPath()
+        d = os.path.join(base, "Preferences", "Plugins", self.pluginId, "go2rtc")
+        os.makedirs(d, exist_ok=True)
+        return d
+
+    def _go2rtc_config_path(self):
+        return os.path.join(self._go2rtc_dir(), "go2rtc.yaml")
+
+    def _go2rtc_log_path(self):
+        return os.path.join(self._go2rtc_dir(), "go2rtc.log")
+
+    def _write_go2rtc_config(self):
+        """Generate go2rtc.yaml from CAMERAS + DAHUA_USER/PASS. Each camera
+        gets a stream name = sanitised display name; the RTSP URL pulls the
+        mainstream so go2rtc can repackage to WebRTC/MSE on demand."""
+        import shutil
+        from urllib.parse import quote
+        user_q = quote(self.cam_user, safe="")
+        pass_q = quote(self.cam_pass, safe="")
+
+        # Indigo's plugin host runs with a minimal PATH that excludes Homebrew,
+        # so go2rtc would otherwise fail with `exec: "ffmpeg": executable file
+        # not found`. Resolve the absolute path here and write it into the yaml.
+        ffmpeg_bin = (shutil.which("ffmpeg")
+                      or shutil.which("ffmpeg", path="/opt/homebrew/bin:/usr/local/bin")
+                      or "")
+
+        lines = [
+            "# Generated by Dashboards plugin — do not edit by hand.",
+            "",
+            "api:",
+            f"  listen: ':{GO2RTC_API_PORT}'",
+            "  origin: '*'",                               # accept cross-origin WS for live.html
+            "",
+            "rtsp:",
+            f"  listen: ':{GO2RTC_RTSP_PORT}'",
+            "",
+            "webrtc:",
+            f"  listen: ':{GO2RTC_WEBRTC_PORT}/tcp'",
+            "  candidates:",
+            f"    - 192.168.100.160:{GO2RTC_WEBRTC_PORT}",
+            "    - stun:8555",
+            "",
+            "log:",
+            "  level: info",
+            "",
+        ]
+        if ffmpeg_bin:
+            lines += [
+                "ffmpeg:",
+                f"  bin: {ffmpeg_bin}",
+                "",
+            ]
+        else:
+            log("[go2rtc] ffmpeg not found on PATH — MJPEG transcode will fail. "
+                "Install Homebrew ffmpeg or set GO2RTC_FFMPEG_BIN.", level="WARNING")
+        lines += ["streams:"]
+        # Two streams per camera:
+        #   <slug>        = mainstream H.264 RTSP (vendor-specific URL).
+        #                   Available for direct RTSP consumers; not used by
+        #                   the page after retiring live.html.
+        #   <slug>_mjpeg  = mainstream H.264 transcoded → MJPEG via ffmpeg.
+        #                   Consumed by the plugin's MJPEG proxy so the page
+        #                   gets sharp mainstream-quality MJPEG without any
+        #                   substream encoder shimmer (UI3-style trick).
+        for cam in CAMERAS:
+            slug   = self._cam_slug(cam["name"])
+            vendor = cam.get("vendor", "dahua")
+            tpl    = VENDOR_URLS.get(vendor, VENDOR_URLS["dahua"])["rtsp_main"]
+            rtsp   = tpl.format(user=user_q, pwd=pass_q, host=cam["host"])
+            lines.append(f"  {slug}: {rtsp}")
+            # ffmpeg: source is the named stream <slug>; #video=mjpeg adds an
+            # MJPEG re-encode in front of go2rtc's MJPEG consumer.
+            lines.append(f"  {slug}_mjpeg: ffmpeg:{slug}#video=mjpeg")
+
+        path = self._go2rtc_config_path()
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+        os.chmod(path, 0o600)        # contains credentials — owner-readable only
+        log(f"[go2rtc] Wrote config {path} ({len(CAMERAS)} streams)")
+        return path
+
+    @staticmethod
+    def _cam_slug(name):
+        """Stable stream name for a camera: lowercase, spaces → underscores."""
+        return "".join(c if c.isalnum() else "_" for c in name.lower()).strip("_")
+
+    def _start_go2rtc(self):
+        """Launch go2rtc as a subprocess. We don't keep stdout in memory —
+        it's redirected to a logfile so the event log stays clean."""
+        if not (self.cam_user and self.cam_pass):
+            log("[go2rtc] DAHUA_USER/DAHUA_PASS not set — WebRTC backend disabled",
+                level="WARNING")
+            self._go2rtc_proc = None
+            return
+        if not os.path.isfile(GO2RTC_BIN) or not os.access(GO2RTC_BIN, os.X_OK):
+            log(f"[go2rtc] Binary not found or not executable at {GO2RTC_BIN} — "
+                f"live.html will not work. Install: download go2rtc_mac_arm64.zip "
+                f"from https://github.com/AlexxIT/go2rtc/releases", level="WARNING")
+            self._go2rtc_proc = None
+            return
+
+        cfg = self._write_go2rtc_config()
+        import subprocess
+        # Augment PATH so go2rtc can find ffmpeg (Indigo's plugin host PATH is
+        # minimal and excludes Homebrew). The yaml's `ffmpeg.bin` setting is
+        # the primary mechanism; this PATH augmentation is belt-and-braces in
+        # case ffmpeg calls out to other tools (e.g. ffprobe) without absolute paths.
+        env = os.environ.copy()
+        env["PATH"] = (
+            "/opt/homebrew/bin:/usr/local/bin:/opt/local/bin:"
+            + env.get("PATH", "")
+        )
+        try:
+            log_f = open(self._go2rtc_log_path(), "ab", buffering=0)
+            self._go2rtc_logfile = log_f
+            self._go2rtc_proc = subprocess.Popen(
+                [GO2RTC_BIN, "-config", cfg],
+                env=env,
+                stdout=log_f,
+                stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL,
+                close_fds=True,
+                start_new_session=True,    # so SIGTERM to plugin doesn't auto-kill it; we do that explicitly
+            )
+            log(f"[go2rtc] Started (pid {self._go2rtc_proc.pid}) — "
+                f"API http://192.168.100.160:{GO2RTC_API_PORT}/")
+        except Exception as exc:
+            log(f"[go2rtc] Could not start: {exc}", level="ERROR")
+            self._go2rtc_proc = None
+
+    def _mirror_go2rtc_assets(self):
+        """Copy go2rtc's video-stream.js + video-rtc.js into the public dashboards
+        folder so live.html can load them same-origin. go2rtc itself doesn't send
+        CORS headers, and iOS Safari refuses cross-origin <script type=module>
+        imports without them. Runs after the subprocess has had a moment to bind."""
+        import urllib.request
+        # Give go2rtc a beat to bind :1984 — the bind happens on its main loop
+        # which takes ~200-500ms after Popen returns.
+        for attempt in range(20):
+            try:
+                with urllib.request.urlopen(f"http://127.0.0.1:{GO2RTC_API_PORT}/api",
+                                            timeout=1.0) as r:
+                    if r.status == 200:
+                        break
+            except Exception:
+                pass
+            time.sleep(0.25)
+        else:
+            log("[go2rtc] API didn't respond within 5s — assets not mirrored",
+                level="WARNING")
+            return
+
+        dst_dir = self._public_dashboards_dir()
+        copied  = 0
+        for name in ("video-stream.js", "video-rtc.js"):
+            try:
+                with urllib.request.urlopen(
+                        f"http://127.0.0.1:{GO2RTC_API_PORT}/{name}",
+                        timeout=3.0) as r:
+                    data = r.read()
+                with open(os.path.join(dst_dir, name), "wb") as f:
+                    f.write(data)
+                copied += 1
+            except Exception as exc:
+                log(f"[go2rtc] Could not mirror {name}: {exc}", level="WARNING")
+        if copied:
+            log(f"[go2rtc] Mirrored {copied} JS asset(s) into {dst_dir}")
+
+    def _stop_go2rtc(self):
+        proc = getattr(self, "_go2rtc_proc", None)
+        if proc:
+            try:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5)
+                except Exception:
+                    proc.kill()
+                    proc.wait(timeout=2)
+                log(f"[go2rtc] Stopped (pid {proc.pid})")
+            except Exception as exc:
+                log(f"[go2rtc] Shutdown error: {exc}", level="WARNING")
+            self._go2rtc_proc = None
+        lf = getattr(self, "_go2rtc_logfile", None)
+        if lf:
+            try: lf.close()
+            except Exception: pass
+            self._go2rtc_logfile = None
+
+    # --------------------------------------------------------
+    # Camera snapshot poller (background thread via runConcurrentThread)
+    # --------------------------------------------------------
+
+    def _cam_jpg_path(self, host):
+        return os.path.join(self._public_dashboards_dir(), f"cam-{host}.jpg")
+
+    def _fetch_one_snapshot(self, host):
+        """Fetch a single JPEG via go2rtc's /api/frame.jpeg endpoint. This
+        decodes one frame from the camera's RTSP stream (the same source
+        go2rtc uses for the live MJPEG transcode), so any camera that streams
+        will also snapshot — even cameras whose own /snapshot.cgi endpoint is
+        broken (e.g. the Patio 4K returns HTTP 500 directly). Bonus: removes
+        the vendor-specific snapshot URL handling — go2rtc does that work."""
+        import requests
+        cam  = next((c for c in CAMERAS if c["host"] == host), None)
+        slug = self._cam_slug((cam or {}).get("name", host))
+        url  = f"http://127.0.0.1:{GO2RTC_API_PORT}/api/frame.jpeg?src={slug}"
+        try:
+            r = requests.get(url, timeout=CAMERA_HTTP_TIMEOUT, stream=False)
+            if r.status_code != 200:
+                return False, f"HTTP {r.status_code}"
+            ct = r.headers.get("Content-Type", "")
+            if "image" not in ct:
+                return False, f"unexpected content-type {ct!r}"
+            return True, r.content
+        except Exception as exc:
+            return False, str(exc)
+
+    def _write_atomic(self, path, data):
+        """Write bytes to a temp file then rename — avoids the browser ever
+        reading a half-written JPEG."""
+        tmp = path + ".tmp"
+        with open(tmp, "wb") as f:
+            f.write(data)
+        os.replace(tmp, path)
+
+    def _fetch_go2rtc_streams(self):
+        """Fetch go2rtc's full /api/streams JSON. Returns parsed dict or None
+        if go2rtc is unreachable."""
+        import urllib.request
+        try:
+            with urllib.request.urlopen(
+                f"http://127.0.0.1:{GO2RTC_API_PORT}/api/streams",
+                timeout=2.0) as r:
+                return json.loads(r.read().decode("utf-8"))
+        except Exception:
+            return None
+
+    def _active_mjpeg_slugs_from(self, streams):
+        """Given a parsed /api/streams dict, return slugs with active consumers."""
+        active = set()
+        if not streams:
+            return active
+        suffix = "_mjpeg"
+        for name, info in streams.items():
+            if name.endswith(suffix) and info.get("consumers"):
+                active.add(name[:-len(suffix)])
+        return active
+
+    def _write_streams_json(self, streams):
+        """Mirror go2rtc /api/streams to Web Assets/public/dashboards/streams.json
+        so the cameras page can read it same-origin (port 8176) instead of
+        cross-port fetching to 8177. iOS Safari blocks the cross-port fetch
+        in some configurations even with CORS headers.
+        Adds a _writeTs (Unix epoch, seconds, fractional) so the page can do
+        delta math against the actual write time — otherwise the page poll
+        cadence and the file write cadence interleave and bandwidth alternates
+        between the real value and 0."""
+        if streams is None:
+            return
+        try:
+            payload = dict(streams)
+            payload["_writeTs"] = time.time()
+            path = os.path.join(self._public_dashboards_dir(), "streams.json")
+            self._write_atomic(path, json.dumps(payload).encode("utf-8"))
+        except Exception as exc:
+            log(f"[Cameras] streams.json write failed: {exc}", level="WARNING")
+
+    def _poll_cameras_once(self):
+        """One sweep over every configured camera. Skips cams that currently
+        have a live MJPEG consumer (the dashboard is already streaming them;
+        their cam-<ip>.jpg snapshot is unused). Logs failures throttled (state
+        stored in self._cam_state) so the event log doesn't flood when a
+        camera is offline for hours."""
+        streams      = self._fetch_go2rtc_streams()
+        active_slugs = self._active_mjpeg_slugs_from(streams)
+        # Mirror the streams JSON for the dashboard bandwidth indicator.
+        self._write_streams_json(streams)
+        for cam in CAMERAS:
+            host = cam["host"]
+            slug = self._cam_slug(cam["name"])
+            if slug in active_slugs:
+                # Camera is being consumed live; skip the redundant snapshot.
+                continue
+            st   = self._cam_state.setdefault(host, {"ok_count": 0, "fail_count": 0, "last_log": 0})
+            ok, payload = self._fetch_one_snapshot(host)
+            now = time.time()
+            if ok:
+                try:
+                    self._write_atomic(self._cam_jpg_path(host), payload)
+                    st["ok_count"]   += 1
+                    if st["fail_count"] >= 3:                 # camera came back
+                        log(f"[Cameras] {cam['name']} ({host}) recovered after {st['fail_count']} failures")
+                    st["fail_count"]  = 0
+                except Exception as exc:
+                    log(f"[Cameras] Could not write snapshot for {host}: {exc}", level="ERROR")
+            else:
+                st["fail_count"] += 1
+                # Log on 1st failure and then every 60s while it keeps failing.
+                if st["fail_count"] == 1 or (now - st["last_log"]) > 60:
+                    log(f"[Cameras] {cam['name']} ({host}) snapshot failed: {payload}", level="WARNING")
+                    st["last_log"] = now
+
+    def runConcurrentThread(self):
+        """Main background loop. Indigo calls this once after startup; we keep
+        looping until self.stopThread is set during shutdown. self.sleep()
+        raises self.StopThread on shutdown — catching it exits cleanly."""
+        try:
+            if not (self.cam_user and self.cam_pass):
+                log("[Cameras] DAHUA_USER/DAHUA_PASS not set — snapshot poller idle",
+                    level="WARNING")
+                while True:
+                    self.sleep(60.0)
+            log(f"[Cameras] Poller started — {len(CAMERAS)} camera(s), every {CAMERA_POLL_SECONDS}s")
+            while True:
+                t0 = time.time()
+                self._poll_cameras_once()
+                dt = time.time() - t0
+                self.sleep(max(0.1, CAMERA_POLL_SECONDS - dt))
+        except self.StopThread:
+            log("[Cameras] Poller stopped")
+
+    # --------------------------------------------------------
     # Lifecycle
     # --------------------------------------------------------
 
     def startup(self):
+        self._cam_state    = {}                              # populated by poller
+        self._mjpeg_server = None
+        self._go2rtc_proc  = None
         self._sync_pages_to_public()
         self._write_config_js()
+        self._start_mjpeg_proxy()
+        self._start_go2rtc()
+        self._mirror_go2rtc_assets()
         self.logger.info(f"{self.pluginDisplayName} started")
 
     def shutdown(self):
+        self._stop_mjpeg_proxy()
+        self._stop_go2rtc()
         self.logger.info(f"{self.pluginDisplayName} stopped")
 
     def showPluginInfo(self, valuesDict=None, typeId=None):
@@ -210,6 +809,7 @@ class Plugin(indigo.PluginBase):
                 ("Dashboards URL:", f"http://<server>:8176{INDEX_PATH}"),
                 ("Indigo URL:",     self.api_url or "(unset)"),
                 ("API key source:", self._secrets_state()),
+                ("Cameras:",        self._camera_state()),
             ])
         else:
             indigo.server.log(f"{self.pluginDisplayName} v{self.pluginVersion}")
@@ -272,10 +872,12 @@ class Plugin(indigo.PluginBase):
         try:
             import IndigoSecrets
             importlib.reload(IndigoSecrets)
-            self.api_url = (getattr(IndigoSecrets, "INDIGO_URL", "") or "").strip()
-            self.api_key = (getattr(IndigoSecrets, "INDIGO_API_KEY", "")
-                            or getattr(IndigoSecrets, "CLAUDEBRIDGE_BEARER_TOKEN", "")
-                            or "").strip()
+            self.api_url  = (getattr(IndigoSecrets, "INDIGO_URL", "") or "").strip()
+            self.api_key  = (getattr(IndigoSecrets, "INDIGO_API_KEY", "")
+                             or getattr(IndigoSecrets, "CLAUDEBRIDGE_BEARER_TOKEN", "")
+                             or "").strip()
+            self.cam_user = (getattr(IndigoSecrets, "DAHUA_USER", "") or "").strip()
+            self.cam_pass = (getattr(IndigoSecrets, "DAHUA_PASS", "") or "").strip()
         except Exception as exc:
             log(f"[Menu] Reload IndigoSecrets failed: {exc}", level="ERROR")
             return False

@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta name="indigo-page-name" content="Cameras">
+    <meta name="indigo-page-icon" content="video.fill">
+    <meta name="indigo-page-description" content="Dahua IP cameras via go2rtc MJPEG transcode">
+
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Highsteads">
+    <meta name="theme-color" content="#5856d6">
+    <link rel="apple-touch-icon" sizes="180x180" href="/public/dashboards/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="/public/dashboards/apple-touch-icon-167.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="/public/dashboards/apple-touch-icon-152.png">
+    <title>Cameras</title>
+    <style>
+        :root {
+            --bg: #f5f5f7; --card-bg: #ffffff; --text: #1d1d1f;
+            --text-secondary: #86868b; --border: #d2d2d7;
+            --accent: #5856d6; --on-color: #34c759; --bad: #ff453a;
+            --shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #000000; --card-bg: #1c1c1e; --text: #f5f5f7;
+                --text-secondary: #98989d; --border: #38383a;
+                --accent: #7d7aff; --on-color: #30d158;
+                --shadow: 0 1px 3px rgba(0,0,0,0.3);
+            }
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+            background: var(--bg); color: var(--text);
+            padding: max(80px, calc(72px + env(safe-area-inset-top))) 0 max(32px, env(safe-area-inset-bottom));
+            min-height: 100vh; -webkit-overflow-scrolling: touch;
+        }
+        .topbar {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 10;
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            padding: 10px max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left));
+            padding-top: max(10px, env(safe-area-inset-top));
+        }
+        .topbar-inner {
+            display: grid;
+            grid-template-columns: 1fr 2fr 1fr;
+            align-items: center; gap: 8px;
+            max-width: 1200px; margin: 0 auto;
+        }
+        .topbar .hdr-left  { justify-self: start; }
+        .topbar .hdr-right { justify-self: end; }
+        .topbar .hdr-center {
+            justify-self: stretch; text-align: center; min-width: 0;
+            display: flex; flex-direction: column; align-items: center;
+            gap: 1px; line-height: 1.15;
+        }
+        .topbar h1 {
+            font-size: 20px; font-weight: 700; margin: 0;
+            letter-spacing: -0.02em; white-space: nowrap;
+            overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+        }
+        .topbar-status {
+            font-size: 12px; color: var(--text-secondary);
+            font-variant-numeric: tabular-nums; white-space: nowrap;
+        }
+        .topbar-status #total-bw {
+            color: var(--accent); font-weight: 700;
+            padding: 1px 6px; border-radius: 6px;
+            background: rgba(88, 86, 214, 0.15);
+        }
+        @media (prefers-color-scheme: dark) {
+            .topbar-status #total-bw { color: #b9b8ff; background: rgba(125, 122, 255, 0.18); }
+        }
+        .nav-btn {
+            background: var(--card-bg); border: 1px solid var(--border);
+            color: var(--accent); padding: 8px 14px; border-radius: 10px;
+            font-size: 14px; font-weight: 600; cursor: pointer;
+            font-family: inherit; text-decoration: none;
+            display: inline-flex; align-items: center; gap: 4px;
+            min-height: 36px;
+            transition: transform 0.08s ease-out, background 0.15s, border-color 0.15s;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+            user-select: none; -webkit-tap-highlight-color: transparent;
+            white-space: nowrap;
+        }
+        .nav-btn:hover  { background: var(--bg); border-color: var(--accent); }
+        .nav-btn:active { transform: translateY(2px) scale(0.96); background: var(--accent); color: #fff; }
+
+        .container {
+            max-width: 1200px; margin: 0 auto;
+            padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 14px; margin-top: 8px;
+        }
+        /* Focus mode: the focused tile (default: first in CAMERAS list) spans
+           the full width, the rest sit underneath in a fixed-column grid. The
+           column count is responsive — 4 wide on desktop, 3 on tablet, 2 on
+           phone — so the 8 thumbnails reflow into tidy rows. */
+        .grid.has-focus { grid-template-columns: repeat(4, 1fr); }
+        @media (max-width: 900px) { .grid.has-focus { grid-template-columns: repeat(3, 1fr); } }
+        @media (max-width: 600px) { .grid.has-focus { grid-template-columns: repeat(2, 1fr); } }
+        .grid.has-focus .cam.focused {
+            grid-column: 1 / -1;
+            grid-row: 1;                  /* always pinned to the top row */
+        }
+        .cam {
+            background: var(--card-bg);
+            border-radius: 14px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            display: flex; flex-direction: column;
+            transition: transform 0.15s ease-out;
+        }
+        .cam.focused .cam-frame { max-height: 70vh; }
+        .cam-frame {
+            position: relative;
+            background: #000;
+            aspect-ratio: 16 / 9;
+            cursor: pointer;
+            overflow: hidden;
+            -webkit-touch-callout: none;     /* iOS: suppress long-press image menu */
+            user-select: none;
+        }
+        .cam-frame img {
+            width: 100%; height: 100%;
+            object-fit: cover;
+            display: block;
+            pointer-events: none;             /* clicks land on the frame, not the img */
+        }
+        .cam-frame .placeholder {
+            position: absolute; inset: 0;
+            display: flex; align-items: center; justify-content: center;
+            color: var(--text-secondary);
+            font-size: 13px;
+            background: #111;
+            pointer-events: none;
+        }
+        .cam-frame.has-image .placeholder { display: none; }
+        .cam-frame.error .placeholder {
+            display: flex;
+            color: var(--bad); background: #1a0808;
+        }
+        .cam-frame.paused::after {
+            content: "PAUSED";
+            position: absolute; inset: 0;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px; font-weight: 700; letter-spacing: 2px;
+            color: rgba(255,255,255,0.75);
+            background: rgba(0,0,0,0.45);
+            pointer-events: none;
+        }
+        .cam-frame.connecting::after {
+            content: "CONNECTING…";
+            position: absolute; inset: 0;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 13px; font-weight: 700; letter-spacing: 1px;
+            color: rgba(255,255,255,0.85);
+            background: rgba(0,0,0,0.4);
+            pointer-events: none;
+        }
+        /* Per-tile toolbar — top right of the frame */
+        .cam-toolbar {
+            position: absolute; top: 8px; right: 8px;
+            display: flex; gap: 4px;
+            z-index: 5;
+            opacity: 0;
+            transition: opacity 0.15s ease-out;
+            pointer-events: none;
+        }
+        .cam-frame:hover .cam-toolbar { opacity: 1; pointer-events: auto; }
+        @media (hover: none) {
+            .cam-toolbar { opacity: 0.85; pointer-events: auto; }
+        }
+        .cam-btn {
+            width: 32px; height: 32px;
+            display: inline-flex; align-items: center; justify-content: center;
+            border-radius: 8px; border: none;
+            background: rgba(0,0,0,0.6); color: #fff;
+            font-size: 15px; cursor: pointer; padding: 0;
+            font-family: inherit;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            -webkit-tap-highlight-color: transparent;
+            transition: background 0.12s, transform 0.08s;
+        }
+        .cam-btn:hover  { background: rgba(0,0,0,0.85); }
+        .cam-btn:active { transform: scale(0.92); }
+        .cam-meta {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 10px;
+            padding: 10px 14px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            border-top: 1px solid var(--border);
+        }
+        .cam-meta .name { font-weight: 600; color: var(--text); font-size: 14px; }
+        .cam-meta .host { font-variant-numeric: tabular-nums; }
+        .cam-meta .dot {
+            display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+            background: var(--text-secondary); margin-right: 6px;
+            vertical-align: middle;
+        }
+        .cam-meta .dot.ok  { background: var(--on-color); }
+        .cam-meta .dot.bad { background: var(--bad); }
+        .cam-meta .mode {
+            display: inline-block;
+            padding: 1px 7px;
+            border-radius: 6px;
+            font-size: 11px; font-weight: 600;
+            background: rgba(52, 199, 89, 0.18); color: var(--on-color);
+            text-transform: uppercase; letter-spacing: 0.4px;
+            margin-right: 4px;
+        }
+        .cam-meta .mode[data-mode="still"]  { background: rgba(255, 149, 0, 0.18); color: #ff9500; }
+        .cam-meta .mode[data-mode="off"]    { background: rgba(255, 69, 58, 0.18); color: var(--bad); }
+        .cam-meta .mode[data-mode="paused"] { background: rgba(142, 142, 147, 0.25); color: var(--text-secondary); }
+        .cam-meta .bw {
+            display: inline-block;
+            font-variant-numeric: tabular-nums;
+            font-size: 11px; font-weight: 600;
+            color: var(--accent);
+            padding: 1px 7px;
+            border-radius: 6px;
+            background: rgba(88, 86, 214, 0.15);
+            min-width: 56px;
+            text-align: right;
+            letter-spacing: 0.2px;
+        }
+        @media (prefers-color-scheme: dark) {
+            .cam-meta .bw { color: #b9b8ff; background: rgba(125, 122, 255, 0.18); }
+        }
+
+        .config-warn {
+            background: var(--card-bg); border: 1px solid var(--bad);
+            border-radius: 12px; padding: 14px 18px;
+            margin: 12px 0;
+            color: var(--bad); font-size: 14px;
+        }
+
+        .bottombar {
+            position: sticky; bottom: 0; z-index: 10;
+            background: var(--card-bg);
+            border-top: 1px solid var(--border);
+            box-shadow: 0 -1px 3px rgba(0,0,0,0.08);
+            padding: 8px max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left));
+            padding-bottom: max(8px, env(safe-area-inset-bottom));
+            margin-top: 20px;
+        }
+        .bottombar-inner {
+            text-align: center;
+            max-width: 1200px; margin: 0 auto;
+            font-size: 13px; color: var(--text-secondary);
+            font-variant-numeric: tabular-nums;
+        }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <div class="topbar-inner">
+            <div class="hdr-left">
+                <a class="nav-btn" href="index.html">← Back</a>
+            </div>
+            <div class="hdr-center">
+                <h1>Cameras</h1>
+                <span class="topbar-status">Updated <span id="ts">—</span> · <span id="total-bw">0 kB/s</span></span>
+            </div>
+            <div class="hdr-right"></div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div id="warn"></div>
+        <main class="grid" id="grid"></main>
+    </div>
+
+    <footer class="bottombar">
+        <div class="bottombar-inner" id="bottombar-status">
+            <span id="grid-cam-count">0</span> cameras · Updated <span id="ts-bot">—</span> · <span id="total-bw-bot">0 kB/s</span>
+        </div>
+    </footer>
+
+    <!-- Plugin-generated config (CAMERA_CONFIG holds hosts, names, slugs). -->
+    <script src="config.js" onerror="window.INDIGO_CONFIG_MISSING=true"></script>
+    <script>
+    // ── Camera dashboard ───────────────────────────────────────
+    // Each tile loads MJPEG from the plugin's proxy on port 8177. The proxy
+    // relays go2rtc's transcoded mainstream H.264 → MJPEG so the picture is
+    // sharp regardless of how the camera's own substream is configured.
+    //
+    // Per-tile features: pause, snapshot, focus. See the toolbar in each tile.
+
+    const cfg          = window.CAMERA_CONFIG || {};
+    const hosts        = cfg.hosts || [];
+    const names        = cfg.names || {};
+    const slugs        = cfg.slugs || {};
+    const imgPattern   = cfg.imagePattern || "cam-{host}.jpg";
+    const mjpegPort    = cfg.mjpegPort   || 8177;
+    const mjpegPath    = cfg.mjpegPath   || "/mjpeg/{host}";
+    const POLL_MS      = Math.max(1000, (cfg.pollSeconds || 10) * 1000);
+
+    const TRANSPARENT_PIXEL = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+
+    function mjpegUrl(host) {
+        const path = mjpegPath.replace("{host}", host);
+        return `${location.protocol}//${location.hostname}:${mjpegPort}${path}`;
+    }
+    function snapshotUrl(host) {
+        return imgPattern.replace("{host}", host) + "?t=" + Date.now();
+    }
+    function streamsApi() {
+        // Same-origin static file written by the plugin's snapshot poller.
+        // Avoids iOS Safari's cross-port fetch quirks. Cache-busted with ?t=.
+        return "streams.json?t=" + Date.now();
+    }
+    function tsStamp() {
+        const d = new Date();
+        const p = n => String(n).padStart(2, "0");
+        return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}_${p(d.getHours())}-${p(d.getMinutes())}-${p(d.getSeconds())}`;
+    }
+    function slugify(s) {
+        return (s || "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+    }
+
+    // host → { imgEl, frameEl, dotEl, modeEl, bwEl, mode, paused }
+    const camState = {};
+    let _lastUpdate = 0;
+    let focusedHost = null;
+
+    // ── Live pool ──────────────────────────────────────────────
+    // Browsers cap HTTP/1.1 connections at ~6 per origin, so the first N
+    // cameras run live MJPEG continuously and the rest snapshot-poll every
+    // POLL_MS. The membership is FIXED — no swapping. Tapping a tile just
+    // changes which one is the big focused tile; live/still status is
+    // unchanged by the user. iOS Safari's MJPEG socket-reuse bugs make
+    // dynamic swapping unreliable anyway.
+    const LIVE_POOL_SIZE   = Math.min(cfg.livePoolSize || 6, hosts.length);
+    const DEFAULT_LIVE     = hosts.slice(0, LIVE_POOL_SIZE);
+    const DEFAULT_LIVE_SET = new Set(DEFAULT_LIVE);
+
+    // ── Refresh status ─────────────────────────────────────────
+    function _pad(n) { return String(n).padStart(2, "0"); }
+    function markRefreshed() { _lastUpdate = Date.now(); tickRefreshStatus(); }
+    function tickRefreshStatus() {
+        let tsStr = "—";
+        if (_lastUpdate) {
+            const d = new Date(_lastUpdate);
+            tsStr = _pad(d.getHours()) + ":" + _pad(d.getMinutes()) + ":" + _pad(d.getSeconds());
+        }
+        for (const id of ["ts", "ts-bot"]) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = tsStr;
+        }
+    }
+    setInterval(tickRefreshStatus, 1000);
+
+    // ── Per-tile stream control ────────────────────────────────
+    // Browsers cap HTTP/1.1 connections at ~6 per origin, so running 9 MJPEG
+    // streams at once leaves the last 3 tiles stuck "Connecting…" forever.
+    // Architecture: exactly ONE tile is in "live" mode (MJPEG, long-lived
+    // connection); all the others are in "still" mode (snapshot polling —
+    // short HTTP GETs that complete and free their slot immediately).
+    function clearTileTimers(st) {
+        if (st.stillTimer)   { clearInterval(st.stillTimer);  st.stillTimer  = null; }
+        if (st.liveTimeout)  { clearTimeout(st.liveTimeout);  st.liveTimeout = null; }
+    }
+    // Replace the tile's <img> with a fresh one. Two things matter here:
+    //   1. We have to EXPLICITLY abort the old element's current load before
+    //      detaching it. iOS Safari keeps the underlying HTTP socket open if
+    //      we only do replaceWith() — that eats one of the 6 per-origin
+    //      connection slots and the next MJPEG tries to open queue forever.
+    //      Setting old src to a data URL forces the socket release.
+    //   2. The new element gets the SAME onload/onerror references the old
+    //      one had (they're closures over `host`, set in buildGrid).
+    function replaceImg(st) {
+        const oldImg = st.imgEl;
+        const onload  = oldImg.onload;
+        const onerror = oldImg.onerror;
+        // Detach handlers FIRST so they don't fire on the data-URL "load".
+        oldImg.onload  = null;
+        oldImg.onerror = null;
+        oldImg.src     = TRANSPARENT_PIXEL;          // explicit abort
+        const newImg = document.createElement("img");
+        newImg.alt         = oldImg.alt || "";
+        newImg.crossOrigin = "anonymous";
+        newImg.onload      = onload;
+        newImg.onerror     = onerror;
+        oldImg.replaceWith(newImg);
+        st.imgEl = newImg;
+        return newImg;
+    }
+
+    function startLive(host) {
+        const st = camState[host]; if (!st) return;
+        clearTileTimers(st);
+        st.mode   = "live";
+        st.paused = false;
+        st.frameEl.classList.remove("paused");
+        st.frameEl.classList.add("connecting");
+        const img = replaceImg(st);
+        img.src = mjpegUrl(host) + "?_t=" + Date.now();
+
+        // Safety timeout: if the MJPEG hasn't delivered a frame in 10s the
+        // socket is probably stuck somewhere upstream. Drop the tile to
+        // still polling so it shows something rather than CONNECTING… forever.
+        if (st.liveTimeout) clearTimeout(st.liveTimeout);
+        st.liveTimeout = setTimeout(() => {
+            if (camState[host]?.mode === "live"
+                && camState[host].frameEl.classList.contains("connecting")) {
+                console.warn(`[cameras] ${host} MJPEG didn't connect in 10s — falling back to still`);
+                startStill(host);
+            }
+        }, 10000);
+
+        setMode(host, "live");
+        if (st.bwEl) st.bwEl.style.visibility = "visible";
+        markRefreshed();
+    }
+    function startStill(host) {
+        const st = camState[host]; if (!st) return;
+        const wasLive = st.mode === "live";
+        clearTileTimers(st);
+        st.mode   = "still";
+        st.paused = false;
+        st.frameEl.classList.remove("paused");
+        st.frameEl.classList.remove("connecting");
+        // If we're coming from live (multipart MJPEG), replace the img element
+        // to fully tear down the connection. For still→still this is unnecessary
+        // and would just churn DOM, so skip it.
+        const img = wasLive ? replaceImg(st) : st.imgEl;
+        img.crossOrigin = "anonymous";
+        const refresh = () => { img.src = snapshotUrl(host); };
+        refresh();
+        st.stillTimer = setInterval(refresh, POLL_MS);
+        setMode(host, "still");
+        // Hide the kB/s number on stills — snapshot bandwidth is trivial and
+        // we'd just show ~0 for every thumbnail.
+        if (st.bwEl) st.bwEl.style.visibility = "hidden";
+    }
+    function pauseTile(host) {
+        const st = camState[host]; if (!st) return;
+        clearTileTimers(st);
+        st.paused = true;
+        st.mode   = "paused";
+        // Closing the connection: set src to transparent pixel. The browser
+        // keeps the last frame visible because we add the .paused overlay.
+        // Capture a snapshot of the current frame first so the tile still
+        // shows the last image instead of going black.
+        try { captureLastFrame(host); } catch (e) {}
+        st.imgEl.src = TRANSPARENT_PIXEL;
+        st.frameEl.classList.add("paused");
+        setMode(host, "paused");
+        if (st.bwEl) st.bwEl.style.visibility = "hidden";
+    }
+    function captureLastFrame(host) {
+        const st = camState[host]; if (!st) return;
+        if (!st.imgEl.complete || !st.imgEl.naturalWidth) return;
+        const c = document.createElement("canvas");
+        c.width  = st.imgEl.naturalWidth;
+        c.height = st.imgEl.naturalHeight;
+        c.getContext("2d").drawImage(st.imgEl, 0, 0);
+        try { st.lastFrameDataUrl = c.toDataURL("image/jpeg", 0.85); } catch (e) {}
+        if (st.lastFrameDataUrl) {
+            // Swap to the captured still so the tile shows the last frame even
+            // after we drop the MJPEG connection.
+            st.imgEl.src = st.lastFrameDataUrl;
+        }
+    }
+    function setMode(host, mode) {
+        const st = camState[host]; if (!st || !st.modeEl) return;
+        const labels = {
+            live:    "live",
+            still:   "↻ " + (POLL_MS / 1000) + "s",   // e.g. "↻ 2s"
+            off:     "off",
+            paused:  "paused",
+        };
+        st.modeEl.textContent = labels[mode] || mode;
+        st.modeEl.setAttribute("data-mode", mode);
+    }
+
+    // ── Snapshot download ──────────────────────────────────────
+    function takeSnapshot(host) {
+        const st = camState[host]; if (!st) return;
+        const filename = `${slugify(names[host] || host)}_${tsStamp()}.jpg`;
+        // Canvas approach: works because the MJPEG proxy sends ACAO:* and the
+        // img has crossorigin="anonymous". Falls back to direct download of
+        // the snapshot poller file (cam-<ip>.jpg) on any failure.
+        const fallback = () => {
+            const a = document.createElement("a");
+            a.href = snapshotUrl(host);
+            a.download = filename;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        };
+        if (!st.imgEl.complete || !st.imgEl.naturalWidth) return fallback();
+        try {
+            const c = document.createElement("canvas");
+            c.width  = st.imgEl.naturalWidth;
+            c.height = st.imgEl.naturalHeight;
+            c.getContext("2d").drawImage(st.imgEl, 0, 0);
+            c.toBlob(blob => {
+                if (!blob) return fallback();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url; a.download = filename;
+                document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                setTimeout(() => URL.revokeObjectURL(url), 2000);
+            }, "image/jpeg", 0.92);
+        } catch (e) {
+            // SecurityError: tainted canvas (CORS not applied). Fall back.
+            fallback();
+        }
+    }
+
+    // ── Focus mode ─────────────────────────────────────────────
+    // Exactly one tile is focused (the big one at the top of the grid).
+    // Tapping any other tile just moves the focused class — live and still
+    // tiles keep their assigned mode forever. No swapping, no MJPEG
+    // reconnection on click.
+    function focusTile(host) {
+        if (focusedHost === host) return;
+        if (focusedHost && camState[focusedHost]) {
+            camState[focusedHost].frameEl.closest(".cam").classList.remove("focused");
+        }
+        const wrap = camState[host]?.frameEl?.closest(".cam");
+        if (wrap) wrap.classList.add("focused");
+        document.getElementById("grid").classList.add("has-focus");
+        focusedHost = host;
+        if (wrap) wrap.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    // ── Grid construction ──────────────────────────────────────
+    function buildGrid() {
+        const grid = document.getElementById("grid");
+        grid.innerHTML = "";
+        for (const host of hosts) {
+            const name = names[host] || host;
+            const wrap = document.createElement("div");
+            wrap.className = "cam";
+            wrap.dataset.host = host;
+            wrap.innerHTML = `
+                <div class="cam-frame">
+                    <div class="cam-toolbar">
+                        <button class="cam-btn" data-action="snap" title="Snapshot">⤓</button>
+                    </div>
+                    <div class="placeholder">Connecting…</div>
+                    <img alt="${name}">
+                </div>
+                <div class="cam-meta">
+                    <span class="name"><span class="dot"></span>${name}</span>
+                    <span class="bw">— kB/s</span>
+                    <span class="host"><span class="mode">live</span> · ${host}</span>
+                </div>`;
+            grid.appendChild(wrap);
+
+            const img    = wrap.querySelector("img");
+            const frame  = wrap.querySelector(".cam-frame");
+            const dot    = wrap.querySelector(".dot");
+            const modeEl = wrap.querySelector(".mode");
+            const bwEl   = wrap.querySelector(".bw");
+
+            camState[host] = { imgEl: img, frameEl: frame, dotEl: dot, modeEl, bwEl,
+                                mode: "off", paused: false,
+                                lastBytes: null, lastT: 0 };
+
+            img.onload = () => {
+                const st = camState[host];
+                frame.classList.add("has-image");
+                frame.classList.remove("error");
+                frame.classList.remove("connecting");   // first frame arrived
+                if (st.liveTimeout) { clearTimeout(st.liveTimeout); st.liveTimeout = null; }
+                dot.classList.remove("bad");
+                dot.classList.add("ok");
+                if (!st.paused) setMode(host, st.mode === "live" ? "live" : "still");
+                markRefreshed();
+            };
+            img.onerror = () => {
+                const st = camState[host];
+                if (st && !st.paused) {
+                    frame.classList.remove("has-image");
+                    frame.classList.add("error");
+                    dot.classList.remove("ok");
+                    dot.classList.add("bad");
+                    frame.querySelector(".placeholder").textContent = "Unreachable";
+                    setMode(host, "off");
+                }
+            };
+
+            // Click frame (anywhere except a toolbar button) → focus this tile.
+            // Live/still mode of every tile is fixed for the lifetime of the
+            // page; clicking only changes which tile is the big one at the top.
+            frame.addEventListener("click", (e) => {
+                if (e.target.closest(".cam-btn")) return;
+                focusTile(host);
+            });
+
+            // Toolbar wiring — only Snapshot remains; click on the tile itself
+            // handles live/still toggle and focus changes.
+            wrap.querySelector('[data-action="snap"]').addEventListener("click", (e) => {
+                e.stopPropagation(); takeSnapshot(host);
+            });
+        }
+        document.getElementById("grid-cam-count").textContent = String(hosts.length);
+    }
+
+    // ── Pause/resume all ───────────────────────────────────────
+    // Resumes each tile into its appropriate mode: the focused tile gets MJPEG,
+    // every other tile snapshot-polls.
+    function startAll() {
+        for (const host of hosts) {
+            if (DEFAULT_LIVE_SET.has(host)) startLive(host);
+            else                    startStill(host);
+        }
+    }
+    function stopAll() {
+        for (const host of hosts) pauseTile(host);
+    }
+
+    // ── Bandwidth polling ──────────────────────────────────────
+    // Hits the plugin proxy's /streams endpoint, which forwards go2rtc's
+    // /api/streams JSON. We use the <slug>_mjpeg producer's bytes_recv counter
+    // — that's the bytes go2rtc reads from its ffmpeg pipe per stream, which
+    // tracks what we ship to the browser pretty closely.
+    let _bwTimer    = null;
+    let _bwLastTs   = null;        // last _writeTs we processed
+    function startBandwidthPoll() {
+        if (_bwTimer) clearInterval(_bwTimer);
+        const tick = async () => {
+            try {
+                const r = await fetch(streamsApi(), { cache: "no-store" });
+                if (!r.ok) return;
+                const data = await r.json();
+                const ts   = data._writeTs;
+                // Skip if the file hasn't been refreshed since our last read —
+                // otherwise the delta is 0 and the display flicks to 0 kB/s.
+                if (ts == null || ts === _bwLastTs) return;
+                let total = 0;
+                for (const host of hosts) {
+                    const slug = slugs[host];
+                    if (!slug) continue;
+                    const s = data[`${slug}_mjpeg`];
+                    const bytes = (s && s.producers && s.producers[0] &&
+                                   s.producers[0].bytes_recv) || 0;
+                    const st = camState[host];
+                    if (!st) continue;
+                    if (st.lastBytes != null && st.lastTs != null) {
+                        const dB = bytes - st.lastBytes;
+                        const dT = ts - st.lastTs;       // seconds (server clock)
+                        if (dB >= 0 && dT > 0) {
+                            const kBs = dB / 1024 / dT;
+                            st.bwEl.textContent = kBs > 1024
+                                ? `${(kBs/1024).toFixed(1)} MB/s`
+                                : `${kBs.toFixed(0)} kB/s`;
+                            if (!st.paused) total += kBs;
+                        }
+                    }
+                    st.lastBytes = bytes;
+                    st.lastTs    = ts;
+                }
+                _bwLastTs = ts;
+                const totalStr = total > 1024
+                    ? `${(total/1024).toFixed(1)} MB/s total`
+                    : `${total.toFixed(0)} kB/s total`;
+                for (const id of ["total-bw", "total-bw-bot"]) {
+                    const el = document.getElementById(id);
+                    if (el) el.textContent = totalStr;
+                }
+            } catch (e) { /* ignore */ }
+        };
+        tick();
+        _bwTimer = setInterval(tick, 1000);  // poll faster than file writes
+    }
+
+    // ── Global controls ────────────────────────────────────────
+    // Pause streaming when the tab is hidden so we're not pulling video
+    // bandwidth from the cameras for nothing. Resume on visibility.
+    document.addEventListener("visibilitychange", () => {
+        if (document.hidden) stopAll();
+        else                  startAll();
+    });
+
+    // ── Boot ──────────────────────────────────────────────────
+    if (!hosts.length) {
+        document.getElementById("warn").innerHTML =
+            `<div class="config-warn">No cameras configured. Edit the CAMERAS list in the
+             Dashboards plugin and restart.</div>`;
+    } else {
+        buildGrid();
+        // Initial layout: first LIVE_POOL_SIZE cams = live MJPEG, the rest =
+        // snapshot polling. Garage (hosts[0]) is the focused big tile.
+        for (const host of hosts) {
+            if (DEFAULT_LIVE_SET.has(host)) startLive(host);
+            else                    startStill(host);
+        }
+        // Pin focus to Garage (already live; this just adds the .focused class
+        // and the has-focus grid layout — no live-set change since Garage is
+        // already in the default pool).
+        const grid = document.getElementById("grid");
+        grid.classList.add("has-focus");
+        const wrap = camState[hosts[0]]?.frameEl?.closest(".cam");
+        if (wrap) wrap.classList.add("focused");
+        focusedHost = hosts[0];
+        startBandwidthPoll();
+    }
+    </script>
+</body>
+</html>
