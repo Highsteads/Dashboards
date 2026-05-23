@@ -113,7 +113,22 @@ Vendor templates are in `VENDOR_URLS` in `plugin.py` — add more if you have a 
 
 The MJPEG and go2rtc ports are intentionally unauthenticated — same trusted-LAN/Tailscale threat model as Indigo's `/public/` namespace.
 
+## Logging
+
+Every log line is prefixed with a millisecond timestamp `[HH:MM:SS.mmm]` so
+events can be correlated tightly with other CliveS plugins (Device Activity
+Monitor uses the same convention).
+
+To turn the prefix off (or back on) at any time:
+
+**Plugins → Dashboards → Toggle Timestamps in Log (on/off)**
+
+The setting is stored in `pluginPrefs` (`timestampEnabled`) and persists across
+restarts. Defaults to ON.
+
 ## Current Version
+
+1.16.1 (23-May-2026) — millisecond timestamp `[HH:MM:SS.mmm]` prefix on every `self.logger` line via `plugin_utils.install_timestamp_filter()`; new "Toggle Timestamps in Log" menu item.
 
 1.16.0 (23-May-2026) — removed hardcoded LAN-specific config (Sigen URL, cameras list, swap-out host, go2rtc host). New PluginConfig.xml + IndigoSecrets keys for shareability. See Configuration above.
 

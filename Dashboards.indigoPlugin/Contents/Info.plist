@@ -7,9 +7,9 @@
     <key>CFBundleIdentifier</key>
     <string>com.clives.indigoplugin.dashboards</string>
     <key>CFBundleVersion</key>
-    <string>1.16.0</string>
+    <string>1.16.1</string>
     <key>PluginVersion</key>
-    <string>1.16.0</string>
+    <string>1.16.1</string>
     <key>ServerApiVersion</key>
     <string>3.0</string>
     <key>IwsApiVersion</key>

@@ -17,8 +17,13 @@
 #              for the live grid and falls back to the still snapshot if a
 #              stream connection fails.
 # Author:      CliveS & Claude Opus 4.7
-# Date:        21-05-2026
-# Version:     1.16.0
+# Date:        23-05-2026
+# Version:     1.16.1
+#
+# v1.16.1 (23-05-2026): Millisecond timestamp [HH:MM:SS.mmm] prefix on every
+# log line via plugin_utils.install_timestamp_filter() — matches Device
+# Activity Monitor convention. Module-level log() helper bumped to ms.
+# New "Toggle Timestamps in Log" menu item.
 
 try:
     import indigo
@@ -43,6 +48,10 @@ try:
     from plugin_utils import log_startup_banner
 except ImportError:
     log_startup_banner = None
+try:
+    from plugin_utils import install_timestamp_filter
+except ImportError:
+    install_timestamp_filter = None
 
 _sys.path.insert(0, "/Library/Application Support/Perceptive Automation")
 try:
@@ -80,7 +89,7 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION    = "1.16.0"
+PLUGIN_VERSION    = "1.16.1"
 # Pages are mirrored into Web Assets/public/dashboards/ so IWS serves them
 # WITHOUT HTTP Basic Auth. Indigo only treats the global /public/ namespace
 # as anonymous — per-plugin `public/` subfolders still require auth.
@@ -197,7 +206,7 @@ GO2RTC_RTSP_PORT     = 8554            # exposed for completeness; not used by t
 # ============================================================
 
 def log(message, level="INFO"):
-    indigo.server.log(f"[{datetime.now().strftime('%H:%M:%S')}] {message}", level=level)
+    indigo.server.log(f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] {message}", level=level)
 
 
 # ============================================================
@@ -208,6 +217,12 @@ class Plugin(indigo.PluginBase):
 
     def __init__(self, pluginId, pluginDisplayName, pluginVersion, pluginPrefs):
         super().__init__(pluginId, pluginDisplayName, pluginVersion, pluginPrefs)
+
+        self.timestamp_enabled = bool(pluginPrefs.get("timestampEnabled", True))
+        if install_timestamp_filter:
+            self._ts_filter = install_timestamp_filter(self, enabled=self.timestamp_enabled)
+        else:
+            self._ts_filter = None
 
         self.api_key     = (INDIGO_API_KEY or CLAUDEBRIDGE_BEARER_TOKEN or "").strip()
         self.api_url     = (INDIGO_URL or "").strip()
@@ -875,15 +890,27 @@ class Plugin(indigo.PluginBase):
         self.logger.info(f"{self.pluginDisplayName} stopped")
 
     def showPluginInfo(self, valuesDict=None, typeId=None):
+        extras = [
+            ("Dashboards URL:",    f"http://<server>:8176{INDEX_PATH}"),
+            ("Indigo URL:",        self.api_url or "(unset)"),
+            ("API key source:",    self._secrets_state()),
+            ("Cameras:",           self._camera_state()),
+            ("Timestamps in Log:", "ON" if self.timestamp_enabled else "OFF"),
+        ]
         if log_startup_banner:
-            log_startup_banner(self.pluginId, self.pluginDisplayName, self.pluginVersion, extras=[
-                ("Dashboards URL:", f"http://<server>:8176{INDEX_PATH}"),
-                ("Indigo URL:",     self.api_url or "(unset)"),
-                ("API key source:", self._secrets_state()),
-                ("Cameras:",        self._camera_state()),
-            ])
+            log_startup_banner(self.pluginId, self.pluginDisplayName, self.pluginVersion, extras=extras)
         else:
             indigo.server.log(f"{self.pluginDisplayName} v{self.pluginVersion}")
+            for label, value in extras:
+                indigo.server.log(f"  {label} {value}")
+
+    def menuToggleTimestamps(self):
+        self.timestamp_enabled = not self.timestamp_enabled
+        self.pluginPrefs["timestampEnabled"] = self.timestamp_enabled
+        if self._ts_filter:
+            self._ts_filter.enabled = self.timestamp_enabled
+        state = "ON" if self.timestamp_enabled else "OFF"
+        indigo.server.log(f"[{self.pluginDisplayName}] Timestamps in Log -> {state}")
 
     # --------------------------------------------------------
     # Menu callbacks
