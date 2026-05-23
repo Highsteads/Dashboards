@@ -68,28 +68,29 @@ Credentials are read from `/Library/Application Support/Perceptive Automation/In
 | `INDIGO_API_KEY` | Indigo REST API Bearer token (or `CLAUDEBRIDGE_BEARER_TOKEN` as fallback) |
 | `DAHUA_USER`  | Camera admin username (shared across all cams in this build) |
 | `DAHUA_PASS`  | Camera admin password |
-| `DAHUA_CAM_IPS` | Optional list of every camera IP (informational; the plugin's CAMERAS list is authoritative) |
+| `SIGEN_DASHBOARD_URL` *(v1.16)* | Optional URL for the legacy Sigen dashboard menu item; blank disables the item |
+| `DASHBOARDS_CAMERAS` *(v1.16)* | JSON string OR python list of camera dicts (each needs `host`, `name`, `vendor`); blank disables the cameras grid + MJPEG proxy + go2rtc |
 
 If a key is missing, the affected feature degrades gracefully — the camera proxy logs a warning and skips, the dashboard's connection form is shown, etc.
 
 ## Configuration
 
-Camera list and behaviour are set at the top of `Contents/Server Plugin/plugin.py`:
+As of **v1.16.0** all camera and Sigen-URL configuration is data-driven and
+exposed via PluginConfig.xml (no source-edits required). Settings are read
+in this order: `IndigoSecrets.py` → PluginConfig → empty (feature disabled).
 
-```python
-CAMERAS = [
-    # First entry is the default focused (big) tile.
-    # First LIVE_POOL_SIZE entries are live MJPEG; the rest are 2s snapshots.
-    {"host": "192.168.100.56", "name": "Garage",     "vendor": "dahua"},
-    {"host": "192.168.100.57", "name": "Front Door", "vendor": "dahua"},
-    # ...
-    {"host": "192.168.100.62", "name": "Back Garden", "vendor": "hikvision"},
-]
-LIVE_POOL_SIZE      = 6     # cap at the browser's 6-per-origin HTTP/1.1 limit
-CAMERA_POLL_SECONDS = 2.0   # snapshot refresh interval for thumbnails
+| PluginConfig field | IndigoSecrets equivalent | Purpose |
+|---|---|---|
+| `sigenLegacyUrl` | `SIGEN_DASHBOARD_URL` | Legacy Sigen mini-dashboard URL |
+| `camerasJson` | `DASHBOARDS_CAMERAS` | JSON list of `{host, name, vendor}` entries |
+| `swapOutHost` | *(none)* | Override which cam is bumped to still when peeking — defaults to the LAST entry in the cameras list |
+
+Cameras JSON example (one line):
+```json
+[{"host":"192.168.1.50","name":"Front Door","vendor":"dahua"},{"host":"192.168.1.51","name":"Drive","vendor":"hikvision"}]
 ```
 
-Vendor templates are in `VENDOR_URLS` — add more if you have a non-Dahua/Hikvision cam.
+Vendor templates are in `VENDOR_URLS` in `plugin.py` — add more if you have a non-Dahua/Hikvision cam.
 
 ## Installation
 
@@ -114,7 +115,7 @@ The MJPEG and go2rtc ports are intentionally unauthenticated — same trusted-LA
 
 ## Current Version
 
-1.15.3
+1.16.0 (23-May-2026) — removed hardcoded LAN-specific config (Sigen URL, cameras list, swap-out host, go2rtc host). New PluginConfig.xml + IndigoSecrets keys for shareability. See Configuration above.
 
 ## Author
 
