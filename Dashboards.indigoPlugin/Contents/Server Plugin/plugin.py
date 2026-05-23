@@ -18,7 +18,7 @@
 #              stream connection fails.
 # Author:      CliveS & Claude Opus 4.7
 # Date:        21-05-2026
-# Version:     1.15.3
+# Version:     1.16.0
 
 try:
     import indigo
@@ -65,6 +65,14 @@ try:
     from IndigoSecrets import DAHUA_PASS
 except ImportError:
     DAHUA_PASS = ""
+try:
+    from IndigoSecrets import SIGEN_DASHBOARD_URL
+except ImportError:
+    SIGEN_DASHBOARD_URL = ""
+try:
+    from IndigoSecrets import DASHBOARDS_CAMERAS  # JSON-string OR python list
+except ImportError:
+    DASHBOARDS_CAMERAS = ""
 
 
 # ============================================================
@@ -72,44 +80,86 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION    = "1.15.3"
+PLUGIN_VERSION    = "1.16.0"
 # Pages are mirrored into Web Assets/public/dashboards/ so IWS serves them
 # WITHOUT HTTP Basic Auth. Indigo only treats the global /public/ namespace
 # as anonymous — per-plugin `public/` subfolders still require auth.
 PUBLIC_SUBDIR     = "dashboards"
 INDEX_PATH        = f"/public/{PUBLIC_SUBDIR}/index.html"
-SIGEN_LEGACY_URL  = "http://192.168.100.160:8179/"
 
 # Source folder inside the plugin bundle that holds the HTML pages we mirror.
 PAGES_SOURCE_DIR  = os.path.join(CONTENTS_DIR, "Resources", "static", "pages")
 
-# Cameras shown on cameras.html. Each entry needs a host, a display name, and
-# a vendor — vendor controls which RTSP / snapshot URL pattern is used. Both
-# vendor families take the shared DAHUA_USER / DAHUA_PASS from IndigoSecrets
-# (the user confirmed all 9 cams use the same admin account).
+# Cameras configuration is now user-supplied via:
+#   1. IndigoSecrets.DASHBOARDS_CAMERAS (JSON string or list of dicts), or
+#   2. PluginConfig "camerasJson" textfield (JSON list).
+# Each entry must have keys: host, name, vendor ("dahua" or "hikvision").
+# When empty, the camera grid / MJPEG proxy / go2rtc are simply disabled.
 #
-# Vendors:
-#   "dahua"     — Dahua / Amcrest / Lorex (Dahua firmware)
-#   "hikvision" — Hikvision / Hilook / LTS (Hikvision firmware)
-CAMERAS = [
-    # Order matters: the first entry is the default "focused" tile on the
-    # cameras.html page — it appears large at the top with the rest as a row
-    # of smaller tiles underneath.
-    {"host": "192.168.100.56", "name": "Garage",           "vendor": "dahua"},
-    {"host": "192.168.100.57", "name": "Front Door",       "vendor": "dahua"},
-    {"host": "192.168.100.68", "name": "Drive",            "vendor": "dahua"},
-    {"host": "192.168.100.61", "name": "Inside Garage",    "vendor": "hikvision"},
-    {"host": "192.168.100.62", "name": "Back Garden",      "vendor": "hikvision"},
-    {"host": "192.168.100.60", "name": "Back Door",        "vendor": "dahua"},
-    {"host": "192.168.100.67", "name": "Patio",            "vendor": "dahua"},
-    {"host": "192.168.100.66", "name": "Rear Garage",      "vendor": "dahua"},
-    {"host": "192.168.100.65", "name": "Left Garage Door", "vendor": "dahua"},
-]
+# Order matters: the first entry is the default "focused" tile on
+# cameras.html — it appears large at the top with the rest as a row of
+# smaller tiles underneath. By default the LAST entry in the list is the
+# "swap-out" cam — the one bumped to still when the user peeks at a tail-of-
+# list camera. Override with PluginConfig "swapOutHost" if a different cam
+# is better to drop from the live pool.
 CAMERA_PORT          = 80                                  # snapshot HTTP port (Dahua & Hikvision)
 CAMERA_POLL_SECONDS  = 2.0                                 # snapshot poll interval per camera (drives the thumbnail tiles; only the 3 still cams are actually polled — live cams skipped)
 LIVE_POOL_SIZE       = 6                                   # how many cameras run live MJPEG on cameras.html. Browsers cap HTTP/1.1 connections per origin at ~6, so don't exceed that.
-SWAP_OUT_HOST        = "192.168.100.60"                    # Back Door — the default-pool cam that gets bumped to still when the user peeks at one of the last-3 cameras. Should be the cam that matters least to keep live continuously.
 CAMERA_HTTP_TIMEOUT  = 15.0                                # per-snapshot timeout (4K snapshots can take 5-10s on busy cams)
+
+# Populated at __init__ from IndigoSecrets / PluginConfig. Keep as
+# module-level state so the many existing reference sites below don't need
+# rewriting; __init__ overwrites these in place.
+CAMERAS       = []
+SWAP_OUT_HOST = ""
+
+
+def _parse_cameras(value):
+    """Parse camera config — accepts a JSON string, a Python list, or empty.
+
+    Each entry must contain ``host``, ``name`` and ``vendor`` keys (vendor in
+    {"dahua", "hikvision"}). Invalid entries are silently dropped.
+    """
+    if not value:
+        return []
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except (ValueError, TypeError):
+            return []
+    if not isinstance(value, list):
+        return []
+    cleaned = []
+    for entry in value:
+        if not isinstance(entry, dict):
+            continue
+        if not all(k in entry for k in ("host", "name", "vendor")):
+            continue
+        cleaned.append({
+            "host":   str(entry["host"]),
+            "name":   str(entry["name"]),
+            "vendor": str(entry["vendor"]).lower(),
+        })
+    return cleaned
+
+
+def _detect_lan_ip():
+    """Best-effort LAN IP detection (used in go2rtc WebRTC candidates +
+    the startup log line that prints the go2rtc API URL).  Returns the
+    first non-loopback IPv4 the host advertises, or '127.0.0.1' on
+    failure.  No outbound connection is actually made."""
+    import socket
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            # 198.51.100.1 is a TEST-NET-2 address — never routes anywhere,
+            # but the kernel picks the correct source interface for it.
+            s.connect(("198.51.100.1", 1))
+            return s.getsockname()[0]
+        finally:
+            s.close()
+    except Exception:
+        return "127.0.0.1"
 
 # Vendor URL templates: {host} {user} {pass} are substituted. RTSP paths
 # target the mainstream H.264 channel so go2rtc has the highest-quality source
@@ -163,6 +213,27 @@ class Plugin(indigo.PluginBase):
         self.api_url     = (INDIGO_URL or "").strip()
         self.cam_user    = (DAHUA_USER or "").strip()
         self.cam_pass    = (DAHUA_PASS or "").strip()
+
+        # Sigen dashboard link target — empty means the "Open Legacy Sigen
+        # Dashboard" menu item is silently disabled. IndigoSecrets first,
+        # PluginConfig fallback.
+        self.sigen_legacy_url = (SIGEN_DASHBOARD_URL or pluginPrefs.get("sigenLegacyUrl", "")).strip()
+
+        # Cameras — populate the module-level state so all existing reference
+        # sites (go2rtc config, snapshot pollers, MJPEG proxy, etc.) see the
+        # configured list.
+        global CAMERAS, SWAP_OUT_HOST
+        cam_source = DASHBOARDS_CAMERAS or pluginPrefs.get("camerasJson", "")
+        CAMERAS    = _parse_cameras(cam_source)
+        # Default swap-out = last entry in the list (the cam most likely to be
+        # safe to drop from the live MJPEG pool). Override via PluginConfig
+        # "swapOutHost" if a different cam is the better drop candidate.
+        swap_pref     = (pluginPrefs.get("swapOutHost", "") or "").strip()
+        SWAP_OUT_HOST = swap_pref if swap_pref else (CAMERAS[-1]["host"] if CAMERAS else "")
+
+        # LAN IP — used by the go2rtc WebRTC config and the startup log line.
+        # Detect once at __init__; the hostname doesn't change at runtime.
+        self.lan_ip = _detect_lan_ip()
 
         secrets_state = self._secrets_state()
         cam_state     = self._camera_state()
@@ -501,7 +572,7 @@ class Plugin(indigo.PluginBase):
             "webrtc:",
             f"  listen: ':{GO2RTC_WEBRTC_PORT}/tcp'",
             "  candidates:",
-            f"    - 192.168.100.160:{GO2RTC_WEBRTC_PORT}",
+            f"    - {self.lan_ip}:{GO2RTC_WEBRTC_PORT}",
             "    - stun:8555",
             "",
             "log:",
@@ -587,7 +658,7 @@ class Plugin(indigo.PluginBase):
                 start_new_session=True,    # so SIGTERM to plugin doesn't auto-kill it; we do that explicitly
             )
             log(f"[go2rtc] Started (pid {self._go2rtc_proc.pid}) — "
-                f"API http://192.168.100.160:{GO2RTC_API_PORT}/")
+                f"API http://{self.lan_ip}:{GO2RTC_API_PORT}/")
         except Exception as exc:
             log(f"[go2rtc] Could not start: {exc}", level="ERROR")
             self._go2rtc_proc = None
@@ -851,11 +922,22 @@ class Plugin(indigo.PluginBase):
         return True
 
     def menuOpenSigenLegacy(self, valuesDict=None, typeId=None):
-        """Menu: open the legacy Sigenergy mini-dashboard (port 8179, Sankey/charts)."""
-        log(f"[Menu] Legacy Sigen dashboard: {SIGEN_LEGACY_URL}")
+        """Menu: open the legacy Sigenergy mini-dashboard (configurable URL).
+
+        Resolved from IndigoSecrets.SIGEN_DASHBOARD_URL first, PluginConfig
+        `sigenLegacyUrl` next. If neither is set we log a hint and return —
+        the menu item still exists but is a no-op for users who don't run a
+        Sigen dashboard.
+        """
+        if not self.sigen_legacy_url:
+            log("[Menu] No Sigen dashboard URL configured. Set SIGEN_DASHBOARD_URL "
+                "in IndigoSecrets.py OR fill in Sigen Dashboard URL under Plugins "
+                "-> Dashboards -> Configure.", level="WARNING")
+            return True
+        log(f"[Menu] Legacy Sigen dashboard: {self.sigen_legacy_url}")
         try:
             import webbrowser
-            opened = webbrowser.open(SIGEN_LEGACY_URL, new=2)
+            opened = webbrowser.open(self.sigen_legacy_url, new=2)
             if not opened:
                 log("[Menu] Could not auto-open browser — open the URL above manually",
                     level="WARNING")

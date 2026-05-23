@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+<PluginConfig>
+
+	<Field id="label_intro" type="label">
+		<Label>Dashboards reads INDIGO_URL / INDIGO_API_KEY / DAHUA_USER / DAHUA_PASS from IndigoSecrets.py. The fields below are optional PluginConfig fallbacks for users who don't use IndigoSecrets.py and for the dashboard-specific options (legacy Sigen URL, cameras list, swap-out host).</Label>
+	</Field>
+
+	<Field id="sep0" type="separator"/>
+
+	<Field id="sigenLegacyUrl" type="textfield" defaultValue="">
+		<Label>Sigen Dashboard URL:</Label>
+	</Field>
+	<Field id="hlpSigen" type="label" fontSize="mini" alignWithControl="true">
+		<Label>Optional. URL of a legacy Sigenergy mini-dashboard (e.g. http://192.168.1.10:8179/). Used only by the "Open Legacy Sigen Dashboard" menu item; leave blank to disable the item. Read from IndigoSecrets.SIGEN_DASHBOARD_URL first; this field is a fallback.</Label>
+	</Field>
+
+	<Field id="sep1" type="separator"/>
+
+	<Field id="camerasJson" type="textfield" defaultValue="">
+		<Label>Cameras (JSON):</Label>
+	</Field>
+	<Field id="hlpCameras" type="label" fontSize="mini" alignWithControl="true">
+		<Label>Optional JSON list of camera objects. Each object needs host, name, vendor ("dahua" or "hikvision"). Read from IndigoSecrets.DASHBOARDS_CAMERAS first; this field is a fallback. Example: [{"host":"192.168.1.50","name":"Front Door","vendor":"dahua"},{"host":"192.168.1.51","name":"Drive","vendor":"hikvision"}]. Leave blank to disable the cameras grid + MJPEG proxy + go2rtc. All cams share DAHUA_USER / DAHUA_PASS from IndigoSecrets (despite the name, those creds also work for Hikvision).</Label>
+	</Field>
+
+	<Field id="swapOutHost" type="textfield" defaultValue="">
+		<Label>Swap-Out Host (optional):</Label>
+	</Field>
+	<Field id="hlpSwapOut" type="label" fontSize="mini" alignWithControl="true">
+		<Label>Optional. Host of the camera that gets bumped from live MJPEG to a still snapshot when the user peeks at a tail-of-list camera. Defaults to the LAST entry in the Cameras list. Override only if a different cam is the better drop candidate.</Label>
+	</Field>
+
+	<Field id="sep2" type="separator"/>
+
+	<Field id="logLevel" type="menu" defaultValue="20">
+		<Label>Log Level:</Label>
+		<List>
+			<Option value="10">Debug</Option>
+			<Option value="20">Info</Option>
+			<Option value="30">Warning</Option>
+			<Option value="40">Error</Option>
+		</List>
+	</Field>
+
+</PluginConfig>
