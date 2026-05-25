@@ -253,17 +253,7 @@ class Plugin(indigo.PluginBase):
         secrets_state = self._secrets_state()
         cam_state     = self._camera_state()
 
-        if log_startup_banner:
-            log_startup_banner(pluginId, pluginDisplayName, pluginVersion, extras=[
-                ("Dashboards URL:", f"http://<server>:8176{INDEX_PATH}"),
-                ("Indigo URL:",     self.api_url or "(unset)"),
-                ("API key source:", secrets_state),
-                ("Cameras:",        cam_state),
-                ("MJPEG proxy:",    f"port {MJPEG_PROXY_PORT}"),
-                ("go2rtc / WebRTC:", f"port {GO2RTC_API_PORT}"),
-            ])
-        else:
-            indigo.server.log(f"{pluginDisplayName} v{pluginVersion} starting — credentials: {secrets_state}")
+        # Startup banner moved to showPluginInfo on demand (revised 25-May-2026 per Jay).
 
     def _secrets_state(self):
         if INDIGO_API_KEY:
