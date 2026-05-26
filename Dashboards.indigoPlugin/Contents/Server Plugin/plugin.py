@@ -18,7 +18,7 @@
 #              stream connection fails.
 # Author:      CliveS & Claude Opus 4.7
 # Date:        26-05-2026
-# Version:     1.18.0
+# Version:     1.19.0
 #
 # v1.17.1 (23-05-2026): Millisecond timestamp [HH:MM:SS.mmm] prefix on every
 # log line via plugin_utils.install_timestamp_filter() — matches Device
@@ -34,6 +34,7 @@ import json
 import os
 import shutil
 import sys as _sys
+import threading
 import time
 from datetime import datetime
 
@@ -90,6 +91,20 @@ try:
     from IndigoSecrets import DASHBOARDS_MAIN_CAMERAS  # list of camera host IPs
 except ImportError:
     DASHBOARDS_MAIN_CAMERAS = []
+# Weather extras (Sunset + today high/low on the hub Weather card).
+# All three are optional — if absent the weather thread quietly skips.
+try:
+    from IndigoSecrets import OWM_API_KEY
+except ImportError:
+    OWM_API_KEY = ""
+try:
+    from IndigoSecrets import LATITUDE
+except ImportError:
+    LATITUDE = None
+try:
+    from IndigoSecrets import LONGITUDE
+except ImportError:
+    LONGITUDE = None
 
 
 # ============================================================
@@ -97,7 +112,7 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION    = "1.18.0"
+PLUGIN_VERSION    = "1.19.0"
 # Pages are mirrored into Web Assets/public/dashboards/ so IWS serves them
 # WITHOUT HTTP Basic Auth. Indigo only treats the global /public/ namespace
 # as anonymous — per-plugin `public/` subfolders still require auth.
@@ -136,10 +151,12 @@ def _parse_cameras(value):
 
     Required keys per entry: ``host``, ``name``, ``vendor`` (in {"dahua",
     "hikvision"}).
-    Optional: ``room`` — the dashboard room this cam should also appear on
-    (e.g. "Garage"). The room name must match an entry in ROOM_FOLDERS for
-    the camera to land on a room page; otherwise it's silently ignored by
-    the room template but still shows on the main cameras page.
+    Optional: ``room`` — the dashboard room(s) this cam should also appear
+    on. Either a string (``"Garage"``) for a single room or a list
+    (``["Garage", "Hall"]``) so one camera can surface on multiple room
+    pages. Each room name must match an entry in ROOM_FOLDERS to actually
+    show; unrecognised names are silently ignored by the room template (the
+    camera still appears on the main cameras page regardless).
     Invalid entries are silently dropped.
     """
     if not value:
@@ -157,11 +174,18 @@ def _parse_cameras(value):
             continue
         if not all(k in entry for k in ("host", "name", "vendor")):
             continue
+        # Preserve room as string OR list of strings. Downstream code in
+        # _build_rooms_json normalises both to a list before lookup.
+        raw_room = entry.get("room", "")
+        if isinstance(raw_room, (list, tuple)):
+            room_val = [str(x).strip() for x in raw_room if str(x).strip()]
+        else:
+            room_val = str(raw_room).strip()
         cleaned.append({
             "host":   str(entry["host"]),
             "name":   str(entry["name"]),
             "vendor": str(entry["vendor"]).lower(),
-            "room":   str(entry.get("room", "")).strip(),
+            "room":   room_val,
         })
     return cleaned
 
@@ -858,6 +882,12 @@ class Plugin(indigo.PluginBase):
     _MOTION_WORDS   = ("motion", "presence", "occupancy", "pir")
     _OCCUPANCY_TYPES = ("z2mOccupancySensor",)
     _CONTACT_TYPES   = ("z2mContactSensor", "zwContactSensorType")
+    # Device types that look like sensors to the framework but are actually
+    # input controls (wall remotes, scene buttons). They publish onState
+    # transitions on press but aren't continuous-state sensors — they don't
+    # belong in Windows & Doors, Motion or any auto-classified section even
+    # when their friendly name happens to contain "door" / "window".
+    _BUTTON_TYPES    = ("z2mButton",)
     # Devices we always ignore — backend plumbing, not user-facing controls.
     _SKIP_TYPES = (
         "homeKitBridgeDevice",   # HomeKit bridges (1 per room, internal)
@@ -905,14 +935,26 @@ class Plugin(indigo.PluginBase):
         # states (often 0.0) — a window contact would otherwise be mistaken
         # for an environment sensor.
         #
-        # IMPORTANT: gate this on NOT being a Relay/Dimmer — those are output
-        # devices (action-group virtuals like "Virtual Garage Door Opener",
-        # Shelly relays etc.) which often have "door" in their names but
-        # mustn't end up under Windows & Doors.
-        is_output = cls in ("RelayDevice", "DimmerDevice")
-        if (not is_output) and (typ in self._CONTACT_TYPES
-                or self._has_word(name, ("contact", "window", "door"))) \
-           and not any(w in name.lower() for w in self._SKIP_CONTACT_WORDS):
+        # IMPORTANT: gate this on multiple "not a real contact" checks. The
+        # name keyword "door"/"window" is necessary but not sufficient —
+        # plenty of devices contain those words without being contact
+        # sensors:
+        #   - Relay/Dimmer outputs (Shelly garage-door relay, virtual
+        #     opener) — already classified as light or extras above
+        #   - z2mButton wall remotes (e.g. "Hall Garage Door Opener")
+        #   - Z-Wave value sensors (zwValueSensorType e.g. "Front Door
+        #     Luminance", "Front Door Temperature") — those expose
+        #     sensorValue not onState, so onState is null and the page
+        #     would render them as permanently "Closed".
+        # A genuine contact ALWAYS exposes a boolean onState — that's the
+        # tightest filter we have.
+        is_output      = cls in ("RelayDevice", "DimmerDevice")
+        is_button      = typ in self._BUTTON_TYPES
+        supports_onst  = getattr(dev, "supportsOnState", False) is True
+        if (not is_output) and (not is_button) and supports_onst \
+                and (typ in self._CONTACT_TYPES
+                     or self._has_word(name, ("contact", "window", "door"))) \
+                and not any(w in name.lower() for w in self._SKIP_CONTACT_WORDS):
             return "window"
         # Continuous-value environment sensors — must have BOTH temperature
         # AND humidity states (the contact check above already filtered out
@@ -951,13 +993,25 @@ class Plugin(indigo.PluginBase):
         # Cameras that opted into a room get attached here. Each camera dict
         # carries its own host/name/vendor — the room template uses host to
         # build the MJPEG proxy URL and name as the tile label.
+        # `room` may be a single string ("Garage") OR a list (["Garage",
+        # "Hall"]) so one camera can surface on multiple room pages — useful
+        # when a camera is logically attached to one room's hardware but
+        # operationally interesting to another (e.g. the Inside Garage cam
+        # also lives on Hall because the Hall has the soft garage-door tile).
         for cam in CAMERAS:
-            room = (cam.get("room") or "").strip()
-            if room in rooms:
-                rooms[room]["cameras"].append({
-                    "host": cam["host"],
-                    "name": cam["name"],
-                })
+            r = cam.get("room")
+            if isinstance(r, str):
+                cam_rooms = [r.strip()] if r.strip() else []
+            elif isinstance(r, (list, tuple)):
+                cam_rooms = [str(x).strip() for x in r if str(x).strip()]
+            else:
+                cam_rooms = []
+            for room in cam_rooms:
+                if room in rooms:
+                    rooms[room]["cameras"].append({
+                        "host": cam["host"],
+                        "name": cam["name"],
+                    })
 
         # Pass 1: radiators by name-prefix (regardless of folder).
         radiator_ids = set()
@@ -994,7 +1048,9 @@ class Plugin(indigo.PluginBase):
             for room in rooms.values():
                 for k in ID_SECTIONS:
                     room[k].sort(key=name_of)
-                room["cameras"].sort(key=lambda c: c.get("name", "").lower())
+                # Cameras keep DASHBOARDS_CAMERAS insertion order so the user
+                # controls placement per room by editing IndigoSecrets (no
+                # per-room alpha sort). "What I wrote, in that order."
         except Exception:
             pass
 
@@ -1039,6 +1095,21 @@ class Plugin(indigo.PluginBase):
                 if "extras" not in include:
                     room_data["extras"] = [i for i in room_data["extras"]
                                            if i not in all_pinned]
+            # (2c) appliances — read-only paired tiles (power meter + cycle
+            # state virtual) for things like the washing machine / tumble
+            # dryer. Pass-through; the room template renders them in a
+            # dedicated "Appliances" section.
+            appliances = cfg.get("appliances") or []
+            if appliances:
+                room_data["appliances"] = list(appliances)
+            # (2d) tv — list of device IDs that should appear in a "TV"
+            # section as toggleable light-style tiles (Sony TV + Sonos
+            # speakers in the Living Room). Render uses the same tile shape
+            # as lights but lives under its own header with an All On/Off.
+            tv_ids = cfg.get("tv") or []
+            if isinstance(tv_ids, (list, tuple)) and tv_ids:
+                room_data["tv"] = [int(i) for i in tv_ids
+                                   if isinstance(i, int)]
             # (3) doors
             doors = cfg.get("doors") or []
             if doors:
@@ -1064,12 +1135,32 @@ class Plugin(indigo.PluginBase):
                                         if i not in auto_hide]
 
         # Re-sort sections after include-merge so manually-added IDs slot in
-        # alphabetically next to the auto-classified ones.
+        # alphabetically next to the auto-classified ones — UNLESS the room
+        # config supplies a `sortOrder` map for that section, in which case
+        # the listed IDs land first in the given order and any unlisted IDs
+        # fall in alphabetically behind them. Useful when the alphabetical
+        # default produces an unintuitive grouping (e.g. Conservatory wants
+        # both windows first and then both doors, not Left-Outside-Right-
+        # Sliding interleaved).
         try:
             name_of2 = lambda i: (indigo.devices[i].name or "").lower()
-            for room in rooms.values():
-                for k in ("lights", "motion", "radiators", "windows", "sensors", "extras"):
-                    room[k].sort(key=name_of2)
+            for room_name, room in rooms.items():
+                cfg = extras_cfg.get(room_name) or {}
+                sort_order = cfg.get("sortOrder") or {}
+                for k in ("lights", "motion", "radiators",
+                          "windows", "sensors", "extras"):
+                    explicit = sort_order.get(k) if isinstance(sort_order, dict) else None
+                    if isinstance(explicit, (list, tuple)) and explicit:
+                        # Listed-first (in the given order), then anything
+                        # not listed sorted alphabetically by device name.
+                        listed = [i for i in explicit if i in room[k]]
+                        rest   = sorted(
+                            (i for i in room[k] if i not in listed),
+                            key=name_of2,
+                        )
+                        room[k] = listed + rest
+                    else:
+                        room[k].sort(key=name_of2)
         except Exception:
             pass
 
@@ -1121,6 +1212,120 @@ class Plugin(indigo.PluginBase):
                     log(f"[Cameras] {cam['name']} ({host}) snapshot failed: {payload}", level="WARNING")
                     st["last_log"] = now
 
+    # --------------------------------------------------------
+    # Weather card extras (Sunset + OWM forecast → weather.json)
+    # --------------------------------------------------------
+
+    _WEATHER_POLL_SECONDS = 60 * 60          # OWM call cadence (free-tier safe)
+
+    def _start_weather_thread(self):
+        """Spawn the hourly OWM fetch on its own thread. No-op if either the
+        API key OR lat/long is missing — the rest of the Weather card still
+        works (the Ecowitt-derived lines render unconditionally), and
+        weather.json simply never appears."""
+        if not (OWM_API_KEY and LATITUDE is not None and LONGITUDE is not None):
+            log("[Weather] Skipping — OWM_API_KEY / LATITUDE / LONGITUDE not all set "
+                "in IndigoSecrets; hub Weather card will use Ecowitt only.",
+                level="INFO")
+            return
+        self._weather_thread = threading.Thread(
+            target=self._weather_thread_main,
+            name="dashboards-weather",
+            daemon=True,
+        )
+        self._weather_thread.start()
+
+    def _stop_weather_thread(self):
+        if self._weather_stop:
+            self._weather_stop.set()
+        t = self._weather_thread
+        if t and t.is_alive():
+            t.join(timeout=3.0)
+
+    def _weather_thread_main(self):
+        """Hit OWM once on entry then every _WEATHER_POLL_SECONDS until stop.
+        The stop Event lets us wake up promptly on shutdown rather than
+        sleeping out the full hour."""
+        # First fetch is fast — get the page into a useful state on next refresh.
+        self._fetch_and_write_weather()
+        while not self._weather_stop.wait(self._WEATHER_POLL_SECONDS):
+            self._fetch_and_write_weather()
+
+    def _fetch_and_write_weather(self):
+        """One OWM round-trip → weather.json in the public dir. All exceptions
+        swallowed and logged — a failed fetch must not take the thread down."""
+        try:
+            data = self._fetch_owm_onecall()
+            if not data:
+                return
+            payload = self._build_weather_payload(data)
+            path = os.path.join(self._public_dashboards_dir(), "weather.json")
+            self._write_atomic(path, json.dumps(payload, indent=2).encode("utf-8"))
+        except Exception as exc:
+            log(f"[Weather] Fetch failed: {exc}", level="WARNING")
+
+    def _fetch_owm_onecall(self):
+        """OpenWeatherMap One Call API 3.0 — current weather + daily forecast
+        + sunset/sunrise + UV in a single request. Uses the v3 endpoint
+        (1000 calls/day free tier with "One Call by Call" subscription;
+        Highsteads' OWM_API_KEY is already provisioned for it because
+        EvoHomeControl uses the same endpoint). Returns the parsed dict on
+        success, None on any HTTP/JSON failure (the caller logs)."""
+        import urllib.request
+        import urllib.parse
+        params = {
+            "lat":     str(LATITUDE),
+            "lon":     str(LONGITUDE),
+            "exclude": "minutely,hourly,alerts",
+            "appid":   OWM_API_KEY,
+            "units":   "metric",
+        }
+        url = "https://api.openweathermap.org/data/3.0/onecall?" + urllib.parse.urlencode(params)
+        req = urllib.request.Request(url, headers={"User-Agent": f"Dashboards/{PLUGIN_VERSION}"})
+        try:
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                if resp.status != 200:
+                    log(f"[Weather] OWM HTTP {resp.status}", level="WARNING")
+                    return None
+                return json.loads(resp.read().decode("utf-8"))
+        except Exception as exc:
+            log(f"[Weather] OWM request error: {exc}", level="WARNING")
+            return None
+
+    def _build_weather_payload(self, owm):
+        """Pull the slim subset of the OWM response that the hub page needs.
+        Keeps the JSON small — the page reads it with cache: no-store every
+        render. Fields:
+          sunrise/sunset   — today (unix epoch seconds, UTC; page formats to
+                             local time using tz_offset).
+          today_min/_max   — daily forecast high/low (°C).
+          today_summary    — text description, e.g. "Clear Sky".
+          today_icon       — OWM icon code (e.g. 01d) for emoji mapping.
+          now_uvi          — current UV index (0–11+).
+          now_conditions   — current weather description (may differ from
+                             today_summary which is the daily aggregate).
+          tz_offset        — seconds offset from UTC; used by page for
+                             local-time formatting of sunrise/sunset.
+        """
+        today    = (owm.get("daily") or [{}])[0]
+        current  = owm.get("current") or {}
+        temp     = today.get("temp") or {}
+        d_weather = (today.get("weather") or [{}])[0]
+        c_weather = (current.get("weather") or [{}])[0]
+        return {
+            "_writeTs":       time.time(),
+            "sunset":         today.get("sunset")  or current.get("sunset"),
+            "sunrise":        today.get("sunrise") or current.get("sunrise"),
+            "today_min":      temp.get("min"),
+            "today_max":      temp.get("max"),
+            "today_summary":  d_weather.get("description", "").title(),
+            "today_icon":     d_weather.get("icon", ""),
+            "now_uvi":        current.get("uvi"),
+            "now_conditions": c_weather.get("description", "").title(),
+            "now_icon":       c_weather.get("icon", ""),
+            "tz_offset":      owm.get("timezone_offset"),
+        }
+
     def runConcurrentThread(self):
         """Main background loop. Indigo calls this once after startup; we keep
         looping until self.stopThread is set during shutdown. self.sleep()
@@ -1153,16 +1358,20 @@ class Plugin(indigo.PluginBase):
         self._cam_state    = {}                              # populated by poller
         self._mjpeg_server = None
         self._go2rtc_proc  = None
+        self._weather_stop = threading.Event()
+        self._weather_thread = None
         self._sync_pages_to_public()
         self._write_config_js()
         self._start_mjpeg_proxy()
         self._start_go2rtc()
         self._mirror_go2rtc_assets()
+        self._start_weather_thread()
         self.logger.info(f"{self.pluginDisplayName} started")
 
     def shutdown(self):
         self._stop_mjpeg_proxy()
         self._stop_go2rtc()
+        self._stop_weather_thread()
         self.logger.info(f"{self.pluginDisplayName} stopped")
 
     def showPluginInfo(self, valuesDict=None, typeId=None):

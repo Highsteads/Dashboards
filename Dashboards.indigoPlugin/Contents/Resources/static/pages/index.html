@@ -369,27 +369,27 @@
                 <div class="card-title">Active</div>
                 <div class="card-desc">Devices currently on</div>
             </a>
-            <a href="living-room.html" class="card card-room">
+            <a href="room.html?room=Living Room" class="card card-room">
                 <div class="card-icon">🛋</div>
                 <div class="card-title">Living Room</div>
                 <div class="card-desc">Lights · motion · heating</div>
             </a>
-            <a href="bedroom-1.html" class="card card-room">
+            <a href="room.html?room=Bedroom 1" class="card card-room">
                 <div class="card-icon">🛏</div>
                 <div class="card-title">Bedroom 1</div>
                 <div class="card-desc">Lights · window · heating</div>
             </a>
-            <a href="bedroom-2.html" class="card card-room">
+            <a href="room.html?room=Bedroom 2" class="card card-room">
                 <div class="card-icon">🛏</div>
                 <div class="card-title">Bedroom 2</div>
                 <div class="card-desc">Window · heating</div>
             </a>
-            <a href="bedroom-3.html" class="card card-room">
+            <a href="room.html?room=Bedroom 3" class="card card-room">
                 <div class="card-icon">🛏</div>
                 <div class="card-title">Bedroom 3</div>
                 <div class="card-desc">Window · motion · heating</div>
             </a>
-            <a href="dining-room.html" class="card card-room">
+            <a href="room.html?room=Dining Room" class="card card-room">
                 <div class="card-icon">🍽</div>
                 <div class="card-title">Dining Room</div>
                 <div class="card-desc">Light · motion · heating</div>
@@ -399,27 +399,27 @@
                 <div class="card-title">Kitchen</div>
                 <div class="card-desc">Lights · sensors</div>
             </a>
-            <a href="hall.html" class="card card-room">
+            <a href="room.html?room=Hall" class="card card-room">
                 <div class="card-icon">🚪</div>
                 <div class="card-title">Hall</div>
                 <div class="card-desc">Lights · sensors · 2 zones</div>
             </a>
-            <a href="en-suite.html" class="card card-room">
+            <a href="room.html?room=En Suite" class="card card-room">
                 <div class="card-icon">🚿</div>
                 <div class="card-title">En Suite</div>
                 <div class="card-desc">Heating · window</div>
             </a>
-            <a href="conservatory.html" class="card card-room">
+            <a href="room.html?room=Conservatory" class="card card-room">
                 <div class="card-icon">🌿</div>
                 <div class="card-title">Conservatory</div>
                 <div class="card-desc">Light · fan · doors · heating</div>
             </a>
-            <a href="bathroom.html" class="card card-room">
+            <a href="room.html?room=Bathroom" class="card card-room">
                 <div class="card-icon">🛁</div>
                 <div class="card-title">Bathroom</div>
                 <div class="card-desc">Light · sensors · heating</div>
             </a>
-            <a href="drive.html" class="card card-room">
+            <a href="room.html?room=Drive" class="card card-room">
                 <div class="card-icon">🚘</div>
                 <div class="card-title">Drive</div>
                 <div class="card-desc">Lights · motion · car battery</div>
@@ -429,12 +429,12 @@
                 <div class="card-title">Garage</div>
                 <div class="card-desc">Plugs · doors · sensors</div>
             </a>
-            <a href="garden.html" class="card card-room">
+            <a href="room.html?room=Garden" class="card card-room">
                 <div class="card-icon">🌿</div>
                 <div class="card-title">Garden</div>
                 <div class="card-desc">Back door light · motion</div>
             </a>
-            <a href="utility-room.html" class="card card-room">
+            <a href="room.html?room=Utility Room" class="card card-room">
                 <div class="card-icon">🧺</div>
                 <div class="card-title">Utility Room</div>
                 <div class="card-desc">Heating · window · door</div>
@@ -586,6 +586,12 @@
             const r = await fetch("rooms.json?t=" + Date.now(), { cache: "no-store" });
             if (r.ok) ROOMS = await r.json();
         } catch (_) { ROOMS = null; }
+        // OWM forecast (sunset, today high/low, UV, conditions) — written by
+        // the plugin's hourly weather thread. Page refreshes its copy every
+        // 10 minutes so a freshly-restarted plugin shows up quickly without
+        // hammering OWM. Optional — page works without weather.json.
+        _refreshOwm();
+        setInterval(_refreshOwm, 10 * 60 * 1000);
         renderCamerasOnce();        // never touched again — MJPEG stays alive
         loadSummary();
         setInterval(loadSummary, POLL_INTERVAL_MS);
@@ -668,6 +674,64 @@
             <div class="row"><span class="key">Imported</span><span class="val ${impToday > 1 ? 'warn' : ''}">${impToday.toFixed(2)} kWh</span></div>`;
     }
 
+    // Cached OWM payload (loaded once at page start, refreshed on a slow
+    // cadence by _refreshOwm). Plugin's weather thread writes weather.json
+    // hourly; we fetch it every 10 minutes which is plenty.
+    window.__OWM_DATA = null;
+    async function _refreshOwm() {
+        try {
+            const r = await fetch("weather.json?t=" + Date.now(), { cache: "no-store" });
+            if (r.ok) window.__OWM_DATA = await r.json();
+        } catch (_) { /* OWM is optional — never blocks the page */ }
+    }
+
+    // Pressure trend: stash last N samples in localStorage (timestamp → hPa)
+    // so we can compute a 3h delta arrow. Plugin doesn't store this server
+    // side; the page-side ring buffer is good enough for an arrow indicator.
+    function _trackPressure(currentHpa) {
+        if (!isFinite(currentHpa)) return null;
+        const KEY = "dashboards-pressure-history";
+        const now = Date.now();
+        let arr = [];
+        try { arr = JSON.parse(localStorage.getItem(KEY) || "[]"); } catch (_) {}
+        if (!Array.isArray(arr)) arr = [];
+        // Append, then drop anything older than 6h (more than enough for a 3h delta).
+        arr.push({ t: now, p: currentHpa });
+        arr = arr.filter(s => (now - s.t) <= 6 * 3600 * 1000);
+        try { localStorage.setItem(KEY, JSON.stringify(arr)); } catch (_) {}
+        // Find the oldest sample at least 2h old. < 2h apart and we don't
+        // have a reliable trend yet — return null so the arrow stays hidden.
+        const old = arr.find(s => (now - s.t) >= 2 * 3600 * 1000);
+        if (!old) return null;
+        const delta = currentHpa - old.p;
+        // ±0.6 hPa over 3h ≈ noise floor. Anything inside that band is "steady".
+        if (Math.abs(delta) < 0.6) return { arrow: "→", word: "steady",  delta };
+        if (delta > 0)             return { arrow: "↗", word: "rising",  delta };
+        return                            { arrow: "↘", word: "falling", delta };
+    }
+
+    // Format a unix-epoch seconds timestamp as HH:MM in the local tz offset
+    // we got back from OWM (server-tz != viewer-tz is possible on Tailscale).
+    function _fmtSunTime(epoch, tzOffsetSec) {
+        if (!epoch) return null;
+        // Compose a Date in UTC then shift by tz_offset so toUTCString
+        // formats give the local-to-the-station HH:MM.
+        const dt = new Date((epoch + (tzOffsetSec || 0)) * 1000);
+        const hh = String(dt.getUTCHours()).padStart(2, "0");
+        const mm = String(dt.getUTCMinutes()).padStart(2, "0");
+        return `${hh}:${mm}`;
+    }
+
+    // Wind chill (UK Met Office formula): only valid when T < 10°C and wind > 4.8 km/h.
+    // Outside that range "feels like" is essentially the actual temp, so we return null
+    // to suppress the line rather than print misleading data.
+    function _windChill(tempC, windMph) {
+        if (!isFinite(tempC) || !isFinite(windMph) || tempC >= 10 || windMph < 3) return null;
+        const v = windMph * 1.609344;                    // → km/h
+        const fl = 13.12 + 0.6215 * tempC - 11.37 * Math.pow(v, 0.16) + 0.3965 * tempC * Math.pow(v, 0.16);
+        return fl;
+    }
+
     function renderWeatherCard(devices) {
         const el = document.getElementById("weather-now");
         if (!el) return;
@@ -680,20 +744,53 @@
         const w = (wind || {}).states || {};
         const r = (rain || {}).states || {};
         const i = (indoor || {}).states || {};
-        const temp = parseFloat(o.temperature);
-        const hum  = parseFloat(o.humidity);
-        const speedMph = parseFloat(w.windSpeedMph || w.windSpeed) || null;
-        const gustMph  = parseFloat(w.windGustMph  || w.windGust)  || null;
-        const dir      = w.windCardinal || w.windDir || "";
+        const temp     = parseFloat(o.temperature);
+        const hum      = parseFloat(o.humidity);
+        // Ecowitt publishes m/s; old data may have used Mph keys. Detect unit
+        // so the displayed value matches what's in the device states.
+        const windUnit = (w.windSpeedUnit || "").toLowerCase();
+        const rawSpeed = parseFloat(w.windSpeed);
+        const rawGust  = parseFloat(w.windGust);
+        const rawMaxGust = parseFloat(w.maxDailyGust);
+        const toMph    = (v) => windUnit === "m/s" ? v * 2.23694 : v;
+        const speedMph = isFinite(rawSpeed) ? toMph(rawSpeed) : null;
+        const gustMph  = isFinite(rawGust)  ? toMph(rawGust)  : null;
+        const maxGustMph = isFinite(rawMaxGust) ? toMph(rawMaxGust) : null;
+        const dir      = w.windDirectionCardinal || w.windCardinal || w.windDir || "";
         const rateMm   = parseFloat(r.rainRateMm || r.rainRateMmh || r.rainHourly) || 0;
+        // Ecowitt rainDaily comes in inches by default unless the user
+        // configured mm. Convert via rainUnit so the rendered figure is
+        // always in mm regardless of source config.
+        const rainUnit = (r.rainUnit || "").toLowerCase();
+        const rawRain  = parseFloat(r.rainDaily);
+        const rainDailyMm = isFinite(rawRain)
+            ? (rainUnit === "in" || rainUnit === "inch" ? rawRain * 25.4 : rawRain)
+            : null;
         const inT      = parseFloat(i.temperature);
+        const inHum    = parseFloat(i.humidity);
+        const pressure = parseFloat(i.pressureRelative || i.pressureAbsolute);
+        const pTrend   = _trackPressure(pressure);
+        const feelsLike = _windChill(temp, speedMph);
+        const owm = window.__OWM_DATA || null;
+        const sunsetStr  = owm  ? _fmtSunTime(owm.sunset,  owm.tz_offset) : null;
+        const sunriseStr = owm  ? _fmtSunTime(owm.sunrise, owm.tz_offset) : null;
+        const todayHi    = owm && isFinite(owm.today_max) ? owm.today_max : null;
+        const todayLo    = owm && isFinite(owm.today_min) ? owm.today_min : null;
+        const conditions = owm && (owm.now_conditions || owm.today_summary) || "";
+        const uvi        = owm && isFinite(owm.now_uvi) ? owm.now_uvi : null;
         el.innerHTML = `
-            <h3>Weather</h3>
+            <h3>Weather${conditions ? ` · ${escapeAttr(conditions)}` : ""}</h3>
             <div class="row"><span class="key">Outdoor</span><span class="val big">${isFinite(temp) ? temp.toFixed(1) + "°C" : "—"}</span></div>
+            ${feelsLike != null ? `<div class="row"><span class="key">Feels like</span><span class="val">${feelsLike.toFixed(1)}°C</span></div>` : ""}
+            ${(todayHi != null && todayLo != null) ? `<div class="row"><span class="key">Today</span><span class="val">${todayHi.toFixed(0)}° / ${todayLo.toFixed(0)}°</span></div>` : ""}
             ${isFinite(hum) ? `<div class="row"><span class="key">Humidity</span><span class="val">${hum.toFixed(0)}%</span></div>` : ""}
-            ${speedMph != null ? `<div class="row"><span class="key">Wind</span><span class="val">${speedMph.toFixed(0)} mph${dir ? " " + dir : ""}${gustMph ? ` · gust ${gustMph.toFixed(0)}` : ""}</span></div>` : ""}
-            ${rateMm > 0 ? `<div class="row"><span class="key">Rain rate</span><span class="val warn">${rateMm.toFixed(1)} mm/h</span></div>` : `<div class="row"><span class="key">Rain</span><span class="val muted">dry</span></div>`}
-            ${isFinite(inT) ? `<div class="row"><span class="key">Indoor</span><span class="val">${inT.toFixed(1)}°C</span></div>` : ""}`;
+            ${speedMph != null ? `<div class="row"><span class="key">Wind</span><span class="val">${speedMph.toFixed(0)} mph${dir ? " " + dir : ""}${gustMph ? ` · gust ${gustMph.toFixed(0)}` : ""}${maxGustMph && (!gustMph || maxGustMph > gustMph + 1) ? ` · max ${maxGustMph.toFixed(0)}` : ""}</span></div>` : ""}
+            ${rateMm > 0 ? `<div class="row"><span class="key">Rain rate</span><span class="val warn">${rateMm.toFixed(1)} mm/h</span></div>` : ""}
+            ${rainDailyMm != null ? `<div class="row"><span class="key">Rain today</span><span class="val ${rainDailyMm > 0 ? "" : "muted"}">${rainDailyMm > 0 ? rainDailyMm.toFixed(1) + " mm" : "dry"}</span></div>` : ""}
+            ${isFinite(pressure) ? `<div class="row"><span class="key">Pressure</span><span class="val">${pressure.toFixed(0)} hPa${pTrend ? " " + pTrend.arrow + " " + pTrend.word : ""}</span></div>` : ""}
+            ${uvi != null ? `<div class="row"><span class="key">UV index</span><span class="val">${uvi.toFixed(1)}</span></div>` : ""}
+            ${(sunriseStr || sunsetStr) ? `<div class="row"><span class="key">Sun</span><span class="val">${sunriseStr || "—"} ↑ · ${sunsetStr || "—"} ↓</span></div>` : ""}
+            ${isFinite(inT) ? `<div class="row"><span class="key">Indoor</span><span class="val">${inT.toFixed(1)}°C${isFinite(inHum) ? " · " + inHum.toFixed(0) + "%" : ""}</span></div>` : ""}`;
     }
 
     function renderHeatingCard(devices) {

@@ -676,8 +676,21 @@
         observeAll(cb, ms = 5000) {
             let last = "";
             const tick = async () => {
-                try { const d = await this.getDevices(); const j = JSON.stringify(d);
-                      if (j !== last) { last = j; cb(d); } } catch {}
+                try {
+                    const d = await this.getDevices();
+                    const j = JSON.stringify(d);
+                    if (j !== last) { last = j; cb(d); }
+                } catch (e) {
+                    // Surface fetch failures rather than silently retrying so
+                    // we don't get stuck on the boot spinner with no clue.
+                    const c = document.getElementById("content");
+                    if (c) c.innerHTML =
+                        `<div style="padding:16px;color:#c00">
+                            <strong>Connection error</strong><br>
+                            ${(e && e.message) || String(e)}
+                         </div>`;
+                    console.error("[ecowitt] tick failed:", e);
+                }
             };
             tick();
             const t = setInterval(tick, ms);
@@ -959,58 +972,6 @@
 
     function renderSectionHeader(title, actionHtml) {
         return `<div class="section-header"><span class="section-title">${escapeHtml(title)}</span>${actionHtml || ""}</div>`;
-    }
-
-        const lightsOn  = lights.filter(d => d.onState === true).length;
-        const tvOnCount = tv.filter(d => d.onState === true).length;
-        const tvAllOn   = tv.length > 0 && tvOnCount === tv.length;
-        // Motion sensors only — value sensors (lux, °C, voltage) have null onState.
-        const motionCount = motion.filter(d => d.onState === true).length;
-        const heatingAny = radiators.filter(isHeating).length;
-
-        const status = [];
-        status.push(`${lightsOn}/${lights.length} lights on`);
-        if (tv.length) status.push(tvAllOn ? "TV on" : (tvOnCount ? `TV partial` : "TV off"));
-        if (motionCount) status.push(`motion`);
-        if (heatingAny) status.push(`${heatingAny} heating`);
-        let html = "";
-
-        if (lights.length || radiators.length) {
-            // "All On / All Off" applies to every light except the main light.
-            // The radiator(s) sit in the same grid as the lights so the room's
-            // controls appear together — radiator lands next to the ceiling
-            // light in the second row (and the All On/Off button still only
-            // affects the lights themselves).
-            const others      = lights.filter(d => d.id !== MAIN_LIGHT_ID);
-            const allOthersOn = others.length > 0 && others.every(d => d.onState === true);
-            const lbl = allOthersOn ? "All Off" : "All On";
-            html += renderSectionHeader(
-                "Lights",
-                `<button class="section-action${allOthersOn ? ' is-on' : ''}" onclick="toggleLights()">${lbl}</button>`
-            );
-            html += '<div class="grid">' +
-                    lights.map(renderLight).join("") +
-                    radiators.map(renderZone).join("") +
-                    '</div>';
-        }
-
-        if (tv.length) {
-            const someOn = tvOnCount > 0;
-            const lbl = tvAllOn ? "All Off" : (someOn ? "All On" : "All On");
-            const cls = tvAllOn ? "is-on" : "";
-            html += renderSectionHeader(
-                "TV",
-                `<button class="section-action ${cls}" onclick="toggleTv()">${lbl}</button>`
-            );
-            html += '<div class="grid">' + tv.map(renderLight).join("") + '</div>';
-        }
-
-        if (motion.length) {
-            html += renderSectionHeader("Sensors");
-            html += '<div class="grid">' + motion.map(renderMotion).join("") + '</div>';
-        }
-
-        document.getElementById("content").innerHTML = html;
     }
 
     function openDeviceDetails(deviceId) {

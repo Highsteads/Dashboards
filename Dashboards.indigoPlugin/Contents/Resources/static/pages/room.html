@@ -453,8 +453,58 @@
         .door-btn:disabled { opacity: 0.5; cursor: default; }
 
         /* Camera tile for the optional per-room cam (e.g. Inside Garage on
-           the Garage page). 16:9 MJPEG, click to open the main cameras page. */
-        .camera-grid { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+           the Garage page). 16:9 MJPEG, click to open the main cameras page.
+           Sizing rule:
+             - On phones (~390px viewport): cells shrink to ~33% so 3 fit
+               across when a room has 3 cameras (e.g. Garden has Back Garden
+               + Patio + Back Door). For 2-cell rooms (camera + door) they
+               just take 50% each, which is plenty wide.
+             - On desktops: the 220px cap kicks in so cells stay at a
+               sensible size and the grid wraps as needed for more tiles.
+           `auto-fit` packs cells without leaving empty slots. */
+        .camera-grid { grid-template-columns: repeat(auto-fit, minmax(min(33%, 220px), 1fr)); }
+        /* Door-in-camera-grid: door tile renders inside the same grid as the
+           camera so they appear at the same width side-by-side. Height
+           matches the camera frame's 16:9 aspect for visual parity. */
+        .door-card-compact {
+            background: var(--card-bg); border-radius: 12px; overflow: hidden;
+            box-shadow: var(--shadow);
+            display: flex; flex-direction: column;
+        }
+        .door-card-compact.is-open .door-status { color: var(--accent); font-weight: 600; }
+        .door-card-compact .door-status-frame {
+            aspect-ratio: 16 / 9; background: var(--card-bg);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 6px; padding: 12px;
+        }
+        .door-card-compact .door-label  { font-size: 14px; color: var(--text-secondary); }
+        .door-card-compact .door-status { font-size: 28px; }
+        .door-card-compact .door-btn    { border-radius: 0; margin: 0; }
+
+        /* Read-only "Appliances" tile — live wattage + cycle state pill.
+           Visual style matches the motion-card to fit alongside in mobile
+           grids, but with a small pill in place of the dot. */
+        .appliance-card {
+            background: var(--card-bg); border-radius: 12px;
+            padding: 14px 16px; box-shadow: var(--shadow);
+            display: flex; flex-direction: column; gap: 6px;
+        }
+        .appliance-head {
+            display: flex; align-items: center; justify-content: space-between; gap: 12px;
+        }
+        .appliance-name { font-size: 15px; font-weight: 600; }
+        .appliance-pill {
+            font-size: 12px; padding: 3px 10px; border-radius: 999px;
+            background: var(--off-color); color: var(--text-secondary);
+        }
+        .appliance-pill.running { background: var(--accent); color: #fff; }
+        .appliance-pill.ready   { background: #ff9f0a; color: #fff; }
+        .appliance-meta {
+            display: flex; justify-content: space-between;
+            font-size: 12px; color: var(--text-secondary);
+        }
+        .appliance-watts { font-size: 13px; }
+        .appliance-watts.live { color: var(--text); font-weight: 600; }
         .camera-card {
             background: var(--card-bg); border-radius: 12px; overflow: hidden;
             box-shadow: var(--shadow); cursor: pointer;
@@ -551,7 +601,7 @@
         }
         .setpoint-btn:active { background: var(--accent); color: white; }
         .setpoint-btn:disabled { opacity: 0.5; }
-        .zone-meta { font-size: 12px; color: var(--text-secondary); display: flex; gap: 12px; flex-wrap: wrap; }
+        .zone-meta { font-size: 12px; color: var(--text-secondary); display: flex; gap: 12px; flex-wrap: wrap; justify-content: space-between; }
 
         .loading { text-align: center; padding: 60px 20px; color: var(--text-secondary); }
         .spinner {
@@ -754,12 +804,13 @@
     let   MOTION_IDS   = new Set();
     let   RADIATOR_IDS = new Set();
     let   WINDOW_IDS   = new Set();
-    let   TV_IDS       = new Set();        // unused in shared template — kept for renderer compat
+    let   TV_IDS       = new Set();        // populated from rooms.json `tv` list (Living Room etc.)
     let   MAIN_LIGHT_ID = -1;              // unused in shared template — kept for renderer compat
     let   LIGHT_ORDER  = [];                // populated from rooms.json (alphabetical)
     let   SENSOR_IDS   = new Set();         // continuous-value sensors (temp+humidity)
     let   ROOM_CAMERAS = [];                // [{host,name}, …] for this room (may be empty)
     let   ROOM_DOORS   = [];                // [{label,relayIds,pulseMs,statusContactId,openWhenContactOnState}, …]
+    let   ROOM_APPLIANCES = [];             // [{label,monitorId,cycleId}, …] for read-only Appliances section
     let   MJPEG_PORT   = 8177;              // overwritten from rooms.json companion config
 
     function lightSupportsColour(d) {
@@ -792,9 +843,14 @@
         RADIATOR_IDS = new Set(r0.radiators);
         WINDOW_IDS   = new Set(r0.windows);
         SENSOR_IDS   = new Set(r0.sensors || []);
+        TV_IDS       = new Set(r0.tv || []);
         LIGHT_ORDER  = [...r0.lights];
         ROOM_CAMERAS = Array.isArray(r0.cameras) ? r0.cameras : [];
         ROOM_DOORS   = Array.isArray(r0.doors)   ? r0.doors   : [];
+        // Each entry: { label, monitorId (Shelly plug for live W), cycleId
+        // (ApplianceMonitor virtual for idle/running cycle state) }. Pair
+        // lookup happens at render time against the live device list.
+        ROOM_APPLIANCES = Array.isArray(r0.appliances) ? r0.appliances : [];
         // The MJPEG proxy port is exposed by config.js as CAMERA_CONFIG.mjpegPort
         // (loaded ahead of this script). Fall back to 8177 if config.js wasn't
         // loaded or doesn't have it.
@@ -805,14 +861,28 @@
         const h1 = document.querySelector(".topbar h1");
         if (h1) h1.textContent = room;
         window.__ROOM_NAME = room;
-        // Render the camera section ONCE — it's pure MJPEG, no device-state
-        // dependence, so the 5s render() cycle never needs to touch it.
+        // Render the cameras (and any pulse-door tiles) ONCE into the same
+        // grid — pure MJPEG cameras have no device-state dependence so the
+        // 5s render() cycle never touches the camera frame. The door tiles
+        // get re-rendered IN PLACE into per-door slots below, so the camera
+        // socket stays alive while door status / button label still update.
         const camEl = document.getElementById("cameras-section");
-        if (camEl && ROOM_CAMERAS.length) {
-            camEl.innerHTML =
-                renderSectionHeader("Camera" + (ROOM_CAMERAS.length > 1 ? "s" : "")) +
-                '<div class="grid camera-grid">' +
-                ROOM_CAMERAS.map(renderRoomCamera).join("") + '</div>';
+        const hasCam  = ROOM_CAMERAS.length > 0;
+        const hasDoor = ROOM_DOORS.length > 0;
+        if (camEl && (hasCam || hasDoor)) {
+            let cells = "";
+            if (hasCam)  cells += ROOM_CAMERAS.map(renderRoomCamera).join("");
+            if (hasDoor) cells += ROOM_DOORS
+                .map((d, i) => `<div class="door-slot" data-door-idx="${i}"></div>`)
+                .join("");
+            const header = hasCam && hasDoor
+                ? (ROOM_CAMERAS.length > 1 || ROOM_DOORS.length > 1
+                        ? "Cameras & Doors" : "Camera & Door")
+                : hasCam
+                    ? "Camera" + (ROOM_CAMERAS.length > 1 ? "s" : "")
+                    : "Door"   + (ROOM_DOORS.length   > 1 ? "s" : "");
+            camEl.innerHTML = renderSectionHeader(header) +
+                '<div class="grid camera-grid">' + cells + '</div>';
         }
         return room;
     }
@@ -931,14 +1001,29 @@
         // a <video>-like MJPEG <img> on every 5s poll tears down the proxy
         // connection and causes a black flash on each refresh.
 
-        // Pulse-style doors (e.g. Garage Door). Status is derived from a contact
-        // sensor declared per door in DASHBOARDS_ROOM_EXTRAS; tap → briefly
-        // turns the wired relays on then off (shorts the door's manual switch).
+        // Pulse-style doors (e.g. Garage Door). Status is derived from a
+        // contact sensor declared per door in DASHBOARDS_ROOM_EXTRAS; tap →
+        // briefly turns the wired relays on then off.
+        // Render-target depends on layout:
+        //   - If the room ALSO has a camera, door slots are placed inside
+        //     #cameras-section (set up once in _initRoomFromConfig), so the
+        //     camera and door tile sit side-by-side. We fill those slots
+        //     in-place each render — the camera frame stays untouched.
+        //   - If the room has no camera, the door renders as its own
+        //     section in #content like any other (old behaviour).
         if (ROOM_DOORS.length) {
-            html += renderSectionHeader(ROOM_DOORS.length > 1 ? "Doors" : "Door");
-            html += '<div class="grid">' +
-                    ROOM_DOORS.map(door => renderDoorTile(door, devices)).join("") +
-                    '</div>';
+            const doorSlots = document.querySelectorAll("#cameras-section .door-slot");
+            if (doorSlots.length) {
+                doorSlots.forEach((slot, i) => {
+                    const door = ROOM_DOORS[i];
+                    if (door) slot.innerHTML = renderDoorTile(door, devices, true);
+                });
+            } else {
+                html += renderSectionHeader(ROOM_DOORS.length > 1 ? "Doors" : "Door");
+                html += '<div class="grid">' +
+                        ROOM_DOORS.map(door => renderDoorTile(door, devices)).join("") +
+                        '</div>';
+            }
         }
 
         if (lights.length) {
@@ -979,18 +1064,24 @@
             html += '<div class="grid">' + radiators.map(renderZone).join("") + '</div>';
         }
 
-        // Windows & Doors: actual windows/doors are noisy when closed (you only
-        // care if one's been left open), so they're shown only when onState=true.
-        // Appliance contacts (freezer, fridge) are different — they're monitored
-        // 24/7 to spot a lid left open, so always render those regardless of
-        // state. Section header is suppressed when nothing's visible.
-        const isApplianceContact = (d) => /\b(freezer|fridge)\b/i.test(d.name || "");
-        const visibleWindows = windows.filter(d => d.onState === true || isApplianceContact(d));
-        if (visibleWindows.length) {
+        // Appliances: read-only paired tiles for things like the washing
+        // machine and tumble dryer. Each entry pairs a Shelly power meter
+        // (live W) with an ApplianceMonitor cycle state. The pair lookup
+        // happens here against the live devices array.
+        if (ROOM_APPLIANCES.length) {
+            html += renderSectionHeader(ROOM_APPLIANCES.length > 1 ? "Appliances" : "Appliance");
+            html += '<div class="grid">' +
+                    ROOM_APPLIANCES.map(a => renderAppliance(a, devices)).join("") +
+                    '</div>';
+        }
+
+        // Windows & Doors: always render every contact in the room. Each
+        // tile shows live Open/Closed state via renderMotion (it uses the
+        // device's onState the same way motion sensors do). The section is
+        // suppressed only when the room has no contacts at all.
+        if (windows.length) {
             html += renderSectionHeader("Windows & Doors");
-            // Contact sensors surface onState the same way motion does, so
-            // renderMotion gives us "Open / Closed" semantics for free.
-            html += '<div class="grid">' + visibleWindows.map(renderMotion).join("") + '</div>';
+            html += '<div class="grid">' + windows.map(renderMotion).join("") + '</div>';
         }
 
         document.getElementById("content").innerHTML = html;
@@ -1162,6 +1253,77 @@
             </div>`;
     }
 
+    // Read-only appliance tile. Flexible by device pairing:
+    //   - `monitorId` only (relay or plug): pill is On/Off from onState;
+    //     wattage shown if the device exposes powerWatts (Shelly PM); the
+    //     last-cycle meta line is suppressed when no cycleId is paired.
+    //     Used for things like the En Suite Floor Heating Switch — a status
+    //     indicator with no toggle.
+    //   - `cycleId` only (ApplianceMonitor virtual): pill is the cycle
+    //     state (Idle / Running / Door open) and the last-cycle meta line
+    //     shows duration / peak / kWh.
+    //   - Both paired (typical washer / dryer): pill = cycle state,
+    //     wattage = live W from the Shelly plug, meta = last-cycle stats.
+    // Wattage is bolded when ≥ 1 W (i.e. the device is actually drawing).
+    function renderAppliance(spec, devices) {
+        const mon   = devices.find(d => d.id === spec.monitorId);
+        const cyc   = devices.find(d => d.id === spec.cycleId);
+        const mst   = (mon || {}).states || {};
+        const cst   = (cyc || {}).states || {};
+
+        // Pill — cycle state takes priority; falls back to monitor on/off.
+        const cycleState = (cst.cycleState || "").toString().toLowerCase();
+        let pillCls = "", pillTxt = "—";
+        if (cycleState) {
+            pillCls =
+                cycleState === "running"   ? "running" :
+                cycleState === "doorready" ? "ready"   : "";
+            pillTxt =
+                cycleState === "running"   ? "Running"   :
+                cycleState === "doorready" ? "Door open" :
+                cycleState === "idle"      ? "Idle"      :
+                cycleState.charAt(0).toUpperCase() + cycleState.slice(1);
+        } else if (mon && mon.onState != null) {
+            const on = mon.onState === true;
+            pillCls  = on ? "running" : "";
+            pillTxt  = on ? "On" : "Off";
+        }
+
+        // Wattage — only if the monitor device exposes powerWatts.
+        const watts = parseFloat(mst.powerWatts);
+        const hasWatts = isFinite(watts);
+        const wattsStr = hasWatts ? `${watts.toFixed(0)} W` : "";
+        const live     = hasWatts && watts >= 1.0;
+
+        // Last-cycle summary only if we have a cycle device.
+        const lastM   = parseFloat(cst.lastCycleMinutes);
+        const lastKwh = parseFloat(cst.lastCycleEnergyKwh);
+        const lastPk  = parseFloat(cst.lastCyclePeakWatts);
+        const lastParts = [];
+        if (isFinite(lastM)   && lastM   > 0) lastParts.push(`${lastM.toFixed(0)} min`);
+        if (isFinite(lastPk)  && lastPk  > 0) lastParts.push(`peak ${lastPk.toFixed(0)} W`);
+        if (isFinite(lastKwh) && lastKwh > 0) lastParts.push(`${lastKwh.toFixed(2)} kWh`);
+        const lastLine = lastParts.length ? `Last cycle · ${lastParts.join(" · ")}` : "";
+
+        // Suppress the meta row entirely if there's nothing useful to show.
+        const hasMeta = hasWatts || lastLine;
+        const metaHtml = hasMeta
+            ? `<div class="appliance-meta">
+                   <span class="appliance-watts ${live ? "live" : ""}">${escapeHtml(wattsStr)}</span>
+                   <span>${escapeHtml(lastLine)}</span>
+               </div>`
+            : "";
+
+        return `
+            <div class="appliance-card">
+                <div class="appliance-head">
+                    <div class="appliance-name">${escapeHtml(spec.label || "Appliance")}</div>
+                    <span class="appliance-pill ${pillCls}">${escapeHtml(pillTxt)}</span>
+                </div>
+                ${metaHtml}
+            </div>`;
+    }
+
     function renderZone(d) {
         const cur = getCurrentTemp(d);
         const actualSp = getSetpoint(d);
@@ -1181,6 +1343,12 @@
         // Binary status: actively heating, fully closed, or system-off.
         // (Raw d.hvacMode reads "indigo.kHvacMode.Heat" for every RAMSES TRV — useless.)
         const radStatus = hvacOff ? "Off" : (heating ? "Heating" : "Valve Closed");
+        // Humidity from the thermostat itself (Z-Wave thermostats expose this
+        // under humidityInput1 — non-standard so the auto-classifier doesn't
+        // pick it up). When present, surface inline so the zone tile doubles
+        // as a temp+humidity readout (e.g. En Suite Floor Heating Thermostat).
+        const humidity = parseFloat((d.states || {}).humidityInput1);
+        const humStr   = isFinite(humidity) ? `${humidity.toFixed(0)}% RH` : "";
         const canBump = sp != null;
         const disabledAttr = canBump ? "" : "disabled";
         return `
@@ -1206,6 +1374,7 @@
                 </div>
                 <div class="zone-meta">
                     <span>${radStatus}</span>
+                    ${humStr ? `<span>${escapeHtml(humStr)}</span>` : ""}
                 </div>
             </div>`;
     }
@@ -1217,14 +1386,13 @@
     function renderRoomCamera(cam) {
         const host = location.hostname;
         const src  = `${location.protocol}//${host}:${MJPEG_PORT}/mjpeg/${cam.host}?_t=${Date.now()}`;
+        // No name/IP caption — tap target is the frame itself, which feels
+        // less cluttered and gives more vertical room for the MJPEG image.
+        // The `alt` attribute still carries the name for screen readers.
         return `
             <div class="camera-card" onclick="openRoomCamera('${cam.host}', '${escapeHtml(cam.name)}')">
                 <div class="camera-frame">
                     <img crossorigin="anonymous" alt="${escapeHtml(cam.name)}" src="${src}">
-                </div>
-                <div class="camera-meta">
-                    <span class="camera-name">${escapeHtml(cam.name)}</span>
-                    <span class="camera-host">${escapeHtml(cam.host)}</span>
                 </div>
             </div>`;
     }
@@ -1239,7 +1407,7 @@
     //   contact onState === openWhenContactOnState  →  "Open"   else "Closed".
     // Tile uses the existing light-card colour to indicate Open (warm) vs
     // Closed (off), and a single big action button below.
-    function renderDoorTile(door, devices) {
+    function renderDoorTile(door, devices, compact) {
         const contact = devices.find(d => d.id === door.statusContactId);
         let status = "Unknown";
         if (contact) {
@@ -1254,6 +1422,22 @@
         const relayJson = JSON.stringify(door.relayIds || []);
         const pulse     = parseInt(door.pulseMs || 1500, 10);
         const label     = door.label || "Door";
+
+        // Compact form: lives next to a camera in #cameras-section. Uses
+        // 16:9 aspect ratio so its height matches the adjacent camera tile.
+        if (compact) {
+            return `
+                <div class="door-card-compact ${isOpen ? 'is-open' : ''}">
+                    <div class="door-status-frame">
+                        <div class="door-label">${escapeHtml(label)}</div>
+                        <div class="door-status">${escapeHtml(status)}</div>
+                    </div>
+                    <button class="door-btn" data-pulse="${pulse}"
+                            data-relays='${relayJson}'
+                            onclick="pulseDoor(this)">${escapeHtml(action)}</button>
+                </div>`;
+        }
+        // Full-width form: rendered in #content when the room has no camera.
         return `
             <div class="light-card is-colour ${isOpen ? 'on' : ''}">
                 <div class="light-head">
