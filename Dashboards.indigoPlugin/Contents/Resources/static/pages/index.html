@@ -14,6 +14,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Highsteads">
+    <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#5856d6">
     <link rel="apple-touch-icon" sizes="180x180" href="/public/dashboards/apple-touch-icon.png">
     <link rel="apple-touch-icon" sizes="167x167" href="/public/dashboards/apple-touch-icon-167.png">
@@ -178,28 +179,28 @@
         }
         .grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-            gap: 12px;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 10px;
             max-width: 900px;
             margin: 0 auto;
         }
         .card {
-            background: var(--card-bg); border-radius: 14px; padding: 20px 16px;
+            background: var(--card-bg); border-radius: 12px; padding: 12px 10px;
             box-shadow: var(--shadow); cursor: pointer;
             display: flex; flex-direction: column; align-items: center; text-align: center;
             text-decoration: none; color: inherit;
-            min-height: 140px; justify-content: center;
+            min-height: 100px; justify-content: center;
             transition: transform 0.15s, box-shadow 0.15s;
         }
         .card:active { transform: scale(0.97); }
         .card-icon {
-            font-size: 36px; margin-bottom: 10px;
-            width: 56px; height: 56px;
+            font-size: 26px; margin-bottom: 6px;
+            width: 40px; height: 40px;
             display: flex; align-items: center; justify-content: center;
-            border-radius: 14px;
+            border-radius: 10px;
         }
-        .card-title { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
-        .card-desc { font-size: 13px; color: var(--text-secondary); }
+        .card-title { font-size: 14px; font-weight: 600; margin-bottom: 2px; line-height: 1.2; }
+        .card-desc { font-size: 11px; color: var(--text-secondary); line-height: 1.25; }
         .card-energy .card-icon { background: rgba(52, 199, 89, 0.18); color: #34c759; }
         .card-heating .card-icon { background: rgba(255, 149, 0, 0.18); color: #ff9500; }
         .card-overview .card-icon { background: rgba(88, 86, 214, 0.18); color: var(--accent); }
@@ -223,6 +224,75 @@
         .status-value { font-size: 18px; font-weight: 600; margin-top: 2px; }
         .status-value.green { color: var(--on-color); }
         .status-value.red { color: #ff453a; }
+
+        /* ── Command-centre sections (cameras / energy / weather / heating / alerts) ── */
+        #cameras-mosaic {
+            display: grid; gap: 8px;
+            grid-template-columns: repeat(4, 1fr);
+            max-width: 900px; margin: 0 auto 16px;
+        }
+        /* 4-across on wide; 2×2 on tablet/phone landscape; 2-wide on portrait
+           phones so each tile stays large enough to glance at. */
+        @media (max-width: 700px) { #cameras-mosaic { grid-template-columns: repeat(2, 1fr); } }
+        .home-cam {
+            background: #000; border-radius: 12px; overflow: hidden;
+            box-shadow: var(--shadow); cursor: pointer;
+            display: block;
+        }
+        .home-cam-frame { aspect-ratio: 16 / 9; background: #000; overflow: hidden; }
+        .home-cam-frame img {
+            width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none;
+        }
+
+        .dash-row {
+            display: grid; gap: 10px; max-width: 900px; margin: 0 auto 16px;
+            grid-template-columns: 1fr 1fr;
+        }
+        @media (max-width: 600px) { .dash-row { grid-template-columns: 1fr; } }
+        .dash-card {
+            background: var(--card-bg); border-radius: 12px; padding: 14px 16px;
+            box-shadow: var(--shadow);
+            color: inherit; text-decoration: none; display: block;
+            cursor: pointer;
+            transition: transform 0.15s, box-shadow 0.15s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .dash-card:active { transform: scale(0.98); }
+        .dash-card h3 {
+            font-size: 12px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.6px; color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+        .dash-card .row {
+            display: flex; justify-content: space-between; align-items: baseline;
+            font-size: 13px; padding: 2px 0;
+            font-variant-numeric: tabular-nums;
+        }
+        .dash-card .row .key  { color: var(--text-secondary); }
+        .dash-card .row .val  { font-weight: 600; color: var(--text); }
+        .dash-card .big       { font-size: 22px; font-weight: 700; color: var(--accent); }
+        .dash-card .ok        { color: var(--on-color); }
+        .dash-card .warn      { color: #ff9500; }
+        .dash-card .bad       { color: #ff453a; }
+        .dash-card .muted     { color: var(--text-secondary); font-size: 12px; }
+        .dash-card .heat-line {
+            display: grid; grid-template-columns: 1fr auto auto;
+            gap: 8px; font-size: 12px; padding: 2px 0;
+            font-variant-numeric: tabular-nums;
+        }
+        .dash-card .heat-line .zone-name { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .dash-card .heat-line .zone-temp { color: var(--text-secondary); }
+        .dash-card .heat-line .zone-dot {
+            width: 8px; height: 8px; border-radius: 50%; background: var(--off-color);
+            margin: 6px 0;
+        }
+        .dash-card .heat-line .zone-dot.on { background: #ff9500; }
+        .dash-card .alert-open {
+            display: flex; justify-content: space-between; align-items: baseline;
+            font-size: 12px; padding: 2px 0;
+        }
+        .dash-card .alert-open .name { color: var(--text); }
+        .dash-card .alert-open .when { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 
         #config-form {
             max-width: 400px; margin: 60px auto; padding: 24px;
@@ -256,11 +326,25 @@
     </header>
     <div id="content" class="container">
         <div id="status" class="status-strip" style="display:none"></div>
+        <!-- Camera mosaic — rendered ONCE in start() so the 5s poll doesn't
+             tear down the MJPEG connections. Pure visual, no data binding. -->
+        <div id="cameras-mosaic"></div>
+        <!-- Two-column row: Energy + Weather. Each card updates every 5s
+             via loadSummary(). They stack on phones (≤600px). -->
+        <div class="dash-row">
+            <a id="energy-detail" class="dash-card" href="energy.html"></a>
+            <a id="weather-now"   class="dash-card" href="ecowitt.html"></a>
+        </div>
+        <!-- Heating + Alerts row. Same pattern. -->
+        <div class="dash-row">
+            <a id="heating-compact" class="dash-card" href="heating.html"></a>
+            <a id="alerts-strip"    class="dash-card" href="overview.html"></a>
+        </div>
         <main class="grid" id="grid">
             <!-- Legacy SigenEnergyManager mini-dashboard on its own server
                  (port 8179). Same trusted-LAN, no-auth as the public/dashboards
                  pages, so behaves identically from the user's perspective. -->
-            <a href="http://192.168.100.160:8179/" class="card card-energy">
+            <a href="energy.html" class="card card-energy">
                 <div class="card-icon">⚡</div>
                 <div class="card-title">Energy</div>
                 <div class="card-desc">Solar, battery, grid</div>
@@ -310,7 +394,7 @@
                 <div class="card-title">Dining Room</div>
                 <div class="card-desc">Light · motion · heating</div>
             </a>
-            <a href="kitchen.html" class="card card-room">
+            <a href="room.html?room=Kitchen" class="card card-room">
                 <div class="card-icon">🍳</div>
                 <div class="card-title">Kitchen</div>
                 <div class="card-desc">Lights · sensors</div>
@@ -340,7 +424,7 @@
                 <div class="card-title">Drive</div>
                 <div class="card-desc">Lights · motion · car battery</div>
             </a>
-            <a href="garage.html" class="card card-room">
+            <a href="room.html?room=Garage" class="card card-room">
                 <div class="card-icon">🏚️</div>
                 <div class="card-title">Garage</div>
                 <div class="card-desc">Plugs · doors · sensors</div>
@@ -377,7 +461,7 @@
         constructor(config) {
             const c = config || window.INDIGO_CONFIG || IndigoAPI.getStoredConfig();
             if (!c) throw new IndigoAPIError("Not configured", 0);
-            this._base = c.baseURL.replace(/\/+$/, "");
+            this._base = ""; // same-origin: Indigo /v2/api lacks CORS preflight, so always use page origin
             this._key = c.apiKey;
             this._errH = []; this._authH = [];
         }
@@ -488,11 +572,181 @@
     setInterval(tickRefreshStatus, 1000);
 
     // ── page logic ────────────────────────────────────────────
+    let ROOMS = null;       // rooms.json contents; populated once at boot
     if (typeof IndigoAPI === "undefined" || !IndigoAPI.isConfigured()) {
         showConfigForm();
     } else {
+        bootCommandCentre();
+    }
+
+    async function bootCommandCentre() {
+        // Load rooms.json once — we need it to find every radiator + contact
+        // sensor across the house for the Heating and Alerts cards.
+        try {
+            const r = await fetch("rooms.json?t=" + Date.now(), { cache: "no-store" });
+            if (r.ok) ROOMS = await r.json();
+        } catch (_) { ROOMS = null; }
+        renderCamerasOnce();        // never touched again — MJPEG stays alive
         loadSummary();
         setInterval(loadSummary, POLL_INTERVAL_MS);
+    }
+
+    // ── Camera mosaic (3 tiles, rendered ONCE) ────────────────
+    function renderCamerasOnce() {
+        const cfg   = window.CAMERA_CONFIG || {};
+        const hosts = cfg.mainCameras || [];
+        const names = cfg.names || {};
+        const port  = cfg.mjpegPort || 8177;
+        const path  = cfg.mjpegPath || "/mjpeg/{host}";
+        const mount = document.getElementById("cameras-mosaic");
+        if (!mount || !hosts.length) return;
+        const tiles = hosts.map(host => {
+            const name = names[host] || host;
+            const src  = `${location.protocol}//${location.hostname}:${port}${path.replace("{host}", host)}?_t=${Date.now()}`;
+            return `
+                <a class="home-cam" href="cameras.html" title="${escapeAttr(name)}">
+                    <div class="home-cam-frame">
+                        <img crossorigin="anonymous" alt="${escapeAttr(name)}" src="${escapeAttr(src)}">
+                    </div>
+                </a>`;
+        }).join("");
+        mount.innerHTML = tiles;
+    }
+    function escapeAttr(s) {
+        return String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    }
+
+    // ── Compact formatters reused by each card ────────────────
+    function fmtKw(w)  { return Math.abs(w) >= 1000 ? `${(w/1000).toFixed(1)} kW` : `${Math.round(w)} W`; }
+    function fmtNum(s) { const n = parseFloat(s); return isNaN(n) ? "—" : n; }
+    function relTime(iso) {
+        if (!iso) return "";
+        const t = Date.parse(iso); if (isNaN(t)) return "";
+        const mins = Math.round((Date.now() - t) / 60000);
+        if (mins < 1)  return "just now";
+        if (mins < 60) return mins + "m ago";
+        const hrs = Math.round(mins / 60);
+        if (hrs < 24)  return hrs + "h ago";
+        return Math.round(hrs / 24) + "d ago";
+    }
+    // ── Card renderers ───────────────────────────────────────────────
+    function renderEnergyCard(devices) {
+        const el = document.getElementById("energy-detail");
+        if (!el) return;
+        const sigen = devices.find(d => d.id === 1563154425);
+        if (!sigen || !sigen.states) {
+            el.innerHTML = `<h3>Energy</h3><div class="muted">Sigen device not found</div>`;
+            return;
+        }
+        // Sigen state keys are strings — coerce via parseFloat/parseInt.
+        const s          = sigen.states;
+        const soc        = parseFloat(s.batterySoc        || 0);
+        const pv         = parseInt(  s.pvPowerWatts      || 0);
+        const grid       = parseInt(  s.gridPowerWatts    || 0);
+        const home       = parseInt(  s.homePowerWatts    || 0);
+        const battW      = parseInt(  s.batteryPowerWatts || 0);
+        const pvToday    = parseFloat(s.pvDailyKwh        || 0);
+        const homeToday  = parseFloat(s.homeDailyKwh      || 0);
+        const expToday   = parseFloat(s.gridDailyExportKwh|| 0);
+        const impToday   = parseFloat(s.gridDailyImportKwh|| 0);
+        // Sigen's gridPowerWatts is negative when exporting (kept consistent
+        // with the strip above), batteryPowerWatts positive when charging.
+        const gridLabel = grid >= 0 ? "Import" : "Export";
+        const gridCls   = grid <  0 ? "ok"     : (grid > 50 ? "warn" : "");
+        const battLabel = battW >= 0 ? "Charging" : "Discharging";
+        el.innerHTML = `
+            <h3>Energy · Now</h3>
+            <div class="row"><span class="key">Battery</span><span class="val big">${soc.toFixed(0)}%</span></div>
+            <div class="row"><span class="key">Solar</span><span class="val">${fmtKw(pv)}</span></div>
+            <div class="row"><span class="key">Grid ${gridLabel}</span><span class="val ${gridCls}">${fmtKw(Math.abs(grid))}</span></div>
+            <div class="row"><span class="key">Home</span><span class="val">${fmtKw(home)}</span></div>
+            ${battW ? `<div class="row"><span class="key">${battLabel}</span><span class="val">${fmtKw(Math.abs(battW))}</span></div>` : ""}
+            <h3 style="margin-top:10px">Today</h3>
+            <div class="row"><span class="key">Solar produced</span><span class="val">${pvToday.toFixed(1)} kWh</span></div>
+            <div class="row"><span class="key">Home used</span><span class="val">${homeToday.toFixed(1)} kWh</span></div>
+            <div class="row"><span class="key">Exported</span><span class="val ok">${expToday.toFixed(1)} kWh</span></div>
+            <div class="row"><span class="key">Imported</span><span class="val ${impToday > 1 ? 'warn' : ''}">${impToday.toFixed(2)} kWh</span></div>`;
+    }
+
+    function renderWeatherCard(devices) {
+        const el = document.getElementById("weather-now");
+        if (!el) return;
+        const outdoor = devices.find(d => d.id === 889210700);
+        const wind    = devices.find(d => d.id === 1777020227);
+        const rain    = devices.find(d => d.id === 550384560);
+        const indoor  = devices.find(d => d.id === 1376100918);
+        if (!outdoor) { el.innerHTML = `<h3>Weather</h3><div class="muted">Ecowitt unavailable</div>`; return; }
+        const o = outdoor.states || {};
+        const w = (wind || {}).states || {};
+        const r = (rain || {}).states || {};
+        const i = (indoor || {}).states || {};
+        const temp = parseFloat(o.temperature);
+        const hum  = parseFloat(o.humidity);
+        const speedMph = parseFloat(w.windSpeedMph || w.windSpeed) || null;
+        const gustMph  = parseFloat(w.windGustMph  || w.windGust)  || null;
+        const dir      = w.windCardinal || w.windDir || "";
+        const rateMm   = parseFloat(r.rainRateMm || r.rainRateMmh || r.rainHourly) || 0;
+        const inT      = parseFloat(i.temperature);
+        el.innerHTML = `
+            <h3>Weather</h3>
+            <div class="row"><span class="key">Outdoor</span><span class="val big">${isFinite(temp) ? temp.toFixed(1) + "°C" : "—"}</span></div>
+            ${isFinite(hum) ? `<div class="row"><span class="key">Humidity</span><span class="val">${hum.toFixed(0)}%</span></div>` : ""}
+            ${speedMph != null ? `<div class="row"><span class="key">Wind</span><span class="val">${speedMph.toFixed(0)} mph${dir ? " " + dir : ""}${gustMph ? ` · gust ${gustMph.toFixed(0)}` : ""}</span></div>` : ""}
+            ${rateMm > 0 ? `<div class="row"><span class="key">Rain rate</span><span class="val warn">${rateMm.toFixed(1)} mm/h</span></div>` : `<div class="row"><span class="key">Rain</span><span class="val muted">dry</span></div>`}
+            ${isFinite(inT) ? `<div class="row"><span class="key">Indoor</span><span class="val">${inT.toFixed(1)}°C</span></div>` : ""}`;
+    }
+
+    function renderHeatingCard(devices) {
+        const el = document.getElementById("heating-compact");
+        if (!el) return;
+        if (!ROOMS) { el.innerHTML = `<h3>Heating</h3><div class="muted">Loading…</div>`; return; }
+        const allRadIds = new Set();
+        for (const r of Object.values(ROOMS.rooms || {})) {
+            (r.radiators || []).forEach(id => allRadIds.add(id));
+        }
+        const rads = devices.filter(d => allRadIds.has(d.id))
+                            .sort((a, b) => a.name.localeCompare(b.name));
+        if (!rads.length) { el.innerHTML = `<h3>Heating</h3><div class="muted">No zones</div>`; return; }
+        let heatingCount = 0;
+        const lines = rads.map(d => {
+            const s = d.states || {};
+            const cur = parseFloat(s.temperatureInput1 || s.temperature || d.displayStateValRaw);
+            const sp  = parseFloat(s.setpointHeat || s.setpoint);
+            const valve = parseFloat(s["valve-position"] || s.valvePosition || 0);
+            const heating = !isNaN(valve) && valve > 0;
+            if (heating) heatingCount++;
+            const name = d.name.replace(/ Radiator$/i, "");
+            return `<div class="heat-line">
+                <span class="zone-name">${escapeAttr(name)}</span>
+                <span class="zone-temp">${isFinite(cur) ? cur.toFixed(1)+"°" : "—"} → ${isFinite(sp) ? sp.toFixed(0)+"°" : "—"}</span>
+                <span class="zone-dot ${heating ? 'on' : ''}"></span>
+            </div>`;
+        }).join("");
+        el.innerHTML = `<h3>Heating · ${heatingCount}/${rads.length} active</h3>${lines}`;
+    }
+
+    function renderAlertsCard(devices) {
+        const el = document.getElementById("alerts-strip");
+        if (!el) return;
+        if (!ROOMS) { el.innerHTML = `<h3>Alerts</h3><div class="muted">Loading…</div>`; return; }
+        const allWinIds = new Set();
+        for (const r of Object.values(ROOMS.rooms || {})) {
+            (r.windows || []).forEach(id => allWinIds.add(id));
+        }
+        const contacts = devices.filter(d => allWinIds.has(d.id));
+        const open = contacts.filter(d => d.onState === true)
+                             .sort((a, b) => Date.parse(b.lastChanged || 0) - Date.parse(a.lastChanged || 0));
+        if (!open.length) {
+            el.innerHTML = `<h3>Doors & Windows</h3>
+                <div class="row"><span class="ok">✓ All ${contacts.length} closed</span></div>`;
+            return;
+        }
+        const items = open.map(d => `
+            <div class="alert-open">
+                <span class="name">${escapeAttr(d.name)}</span>
+                <span class="when warn">${escapeAttr(relTime(d.lastChanged))}</span>
+            </div>`).join("");
+        el.innerHTML = `<h3>Doors & Windows · ${open.length} open</h3>${items}`;
     }
 
     function showConfigForm() {
@@ -556,6 +810,12 @@
             `;
             strip.innerHTML = html;
             strip.style.display = "flex";
+
+            // Drive the new command-centre cards from the same device fetch.
+            try { renderEnergyCard(devices);  } catch (e) { console.warn("energy card", e); }
+            try { renderWeatherCard(devices); } catch (e) { console.warn("weather card", e); }
+            try { renderHeatingCard(devices); } catch (e) { console.warn("heating card", e); }
+            try { renderAlertsCard(devices);  } catch (e) { console.warn("alerts card", e); }
         } catch (e) {
             // Errors surface via stale topbar timestamp + auth-failure handler above.
         }
@@ -604,5 +864,6 @@
         })();
     </script>
 
+<script src="standalone-nav.js"></script>
 </body>
 </html>

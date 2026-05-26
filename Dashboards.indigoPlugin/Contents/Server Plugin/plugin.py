@@ -17,10 +17,10 @@
 #              for the live grid and falls back to the still snapshot if a
 #              stream connection fails.
 # Author:      CliveS & Claude Opus 4.7
-# Date:        23-05-2026
-# Version:     1.16.1
+# Date:        26-05-2026
+# Version:     1.18.0
 #
-# v1.16.1 (23-05-2026): Millisecond timestamp [HH:MM:SS.mmm] prefix on every
+# v1.17.1 (23-05-2026): Millisecond timestamp [HH:MM:SS.mmm] prefix on every
 # log line via plugin_utils.install_timestamp_filter() — matches Device
 # Activity Monitor convention. Module-level log() helper bumped to ms.
 # New "Toggle Timestamps in Log" menu item.
@@ -82,6 +82,14 @@ try:
     from IndigoSecrets import DASHBOARDS_CAMERAS  # JSON-string OR python list
 except ImportError:
     DASHBOARDS_CAMERAS = ""
+try:
+    from IndigoSecrets import DASHBOARDS_ROOM_EXTRAS  # dict keyed by room name
+except ImportError:
+    DASHBOARDS_ROOM_EXTRAS = {}
+try:
+    from IndigoSecrets import DASHBOARDS_MAIN_CAMERAS  # list of camera host IPs
+except ImportError:
+    DASHBOARDS_MAIN_CAMERAS = []
 
 
 # ============================================================
@@ -89,7 +97,7 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION    = "1.16.1"
+PLUGIN_VERSION    = "1.18.0"
 # Pages are mirrored into Web Assets/public/dashboards/ so IWS serves them
 # WITHOUT HTTP Basic Auth. Indigo only treats the global /public/ namespace
 # as anonymous — per-plugin `public/` subfolders still require auth.
@@ -126,8 +134,13 @@ SWAP_OUT_HOST = ""
 def _parse_cameras(value):
     """Parse camera config — accepts a JSON string, a Python list, or empty.
 
-    Each entry must contain ``host``, ``name`` and ``vendor`` keys (vendor in
-    {"dahua", "hikvision"}). Invalid entries are silently dropped.
+    Required keys per entry: ``host``, ``name``, ``vendor`` (in {"dahua",
+    "hikvision"}).
+    Optional: ``room`` — the dashboard room this cam should also appear on
+    (e.g. "Garage"). The room name must match an entry in ROOM_FOLDERS for
+    the camera to land on a room page; otherwise it's silently ignored by
+    the room template but still shows on the main cameras page.
+    Invalid entries are silently dropped.
     """
     if not value:
         return []
@@ -148,6 +161,7 @@ def _parse_cameras(value):
             "host":   str(entry["host"]),
             "name":   str(entry["name"]),
             "vendor": str(entry["vendor"]).lower(),
+            "room":   str(entry.get("room", "")).strip(),
         })
     return cleaned
 
@@ -295,7 +309,10 @@ class Plugin(indigo.PluginBase):
             return 0
 
         # Copy / update — include HTML pages plus PNG icons (apple-touch-icon).
-        EXT = (".html", ".png")
+        EXT = (".html", ".png", ".js")            # .js for standalone-nav.js
+        # NOTE: manifest.json is copied explicitly below (NOT via EXT) so the
+        # stale-file scan doesn't see streams.json / rooms.json / config.js
+        # (all runtime-generated in this same dir) as "stale" and delete them.
         sources = {f for f in os.listdir(src) if f.endswith(EXT)}
         copied = 0
         for name in sorted(sources):
@@ -323,6 +340,22 @@ class Plugin(indigo.PluginBase):
                         log(f"Could not remove stale {name}: {exc}", level="WARNING")
         except Exception as exc:
             log(f"Stale scan failed in {dst}: {exc}", level="WARNING")
+
+        # Explicit one-off copy of manifest.json (PWA manifest for iOS
+        # standalone navigation). Not part of the general EXT sweep because we
+        # don't want the stale-file cleanup above to touch runtime-written
+        # JSON files (streams.json, rooms.json).
+        mf_src = os.path.join(src, "manifest.json")
+        mf_dst = os.path.join(dst, "manifest.json")
+        if os.path.isfile(mf_src):
+            try:
+                ss = os.stat(mf_src)
+                ds = os.stat(mf_dst) if os.path.exists(mf_dst) else None
+                if ds is None or ss.st_size != ds.st_size or ss.st_mtime > ds.st_mtime:
+                    shutil.copy2(mf_src, mf_dst)
+                    log(f"Synced manifest.json to {dst}")
+            except Exception as exc:
+                log(f"Manifest copy failed: {exc}", level="WARNING")
 
         log(f"Synced {copied} of {len(sources)} asset(s) to {dst}")
         return copied
@@ -352,6 +385,7 @@ class Plugin(indigo.PluginBase):
             "mjpegPath":      "/mjpeg/{host}",             # ?subtype=0 (HD) / 1 (SD)
             "go2rtcPort":     GO2RTC_API_PORT,             # WebRTC backend
             "livePoolSize":   LIVE_POOL_SIZE,              # how many cams run live at once
+            "mainCameras":    list(DASHBOARDS_MAIN_CAMERAS or []),  # ordered IPs for the index.html mosaic
             "swapOutHost":    SWAP_OUT_HOST,               # bumped to still when peeking a non-default cam
         }
 
@@ -805,6 +839,250 @@ class Plugin(indigo.PluginBase):
         except Exception as exc:
             log(f"[Cameras] streams.json write failed: {exc}", level="WARNING")
 
+    # --------------------------------------------------------
+    # Rooms map (Lights / Motion / Radiators / Windows / Extras)
+    # --------------------------------------------------------
+
+    # Which Indigo device folders are surfaced as dashboard rooms. Anything
+    # else (ESPHome / MQTT / RAMSES / Z_Not_Used / Server Room / etc.) is
+    # ignored except for the radiator-by-name pass below.
+    ROOM_FOLDERS = (
+        "Bathroom", "Bedroom 1", "Bedroom 2", "Bedroom 3",
+        "Conservatory", "Dining Room", "Drive", "En Suite",
+        "Garage", "Garden", "Hall", "Kitchen", "Living Room", "Utility Room",
+    )
+    # Device classification — used by _build_rooms_json. Keep these short
+    # and tweak them based on what gets miscategorised in your install.
+    _LIGHT_WORDS    = ("light", "lights", "lamp", "lamps", "spot", "spots",
+                       "bulb", "led", "strip", "spotlight", "spotlights")
+    _MOTION_WORDS   = ("motion", "presence", "occupancy", "pir")
+    _OCCUPANCY_TYPES = ("z2mOccupancySensor",)
+    _CONTACT_TYPES   = ("z2mContactSensor", "zwContactSensorType")
+    # Devices we always ignore — backend plumbing, not user-facing controls.
+    _SKIP_TYPES = (
+        "homeKitBridgeDevice",   # HomeKit bridges (1 per room, internal)
+        "z2mRepeater",            # Z2M signal repeaters
+        "timer",                  # Indigo built-in timers
+        "damGroup",               # Device Activity Monitor groups
+    )
+    # Contact-sensor exclusions by keyword (freezer/fridge aren't windows).
+    _SKIP_CONTACT_WORDS = ("freezer", "fridge")
+    # Names containing these aren't lights even if they're a DimmerDevice.
+    _NOT_LIGHT_WORDS = ("fan",)
+
+    @staticmethod
+    def _has_word(name, words):
+        toks = set(name.lower().replace("-", " ").split())
+        return any(w in toks for w in words)
+
+    def _classify_device(self, dev):
+        """Return one of: 'light', 'motion', 'radiator', 'window', 'sensor',
+        'extras', None. None means skip entirely (HK bridge etc.). Radiator
+        classification is done separately in _build_rooms_json because it
+        needs name-prefix matching across all folders, not just room ones."""
+        typ = dev.deviceTypeId or ""
+        if typ in self._SKIP_TYPES:
+            return None
+        cls  = dev.__class__.__name__
+        name = dev.name or ""
+        # Dimmers are lights unless explicitly disallowed (fan etc.)
+        if cls == "DimmerDevice" and not self._has_word(name, self._NOT_LIGHT_WORDS):
+            return "light"
+        # Relay devices need a light keyword in the name to qualify.
+        if cls == "RelayDevice" and self._has_word(name, self._LIGHT_WORDS):
+            return "light"
+        # Motion / presence sensors — also catches Z-Wave occupancy + radars.
+        if typ in self._OCCUPANCY_TYPES or self._has_word(name, self._MOTION_WORDS):
+            return "motion"
+        # Water/leak sensors — binary alert state, sharing the motion-style tile
+        # but the renderer auto-switches the label wording to Wet / Dry.
+        if self._has_word(name, ("water", "leak")):
+            return "motion"
+        # Window / door contacts — match by deviceTypeId OR by name keyword so
+        # we catch z2mSensor-typed contacts that don't have the explicit
+        # z2mContactSensor type. Checked BEFORE the temp+humidity rule because
+        # z2m sensor devices frequently expose dummy temperature/humidity
+        # states (often 0.0) — a window contact would otherwise be mistaken
+        # for an environment sensor.
+        #
+        # IMPORTANT: gate this on NOT being a Relay/Dimmer — those are output
+        # devices (action-group virtuals like "Virtual Garage Door Opener",
+        # Shelly relays etc.) which often have "door" in their names but
+        # mustn't end up under Windows & Doors.
+        is_output = cls in ("RelayDevice", "DimmerDevice")
+        if (not is_output) and (typ in self._CONTACT_TYPES
+                or self._has_word(name, ("contact", "window", "door"))) \
+           and not any(w in name.lower() for w in self._SKIP_CONTACT_WORDS):
+            return "window"
+        # Continuous-value environment sensors — must have BOTH temperature
+        # AND humidity states (the contact check above already filtered out
+        # window/door sensors that happen to expose those keys too).
+        states = getattr(dev, "states", {}) or {}
+        if "temperature" in states and "humidity" in states:
+            return "sensor"
+        return "extras"
+
+    def _build_rooms_json(self):
+        """Walk indigo.devices.folders, classify every device, and write a
+        rooms.json file into the dashboards public folder. The page-side
+        room.html template reads this to know which device IDs to render in
+        each section per room.
+
+        Radiators are special — they live in a single shared "RAMSES" folder
+        (Evohome zones) rather than per-room folders. We assign them to the
+        room whose name appears as a prefix in the device name (e.g. "Hall
+        Bedroom Radiator" → Hall, "Living Room Door Radiator" → Living Room).
+        Longest-prefix-wins so "Living Room" beats "Living" if both exist."""
+        # Build folder_id → room name only for the configured ROOM_FOLDERS.
+        try:
+            folder_to_room = {
+                f.id: f.name for f in indigo.devices.folders.iter()
+                if f.name in self.ROOM_FOLDERS
+            }
+        except Exception as exc:
+            log(f"[Rooms] Folder enumeration failed: {exc}", level="WARNING")
+            return
+
+        rooms = {n: {"lights": [], "motion": [], "radiators": [],
+                     "windows": [], "sensors": [], "extras": [], "cameras": []}
+                 for n in self.ROOM_FOLDERS}
+        room_names_sorted = sorted(self.ROOM_FOLDERS, key=len, reverse=True)
+
+        # Cameras that opted into a room get attached here. Each camera dict
+        # carries its own host/name/vendor — the room template uses host to
+        # build the MJPEG proxy URL and name as the tile label.
+        for cam in CAMERAS:
+            room = (cam.get("room") or "").strip()
+            if room in rooms:
+                rooms[room]["cameras"].append({
+                    "host": cam["host"],
+                    "name": cam["name"],
+                })
+
+        # Pass 1: radiators by name-prefix (regardless of folder).
+        radiator_ids = set()
+        for d in indigo.devices.iter():
+            if not ("setpointHeat" in d.states or "setpoint" in d.states):
+                continue
+            for room in room_names_sorted:
+                if d.name.startswith(room + " ") or d.name == room:
+                    rooms[room]["radiators"].append(d.id)
+                    radiator_ids.add(d.id)
+                    break
+
+        # Pass 2: classify everything else by folder.
+        for d in indigo.devices.iter():
+            if d.id in radiator_ids:
+                continue
+            room = folder_to_room.get(d.folderId)
+            if not room:
+                continue
+            cat = self._classify_device(d)
+            if cat is None:
+                continue
+            key = {"light":  "lights",  "motion":  "motion",
+                   "window": "windows", "sensor":  "sensors",
+                   "extras": "extras"}[cat]
+            rooms[room][key].append(d.id)
+
+        # Stable sort within each section by device name for predictable UI.
+        # ID-based sections sort via indigo.devices[id].name. Cameras are dicts
+        # (host/name) so they're sorted by the name field directly.
+        try:
+            name_of = lambda i: (indigo.devices[i].name or "").lower()
+            ID_SECTIONS = ("lights", "motion", "radiators", "windows", "sensors", "extras")
+            for room in rooms.values():
+                for k in ID_SECTIONS:
+                    room[k].sort(key=name_of)
+                room["cameras"].sort(key=lambda c: c.get("name", "").lower())
+        except Exception:
+            pass
+
+        # Merge per-room extras (DASHBOARDS_ROOM_EXTRAS) into the payload.
+        # Order of operations:
+        #   1. hideDeviceIds — drop devices from every auto-classified section
+        #      (these get rendered as custom widgets, e.g. door contacts feed
+        #      the door tile and shouldn't also appear under Windows & Doors)
+        #   2. include — add specific device IDs to a named section even when
+        #      the auto-classifier doesn't put them there (e.g. a Shelly plug
+        #      that's a "charger", or a Z2M button you want surfaced under
+        #      Motion to see last-pressed)
+        #   3. doors — pass-through to the page template
+        # Sort happens AFTER this so manually-included devices land in the
+        # right alphabetical position.
+        extras_cfg = DASHBOARDS_ROOM_EXTRAS if isinstance(DASHBOARDS_ROOM_EXTRAS, dict) else {}
+        for room_name, room_data in rooms.items():
+            cfg = extras_cfg.get(room_name) or {}
+            # (1) hide
+            hide_ids = set(cfg.get("hideDeviceIds") or [])
+            if hide_ids:
+                for k in ("lights", "motion", "radiators", "windows", "sensors", "extras"):
+                    room_data[k] = [i for i in room_data[k] if i not in hide_ids]
+            # (2) include — append; dedupe per section; also pull the same
+            # ID out of `extras` so it doesn't appear twice when rooms.json
+            # is inspected (extras isn't rendered today, but cleaner this way).
+            include = cfg.get("include") or {}
+            if isinstance(include, dict):
+                all_pinned = set()
+                for section, ids in include.items():
+                    if section not in ("lights", "motion", "radiators", "windows", "sensors", "extras"):
+                        continue
+                    if not isinstance(ids, (list, tuple)):
+                        continue
+                    existing = set(room_data[section])
+                    for did in ids:
+                        if isinstance(did, int) and did not in existing:
+                            room_data[section].append(did)
+                            existing.add(did)
+                            all_pinned.add(did)
+                # Drop included IDs from extras unless extras was itself the target.
+                if "extras" not in include:
+                    room_data["extras"] = [i for i in room_data["extras"]
+                                           if i not in all_pinned]
+            # (3) doors
+            doors = cfg.get("doors") or []
+            if doors:
+                room_data["doors"] = list(doors)
+                # Auto-hide the devices that feed the door tile (relay openers
+                # and status contact sensors) so they don't ALSO show up as
+                # stray tiles in Lights / Windows & Doors. Saves the user
+                # having to repeat those IDs under hideDeviceIds.
+                auto_hide = set()
+                for d in doors:
+                    if not isinstance(d, dict):
+                        continue
+                    for rid in (d.get("relayIds") or []):
+                        if isinstance(rid, int):
+                            auto_hide.add(rid)
+                    sc = d.get("statusContactId")
+                    if isinstance(sc, int):
+                        auto_hide.add(sc)
+                if auto_hide:
+                    for k in ("lights", "motion", "radiators",
+                              "windows", "sensors", "extras"):
+                        room_data[k] = [i for i in room_data[k]
+                                        if i not in auto_hide]
+
+        # Re-sort sections after include-merge so manually-added IDs slot in
+        # alphabetically next to the auto-classified ones.
+        try:
+            name_of2 = lambda i: (indigo.devices[i].name or "").lower()
+            for room in rooms.values():
+                for k in ("lights", "motion", "radiators", "windows", "sensors", "extras"):
+                    room[k].sort(key=name_of2)
+        except Exception:
+            pass
+
+        payload = {
+            "_writeTs": time.time(),
+            "rooms":    rooms,
+        }
+        try:
+            path = os.path.join(self._public_dashboards_dir(), "rooms.json")
+            self._write_atomic(path, json.dumps(payload, indent=2).encode("utf-8"))
+        except Exception as exc:
+            log(f"[Rooms] rooms.json write failed: {exc}", level="WARNING")
+
     def _poll_cameras_once(self):
         """One sweep over every configured camera. Skips cams that currently
         have a live MJPEG consumer (the dashboard is already streaming them;
@@ -815,6 +1093,9 @@ class Plugin(indigo.PluginBase):
         active_slugs = self._active_mjpeg_slugs_from(streams)
         # Mirror the streams JSON for the dashboard bandwidth indicator.
         self._write_streams_json(streams)
+        # Rebuild the rooms map (cheap — just enumerates folders + devices).
+        # Picks up device-folder moves and renames automatically.
+        self._build_rooms_json()
         for cam in CAMERAS:
             host = cam["host"]
             slug = self._cam_slug(cam["name"])
@@ -843,17 +1124,22 @@ class Plugin(indigo.PluginBase):
     def runConcurrentThread(self):
         """Main background loop. Indigo calls this once after startup; we keep
         looping until self.stopThread is set during shutdown. self.sleep()
-        raises self.StopThread on shutdown — catching it exits cleanly."""
+        raises self.StopThread on shutdown — catching it exits cleanly.
+        Builds rooms.json on every cycle regardless of whether cameras are
+        configured — the room template needs it even on cam-less installs."""
         try:
+            self._build_rooms_json()                # populate immediately
             if not (self.cam_user and self.cam_pass):
                 log("[Cameras] DAHUA_USER/DAHUA_PASS not set — snapshot poller idle",
                     level="WARNING")
                 while True:
-                    self.sleep(60.0)
+                    # Keep rooms.json fresh even without cameras configured.
+                    self._build_rooms_json()
+                    self.sleep(30.0)
             log(f"[Cameras] Poller started — {len(CAMERAS)} camera(s), every {CAMERA_POLL_SECONDS}s")
             while True:
                 t0 = time.time()
-                self._poll_cameras_once()
+                self._poll_cameras_once()           # also calls _build_rooms_json
                 dt = time.time() - t0
                 self.sleep(max(0.1, CAMERA_POLL_SECONDS - dt))
         except self.StopThread:

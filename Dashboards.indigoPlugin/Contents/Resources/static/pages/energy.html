@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+    <meta name="indigo-page-name" content="Energy">
+    <meta name="indigo-page-icon" content="bolt.fill">
+    <meta name="indigo-page-description" content="Sigenergy energy dashboard (iframe)">
+
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Highsteads">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#5856d6">
+    <link rel="apple-touch-icon" sizes="180x180" href="/public/dashboards/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="/public/dashboards/apple-touch-icon-167.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="/public/dashboards/apple-touch-icon-152.png">
+    <title>Energy · Dashboards</title>
+    <style>
+        :root {
+            --bg: #f5f5f7; --card-bg: #ffffff; --text: #1d1d1f;
+            --text-secondary: #86868b; --border: #d2d2d7;
+            --accent: #5856d6;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #000000; --card-bg: #1c1c1e; --text: #f5f5f7;
+                --text-secondary: #98989d; --border: #38383a;
+                --accent: #7d7aff;
+            }
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+            background: var(--bg); color: var(--text);
+            display: flex; flex-direction: column;
+            /* Safe-area padding so the iframe sits below the iOS status bar /
+               Dynamic Island, and above the home-indicator. Sigen's own
+               topbar (visible inside the iframe) gives navigation. */
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        .frame-wrap {
+            flex: 1 1 auto;
+            min-height: 0;     /* allow iframe to shrink/grow with flex */
+            background: var(--bg);
+        }
+        iframe {
+            width: 100%; height: 100%;
+            border: 0;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="frame-wrap">
+        <!-- Sigen dashboard iframed inside a same-origin wrapper so iOS keeps
+             the parent URL in standalone mode (the wrapper URL is in the PWA
+             scope; the iframed content's cross-origin status doesn't affect
+             that). src is built from location.hostname so the page works the
+             same on LAN, Tailscale, hostname.local etc.
+             We intentionally render NO wrapper topbar — Sigen's own UI has a
+             back button and updated-timestamp already, and showing both at
+             once looks like two stacked navbars. Use the iOS swipe-from-left
+             gesture to return to the Dashboards hub. -->
+        <iframe id="sigen-frame" src="" title="Sigenergy dashboard"
+                referrerpolicy="no-referrer"
+                allow="fullscreen"></iframe>
+    </div>
+    <script>
+        (function () {
+            const frame = document.getElementById("sigen-frame");
+            // Same host the page was loaded from, but port 8179 (Sigen mini-dash).
+            const url = `${location.protocol}//${location.hostname}:8179/`;
+            frame.src = url;
+        })();
+    </script>
+    <script src="standalone-nav.js"></script>
+</body>
+</html>

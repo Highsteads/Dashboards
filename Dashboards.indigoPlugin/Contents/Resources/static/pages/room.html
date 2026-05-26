@@ -6,9 +6,9 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
-    <meta name="indigo-page-name" content="Bedroom 1">
-    <meta name="indigo-page-icon" content="bed.double.fill">
-    <meta name="indigo-page-description" content="Bedroom 1 — lights, window, heating">
+    <meta name="indigo-page-name" content="Room">
+    <meta name="indigo-page-icon" content="house.fill">
+    <meta name="indigo-page-description" content="Shared room template — Lights, Motion, Radiators, Windows">
     
     <!-- iOS / macOS Web App (File → Add to Dock on Mac, Share → Add to Home Screen on iPhone). -->
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -20,7 +20,7 @@
     <link rel="apple-touch-icon" sizes="167x167" href="/public/dashboards/apple-touch-icon-167.png">
     <link rel="apple-touch-icon" sizes="152x152" href="/public/dashboards/apple-touch-icon-152.png">
     <link rel="apple-touch-icon-precomposed" href="/public/dashboards/apple-touch-icon.png">
-    <title>Bedroom 1</title>
+    <title>Room · Dashboards</title>
     <style>
         :root {
             --bg: #f5f5f7; --card-bg: #ffffff; --text: #1d1d1f;
@@ -74,7 +74,7 @@
         }
         .top-jump:hover  { background: var(--bg); }
         .top-jump:active { background: var(--accent); color: #fff; }
-        /* ── 3-column topbar (Back · Title + Updated · Top) ── */
+        /* ── New 3-column topbar (test layout — Conservatory + Living Room only) ── */
         .topbar-3col {
             display: grid;
             grid-template-columns: 1fr 2fr 1fr;
@@ -435,6 +435,48 @@
         }
 
         /* ── Motion cards ── */
+        /* Pulse-door action button (Garage Door etc.). Lifted unchanged from
+           garage.html so the visual stays identical. */
+        .door-btn {
+            width: 100%;
+            padding: 14px;
+            border-radius: 12px;
+            border: none;
+            background: var(--accent); color: #fff;
+            font-size: 16px; font-weight: 600;
+            cursor: pointer; font-family: inherit;
+            min-height: 48px;
+            transition: opacity .15s, background .15s;
+        }
+        .door-btn:hover { opacity: 0.9; }
+        .door-btn:active { background: var(--accent); opacity: 0.7; }
+        .door-btn:disabled { opacity: 0.5; cursor: default; }
+
+        /* Camera tile for the optional per-room cam (e.g. Inside Garage on
+           the Garage page). 16:9 MJPEG, click to open the main cameras page. */
+        .camera-grid { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+        .camera-card {
+            background: var(--card-bg); border-radius: 12px; overflow: hidden;
+            box-shadow: var(--shadow); cursor: pointer;
+            display: flex; flex-direction: column;
+        }
+        .camera-frame {
+            position: relative; background: #000; aspect-ratio: 16 / 9; overflow: hidden;
+        }
+        .camera-frame img {
+            width: 100%; height: 100%; object-fit: cover; display: block;
+            pointer-events: none;
+        }
+        .camera-meta {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 8px 12px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            border-top: 1px solid var(--border);
+        }
+        .camera-name { font-weight: 600; color: var(--text); }
+        .camera-host { font-variant-numeric: tabular-nums; }
+
         .motion-card {
             background: var(--card-bg); border-radius: 12px; padding: 14px 16px;
             box-shadow: var(--shadow);
@@ -444,6 +486,24 @@
         .motion-info { flex: 1; min-width: 0; }
         .motion-name { font-size: 14px; font-weight: 600; }
         .motion-state { font-size: 12px; color: var(--text-secondary); margin-top: 2px; font-variant-numeric: tabular-nums; }
+        /* Environment sensor tile — continuous values (temperature + humidity). */
+        .env-card {
+            background: var(--card-bg); border-radius: 12px; padding: 14px 16px;
+            box-shadow: var(--shadow);
+        }
+        .env-info { min-width: 0; }
+        .env-name { font-size: 14px; font-weight: 600; }
+        .env-readouts {
+            margin-top: 4px;
+            font-size: 14px;
+            font-variant-numeric: tabular-nums;
+            color: var(--text);
+            display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px;
+        }
+        .env-temp { font-size: 22px; font-weight: 700; color: var(--accent); }
+        .env-humidity { color: var(--text-secondary); }
+        .env-sep { color: var(--text-secondary); }
+        .env-meta { color: var(--text-secondary); font-size: 12px; margin-left: 4px; }
         .motion-dot {
             width: 14px; height: 14px; border-radius: 50%;
             background: var(--off-color);
@@ -572,7 +632,7 @@
                 <a class="nav-btn" href="index.html">← Back</a>
             </div>
             <div class="hdr-center">
-                <h1>Bedroom 1</h1>
+                <h1>Room</h1>
                 <span class="topbar-status">Updated <span id="ts">—</span> · Next refresh <span id="cdwn">—</span>s</span>
             </div>
             <div class="hdr-right">
@@ -581,6 +641,10 @@
         </div>
     </header>
     <div class="container">
+        <!-- Cameras render ONCE into this sibling so the 5s device-state poll
+             (which wholesale-replaces #content) doesn't tear down the MJPEG
+             connection every cycle. -->
+        <div id="cameras-section"></div>
         <div id="content">
             <div class="loading"><div class="spinner"></div><p>Connecting…</p></div>
         </div>
@@ -680,45 +744,78 @@
     // Tick the display every second so the countdown actually counts down.
     setInterval(tickRefreshStatus, 1000);
 
-    // Bedroom 1 device IDs (camelCase var names — IDs from Indigo).
-    const MAIN_LIGHT_ID  = 1933733025;  // Ceiling Light — excluded from "All Lights On"
+    // ── Shared room template ───────────────────────────────────
+    // Which room this page is showing is decided by the ?room= URL parameter
+    // (default: first room in rooms.json). The Sets below start empty and get
+    // populated when rooms.json loads — _initRoomFromConfig() runs before the
+    // first render() call.
+    const ROOM_NAME    = new URLSearchParams(location.search).get("room") || "";
+    let   LIGHT_IDS    = new Set();
+    let   MOTION_IDS   = new Set();
+    let   RADIATOR_IDS = new Set();
+    let   WINDOW_IDS   = new Set();
+    let   TV_IDS       = new Set();        // unused in shared template — kept for renderer compat
+    let   MAIN_LIGHT_ID = -1;              // unused in shared template — kept for renderer compat
+    let   LIGHT_ORDER  = [];                // populated from rooms.json (alphabetical)
+    let   SENSOR_IDS   = new Set();         // continuous-value sensors (temp+humidity)
+    let   ROOM_CAMERAS = [];                // [{host,name}, …] for this room (may be empty)
+    let   ROOM_DOORS   = [];                // [{label,relayIds,pulseMs,statusContactId,openWhenContactOnState}, …]
+    let   MJPEG_PORT   = 8177;              // overwritten from rooms.json companion config
 
-    // Display order on the page — first listed appears top-left. The two
-    // bedside Hue lamps (Jane, Clive) are first since they're tunable-white
-    // and get the wide 2-column tile with preset chips. Ceiling light follows.
-    const LIGHT_ORDER = [
-        1572532729,   // Jane Lamp   (Hue tunable white — wide tile)
-        22053223,     // Clive Lamp  (Hue tunable white — wide tile)
-        1933733025,   // Ceiling Light (Fibaro Z-Wave dimmer)
-    ];
-
-    // Capability detection — applies to ANY light, not a hardcoded ID.
-    // Per the html-pages skill: "Render controls based on the device's
-    // actual capability flags, not on assumptions about device type."
     function lightSupportsColour(d) {
         return d.supportsRGB === true
             || d.supportsWhiteTemperature === true
             || d.supportsColor === true;
     }
-
-    // Colour presets for any colour-capable lamp.
-    // Bedside Hue lamps in this room are tunable-white only (no RGB), so the
-    // presets use whiteTemperature + brightness only. Both work on RGB bulbs
-    // too — if a future bedroom lamp has RGB, these still apply correctly.
     const COLOUR_PRESETS = {
-        warm:    { label: "Warm white", icon: "🌤", mode: "white", whiteTemperature: 2700, brightness: 100 },
-        bedtime: { label: "Bedtime",    icon: "🌙", mode: "white", whiteTemperature: 2700, brightness: 15 },
+        warm:  { label: "Warm white", icon: "🌤", mode: "white", whiteTemperature: 2700, brightness: 100 },
+        movie: { label: "Movie",      icon: "🎬", mode: "color", redLevel: 100, greenLevel: 35, blueLevel: 8, brightness: 18 },
     };
-    const LIGHT_IDS    = new Set(LIGHT_ORDER);
     function lightOrderIndex(d) {
         const i = LIGHT_ORDER.indexOf(d.id);
-        return i < 0 ? LIGHT_ORDER.length : i;  // unknown lights go last
+        return i < 0 ? LIGHT_ORDER.length : i;
     }
-    // Bedroom 1 has no TV/Sonos — TV section is empty and will be skipped.
-    const TV_IDS = new Set();
-    // The "motion" slot in this room is a window contact sensor (open/closed).
-    const MOTION_IDS   = new Set([398804951]);  // Bedroom 1 Window Contact Sensor
-    const RADIATOR_IDS = new Set([545736860]);  // Bedroom 1 Radiator
+
+    // Fetch the rooms.json (same-origin, written by the plugin) and populate
+    // the device-ID Sets for the current room before the first render() call.
+    async function _initRoomFromConfig() {
+        const r = await fetch("rooms.json?t=" + Date.now(), { cache: "no-store" });
+        if (!r.ok) throw new Error("rooms.json " + r.status);
+        const cfg = await r.json();
+        let room = ROOM_NAME;
+        if (!cfg.rooms[room]) {
+            room = Object.keys(cfg.rooms).sort()[0];
+        }
+        const r0 = cfg.rooms[room] || {lights:[],motion:[],radiators:[],windows:[],extras:[],cameras:[]};
+        LIGHT_IDS    = new Set(r0.lights);
+        MOTION_IDS   = new Set(r0.motion);
+        RADIATOR_IDS = new Set(r0.radiators);
+        WINDOW_IDS   = new Set(r0.windows);
+        SENSOR_IDS   = new Set(r0.sensors || []);
+        LIGHT_ORDER  = [...r0.lights];
+        ROOM_CAMERAS = Array.isArray(r0.cameras) ? r0.cameras : [];
+        ROOM_DOORS   = Array.isArray(r0.doors)   ? r0.doors   : [];
+        // The MJPEG proxy port is exposed by config.js as CAMERA_CONFIG.mjpegPort
+        // (loaded ahead of this script). Fall back to 8177 if config.js wasn't
+        // loaded or doesn't have it.
+        if (window.CAMERA_CONFIG && window.CAMERA_CONFIG.mjpegPort) {
+            MJPEG_PORT = window.CAMERA_CONFIG.mjpegPort;
+        }
+        document.title = `${room} · Dashboards`;
+        const h1 = document.querySelector(".topbar h1");
+        if (h1) h1.textContent = room;
+        window.__ROOM_NAME = room;
+        // Render the camera section ONCE — it's pure MJPEG, no device-state
+        // dependence, so the 5s render() cycle never needs to touch it.
+        const camEl = document.getElementById("cameras-section");
+        if (camEl && ROOM_CAMERAS.length) {
+            camEl.innerHTML =
+                renderSectionHeader("Camera" + (ROOM_CAMERAS.length > 1 ? "s" : "")) +
+                '<div class="grid camera-grid">' +
+                ROOM_CAMERAS.map(renderRoomCamera).join("") + '</div>';
+        }
+        return room;
+    }
 
     // Indigo's REST API requires setHeatSetpoint `value` to be an integer
     // — half-degree values are rejected with HTTP 400. So step in 1°C.
@@ -736,12 +833,24 @@
         start();
     }
 
-    function start() {
+    async function start() {
         indigo = new IndigoAPI();
         indigo.onAuthFailure(() => {
             IndigoAPI.clearConfig();
             location.href = "index.html";
         });
+        // Load rooms.json BEFORE we start polling devices — otherwise the
+        // first render() runs with empty Sets and shows an empty page until
+        // the second poll arrives.
+        try {
+            await _initRoomFromConfig();
+        } catch (e) {
+            document.getElementById("content").innerHTML =
+                `<div class="loading"><p style="color:var(--bad)">
+                Could not load rooms.json — is the Dashboards plugin running?<br>
+                <small>${String(e)}</small></p></div>`;
+            return;
+        }
         indigo.observeAll(d => { markRefreshed(); render(d); }, 5000);
     }
 
@@ -799,28 +908,41 @@
                                  .sort((a, b) => a.name.localeCompare(b.name));
         const radiators = devices.filter(d => RADIATOR_IDS.has(d.id))
                                  .sort((a, b) => a.name.localeCompare(b.name));
+        const windows   = devices.filter(d => WINDOW_IDS.has(d.id))
+                                 .sort((a, b) => a.name.localeCompare(b.name));
+        const sensors   = devices.filter(d => SENSOR_IDS.has(d.id))
+                                 .sort((a, b) => a.name.localeCompare(b.name));
 
         const lightsOn  = lights.filter(d => d.onState === true).length;
         const tvOnCount = tv.filter(d => d.onState === true).length;
         const tvAllOn   = tv.length > 0 && tvOnCount === tv.length;
-        // In this room the "motion" set is a window contact sensor — onState=true
-        // means OPEN. Treat it as an open-window indicator, not motion.
-        const openCount  = motion.filter(d => d.onState === true).length;
+        const motionAny = motion.filter(d => d.onState === true).length;
         const heatingAny = radiators.filter(isHeating).length;
 
         const status = [];
         status.push(`${lightsOn}/${lights.length} lights on`);
         if (tv.length) status.push(tvAllOn ? "TV on" : (tvOnCount ? `TV partial` : "TV off"));
-        if (motion.length) status.push(openCount ? `window open` : "window closed");
+        status.push(motionAny ? `${motionAny} motion` : "all quiet");
         if (heatingAny) status.push(`${heatingAny} heating`);
         let html = "";
 
-        if (lights.length || radiators.length) {
+        // NOTE: Cameras are rendered ONCE in _initRoomFromConfig into a
+        // separate sibling element (#cameras-section), not here. Re-rendering
+        // a <video>-like MJPEG <img> on every 5s poll tears down the proxy
+        // connection and causes a black flash on each refresh.
+
+        // Pulse-style doors (e.g. Garage Door). Status is derived from a contact
+        // sensor declared per door in DASHBOARDS_ROOM_EXTRAS; tap → briefly
+        // turns the wired relays on then off (shorts the door's manual switch).
+        if (ROOM_DOORS.length) {
+            html += renderSectionHeader(ROOM_DOORS.length > 1 ? "Doors" : "Door");
+            html += '<div class="grid">' +
+                    ROOM_DOORS.map(door => renderDoorTile(door, devices)).join("") +
+                    '</div>';
+        }
+
+        if (lights.length) {
             // "All On / All Off" applies to every light except the main light.
-            // The radiator(s) sit in the same grid as the lights so the room's
-            // controls appear together — radiator lands next to the ceiling
-            // light in the second row (and the All On/Off button still only
-            // affects the lights themselves).
             const others      = lights.filter(d => d.id !== MAIN_LIGHT_ID);
             const allOthersOn = others.length > 0 && others.every(d => d.onState === true);
             const lbl = allOthersOn ? "All Off" : "All On";
@@ -828,10 +950,7 @@
                 "Lights",
                 `<button class="section-action${allOthersOn ? ' is-on' : ''}" onclick="toggleLights()">${lbl}</button>`
             );
-            html += '<div class="grid">' +
-                    lights.map(renderLight).join("") +
-                    radiators.map(renderZone).join("") +
-                    '</div>';
+            html += '<div class="grid">' + lights.map(renderLight).join("") + '</div>';
         }
 
         if (tv.length) {
@@ -846,8 +965,32 @@
         }
 
         if (motion.length) {
-            html += renderSectionHeader("Window");
+            html += renderSectionHeader("Motion");
             html += '<div class="grid">' + motion.map(renderMotion).join("") + '</div>';
+        }
+
+        if (sensors.length) {
+            html += renderSectionHeader("Sensors");
+            html += '<div class="grid">' + sensors.map(renderEnvSensor).join("") + '</div>';
+        }
+
+        if (radiators.length) {
+            html += renderSectionHeader("Heating");
+            html += '<div class="grid">' + radiators.map(renderZone).join("") + '</div>';
+        }
+
+        // Windows & Doors: actual windows/doors are noisy when closed (you only
+        // care if one's been left open), so they're shown only when onState=true.
+        // Appliance contacts (freezer, fridge) are different — they're monitored
+        // 24/7 to spot a lid left open, so always render those regardless of
+        // state. Section header is suppressed when nothing's visible.
+        const isApplianceContact = (d) => /\b(freezer|fridge)\b/i.test(d.name || "");
+        const visibleWindows = windows.filter(d => d.onState === true || isApplianceContact(d));
+        if (visibleWindows.length) {
+            html += renderSectionHeader("Windows & Doors");
+            // Contact sensors surface onState the same way motion does, so
+            // renderMotion gives us "Open / Closed" semantics for free.
+            html += '<div class="grid">' + visibleWindows.map(renderMotion).join("") + '</div>';
         }
 
         document.getElementById("content").innerHTML = html;
@@ -956,18 +1099,25 @@
         return `rgb(${r},${g},${b})`;
     }
 
-    function renderMotion(d) {
-        // Sensor wording branches off the name:
-        //   - Contact-style (window/door): Open / Closed
-        //   - Water-leak sensors:          Leak detected / Dry
-        //   - Everything else (motion):    Motion / Clear
+    // Pick the right on/off wording for a state-only sensor tile based on
+    // what the device is. Water/leak → Wet/Dry; contact/window/door → Open/Closed;
+    // everything else → Motion/Clear (presence sensors, generic z2mSensors etc.).
+    function _motionWording(d) {
         const name = d.name || "";
-        const isContact = /(Contact Sensor|Door Sensor|Window Sensor|Cupboard Door)/i.test(name);
-        const isLeak    = /(Leak Sensor|Water Leak)/i.test(name);
+        const typ  = d.deviceTypeId || "";
+        if (/\b(water|leak)\b/i.test(name)) {
+            return { on: "Wet",  off: "Dry"    };
+        }
+        if (typ === "z2mContactSensor" || typ === "zwContactSensorType"
+            || /\b(contact|window|door)\b/i.test(name)) {
+            return { on: "Open", off: "Closed" };
+        }
+        return { on: "Motion", off: "Clear" };
+    }
+
+    function renderMotion(d) {
         const active = d.onState === true;
-        const label = isLeak ? (active ? "Leak detected" : "Dry")
-                    : isContact ? (active ? "Open" : "Closed")
-                    : (active ? "Motion" : "Clear");
+        const w = _motionWording(d);
         return `
             <div class="motion-card ${active ? 'active' : ''}">
                 <div class="motion-info">
@@ -977,10 +1127,38 @@
                                 onclick="event.stopPropagation(); openDeviceDetails(${d.id})">&#9432;</button>
                     </div>
                     <div class="motion-state">
-                        ${label} · ${escapeHtml(formatWhen(d.lastChanged))}
+                        ${active ? w.on : w.off} · ${escapeHtml(formatWhen(d.lastChanged))}
                     </div>
                 </div>
                 <div class="motion-dot"></div>
+            </div>`;
+    }
+
+    // Continuous-value environment sensor — temperature + humidity (+ battery
+    // if reported). Different shape from the binary motion tile; uses a small
+    // two-line read-out with the values prominently shown.
+    function renderEnvSensor(d) {
+        const s = d.states || {};
+        const temp = parseFloat(s.temperature);
+        const hum  = parseFloat(s.humidity);
+        const batt = parseInt(s.battery);
+        const tempStr = isFinite(temp) ? `${temp.toFixed(1)}°C` : "—";
+        const humStr  = isFinite(hum)  ? `${hum.toFixed(0)}%`   : null;
+        const battStr = isFinite(batt) && batt < 100 ? `· 🔋 ${batt}%` : "";
+        return `
+            <div class="env-card">
+                <div class="env-info">
+                    <div class="name-row">
+                        <div class="env-name">${escapeHtml(prettyMotionName(d.name))}</div>
+                        <button class="info-btn" aria-label="Details"
+                                onclick="event.stopPropagation(); openDeviceDetails(${d.id})">&#9432;</button>
+                    </div>
+                    <div class="env-readouts">
+                        <span class="env-temp">${tempStr}</span>
+                        ${humStr ? `<span class="env-sep">·</span><span class="env-humidity">${humStr} humidity</span>` : ""}
+                        ${battStr ? `<span class="env-meta">${battStr}</span>` : ""}
+                    </div>
+                </div>
             </div>`;
     }
 
@@ -1009,7 +1187,7 @@
             <div class="zone ${heating ? 'heating' : ''}">
                 <div class="zone-head">
                     <div class="name-row">
-                        <div class="zone-name">${escapeHtml(d.name.replace(/^Bedroom 1 /, ''))}</div>
+                        <div class="zone-name">${escapeHtml(_stripRoomPrefix(d.name).replace(/ Radiator$/, ''))}</div>
                         <button class="info-btn" aria-label="Details"
                                 onclick="event.stopPropagation(); openDeviceDetails(${d.id})">&#9432;</button>
                     </div>
@@ -1032,15 +1210,115 @@
             </div>`;
     }
 
+    // Live MJPEG via the plugin's proxy. URL is built relative to the page
+    // origin (so Tailscale / .local / LAN-IP all work), with the cam IP in
+    // the path and a cache-buster query so the browser re-requests after we
+    // remount the page.
+    function renderRoomCamera(cam) {
+        const host = location.hostname;
+        const src  = `${location.protocol}//${host}:${MJPEG_PORT}/mjpeg/${cam.host}?_t=${Date.now()}`;
+        return `
+            <div class="camera-card" onclick="openRoomCamera('${cam.host}', '${escapeHtml(cam.name)}')">
+                <div class="camera-frame">
+                    <img crossorigin="anonymous" alt="${escapeHtml(cam.name)}" src="${src}">
+                </div>
+                <div class="camera-meta">
+                    <span class="camera-name">${escapeHtml(cam.name)}</span>
+                    <span class="camera-host">${escapeHtml(cam.host)}</span>
+                </div>
+            </div>`;
+    }
+
+    // Click handler — opens the cameras page focused on this cam. The cameras
+    // page already has all the focus / pause / snapshot machinery.
+    function openRoomCamera(host, name) {
+        location.href = `cameras.html?focus=${encodeURIComponent(host)}`;
+    }
+
+    // Pulse-door tile. status text comes from the configured contact sensor:
+    //   contact onState === openWhenContactOnState  →  "Open"   else "Closed".
+    // Tile uses the existing light-card colour to indicate Open (warm) vs
+    // Closed (off), and a single big action button below.
+    function renderDoorTile(door, devices) {
+        const contact = devices.find(d => d.id === door.statusContactId);
+        let status = "Unknown";
+        if (contact) {
+            const onState = contact.onState === true;
+            const isOpen = onState === !!door.openWhenContactOnState;
+            status = isOpen ? "Open" : "Closed";
+        }
+        const isOpen = (status === "Open");
+        const action = status === "Closed" ? "Press to Open"
+                     : status === "Open"   ? "Press to Close"
+                     :                       "Press to Activate";
+        const relayJson = JSON.stringify(door.relayIds || []);
+        const pulse     = parseInt(door.pulseMs || 1500, 10);
+        const label     = door.label || "Door";
+        return `
+            <div class="light-card is-colour ${isOpen ? 'on' : ''}">
+                <div class="light-head">
+                    <div class="head-text">
+                        <div class="name-row">
+                            <div class="light-name">${escapeHtml(label)}</div>
+                        </div>
+                        <div class="light-state">${escapeHtml(status)}</div>
+                    </div>
+                </div>
+                <button class="door-btn" data-pulse="${pulse}"
+                        data-relays='${relayJson}'
+                        onclick="pulseDoor(this)">${escapeHtml(action)}</button>
+            </div>`;
+    }
+
+    async function pulseDoor(btn) {
+        if (!btn || btn.disabled) return;
+        const ids   = JSON.parse(btn.dataset.relays || "[]");
+        const pulse = parseInt(btn.dataset.pulse || "1500", 10);
+        if (!ids.length) return;
+        btn.disabled = true;
+        const original = btn.textContent;
+        btn.textContent = "Pulsing…";
+        try {
+            await Promise.allSettled(ids.map(id => indigo.turnOn(id).catch(() => {})));
+            await new Promise(r => setTimeout(r, pulse));
+            await Promise.allSettled(ids.map(id => indigo.turnOff(id).catch(() => {})));
+        } finally {
+            // Cooldown so the user can't re-trigger before contact sensors update.
+            setTimeout(() => {
+                btn.disabled    = false;
+                btn.textContent = original;
+            }, 1500);
+        }
+    }
+
+    // Strip the room-name prefix (set by _initRoomFromConfig) so e.g.
+    // "Garage Strip Lights" → "Strip Lights". Falls back to the original
+    // name if no prefix matches.
+    function _stripRoomPrefix(name) {
+        const room = window.__ROOM_NAME || "";
+        if (room && name.startsWith(room + " ")) {
+            return name.slice(room.length + 1);
+        }
+        return name;
+    }
+    // Strip vendor/IP cruft so e.g. "Garage Strip Lights Shelly 1 192.168.4.128"
+    // → "Strip Lights". Order matters: kill the trailing IP first, then any
+    // remaining "Shelly N" / "Gen4" tail, then plain "Plug".
     function prettyLightName(name) {
-        return name
-            .replace(/^Bedroom 1 /, "")
-            .replace(/ Plug$/, "");
+        return _stripRoomPrefix(name)
+            .replace(/ \d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/, "")     // strip trailing IPv4
+            .replace(/ Shelly( \d+)?$/i, "")                          // strip " Shelly 1"
+            .replace(/ Gen\s*\d+$/i, "")                              // strip " Gen4"
+            .replace(/ Plug$/, "");                                    // strip " Plug"
     }
     function prettyMotionName(name) {
-        return name
-            .replace(/^Bedroom 1 /, "")
-            .replace(/ (Presence|Motion|Contact) Sensor$/, "");
+        // Strip the room prefix and any trailing " Contact Sensor" / " Sensor".
+        // Works for "Kitchen Left Presence Sensor" → "Left Presence",
+        // "Kitchen Temperature And Humidity Sensor" → "Temperature And Humidity",
+        // "Kitchen Window Contact Sensor" → "Window".
+        return _stripRoomPrefix(name)
+            .replace(/ Contact Sensor$/i, "")
+            .replace(/ Sensor$/i, "");
     }
 
 

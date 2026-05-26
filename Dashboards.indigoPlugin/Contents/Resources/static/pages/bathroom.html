@@ -14,6 +14,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Highsteads">
+    <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#5856d6">
     <link rel="apple-touch-icon" sizes="180x180" href="/public/dashboards/apple-touch-icon.png">
     <link rel="apple-touch-icon" sizes="167x167" href="/public/dashboards/apple-touch-icon-167.png">
@@ -594,7 +595,7 @@
         constructor(config) {
             const c = config || window.INDIGO_CONFIG || IndigoAPI.getStoredConfig();
             if (!c) throw new IndigoAPIError("Not configured", 0);
-            this._base = c.baseURL.replace(/\/+$/, "");
+            this._base = ""; // same-origin: Indigo /v2/api lacks CORS preflight, so always use page origin
             this._key = c.apiKey;
             this._authH = [];
         }
@@ -1391,5 +1392,6 @@
         })();
     </script>
 
+<script src="standalone-nav.js"></script>
 </body>
 </html>
