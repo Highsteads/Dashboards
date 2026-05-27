@@ -17,8 +17,8 @@
 #              for the live grid and falls back to the still snapshot if a
 #              stream connection fails.
 # Author:      CliveS & Claude Opus 4.7
-# Date:        26-05-2026
-# Version:     1.19.0
+# Date:        27-05-2026
+# Version:     1.19.2
 #
 # v1.17.1 (23-05-2026): Millisecond timestamp [HH:MM:SS.mmm] prefix on every
 # log line via plugin_utils.install_timestamp_filter() — matches Device
@@ -112,7 +112,7 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION    = "1.19.0"
+PLUGIN_VERSION    = "1.19.2"
 # Pages are mirrored into Web Assets/public/dashboards/ so IWS serves them
 # WITHOUT HTTP Basic Auth. Indigo only treats the global /public/ namespace
 # as anonymous — per-plugin `public/` subfolders still require auth.
@@ -181,11 +181,19 @@ def _parse_cameras(value):
             room_val = [str(x).strip() for x in raw_room if str(x).strip()]
         else:
             room_val = str(raw_room).strip()
+        # `stream` picks which RTSP path the go2rtc config uses for this
+        # camera's source — "main" or "sub2". Default is sub2 (see
+        # CAMERA_DEFAULT_STREAM). Anything unknown silently falls back to
+        # the default so a typo doesn't take a camera offline.
+        stream = str(entry.get("stream", CAMERA_DEFAULT_STREAM)).lower().strip()
+        if stream not in ("main", "sub2"):
+            stream = CAMERA_DEFAULT_STREAM
         cleaned.append({
             "host":   str(entry["host"]),
             "name":   str(entry["name"]),
             "vendor": str(entry["vendor"]).lower(),
             "room":   room_val,
+            "stream": stream,
         })
     return cleaned
 
@@ -208,19 +216,37 @@ def _detect_lan_ip():
     except Exception:
         return "127.0.0.1"
 
-# Vendor URL templates: {host} {user} {pass} are substituted. RTSP paths
-# target the mainstream H.264 channel so go2rtc has the highest-quality source
-# to transcode into MJPEG.
+# Vendor URL templates: {host} {user} {pwd} are substituted. Each vendor has
+# both a mainstream URL (highest quality, big bandwidth) and a substream 2 URL
+# (typically 720p / ~512 kbps — plenty for an at-a-glance dashboard mosaic).
+# Per-camera `stream` field in DASHBOARDS_CAMERAS picks which one go2rtc uses
+# as the ffmpeg source. Default is sub2 — see CAMERA_DEFAULT_STREAM below.
+#
+# Stream conventions per vendor:
+#   Dahua     — subtype=0 main, subtype=1 sub1 (unused), subtype=2 sub2
+#   Hikvision — Channels/101 main (ch 1 stream 01), Channels/102 sub2
+#
+# Why sub2 by default: the dashboard is a "is anything moving?" surface, not
+# a recording archive. Mainstream lives in the Synology NVR at 4K for the
+# actual footage. Using sub2 here halves ffmpeg CPU and cuts LAN bandwidth
+# from ~50 Mbps to ~5 Mbps across the 9 cameras.
 VENDOR_URLS = {
     "dahua": {
         "snapshot_path": "/cgi-bin/snapshot.cgi",
         "rtsp_main":     "rtsp://{user}:{pwd}@{host}:554/cam/realmonitor?channel=1&subtype=0",
+        "rtsp_sub2":     "rtsp://{user}:{pwd}@{host}:554/cam/realmonitor?channel=1&subtype=2",
     },
     "hikvision": {
         "snapshot_path": "/ISAPI/Streaming/channels/101/picture",
         "rtsp_main":     "rtsp://{user}:{pwd}@{host}:554/Streaming/Channels/101",
+        "rtsp_sub2":     "rtsp://{user}:{pwd}@{host}:554/Streaming/Channels/102",
     },
 }
+
+# Default stream when a DASHBOARDS_CAMERAS entry omits `stream` — sub2 saves
+# CPU + bandwidth and quality is plenty for tile-sized viewing. Override per
+# camera by setting `"stream": "main"` in IndigoSecrets.
+CAMERA_DEFAULT_STREAM = "sub2"
 
 # MJPEG proxy: tiny HTTP server bound to this port that streams the camera's
 # multipart/x-mixed-replace response straight to the browser. Same trusted-LAN
@@ -653,28 +679,38 @@ class Plugin(indigo.PluginBase):
                 "Install Homebrew ffmpeg or set GO2RTC_FFMPEG_BIN.", level="WARNING")
         lines += ["streams:"]
         # Two streams per camera:
-        #   <slug>        = mainstream H.264 RTSP (vendor-specific URL).
-        #                   Available for direct RTSP consumers; not used by
-        #                   the page after retiring live.html.
-        #   <slug>_mjpeg  = mainstream H.264 transcoded → MJPEG via ffmpeg.
-        #                   Consumed by the plugin's MJPEG proxy so the page
-        #                   gets sharp mainstream-quality MJPEG without any
-        #                   substream encoder shimmer (UI3-style trick).
+        #   <slug>        = H.264 RTSP source. Mainstream or sub2 per the
+        #                   camera's `stream` field in DASHBOARDS_CAMERAS
+        #                   (default sub2). Available for direct RTSP
+        #                   consumers; not used by the page after retiring
+        #                   live.html.
+        #   <slug>_mjpeg  = same source transcoded → MJPEG via ffmpeg.
+        #                   Consumed by the plugin's MJPEG proxy. With sub2
+        #                   as the source the transcode is roughly half the
+        #                   CPU of mainstream.
+        sub2_count = 0
+        main_count = 0
         for cam in CAMERAS:
             slug   = self._cam_slug(cam["name"])
             vendor = cam.get("vendor", "dahua")
-            tpl    = VENDOR_URLS.get(vendor, VENDOR_URLS["dahua"])["rtsp_main"]
-            rtsp   = tpl.format(user=user_q, pwd=pass_q, host=cam["host"])
+            stream = cam.get("stream", CAMERA_DEFAULT_STREAM)
+            tpl_key = f"rtsp_{stream}"
+            v_urls = VENDOR_URLS.get(vendor, VENDOR_URLS["dahua"])
+            tpl   = v_urls.get(tpl_key, v_urls["rtsp_main"])
+            rtsp  = tpl.format(user=user_q, pwd=pass_q, host=cam["host"])
             lines.append(f"  {slug}: {rtsp}")
             # ffmpeg: source is the named stream <slug>; #video=mjpeg adds an
             # MJPEG re-encode in front of go2rtc's MJPEG consumer.
             lines.append(f"  {slug}_mjpeg: ffmpeg:{slug}#video=mjpeg")
+            if stream == "sub2": sub2_count += 1
+            else:                main_count += 1
 
         path = self._go2rtc_config_path()
         with open(path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines) + "\n")
         os.chmod(path, 0o600)        # contains credentials — owner-readable only
-        log(f"[go2rtc] Wrote config {path} ({len(CAMERAS)} streams)")
+        log(f"[go2rtc] Wrote config {path} ({len(CAMERAS)} streams: "
+            f"{main_count} main, {sub2_count} sub2)")
         return path
 
     @staticmethod

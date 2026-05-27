@@ -197,22 +197,27 @@
         .cam-btn:hover  { background: rgba(0,0,0,0.85); }
         .cam-btn:active { transform: scale(0.92); }
         .cam-meta {
+            /* flex-wrap so on narrow iPhone tiles the host IP can drop onto
+               a second line instead of being clipped mid-octet. On desktops
+               the whole row still fits on one line. */
             display: flex; align-items: center; justify-content: space-between;
-            gap: 10px;
+            flex-wrap: wrap;
+            row-gap: 4px; column-gap: 10px;
             padding: 10px 14px;
             font-size: 13px;
             color: var(--text-secondary);
             border-top: 1px solid var(--border);
         }
         .cam-meta .name { font-weight: 600; color: var(--text); font-size: 14px; }
-        .cam-meta .host { font-variant-numeric: tabular-nums; }
+        .cam-meta .host { font-variant-numeric: tabular-nums; white-space: nowrap; }
         .cam-meta .dot {
             display: inline-block; width: 8px; height: 8px; border-radius: 50%;
             background: var(--text-secondary); margin-right: 6px;
             vertical-align: middle;
         }
-        .cam-meta .dot.ok  { background: var(--on-color); }
-        .cam-meta .dot.bad { background: var(--bad); }
+        .cam-meta .dot.ok    { background: var(--on-color); }
+        .cam-meta .dot.stale { background: #ff9500; }   /* amber — no bytes for 10s+ */
+        .cam-meta .dot.bad   { background: var(--bad); }
         .cam-meta .mode {
             display: inline-block;
             padding: 1px 7px;
@@ -556,7 +561,7 @@
                     <img alt="${name}">
                 </div>
                 <div class="cam-meta">
-                    <span class="name"><span class="dot"></span>${name}</span>
+                    <span class="name"><span class="dot"></span></span>
                     <span class="bw">— kB/s</span>
                     <span class="host"><span class="mode">live</span> · ${host}</span>
                 </div>`;
@@ -570,7 +575,14 @@
 
             camState[host] = { imgEl: img, frameEl: frame, dotEl: dot, modeEl, bwEl,
                                 mode: "off", paused: false,
-                                lastBytes: null, lastT: 0 };
+                                lastBytes: null, lastT: 0,
+                                // Wall-clock time of the most recent bytes-arrived
+                                // event from the camera→go2rtc telemetry. The
+                                // bandwidth-poll tick flips the dot to amber when
+                                // this gets > STALE_MS old (frozen-frame detection,
+                                // since <img> onerror doesn't fire for MJPEG that
+                                // simply stops mid-stream).
+                                lastFreshAt: null };
 
             img.onload = () => {
                 const st = camState[host];
@@ -579,7 +591,9 @@
                 frame.classList.remove("connecting");   // first frame arrived
                 if (st.liveTimeout) { clearTimeout(st.liveTimeout); st.liveTimeout = null; }
                 dot.classList.remove("bad");
+                dot.classList.remove("stale");
                 dot.classList.add("ok");
+                st.lastFreshAt = Date.now();        // bootstrap the watchdog
                 if (!st.paused) setMode(host, st.mode === "live" ? "live" : "still");
                 markRefreshed();
             };
@@ -589,6 +603,7 @@
                     frame.classList.remove("has-image");
                     frame.classList.add("error");
                     dot.classList.remove("ok");
+                    dot.classList.remove("stale");
                     dot.classList.add("bad");
                     frame.querySelector(".placeholder").textContent = "Unreachable";
                     setMode(host, "off");
@@ -632,6 +647,11 @@
     // tracks what we ship to the browser pretty closely.
     let _bwTimer    = null;
     let _bwLastTs   = null;        // last _writeTs we processed
+    // Stale-stream watchdog: if a camera's bytes_recv hasn't advanced in this
+    // many milliseconds, flip its dot to amber. MJPEG <img> tags don't fire
+    // `onerror` when a stream goes silent mid-flow (TCP stays open, frames
+    // just stop) so the bandwidth telemetry is the only reliable heartbeat.
+    const STALE_MS = 10000;
     function startBandwidthPoll() {
         if (_bwTimer) clearInterval(_bwTimer);
         const tick = async () => {
@@ -644,6 +664,7 @@
                 // otherwise the delta is 0 and the display flicks to 0 kB/s.
                 if (ts == null || ts === _bwLastTs) return;
                 let total = 0;
+                const now = Date.now();
                 for (const host of hosts) {
                     const slug = slugs[host];
                     if (!slug) continue;
@@ -661,6 +682,28 @@
                                 ? `${(kBs/1024).toFixed(1)} MB/s`
                                 : `${kBs.toFixed(0)} kB/s`;
                             if (!st.paused) total += kBs;
+                        }
+                        // Stale-stream watchdog: if bytes have increased,
+                        // mark fresh and clear any amber state.
+                        if (dB > 0) {
+                            st.lastFreshAt = now;
+                            if (st.dotEl.classList.contains("stale")) {
+                                st.dotEl.classList.remove("stale");
+                                st.dotEl.classList.add("ok");
+                            }
+                        }
+                    }
+                    // Flip to amber if frames have stopped arriving for
+                    // STALE_MS+. Don't override "bad" (image-load error) —
+                    // that's a stronger signal. Also skip cams in "off" mode
+                    // because the tile isn't pulling frames anyway.
+                    if (st.lastFreshAt != null
+                            && (now - st.lastFreshAt) > STALE_MS
+                            && !st.dotEl.classList.contains("bad")
+                            && st.mode !== "off") {
+                        if (!st.dotEl.classList.contains("stale")) {
+                            st.dotEl.classList.remove("ok");
+                            st.dotEl.classList.add("stale");
                         }
                     }
                     st.lastBytes = bytes;
