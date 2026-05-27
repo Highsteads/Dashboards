@@ -10,3 +10,14 @@ CLAUDE.md
 **/CLAUDE.md
 **/Contents/Packages/
 *.indigoPlugin.zip
+
+# Runtime artefacts that the plugin generates at startup — must never be
+# committed (they contain the user's INDIGO_API_KEY and LAN URL).
+Dashboards.indigoPlugin/Contents/Resources/static/pages/config.js
+**/config.js
+Dashboards.indigoPlugin/Contents/Resources/static/pages/streams.json
+**/streams.json
+Dashboards.indigoPlugin/Contents/Resources/static/pages/weather.json
+**/weather.json
+Dashboards.indigoPlugin/Contents/Resources/static/pages/rooms.json
+**/rooms.json
