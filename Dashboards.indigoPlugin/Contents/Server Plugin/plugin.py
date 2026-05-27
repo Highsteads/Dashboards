@@ -18,7 +18,7 @@
 #              stream connection fails.
 # Author:      CliveS & Claude Opus 4.7
 # Date:        27-05-2026
-# Version:     1.19.2
+# Version:     1.19.3
 #
 # v1.17.1 (23-05-2026): Millisecond timestamp [HH:MM:SS.mmm] prefix on every
 # log line via plugin_utils.install_timestamp_filter() — matches Device
@@ -112,7 +112,7 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION    = "1.19.2"
+PLUGIN_VERSION    = "1.19.3"
 # Pages are mirrored into Web Assets/public/dashboards/ so IWS serves them
 # WITHOUT HTTP Basic Auth. Indigo only treats the global /public/ namespace
 # as anonymous — per-plugin `public/` subfolders still require auth.

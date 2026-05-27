@@ -248,7 +248,18 @@
             display: grid; gap: 10px; max-width: 900px; margin: 0 auto 16px;
             grid-template-columns: 1fr 1fr;
         }
-        @media (max-width: 600px) { .dash-row { grid-template-columns: 1fr; } }
+        /* Default: collapse to single column on phone-width.
+           Glance row (Energy + Weather) opts OUT — it stays 2-col always and
+           its render functions emit a compact 4–5 row subset on narrow
+           viewports so each tile actually fits at ~half a phone width. */
+        @media (max-width: 600px) {
+            .dash-row              { grid-template-columns: 1fr; }
+            .dash-row.glance       { grid-template-columns: 1fr 1fr; gap: 6px; }
+            .dash-row.glance .dash-card { padding: 12px 12px; }
+            .dash-row.glance .dash-card .row { font-size: 12px; padding: 1px 0; }
+            .dash-row.glance .dash-card .big { font-size: 20px; }
+            .dash-row.glance .dash-card h3   { font-size: 11px; margin-bottom: 6px; }
+        }
         .dash-card {
             background: var(--card-bg); border-radius: 12px; padding: 14px 16px;
             box-shadow: var(--shadow);
@@ -331,7 +342,7 @@
         <div id="cameras-mosaic"></div>
         <!-- Two-column row: Energy + Weather. Each card updates every 5s
              via loadSummary(). They stack on phones (≤600px). -->
-        <div class="dash-row">
+        <div class="dash-row glance">
             <a id="energy-detail" class="dash-card" href="energy.html"></a>
             <a id="weather-now"   class="dash-card" href="ecowitt.html"></a>
         </div>
@@ -660,6 +671,18 @@
         const gridLabel = grid >= 0 ? "Import" : "Export";
         const gridCls   = grid <  0 ? "ok"     : (grid > 50 ? "warn" : "");
         const battLabel = battW >= 0 ? "Charging" : "Discharging";
+        // Compact mode for narrow phone viewports — 4 highlight rows only.
+        // Full detail behind the tap-through to energy.html.
+        const isCompact = window.innerWidth <= 600;
+        if (isCompact) {
+            el.innerHTML = `
+                <h3>Energy · Now</h3>
+                <div class="row"><span class="key">Battery</span><span class="val big">${soc.toFixed(0)}%</span></div>
+                <div class="row"><span class="key">Solar</span><span class="val">${fmtKw(pv)}</span></div>
+                <div class="row"><span class="key">Home</span><span class="val">${fmtKw(home)}</span></div>
+                <div class="row"><span class="key">${gridLabel}</span><span class="val ${gridCls}">${fmtKw(Math.abs(grid))}</span></div>`;
+            return;
+        }
         el.innerHTML = `
             <h3>Energy · Now</h3>
             <div class="row"><span class="key">Battery</span><span class="val big">${soc.toFixed(0)}%</span></div>
@@ -778,6 +801,20 @@
         const todayLo    = owm && isFinite(owm.today_min) ? owm.today_min : null;
         const conditions = owm && (owm.now_conditions || owm.today_summary) || "";
         const uvi        = owm && isFinite(owm.now_uvi) ? owm.now_uvi : null;
+        // Compact mode for narrow phone viewports — 4–5 highlight rows
+        // only. Drops wind gust/max, rain rate, pressure trend, UV, indoor.
+        // Full detail behind the tap-through to ecowitt.html.
+        const isCompact = window.innerWidth <= 600;
+        if (isCompact) {
+            el.innerHTML = `
+                <h3>Weather${conditions ? ` · ${escapeAttr(conditions)}` : ""}</h3>
+                <div class="row"><span class="key">Outdoor</span><span class="val big">${isFinite(temp) ? temp.toFixed(1) + "°" : "—"}</span></div>
+                ${isFinite(hum) ? `<div class="row"><span class="key">Humidity</span><span class="val">${hum.toFixed(0)}%</span></div>` : ""}
+                ${speedMph != null ? `<div class="row"><span class="key">Wind</span><span class="val">${speedMph.toFixed(0)} mph${dir ? " " + dir : ""}</span></div>` : ""}
+                ${rainDailyMm != null && rainDailyMm > 0 ? `<div class="row"><span class="key">Rain</span><span class="val warn">${rainDailyMm.toFixed(1)} mm</span></div>` : ""}
+                ${(sunriseStr || sunsetStr) ? `<div class="row"><span class="key">Sun</span><span class="val">${sunriseStr || "—"}↑ ${sunsetStr || "—"}↓</span></div>` : ""}`;
+            return;
+        }
         el.innerHTML = `
             <h3>Weather${conditions ? ` · ${escapeAttr(conditions)}` : ""}</h3>
             <div class="row"><span class="key">Outdoor</span><span class="val big">${isFinite(temp) ? temp.toFixed(1) + "°C" : "—"}</span></div>
