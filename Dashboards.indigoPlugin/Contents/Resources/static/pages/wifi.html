@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta name="indigo-page-name" content="WiFi">
+    <meta name="indigo-page-icon" content="wifi.medium">
+    <meta name="indigo-page-description" content="UniFi access point health and config audit">
+
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Highsteads">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#5856d6">
+    <link rel="apple-touch-icon" sizes="180x180" href="/public/dashboards/apple-touch-icon.png">
+    <title>WiFi</title>
+    <style>
+        :root {
+            --bg: #f5f5f7; --card-bg: #ffffff; --text: #1d1d1f;
+            --text-secondary: #86868b; --border: #d2d2d7;
+            --accent: #5856d6; --good: #34c759; --off-color: #d2d2d7;
+            --warn: #ff9500; --bad: #ff453a;
+            --track: #e5e5ea;
+            --shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #000000; --card-bg: #1c1c1e; --text: #f5f5f7;
+                --text-secondary: #98989d; --border: #38383a;
+                --accent: #7d7aff; --good: #30d158; --off-color: #48484a;
+                --track: #2c2c2e;
+                --shadow: 0 1px 3px rgba(0,0,0,0.3);
+            }
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+            background: var(--bg); color: var(--text);
+            padding: max(80px, calc(72px + env(safe-area-inset-top))) 0 max(32px, env(safe-area-inset-bottom));
+            min-height: 100vh; -webkit-overflow-scrolling: touch;
+        }
+        .topbar {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 10;
+            background: var(--card-bg); border-bottom: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            padding: 10px max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left));
+            padding-top: max(10px, env(safe-area-inset-top));
+        }
+        .topbar-inner { max-width: 900px; margin: 0 auto; }
+        .topbar-3col { display: grid; grid-template-columns: 1fr 2fr 1fr; align-items: center; gap: 8px; }
+        .topbar-3col .hdr-left { justify-self: start; display: flex; }
+        .topbar-3col .hdr-right { justify-self: end; display: flex; }
+        .topbar-3col .hdr-center { justify-self: stretch; text-align: center; min-width: 0;
+            display: flex; flex-direction: column; align-items: center; gap: 1px; line-height: 1.15; }
+        .topbar-3col h1 { font-size: 20px; font-weight: 700; margin: 0; letter-spacing: -0.02em;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+        .topbar-status { font-size: 11px; color: var(--text-secondary); font-variant-numeric: tabular-nums;
+            white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+        .nav-btn {
+            background: var(--card-bg); border: 1px solid var(--border); color: var(--accent);
+            padding: 8px 14px; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer;
+            font-family: inherit; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;
+            min-height: 36px; box-shadow: 0 1px 2px rgba(0,0,0,0.08); white-space: nowrap;
+            transition: transform 0.08s ease-out, background 0.15s, border-color 0.15s;
+        }
+        .nav-btn:hover { background: var(--bg); border-color: var(--accent); }
+        .nav-btn:active { transform: translateY(2px) scale(0.96); background: var(--accent); color: #fff; }
+        .container { max-width: 900px; margin: 0 auto;
+            padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left)); }
+        .bottombar { position: sticky; bottom: 0; z-index: 10; background: var(--card-bg);
+            border-top: 1px solid var(--border); box-shadow: 0 -1px 3px rgba(0,0,0,0.08);
+            padding: 8px 16px; padding-bottom: max(8px, env(safe-area-inset-bottom)); margin-top: 16px; }
+        .bottombar-inner { text-align: center; max-width: 900px; margin: 0 auto; font-size: 13px;
+            color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+
+        /* ── Controller summary banner ── */
+        .summary { background: var(--card-bg); border-radius: 14px; padding: 14px 16px;
+            box-shadow: var(--shadow); margin-bottom: 14px; border-left: 3px solid var(--good); }
+        .summary.bad { border-left-color: var(--bad); }
+        .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 10px; }
+        .metric { text-align: center; }
+        .m-val { font-size: 22px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+        .m-lab { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+
+        /* ── AP cards ── */
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+        .ap { background: var(--card-bg); border-radius: 14px; padding: 14px 16px; box-shadow: var(--shadow);
+            display: flex; flex-direction: column; gap: 10px; border-left: 3px solid var(--good); }
+        .ap.has-issues { border-left-color: var(--warn); }
+        .ap.offline { border-left-color: var(--bad); opacity: 0.7; }
+        .ap-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        .ap-name { font-size: 16px; font-weight: 600; }
+        .ap-dot { font-size: 12px; }
+        .ap-dot.on { color: var(--good); } .ap-dot.off { color: var(--bad); }
+        .reboot { font-size: 11px; color: var(--warn); font-weight: 600; margin-left: 6px; }
+        .ap-meta { font-size: 12px; color: var(--text-secondary); }
+        .band { display: grid; grid-template-columns: 38px 1fr 46px 38px; align-items: center; gap: 8px; }
+        .band-label { font-size: 12px; font-weight: 700; color: var(--text-secondary); }
+        .band-info { font-size: 11px; color: var(--text-secondary); white-space: nowrap;
+            overflow: hidden; text-overflow: ellipsis; }
+        .util-wrap { grid-column: 2 / 3; }
+        .util-bar { height: 8px; background: var(--track); border-radius: 5px; overflow: hidden; }
+        .util-fill { height: 100%; border-radius: 5px; transition: width 0.4s; }
+        .util-pct { font-size: 12px; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+        .sat { font-size: 12px; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+        .flags { display: flex; flex-wrap: wrap; gap: 5px; }
+        .flag { font-size: 11px; background: rgba(255,149,0,0.16); color: var(--warn);
+            padding: 3px 8px; border-radius: 7px; font-weight: 500; }
+        .ok { font-size: 12px; color: var(--good); font-weight: 600; }
+        .good { color: var(--good); } .warn { color: var(--warn); } .bad { color: var(--bad); }
+        .fill-good { background: var(--good); } .fill-warn { background: var(--warn); } .fill-bad { background: var(--bad); }
+        .loading { text-align: center; padding: 60px 20px; color: var(--text-secondary); }
+        .spinner { width: 24px; height: 24px; border: 3px solid var(--off-color); border-top-color: var(--accent);
+            border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <div class="topbar-inner topbar-3col">
+            <div class="hdr-left"><a class="nav-btn" href="index.html">← Back</a></div>
+            <div class="hdr-center">
+                <h1>WiFi</h1>
+                <span class="topbar-status">Updated <span id="ts">—</span> · Next <span id="cdwn">—</span>s</span>
+            </div>
+            <div class="hdr-right">
+                <button class="nav-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Top">↑ Top</button>
+            </div>
+        </div>
+    </header>
+    <div class="container">
+        <div id="content"><div class="loading"><div class="spinner"></div><p>Connecting…</p></div></div>
+    </div>
+
+    <script src="config.js" onerror="window.INDIGO_CONFIG_MISSING=true"></script>
+    <script>
+    class IndigoAPIError extends Error {
+        constructor(msg, status) { super(msg); this.name = "IndigoAPIError"; this.status = status; }
+    }
+    class IndigoAPI {
+        constructor(config) {
+            const c = config || window.INDIGO_CONFIG || IndigoAPI.getStoredConfig();
+            if (!c) throw new IndigoAPIError("Not configured", 0);
+            this._base = ""; this._key = c.apiKey; this._authH = [];
+        }
+        static isConfigured() {
+            const c = window.INDIGO_CONFIG || IndigoAPI.getStoredConfig();
+            return !!(c && c.baseURL && c.apiKey);
+        }
+        static getStoredConfig() {
+            try { return JSON.parse(localStorage.getItem("indigo_config") || "null"); } catch { return null; }
+        }
+        static clearConfig() { localStorage.removeItem("indigo_config"); }
+        onAuthFailure(fn) { this._authH.push(fn); }
+        async _fetch(path, opts = {}) {
+            const headers = { Authorization: "Bearer " + this._key, Accept: "application/json", ...(opts.headers || {}) };
+            const r = await fetch(this._base + path, { ...opts, headers });
+            if (r.status === 401 || r.status === 403) { this._authH.forEach(h => h()); throw new IndigoAPIError("Auth failed", r.status); }
+            if (!r.ok) throw new IndigoAPIError("HTTP " + r.status, r.status);
+            const ct = r.headers.get("Content-Type") || "";
+            return ct.includes("json") ? r.json() : null;
+        }
+        getDevices() { return this._fetch("/v2/api/indigo.devices"); }
+        observeAll(cb, ms = 5000) {
+            let last = "";
+            const tick = async () => {
+                try { const d = await this.getDevices(); const j = JSON.stringify(d);
+                      if (j !== last) { last = j; cb(d); } } catch {}
+            };
+            tick(); const t = setInterval(tick, ms); return { stop: () => clearInterval(t) };
+        }
+    }
+    </script>
+    <script>
+    const POLL_INTERVAL_MS = 5000;
+    let _lastUpdate = 0;
+    function _pad(n) { return String(n).padStart(2, "0"); }
+    function markRefreshed() { _lastUpdate = Date.now(); tickRefreshStatus(); }
+    function tickRefreshStatus() {
+        let tsStr = "—";
+        if (_lastUpdate) { const d = new Date(_lastUpdate);
+            tsStr = _pad(d.getHours()) + ":" + _pad(d.getMinutes()) + ":" + _pad(d.getSeconds()); }
+        const elapsedS = _lastUpdate ? (Date.now() - _lastUpdate) / 1000 : 0;
+        const cdwn = Math.max(0, Math.round((POLL_INTERVAL_MS / 1000) - elapsedS));
+        for (const id of ["ts", "ts-bot"]) { const el = document.getElementById(id); if (el) el.textContent = tsStr; }
+        for (const id of ["cdwn", "cdwn-bot"]) { const el = document.getElementById(id); if (el) el.textContent = String(cdwn); }
+    }
+    setInterval(markRefreshed, POLL_INTERVAL_MS);
+    setInterval(tickRefreshStatus, 1000);
+
+    let indigo = null;
+    if (!IndigoAPI.isConfigured()) { location.href = "index.html"; } else { start(); }
+    function start() {
+        indigo = new IndigoAPI();
+        indigo.onAuthFailure(() => { IndigoAPI.clearConfig(); location.href = "index.html"; });
+        indigo.observeAll(d => { markRefreshed(); render(d); }, 5000);
+    }
+
+    // ── helpers ──────────────────────────────────────────────────────────
+    function num(v) { const n = parseInt(v); return isNaN(n) ? null : n; }
+    function utilClass(v) { const n = num(v); if (n === null) return ""; if (n >= 70) return "bad"; if (n >= 50) return "warn"; return "good"; }
+    function fillClass(v) { const n = num(v); if (n === null) return "fill-good"; if (n >= 70) return "fill-bad"; if (n >= 50) return "fill-warn"; return "fill-good"; }
+    function satClass(v) { const n = num(v); if (n === null || n < 0) return ""; if (n < 70) return "bad"; if (n < 90) return "warn"; return "good"; }
+    function fmtSat(v) { const n = num(v); return (n === null || n < 0) ? "—" : String(n); }
+    function uptimeUi(s) { const n = num(s) || 0; const d = Math.floor(n/86400), h = Math.floor((n%86400)/3600); return d + "d " + h + "h"; }
+    function fmtWidth(w) { const n = num(w); return [20, 40, 80, 160, 320].includes(n) ? n + "MHz" : ""; }
+    function escapeHtml(t) { const d = document.createElement("div"); d.textContent = String(t == null ? "" : t); return d.innerHTML; }
+
+    function render(devices) {
+        const controller = devices.find(d => d.deviceTypeId === "unifiController");
+        const aps = devices.filter(d => d.deviceTypeId === "unifiAP").sort((a, b) => a.name.localeCompare(b.name));
+        if (!controller && aps.length === 0) {
+            document.getElementById("content").innerHTML = '<p class="loading">No UniFi Health devices found.</p>';
+            return;
+        }
+        let html = "";
+        if (controller) html += renderController(controller);
+        html += '<div class="grid">' + aps.map(renderAP).join("") + '</div>';
+        document.getElementById("content").innerHTML = html;
+    }
+
+    function renderController(d) {
+        const s = d.states || {};
+        const connected = (s.status === "Connected");
+        const audit = num(s.auditIssues) || 0;
+        return `
+            <div class="summary ${connected ? '' : 'bad'}">
+                <div class="summary-grid">
+                    <div class="metric"><div class="m-val ${connected ? 'good' : 'bad'}">${escapeHtml(s.status || '—')}</div><div class="m-lab">Controller</div></div>
+                    <div class="metric"><div class="m-val">${s.numAPs ?? '—'}</div><div class="m-lab">APs</div></div>
+                    <div class="metric"><div class="m-val">${s.numClients ?? '—'}</div><div class="m-lab">Clients</div></div>
+                    <div class="metric"><div class="m-val ${utilClass(s.worstApUtilisation)}">${s.worstApUtilisation ?? '—'}%</div><div class="m-lab">Worst util</div></div>
+                    <div class="metric"><div class="m-val ${satClass(s.worstClientSatisfaction)}">${fmtSat(s.worstClientSatisfaction)}</div><div class="m-lab">Worst sat</div></div>
+                    <div class="metric"><div class="m-val ${audit > 0 ? 'warn' : 'good'}">${audit}</div><div class="m-lab">Audit issues</div></div>
+                </div>
+            </div>`;
+    }
+
+    function bandRow(label, ch, width, util, sat, clients) {
+        if (!ch && ch !== 0) return "";
+        const u = num(util);
+        const pct = u === null ? 0 : Math.min(100, u);
+        const satCell = (sat === undefined) ? "" : `<div class="sat ${satClass(sat)}">${fmtSat(sat)}</div>`;
+        return `
+            <div class="band">
+                <div class="band-label">${label}</div>
+                <div class="util-wrap">
+                    <div class="band-info">ch ${escapeHtml(ch)}${fmtWidth(width) ? ' · ' + fmtWidth(width) : ''} · ${clients ?? 0} cl</div>
+                    <div class="util-bar"><div class="util-fill ${fillClass(util)}" style="width:${pct}%"></div></div>
+                </div>
+                <div class="util-pct ${utilClass(util)}">${u === null ? '—' : u + '%'}</div>
+                ${satCell || '<div></div>'}
+            </div>`;
+    }
+
+    function renderAP(d) {
+        const s = d.states || {};
+        const online = d.onState === true;
+        const rebooted = s.rebooted === true;
+        const flags = String(s.auditFlags || "").split(",").map(x => x.trim()).filter(Boolean);
+        const name = String(d.name || "").replace(/^UniFi AP /, "");
+        let bands = "";
+        bands += bandRow("2.4", s.band24Channel, s.band24Width, s.band24Utilisation, s.band24Satisfaction, s.band24Clients);
+        bands += bandRow("5", s.band5Channel, s.band5Width, s.band5Utilisation, s.band5Satisfaction, s.band5Clients);
+        bands += bandRow("6", s.band6Channel, s.band6Width, s.band6Utilisation, undefined, s.band6Clients);
+        const cls = !online ? "offline" : (flags.length ? "has-issues" : "");
+        return `
+            <div class="ap ${cls}">
+                <div class="ap-head">
+                    <div class="ap-name">${escapeHtml(name)}${rebooted ? '<span class="reboot">⟳ rebooted</span>' : ''}</div>
+                    <div class="ap-dot ${online ? 'on' : 'off'}">${online ? '● online' : '○ offline'}</div>
+                </div>
+                <div class="ap-meta">${escapeHtml(s.apModel || '')} · ${escapeHtml(s.uplinkType || '')} uplink · ${s.numClients ?? 0} clients · up ${uptimeUi(s.uptimeSeconds)}</div>
+                ${bands}
+                ${flags.length ? '<div class="flags">' + flags.map(f => `<span class="flag">${escapeHtml(f)}</span>`).join('') + '</div>' : '<div class="ok">✓ Config OK</div>'}
+            </div>`;
+    }
+    </script>
+
+    <footer class="bottombar">
+        <div class="bottombar-inner">Updated <span id="ts-bot">—</span> · Next refresh <span id="cdwn-bot">—</span>s</div>
+    </footer>
+    <script src="standalone-nav.js"></script>
+</body>
+</html>
