@@ -1,0 +1,13 @@
+# Lint gate — errors only (Pyflakes F rules: undefined names, unused
+# imports/variables, duplicate arguments). Deliberately NOT a style pass.
+target-version = "py313"
+extend-exclude = ["Dashboards.indigoPlugin/Contents/Packages"]
+
+[lint]
+select = ["F"]
+
+[lint.per-file-ignores]
+# Indigo injects `indigo` into a script's namespace at run time, so the
+# companion scripts deliberately never import it and Pyflakes cannot see it.
+# The plugin itself is unaffected — it does `import indigo` inside the host.
+"scripts/*.py" = ["F821"]

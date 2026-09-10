@@ -1,0 +1,2189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta name="indigo-page-name" content="Cameras">
+    <meta name="indigo-page-icon" content="video.fill">
+    <meta name="indigo-page-description" content="Dahua IP cameras via go2rtc MJPEG transcode">
+
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Dashboards">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#5856d6">
+    <link rel="apple-touch-icon" sizes="180x180" href="/public/dashboards/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="/public/dashboards/apple-touch-icon-167.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="/public/dashboards/apple-touch-icon-152.png">
+    <title>Cameras</title>
+    <link rel="stylesheet" href="dashboards-theme.css">
+    <style>
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: var(--font-ui);
+            background: var(--bg); color: var(--text);
+            padding: max(80px, calc(72px + env(safe-area-inset-top))) 0 max(32px, env(safe-area-inset-bottom));
+            min-height: 100vh; -webkit-overflow-scrolling: touch;
+        }
+        .topbar {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 10;
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            padding: 10px max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left));
+            padding-top: max(10px, env(safe-area-inset-top));
+        }
+        .topbar-inner {
+            display: grid;
+            grid-template-columns: 1fr 2fr 1fr;
+            align-items: center; gap: 8px;
+            max-width: 1200px; margin: 0 auto;
+        }
+        .topbar .hdr-left  { justify-self: start; }
+        .topbar .hdr-right { justify-self: end; }
+        .topbar .hdr-center {
+            justify-self: stretch; text-align: center; min-width: 0;
+            display: flex; flex-direction: column; align-items: center;
+            gap: 1px; line-height: 1.15;
+        }
+        .topbar h1 {
+            font-size: 20px; font-weight: 700; margin: 0;
+            letter-spacing: -0.02em; white-space: nowrap;
+            overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+        }
+        .topbar-status {
+            font-size: 12px; color: var(--text-secondary);
+            font-variant-numeric: tabular-nums; white-space: nowrap;
+        }
+        .topbar-status #total-bw {
+            color: var(--accent); font-weight: 700;
+            padding: 1px 6px; border-radius: var(--r-sm);
+            background: rgba(88, 86, 214, 0.15);
+        }
+        @media (prefers-color-scheme: dark) {
+            .topbar-status #total-bw { color: #b9b8ff; background: rgba(125, 122, 255, 0.18); }
+        }
+        .nav-btn {
+            background: var(--card-bg); border: 1px solid var(--border);
+            color: var(--accent); padding: 8px 14px; border-radius: var(--r-md);
+            font-size: 14px; font-weight: 600; cursor: pointer;
+            font-family: inherit; text-decoration: none;
+            display: inline-flex; align-items: center; gap: 4px;
+            min-height: 36px;
+            transition: transform 0.08s ease-out, background 0.15s, border-color 0.15s;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+            user-select: none; -webkit-tap-highlight-color: transparent;
+            white-space: nowrap;
+        }
+        .pair-btn {
+            background: none; border: none; padding: 4px 2px; margin-top: 2px;
+            color: var(--text-secondary); font-family: inherit; font-size: 12px;
+            text-decoration: underline; cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .pair-btn:hover { color: var(--accent); }
+        .nav-btn:hover  { background: var(--bg); border-color: var(--accent); }
+        .nav-btn:active { transform: translateY(2px) scale(0.96); background: var(--accent); color: #fff; }
+
+        .container {
+            max-width: 1200px; margin: 0 auto;
+            padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 14px; margin-top: 8px;
+        }
+        /* Focus mode: the focused tile (default: first in CAMERAS list) spans
+           the full width, the rest sit underneath in a fixed-column grid. The
+           column count is responsive — 4 wide on desktop, 3 on tablet, 2 on
+           phone — so the 8 thumbnails reflow into tidy rows. */
+        .grid.has-focus { grid-template-columns: repeat(4, 1fr); }
+        @media (max-width: 900px) { .grid.has-focus { grid-template-columns: repeat(3, 1fr); } }
+        @media (max-width: 600px) { .grid.has-focus { grid-template-columns: repeat(2, 1fr); } }
+        .grid.has-focus .cam.focused {
+            grid-column: 1 / -1;
+            grid-row: 1;                  /* always pinned to the top row */
+        }
+        .cam {
+            background: var(--card-bg);
+            border-radius: var(--r-lg);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            display: flex; flex-direction: column;
+            transition: transform 0.15s ease-out;
+        }
+        .cam.focused .cam-frame { max-height: 70vh; }
+        .cam-frame {
+            position: relative;
+            background: #000;
+            aspect-ratio: 16 / 9;
+            cursor: pointer;
+            overflow: hidden;
+            -webkit-touch-callout: none;     /* iOS: suppress long-press image menu */
+            user-select: none;
+        }
+        .cam-frame img {
+            width: 100%; height: 100%;
+            object-fit: cover;
+            display: block;
+            pointer-events: none;             /* clicks land on the frame, not the img */
+        }
+        .cam-frame video {
+            position: absolute; inset: 0;     /* over the poster img */
+            width: 100%; height: 100%;
+            object-fit: cover;
+            display: block;
+            pointer-events: none;
+        }
+        .cam-frame .placeholder {
+            position: absolute; inset: 0;
+            display: flex; align-items: center; justify-content: center;
+            color: var(--text-secondary);
+            font-size: 13px;
+            background: #111;
+            pointer-events: none;
+        }
+        .cam-frame.has-image .placeholder { display: none; }
+        .cam-frame.error .placeholder {
+            display: flex;
+            color: var(--bad); background: #1a0808;
+        }
+        .cam-frame.paused::after {
+            content: "PAUSED";
+            position: absolute; inset: 0;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px; font-weight: 700; letter-spacing: 2px;
+            color: rgba(255,255,255,0.75);
+            background: rgba(0,0,0,0.45);
+            pointer-events: none;
+        }
+        .cam-frame.connecting::after {
+            content: "CONNECTING…";
+            position: absolute; inset: 0;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 13px; font-weight: 700; letter-spacing: 1px;
+            color: rgba(255,255,255,0.85);
+            background: rgba(0,0,0,0.4);
+            pointer-events: none;
+        }
+        .cam-frame.error::after {
+            content: attr(data-err);
+            position: absolute; inset: 0;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 13px; font-weight: 700; letter-spacing: 1px;
+            color: rgba(255,255,255,0.85);
+            background: rgba(0,0,0,0.4);
+            pointer-events: none;
+        }
+        .cam-frame.error { outline: 2px solid var(--bad, #c33); outline-offset: -2px; }
+        /* Per-tile toolbar — top right of the frame */
+        .cam-toolbar {
+            position: absolute; top: 8px; right: 8px;
+            display: flex; gap: 4px;
+            z-index: 5;
+            opacity: 0;
+            transition: opacity 0.15s ease-out;
+            pointer-events: none;
+        }
+        .cam-frame:hover .cam-toolbar { opacity: 1; pointer-events: auto; }
+        @media (hover: none) {
+            .cam-toolbar { opacity: 0.85; pointer-events: auto; }
+        }
+        .cam-btn {
+            width: 32px; height: 32px;
+            display: inline-flex; align-items: center; justify-content: center;
+            border-radius: var(--r-sm); border: none;
+            background: rgba(0,0,0,0.6); color: #fff;
+            font-size: 15px; cursor: pointer; padding: 0;
+            font-family: inherit;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            -webkit-tap-highlight-color: transparent;
+            transition: background 0.12s, transform 0.08s;
+        }
+        .cam-btn:hover  { background: rgba(0,0,0,0.85); }
+        .cam-btn:active { transform: scale(0.92); }
+        .cam-meta {
+            /* flex-wrap so on narrow iPhone tiles the host IP can drop onto
+               a second line instead of being clipped mid-octet. On desktops
+               the whole row still fits on one line. */
+            display: flex; align-items: center; justify-content: space-between;
+            flex-wrap: wrap;
+            row-gap: 4px; column-gap: 10px;
+            padding: 10px 14px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            border-top: 1px solid var(--border);
+        }
+        .cam-meta .name { font-weight: 600; color: var(--text); font-size: 14px; }
+        .cam-meta .host { font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .cam-meta .dot {
+            display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+            background: var(--text-secondary); margin-right: 6px;
+            vertical-align: middle;
+        }
+        .cam-meta .dot.ok    { background: var(--on-color); }
+        .cam-meta .dot.stale { background: #ff9500; }   /* amber — no bytes for 10s+ */
+        .cam-meta .dot.bad   { background: var(--bad); }
+        .cam-meta .mode {
+            display: inline-block;
+            padding: 1px 7px;
+            border-radius: var(--r-sm);
+            font-size: 11px; font-weight: 600;
+            background: rgba(52, 199, 89, 0.18); color: var(--on-color);
+            text-transform: uppercase; letter-spacing: 0.4px;
+            margin-right: 4px;
+        }
+        .cam-meta .mode[data-mode="still"]  { background: rgba(255, 149, 0, 0.18); color: #ff9500; }
+        .cam-meta .mode[data-mode="webrtc"] { background: rgba(52, 199, 89, 0.18); color: var(--on-color); }
+        .cam-meta .mode[data-mode="off"]    { background: rgba(255, 69, 58, 0.18); color: var(--bad); }
+        .cam-meta .mode[data-mode="paused"] { background: rgba(142, 142, 147, 0.25); color: var(--text-secondary); }
+        .cam-meta .bw {
+            display: inline-block;
+            font-variant-numeric: tabular-nums;
+            font-size: 11px; font-weight: 600;
+            color: var(--accent);
+            padding: 1px 7px;
+            border-radius: var(--r-sm);
+            background: rgba(88, 86, 214, 0.15);
+            min-width: 56px;
+            text-align: right;
+            letter-spacing: 0.2px;
+        }
+        @media (prefers-color-scheme: dark) {
+            .cam-meta .bw { color: #b9b8ff; background: rgba(125, 122, 255, 0.18); }
+        }
+        /* Frame age — how old the picture on screen actually is. Shown on the
+           focused tile always, on every tile in debug view (tap the footer
+           policy line to toggle). Amber once it passes the stale threshold. */
+        .cam-meta .age {
+            display: inline-block;
+            font-variant-numeric: tabular-nums;
+            font-size: 11px; font-weight: 600;
+            color: var(--text-secondary);
+            padding: 1px 7px;
+            border-radius: var(--r-sm);
+            background: rgba(142, 142, 147, 0.15);
+            letter-spacing: 0.2px;
+        }
+        .cam-meta .age:empty { display: none; }
+        .cam-meta .age.old { color: #ff9500; background: rgba(255, 149, 0, 0.18); }
+
+        .config-warn {
+            background: var(--card-bg); border: 1px solid var(--bad);
+            border-radius: var(--r-md); padding: 14px 18px;
+            margin: 12px 0;
+            color: var(--bad); font-size: 14px;
+        }
+
+        .bottombar {
+            position: sticky; bottom: 0; z-index: 10;
+            background: var(--card-bg);
+            border-top: 1px solid var(--border);
+            box-shadow: 0 -1px 3px rgba(0,0,0,0.08);
+            padding: 8px max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left));
+            padding-bottom: max(8px, env(safe-area-inset-bottom));
+            margin-top: 20px;
+        }
+        .bottombar-inner {
+            text-align: center;
+            max-width: 1200px; margin: 0 auto;
+            font-size: 13px; color: var(--text-secondary);
+            font-variant-numeric: tabular-nums;
+        }
+        /* THE FOOTER MUST NOT CHANGE HEIGHT (v2.99.1). It is sticky at the
+           bottom, so a line that wraps pushes the whole grid up — and the top
+           line carries a live byte rate, which gains a digit every few
+           seconds. MEASURED on a 430px phone: 74px at "19 kB/s total" and
+           90px at "153 kB/s total", so the page hopped 16px, twice a minute,
+           for ever. This row is one line, always; the rate reserves the width
+           of its longest value so nothing on the line moves when it changes. */
+        .foot-line {
+            display: block;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        #total-bw-bot {
+            display: inline-block;
+            min-width: 7.5ch;      /* "1023 kB/s" and "12.3 MB/s" both fit */
+            text-align: left;
+        }
+    
+        /* ═══ Shared Apple/Safari polish (v2.25.0) ═════════════════
+           Appended uniformly across pages: frosted translucent bars, laptop
+           hover states, keyboard focus rings, reduced-motion support, and
+           Safari/iOS fixes (dynamic viewport height, text-size-adjust, tap
+           highlight). Selectors a page lacks simply never match. */
+        html { -webkit-text-size-adjust: 100%; }
+        body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+        @supports (min-height: 100dvh) { body { min-height: 100dvh; } }
+        a, button, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+        :focus-visible { outline: 2px solid var(--accent, #5856d6); outline-offset: 2px; }
+        .topbar, .bottombar {
+            background: rgba(249, 249, 251, 0.82);
+            -webkit-backdrop-filter: saturate(180%) blur(20px);
+            backdrop-filter: saturate(180%) blur(20px);
+            box-shadow: none;
+        }
+        @media (prefers-color-scheme: dark) {
+            .topbar, .bottombar { background: rgba(22, 22, 24, 0.80); }
+        }
+        @media (hover: hover) and (pointer: fine) {
+            a.card:hover, a.dash-card:hover, .fav-tile:not(.fav-reading):hover, a.home-cam:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+            }
+            .nav-btn:hover { transform: translateY(-1px); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                transition-duration: 0.01ms !important;
+                animation-duration: 0.01ms !important;
+                scroll-behavior: auto !important;
+            }
+        }
+    body.idle-paused .cam-frame::after { content: "paused — tap to resume"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.55); color: #fff; font-size: 14px; z-index: 3; }
+</style>
+</head>
+<body>
+    <header class="topbar">
+        <div class="topbar-inner">
+            <div class="hdr-left">
+                <a class="nav-btn" href="index.html">&larr; Home</a>
+            </div>
+            <div class="hdr-center">
+                <h1>Cameras</h1>
+                <span class="topbar-status">Updated <span id="ts">—</span> · <span id="total-bw">0 kB/s</span></span>
+            </div>
+            <div class="hdr-right"></div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div id="warn"></div>
+        <main class="grid" id="grid"></main>
+    </div>
+
+    <footer class="bottombar">
+        <div class="bottombar-inner" id="bottombar-status">
+            <span class="foot-line"><span id="grid-cam-count">0</span> cameras · <span id="camera-health-bot">health waiting</span> · Updated <span id="ts-bot">—</span> · <span id="total-bw-bot">0 kB/s</span></span>
+            <!-- Says WHICH policy is in force and WHICH build is running. Two
+                 rounds of "the cameras still stop" were spent not knowing
+                 whether the phone had even picked up the new page — a
+                 home-screen PWA resumes from memory without re-fetching. -->
+            <br><span id="link-policy" class="link-policy">—</span>
+            <br><button type="button" id="pair-device" class="pair-btn">this device is: not set</button>
+        </div>
+    </footer>
+
+    <!-- Plugin-generated config (CAMERA_CONFIG holds hosts, names, slugs). -->
+    <script src="config.js" onerror="window.INDIGO_CONFIG_MISSING=true"></script>
+    <!-- for DashUI.linkClass(): the live pool depends on how we got here -->
+    <script src="dashboards-ui.js"></script>
+    <!-- Supplies the API key from this browser's own storage. Needed to ask
+         Indigo whether this phone is on the house wi-fi — see homeByPresence().
+         That question is asked over the AUTHENTICATED /v2/api, never published
+         to /public, because "is anybody home" is not something to serve
+         anonymously to the internet. -->
+    <script src="dashboards-auth.js"></script>
+    <script>
+    // Escape a value for safe use inside an HTML attribute (v2.38.0 hardening —
+    // camera names come from the settings editor / config and could carry a
+    // quote or angle bracket).
+    function escAttr(s) {
+        return String(s == null ? "" : s)
+            .replace(/&/g, "&amp;").replace(/"/g, "&quot;")
+            .replace(/'/g, "&#39;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+    // ── Camera dashboard ───────────────────────────────────────
+    // Each tile loads MJPEG from the plugin's proxy on port 8177. The proxy
+    // relays go2rtc's transcoded mainstream H.264 → MJPEG so the picture is
+    // sharp regardless of how the camera's own substream is configured.
+    //
+    // Per-tile features: pause, snapshot, focus. See the toolbar in each tile.
+
+    const cfg          = window.CAMERA_CONFIG || {};
+    const hosts        = cfg.hosts || [];
+    const names        = cfg.names || {};
+    const slugs        = cfg.slugs || {};
+    const imgPattern   = cfg.imagePattern || "cam-{host}.jpg";
+    // The grid's smaller copy of each snapshot. MEASURED across all nine
+    // cameras: the full picture is 33.2 KB, this one 12.3 KB — 63% less, for
+    // tiles drawn about 300 px wide on a desktop and less on a phone. The
+    // focused tile, which is the only one big enough to show the difference,
+    // keeps the full-size picture.
+    const thumbPattern = cfg.thumbPattern || "cam-{host}-thumb.jpg";
+    // Turned off for the whole page the first time a thumbnail 404s. That
+    // happens when the server has no Pillow to shrink with, and the honest
+    // response is to go back to full-size pictures everywhere rather than show
+    // eight empty tiles. One 404 is enough to know — they are all written by
+    // the same code in the same pass.
+    let thumbsAvailable = true;
+    const mjpegPort    = cfg.mjpegPort   || 8177;
+    const mjpegPath    = cfg.mjpegPath   || "/mjpeg/{host}";
+    // The plugin refreshes each snapshot every 2s, so asking faster than that
+    // just re-fetches the same bytes. Off the LAN we ask every 3s instead.
+    const POLL_MS      = Math.max(1000, (cfg.pollSeconds || 10) * 1000);
+    // 1 s, deliberately FASTER than the ~2.03 s at which the server actually
+    // writes new frames. That sounds wasteful and is not: MEASURED over the
+    // reflector with all nine tiles, 46% of polls came back 304 (53 bytes) and
+    // the total was 827 kbit/s — very slightly LESS than polling at 2 s (843)
+    // and 44% less than polling at 1 s without conditional requests (1479),
+    // because you cannot download more frames than exist. Overshooting the
+    // production rate is therefore free, and it is what removes the client's
+    // share of the lag: a tile now picks a frame up within a second of it
+    // being written instead of waiting out a 3 s beat.
+    const REMOTE_POLL_MS = 1000;
+    // THROUGH THE REFLECTOR THE RULE IS DIFFERENT (v2.96.1). A VPN is the
+    // reader's own data; the reflector is carried by Indigo Domotics' servers,
+    // and on 02-Sep-2026 they wrote to say this house was using "a lot" of it —
+    // nine stills a second from a phone on the home wi-fi that had been paired
+    // with the reflector address. So the reflector polls at a tenth of the
+    // rate, the tile being looked at three times faster than the rest, and the
+    // page stops altogether after ten idle minutes (see _armIdleGuard).
+    const REFLECTOR_POLL_MS  = 10000;
+    const REFLECTOR_FOCUS_MS = 3000;
+    // The tile you are actually looking at polls at the SERVER's own cadence
+    // (the snapshot poller rewrites each cam-<ip>.jpg every 2 s, measured), so
+    // this is the fastest interval that returns a genuinely new frame rather
+    // than re-fetching bytes already on screen. Polling faster would be pure
+    // waste: before the poller was parallelised the files only changed every
+    // ~4.1 s, and a 1 s client poll would have fetched each one three or four
+    // times over for nothing. The other eight tiles stay at 3 s to keep the
+    // total off-LAN data down.
+    // Same as the others now — there is nothing left to buy by going faster
+    // than the frames are produced.
+    const FOCUS_POLL_MS  = 1000;
+    // The shortest we will ever wait between one poll finishing and the next
+    // starting. Only reached when a fetch already took longer than the whole
+    // period, and it is what stops a slow link turning into a tight loop.
+    const MIN_GAP_MS     = 250;
+    // A still fetch that has genuinely wedged (mobile link dropped mid-request)
+    // otherwise holds one of the browser's ~6 connection slots AND this tile's
+    // in-flight guard until the OS gives up on the socket — minutes, during
+    // which the tile silently stops polling. Worst measured healthy fetch is
+    // 1.78 s with all nine at once, so ten seconds is generous margin; the
+    // abort lands in the existing catch, which keeps the last good frame.
+    const STILL_FETCH_TIMEOUT_MS = 10000;
+
+    const TRANSPARENT_PIXEL = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+
+    function mjpegUrl(host) {
+        const path = mjpegPath.replace("{host}", host);
+        return `${location.protocol}//${location.hostname}:${mjpegPort}${path}`;
+    }
+    function wantsFullSize(host) {
+        // The focused tile is shown across the full width of the page, so it
+        // gets the full-size picture. Everything else is a thumbnail.
+        return !thumbsAvailable || host === focusedHost;
+    }
+    function snapshotUrl(host, full) {
+        // STABLE url, deliberately. A "?t=<now>" buster would make every
+        // request unique, so the conditional If-Modified-Since request in
+        // startStill could never match and the server could never answer 304.
+        // Freshness comes from that conditional request, not from the URL.
+        const pat = full ? imgPattern : thumbPattern;
+        const p = pat.replace("{host}", host);
+        // Absolute, like streamsApi(): served from /static/pages/ (Domio) a
+        // relative "cam-x.jpg" resolved to the wrong folder.
+        return (p.startsWith("/") || /^https?:/i.test(p)) ? p : "/public/dashboards/" + p;
+    }
+    function streamsApi() {
+        // Absolute path so this works whether the page is served from
+        // /public/dashboards/ (Dashboards plugin) or /static/pages/ (Domio).
+        return "/public/dashboards/streams.json?t=" + Date.now();
+    }
+    function tsStamp() {
+        const d = new Date();
+        const p = n => String(n).padStart(2, "0");
+        return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}_${p(d.getHours())}-${p(d.getMinutes())}-${p(d.getSeconds())}`;
+    }
+    function slugify(s) {
+        return (s || "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+    }
+
+    // host → { imgEl, frameEl, dotEl, modeEl, bwEl, mode, paused }
+    const camState = {};
+    let _lastUpdate = 0;
+    let focusedHost = null;
+    // Declared HERE, not down in the presence section where it is filled in:
+    // renderPolicy() reads it and runs once at boot, and a `let` below that
+    // call is in its temporal dead zone — the resulting ReferenceError killed
+    // the ENTIRE page script on every fresh load of v2.64.0. The footer, the
+    // grid, everything: one dead variable, no cameras at all.
+    let _lastPresence = null;      // for the footer, so the reason is visible
+
+    // ── Frame age ──────────────────────────────────────────────
+    // How old is the picture on screen? The skew-free source would be the
+    // server's own Date header against the file's Last-Modified — one clock,
+    // both stamps. MEASURED 30-Jul-2026: IWS sends NO Date header on static
+    // responses, so that route is closed. Second best: this device's clock
+    // against Last-Modified. Both ends are NTP-synced in practice, and a
+    // phone clock broken enough to matter would equally poison the burnt-in
+    // camera-timestamp comparisons this readout exists to replace. It is
+    // still a TRADE, so keep a tell: a frame can never be RECEIVED before it
+    // was WRITTEN, so the session's minimum age-at-receipt is bounded below
+    // by the clock skew — if that minimum sits clearly negative, the clocks
+    // disagree, and the debug view says `clock?` instead of presenting a
+    // wrong number with confidence.
+    let _minAgeAtReceipt = null;   // session rolling minimum, the skew tell
+    function noteAgeAtReceipt(ageMs) {
+        _minAgeAtReceipt = _minAgeAtReceipt == null
+            ? ageMs : Math.min(_minAgeAtReceipt, ageMs);
+    }
+    // Age NOW of the frame a still tile is showing, from the Last-Modified
+    // that arrived WITH that frame. 304s never touch it — the frame on
+    // screen is unchanged, so its age simply keeps growing, which is right.
+    function frameAgeMs(st, nowMs) {
+        if (!st || st.frameModMs == null) return null;
+        return Math.max(0, nowMs - st.frameModMs);
+    }
+    function fmtAge(ms) { return (Math.max(0, ms) / 1000).toFixed(1) + "s"; }
+    function debugAges() {
+        try { return localStorage.getItem("dash_cam_debug") === "1"; } catch (e) { return false; }
+    }
+
+    // ── Live pool ──────────────────────────────────────────────
+    // Browsers cap HTTP/1.1 connections at ~6 per origin, so the first N
+    // cameras run live MJPEG continuously and the rest snapshot-poll every
+    // POLL_MS.
+    //
+    // How big N is depends on how the page was reached, because each live
+    // stream costs roughly 4 Mbit/s and away from home that is somebody's
+    // mobile data:
+    //   home       the configured pool (6) — it is all on the LAN.
+    //   vpn        ONE, the focused tile. Everything else polls the snapshot.
+    //   reflector  NONE. The MJPEG port is not fronted by the reflector, so a
+    //              live tile could only ever sit there saying CONNECTING.
+    //
+    // Off the LAN the pool is one, so the live stream FOLLOWS the tile you tap
+    // to the top — see focusTile. At home the pool is fixed and tapping only
+    // changes the layout, which is what iOS Safari's MJPEG socket-reuse bugs
+    // make safe to do.
+    // Policy is now MUTABLE, because the address is only an opening guess: a
+    // LAN address reached over a VPN subnet route is indistinguishable from
+    // the LAN itself, so the real class only arrives once the link has been
+    // measured (DashUI.measuredClass). applyPolicy() re-lays-out when it does.
+    let LINK = window.DashUI ? DashUI.linkClass() : "home";
+    let _idlePaused = false;      // reflector only: stills stopped until a tap (v2.96.1)
+    let _idleGuard  = null;
+    function _armIdleGuard() {
+        if (_idleGuard || !window.DashUI || !DashUI.idleGuard) return;
+        _idleGuard = DashUI.idleGuard(10 * 60 * 1000,
+            () => { _idlePaused = true;  document.body.classList.add("idle-paused"); },
+            () => { _idlePaused = false; document.body.classList.remove("idle-paused"); });
+    }
+    let LIVE_POOL_SIZE, DEFAULT_LIVE, DEFAULT_LIVE_SET, LIVE_FOLLOWS_FOCUS;
+    // Away over the tunnel, the focused tile streams WebRTC instead of any
+    // MJPEG: go2rtc relays the camera's H.264 untranscoded over UDP, which
+    // DROPS on congestion rather than queueing 30 s behind the way MJPEG's
+    // lossless in-order delivery does. Spike-proven on the real path
+    // (iPhone, 5G+Tailscale, 30-Jul-2026): connected over UDP 3/3, first
+    // frame 1.2-2.3 s, ~1 s behind the camera clock. LAST_RTT is kept for
+    // the FALLBACK ladder: if WebRTC fails, a near-tunnel link falls back
+    // to the old single MJPEG tile and a far one to stills — the floor is
+    // exactly the pre-WebRTC behaviour, never worse.
+    let WEBRTC_FOCUS = false;
+    let LAST_RTT     = null;
+    // Above the LAN threshold but still plausibly inside the house. CliveS runs
+    // Tailscale ON PERMANENTLY, including at home — and that is the right way to
+    // run it: turning it off on wi-fi to get live video would also leave it off
+    // on café and hotel wi-fi, which is precisely where the tunnel earns its
+    // keep. So "at home" has to be catered for WITH the tunnel up.
+    //
+    // The trouble is that round trip cannot cleanly separate his two tunnelled
+    // cases. MEASURED on his iPhone: 116 ms at home over Tailscale against
+    // 245 ms on 5G over Tailscale — barely 2x, and a good 5G connection can
+    // beat a poor wi-fi one. A single threshold across that gap is a guess.
+    //
+    // So do not guess. Between the two, run exactly ONE live tile instead of
+    // six. If the guess is right he gets live video at home with the tunnel up.
+    // If it is wrong the cost is one stream (~0.5 MB/s) rather than six
+    // (~5.5 MB/s), and the stall watchdog demotes it to stills within seconds
+    // because a link that cannot drain MJPEG shows it almost immediately.
+    // Wrong in this band is survivable. Wrong at six streams is what stalled
+    // his phone in the first place.
+    const RTT_TUNNEL_MS = 150;
+
+    function setPolicy(cls, rttMs) {
+        LINK = cls;
+        // typeof-guarded: the contract tests eval setPolicy on its own.
+        if (cls === "reflector" && typeof _armIdleGuard === "function") _armIdleGuard();
+        // NO live tiles off the LAN, on a VPN either. Measured on a real phone:
+        // a live tile ran over 30 SECONDS behind while the stills beside it were
+        // 5-8 s behind. MJPEG over TCP delivers every frame in order and drops
+        // nothing, so when the link cannot drain frames as fast as go2rtc makes
+        // them the queue grows and the picture never catches up — it degrades
+        // without limit, and it costs ~17 Mbit/s to do it. A still re-asks for
+        // the current frame every time and cannot fall behind like that. Live
+        // is therefore worse than a still off-LAN on BOTH latency and data, so
+        // there is nothing left to trade off.
+        // The reflector never streams — the MJPEG port is not fronted by it, so
+        // a live tile there cannot connect at all, whatever the timing says.
+        LAST_RTT     = (rttMs == null ? null : rttMs);
+        WEBRTC_FOCUS = false;
+        if (cls === "home") {
+            // A CONFIGURED zero must mean zero — `|| 6` turned it back into
+            // the default (the falsy-number trap).
+            const poolCfg = Number.isFinite(+cfg.livePoolSize) ? Math.max(0, +cfg.livePoolSize) : 6;
+            LIVE_POOL_SIZE = Math.min(poolCfg, hosts.length);
+        } else if (cls === "vpn" && rttMs != null && cfg.webrtcPath && hosts.length
+                   && "RTCPeerConnection" in window) {
+            // MEASURED tunnel link, near or far: the focused tile streams
+            // WebRTC (see WEBRTC_FOCUS above), everything else stills. This
+            // REPLACES the old "vpn near -> one MJPEG tile" band as first
+            // choice — WebRTC is strictly better off-LAN (drops instead of
+            // queues, ~half the bitrate) — but that band survives below as
+            // the no-webrtcPath fallback and as the failure floor.
+            // rttMs != null is load-bearing: an UNMEASURED link (boot's
+            // conservative guess) must not open any stream, WebRTC included.
+            LIVE_POOL_SIZE = 0;
+            WEBRTC_FOCUS   = true;
+        } else if (cls === "vpn" && rttMs != null && rttMs <= RTT_TUNNEL_MS) {
+            LIVE_POOL_SIZE = Math.min(1, hosts.length);   // probably home, tunnel up
+        } else {
+            // Includes an unknown round trip: never assume the expensive case
+            // when we have not measured.
+            LIVE_POOL_SIZE = 0;
+        }
+        DEFAULT_LIVE     = hosts.slice(0, LIVE_POOL_SIZE);
+        DEFAULT_LIVE_SET = new Set(DEFAULT_LIVE);
+        // Live follows the focus only when there is exactly one live tile to move.
+        LIVE_FOLLOWS_FOCUS = LIVE_POOL_SIZE === 1;
+    }
+    // ── Boot policy ────────────────────────────────────────────
+    // The address is a trap on this network: the page is always opened at the
+    // LAN address, and over a Tailscale subnet route that address says "home"
+    // from a 5G connection. Booting on it opened six MJPEG streams into a
+    // mobile link, and the correcting measurement then queued its probes
+    // behind ~17 Mbit/s of video — sometimes long enough for the stall
+    // watchdog to fire first and latch tiles onto 5 s polling.
+    //
+    // So boot on the last MEASURED verdict instead, cached per browser and
+    // bounded to 60 s — the same lifetime as DashUI's RTT cache, so the two
+    // expire together. The bound is load-bearing: an unbounded "home" verdict
+    // recreates the exact pathology when the app is resumed on 5G hours
+    // later. Within the bound it only short-circuits ordinary page-to-page
+    // navigation. With no fresh verdict, boot conservative (all stills) and
+    // let measureAndApply upgrade — at home the probes are on the LAN and the
+    // upgrade lands in under a second.
+    const POLICY_CACHE_KEY = "dash_cam_policy";
+    const POLICY_CACHE_MS  = 60000;
+    function cachePolicy(cls, ms) {
+        try {
+            localStorage.setItem(POLICY_CACHE_KEY,
+                JSON.stringify({ cls: cls, ms: ms == null ? null : ms, at: Date.now() }));
+        } catch (e) { /* private browsing — the measurement still runs */ }
+    }
+    function bootPolicy() {
+        // Re-derive the ADDRESS class each time — LINK holds whatever the
+        // last measurement decided, which is exactly what must not leak into
+        // the next boot decision.
+        const addr = window.DashUI && DashUI.linkClass ? DashUI.linkClass() : "home";
+        // A reflector address is authoritative in that direction — no probe
+        // can make it local, and nothing streams there anyway.
+        if (addr === "reflector") { setPolicy("reflector"); return; }
+        try {
+            const c = JSON.parse(localStorage.getItem(POLICY_CACHE_KEY) || "null");
+            if (c && c.cls && Date.now() - c.at <= POLICY_CACHE_MS) {
+                setPolicy(c.cls, c.ms);
+                return;
+            }
+        } catch (e) { /* unreadable cache — fall through to conservative */ }
+        setPolicy("vpn", null);   // conservative: 0 live until measured
+    }
+    bootPolicy();
+    // Published by the plugin into config.js each startup; "?" means the page
+    // is older than the build that started publishing it, which is itself the
+    // answer when someone asks whether the phone has the current page.
+    const PAGE_BUILD = window.DASHBOARDS_BUILD || "?";
+
+    // State the policy in the footer. "Cameras stop when I'm away" was reported
+    // three times, and each round began by not knowing which connection class
+    // the phone had decided on, nor whether it was even running the new page.
+    // Both are now readable on the device itself, which is where the answer is.
+    function renderPolicy(rttMs) {
+        const el = document.getElementById("link-policy");
+        if (!el) return;
+        const still = LINK === "home" ? POLL_MS : LINK === "reflector" ? REFLECTOR_POLL_MS : REMOTE_POLL_MS;
+        // Name the BAND, not just the class — "VPN" reading the same at 116 ms
+        // and 245 ms is what made this hard to see from a screenshot.
+        let label = { home: "home network", vpn: "VPN", reflector: "reflector" }[LINK] || LINK;
+        if (LINK === "vpn") {
+            const near = LAST_RTT != null && LAST_RTT <= RTT_TUNNEL_MS;
+            label = WEBRTC_FOCUS ? `VPN, ${near ? "near" : "far"}, WebRTC` : (LIVE_POOL_SIZE ? "VPN, near" : "VPN, far");
+        }
+        // Say WHY, when the answer came from wi-fi association rather than from
+        // timing — otherwise "home network" at 116 ms looks like a misreading.
+        if (_lastPresence && _lastPresence.home && LINK === "home") {
+            label = `on ${_lastPresence.essid || "the house wi-fi"}`;
+        }
+        const stills = Math.max(hosts.length - LIVE_POOL_SIZE - (WEBRTC_FOCUS ? 1 : 0), 0);
+        const bits = [];
+        if (WEBRTC_FOCUS) bits.push("1 live · rtc");
+        if (LIVE_POOL_SIZE) bits.push(`${LIVE_POOL_SIZE} live`);
+        if (stills) bits.push(`${stills} still @${still / 1000}s`);
+        // The measured round trip is shown because it is the whole basis of the
+        // decision — if this ever misjudges the link, the number says why.
+        const rtt = (rttMs === undefined || rttMs === null) ? "" : ` · ${Math.round(rttMs)}ms`;
+        el.textContent = `${label}${rtt} · ${bits.join(" + ") || "no cameras"} · build ${PAGE_BUILD}`;
+    }
+    renderPolicy();
+
+    // ── Client-side stall watchdog (slow-link fallback) ────────
+    // WHY THIS EXISTS, and why the bandwidth poll below can't do it:
+    // the kB/s telemetry reads go2rtc's `bytes_recv`, which counts bytes on the
+    // CAMERA→go2rtc leg. Over a weak mobile link go2rtc keeps receiving frames
+    // perfectly while the go2rtc→BROWSER leg stalls, so that counter happily
+    // advances while the user stares at a frozen first frame. It can detect a
+    // camera-side stall and never a client-side one — which is the one that
+    // actually bites when away from home.
+    //
+    // So we measure what the user can actually see: sample the rendered <img>
+    // into a small canvas and watch for the picture changing. That is immune to
+    // where the bottleneck is, and to whether `onload` fires per multipart part
+    // (which varies by browser). A live MJPEG here runs ~9 fps at ~535 kB/s per
+    // camera; the still fallback is ~50 kB/s, roughly 10x lighter, and is served
+    // from /public which the reflector fronts — so it survives links that MJPEG
+    // cannot.
+    //
+    // Sensor noise means two consecutive real frames are never identical, so an
+    // unchanging signature means the stream stopped, not that the scene is still.
+    const LIVE_PROBE_MS      = 1500;    // how often we sample each live tile
+    const LIVE_STALL_MS      = 9000;    // no visible change for this long → degrade
+    const DEGRADED_POLL_MS   = 5000;    // slower still-refresh once degraded
+    const LIVE_RETRY_BASE_MS = 60000;   // first re-try of live after degrading
+    const LIVE_RETRY_MAX_MS  = 300000;  // backoff ceiling (5 min)
+    const PROBE_N            = 24;      // probe canvas is PROBE_N x PROBE_N
+
+    let _probeCanvas = null;
+    function frameSignature(img) {
+        if (!img || !img.complete || !img.naturalWidth) return null;
+        if (!_probeCanvas) {
+            _probeCanvas = document.createElement("canvas");
+            _probeCanvas.width = _probeCanvas.height = PROBE_N;
+        }
+        try {
+            const ctx = _probeCanvas.getContext("2d", { willReadFrequently: true });
+            ctx.drawImage(img, 0, 0, PROBE_N, PROBE_N);
+            const d = ctx.getImageData(0, 0, PROBE_N, PROBE_N).data;
+            // Cheap rolling hash over the red channel — enough to spot any change.
+            let h = 0;
+            for (let i = 0; i < d.length; i += 4) h = (h * 31 + d[i]) | 0;
+            return h;
+        } catch (e) {
+            // Tainted canvas (CORS) — can't sample. Signal "unknown" so the
+            // watchdog stays out of the way rather than degrading everything.
+            return null;
+        }
+    }
+
+    // ── Refresh status ─────────────────────────────────────────
+    function _pad(n) { return String(n).padStart(2, "0"); }
+    function markRefreshed() { _lastUpdate = Date.now(); tickRefreshStatus(); }
+    function tickRefreshStatus() {
+        let tsStr = "—";
+        if (_lastUpdate) {
+            const d = new Date(_lastUpdate);
+            tsStr = _pad(d.getHours()) + ":" + _pad(d.getMinutes()) + ":" + _pad(d.getSeconds());
+        }
+        for (const id of ["ts", "ts-bot"]) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = tsStr;
+        }
+    }
+    // The per-tile age readout. Focused tile always; every tile when the
+    // debug view is on (tap the footer policy line). One Date.now() and a
+    // handful of textContent writes a second — effectively free.
+    function tickAges() {
+        const now = Date.now();
+        const dbg = debugAges();
+        for (const host of hosts) {
+            const st = camState[host];
+            if (!st || !st.ageEl) continue;
+            if (st.paused || (!dbg && host !== focusedHost)) {
+                st.ageEl.textContent = "";
+                st.ageEl.classList.remove("old");
+                continue;
+            }
+            let txt = "", old = false;
+            if (st.mode === "live" || st.mode === "webrtc") {
+                // A live tile has no Last-Modified — show time since the
+                // watchdog last saw the picture CHANGE, and say so.
+                if (st.lastChangeAt) {
+                    const a = now - st.lastChangeAt;
+                    txt = "live · " + fmtAge(a);
+                    old = a > STALE_MS;
+                }
+            } else if (st.mode === "still") {
+                const a = frameAgeMs(st, now);
+                if (a != null) {
+                    txt = "age " + fmtAge(a);
+                    old = a > STALE_MS;
+                } else if (st.lastFrameAt) {
+                    // No usable Last-Modified on this frame — the honest
+                    // answer is a lower bound: at least as old as our hold.
+                    txt = "age ≥" + fmtAge(now - st.lastFrameAt);
+                }
+            }
+            // The skew tell. A frame cannot be received before it was
+            // written, so a clearly negative session minimum means the
+            // phone's clock disagrees with the server's — flag it rather
+            // than let a confident wrong number stand.
+            if (dbg && _minAgeAtReceipt != null && _minAgeAtReceipt < -1500) txt += " · clock?";
+            st.ageEl.textContent = txt;
+            st.ageEl.classList.toggle("old", old);
+        }
+    }
+    setInterval(() => { tickRefreshStatus(); tickAges(); }, 1000);
+
+    // ── Per-tile stream control ────────────────────────────────
+    // Browsers cap HTTP/1.1 connections at ~6 per origin, so running 9 MJPEG
+    // streams at once leaves the last 3 tiles stuck "Connecting…" forever.
+    // Architecture: up to LIVE_POOL_SIZE tiles are in "live" mode (MJPEG,
+    // long-lived connections); every other tile is in "still" mode (snapshot
+    // polling — short HTTP GETs that complete and free their slot at once).
+    // That pool is 6 on the LAN and 1 or 0 off it; see the Live pool block.
+    function releaseFrameUrl(st) {
+        // Object URLs are held until revoked; a tile going live or being paused
+        // must hand its last one back or the page leaks a blob per frame.
+        if (st.objUrl) { URL.revokeObjectURL(st.objUrl); st.objUrl = null; }
+    }
+    function clearTileTimers(st) {
+        // A timeout now, not an interval — the still poll reschedules itself
+        // from the end of each request. Bumping the generation is what actually
+        // stops it: a chain already waiting inside its own .then() has no timer
+        // to cancel yet, so clearing alone would let one more poll through.
+        if (st.stillTimer)   { clearTimeout(st.stillTimer);   st.stillTimer  = null; }
+        st.gen = (st.gen || 0) + 1;
+        // The stagger delay must be cleared too — otherwise a tile paused or
+        // switched to live inside its offset window has a pending timeout that
+        // fires later and quietly restarts still polling behind it.
+        if (st.stillDelay)   { clearTimeout(st.stillDelay);   st.stillDelay  = null; }
+        if (st.liveTimeout)  { clearTimeout(st.liveTimeout);  st.liveTimeout = null; }
+    }
+    // Replace the tile's <img> with a fresh one. Two things matter here:
+    //   1. We have to EXPLICITLY abort the old element's current load before
+    //      detaching it. iOS Safari keeps the underlying HTTP socket open if
+    //      we only do replaceWith() — that eats one of the 6 per-origin
+    //      connection slots and the next MJPEG tries to open queue forever.
+    //      Setting old src to a data URL forces the socket release.
+    //   2. The new element gets the CANONICAL onload/onerror for this tile,
+    //      taken from the tile state (set once in buildGrid) rather than
+    //      copied off the old element — the old one may have had them
+    //      detached by pauseTile, and copying null forward left a resumed
+    //      tile that could never report a frame again.
+    function replaceImg(st) {
+        const oldImg = st.imgEl;
+        // Detach handlers FIRST so they don't fire on the data-URL "load".
+        oldImg.onload  = null;
+        oldImg.onerror = null;
+        oldImg.src     = TRANSPARENT_PIXEL;          // explicit abort
+        const newImg = document.createElement("img");
+        newImg.alt         = oldImg.alt || "";
+        newImg.crossOrigin = "anonymous";
+        newImg.onload      = st.onFrameLoad  || null;
+        newImg.onerror     = st.onFrameError || null;
+        oldImg.replaceWith(newImg);
+        st.imgEl = newImg;
+        return newImg;
+    }
+
+    // ── WebRTC focused tile (away over the tunnel) ─────────────
+    // Media: browser <-> go2rtc :8555 directly (UDP+TCP mux), reachable on
+    // the LAN address over the Tailscale subnet route. Signalling: one POST
+    // to the plugin proxy, which forwards to go2rtc's loopback API. Video
+    // only — the cameras' AAC audio cannot negotiate in WebRTC and is not
+    // worth an ffmpeg leg. The <img> stays in the DOM underneath as the
+    // poster: the last still remains visible until the first video frame.
+    const WEBRTC_ICE_MS   = 5000;    // no connection by then → fall back
+    const WEBRTC_FRAME_MS = 8000;    // connected but no frame → fall back
+    function webrtcUrl(host) {
+        const path = (cfg.webrtcPath || "/webrtc/{host}").replace("{host}", host);
+        return `${location.protocol}//${location.hostname}:${mjpegPort}${path}`;
+    }
+    function stopWebrtc(st) {
+        if (st.webrtcIceTimer)   { clearTimeout(st.webrtcIceTimer);   st.webrtcIceTimer   = null; }
+        if (st.webrtcFrameTimer) { clearTimeout(st.webrtcFrameTimer); st.webrtcFrameTimer = null; }
+        if (st.webrtcDiscTimer)  { clearTimeout(st.webrtcDiscTimer);  st.webrtcDiscTimer  = null; }
+        if (st.webrtcAbort)      { try { st.webrtcAbort.abort(); } catch (e) {} st.webrtcAbort = null; }
+        if (st.pc) { try { st.pc.close(); } catch (e) {} st.pc = null; }
+        if (st.videoEl) {
+            try { st.videoEl.srcObject = null; } catch (e) {}
+            st.videoEl.remove();
+            st.videoEl = null;
+        }
+        st.webrtcGotFrame = false;
+        st.lastRtcBytes   = 0;      // a fresh pc counts from zero — a stale
+                                    // high-water mark would make every delta
+                                    // negative and freeze the rate display
+        st.imgEl.style.display = "";
+    }
+    // The failure floor is exactly the pre-WebRTC behaviour: a near-tunnel
+    // link falls back to the single MJPEG tile, a far one to stills. Backoff
+    // reuses the live-retry arithmetic; the stall watchdog owns the retry.
+    function webrtcFallback(host, why) {
+        const st = camState[host]; if (!st) return;
+        st.webrtcFails   = (st.webrtcFails || 0) + 1;
+        st.webrtcRetryAt = Date.now()
+            + Math.min(LIVE_RETRY_BASE_MS * st.webrtcFails, LIVE_RETRY_MAX_MS);
+        console.warn(`[cameras] ${host} webrtc ${why} — falling back`
+                     + ` (retry in ${Math.round((st.webrtcRetryAt - Date.now()) / 1000)}s)`);
+        stopWebrtc(st);
+        if (LAST_RTT != null && LAST_RTT <= RTT_TUNNEL_MS) startLive(host);
+        else startStill(host);
+    }
+    function startWebrtc(host) {
+        const st = camState[host]; if (!st) return;
+        if (!("RTCPeerConnection" in window)) { startStill(host); return; }
+        clearTileTimers(st);
+        releaseFrameUrl(st);
+        stopWebrtc(st);
+        // Leaving LIVE: release the MJPEG socket first (v2.95.1). The <img>
+        // stays under the video as the poster, and a poster that is still a
+        // multipart stream is a second stream on the one link where two are
+        // never allowed — ~4 Mbit/s of mobile data under the WebRTC picture,
+        // and a tile chip that said "webrtc" while MJPEG kept flowing.
+        if (st.mode === "live") replaceImg(st);
+        st.mode   = "webrtc";
+        st.paused = false;
+        st.frameEl.classList.remove("paused");
+        st.frameEl.classList.add("connecting");
+        const video = document.createElement("video");
+        video.muted    = true;                    // iOS: required for autoplay
+        video.autoplay = true;
+        video.setAttribute("playsinline", "");    // iOS: no fullscreen takeover
+        st.frameEl.appendChild(video);
+        st.videoEl = video;
+        const pc = new RTCPeerConnection({ iceServers: [] });
+        st.pc = pc;
+        pc.addTransceiver("video", { direction: "recvonly" });
+        pc.addEventListener("track", (e) => {
+            video.srcObject = e.streams[0] || new MediaStream([e.track]);
+        });
+        // Generation guard: any restart of this tile orphans these callbacks.
+        const gen = (st.gen = (st.gen || 0) + 1);
+        const dead = (why) => {
+            if (st.gen === gen && st.mode === "webrtc") webrtcFallback(host, why);
+        };
+        pc.addEventListener("connectionstatechange", () => {
+            if (pc.connectionState === "failed") { dead("connection failed"); return; }
+            if (pc.connectionState === "disconnected") {
+                // Transient by definition (a consent-freshness lapse on a
+                // mobile link usually returns to connected within seconds);
+                // acting on it at once cost a 60 s backoff for nothing.
+                clearTimeout(st.webrtcDiscTimer);
+                st.webrtcDiscTimer = setTimeout(() => {
+                    if (st.gen === gen && pc.connectionState === "disconnected") dead("connection disconnected");
+                }, 5000);
+            } else if (pc.connectionState === "connected") {
+                clearTimeout(st.webrtcDiscTimer);
+            }
+        });
+        st.webrtcIceTimer = setTimeout(() => {
+            if (st.gen === gen && pc.connectionState !== "connected") {
+                dead(`no connection in ${WEBRTC_ICE_MS / 1000}s`);
+            }
+        }, WEBRTC_ICE_MS);
+        st.webrtcFrameTimer = setTimeout(() => {
+            if (st.gen === gen && !st.webrtcGotFrame) {
+                dead(`no frame in ${WEBRTC_FRAME_MS / 1000}s`);
+            }
+        }, WEBRTC_FRAME_MS);
+        const firstFrame = () => {
+            if (st.gen !== gen || st.mode !== "webrtc") return;
+            if (st.webrtcGotFrame) return;       // two triggers race; first wins
+            st.webrtcGotFrame = true;
+            st.webrtcFails    = 0;               // a working stream forgives the past
+            st.lastChangeAt   = Date.now();
+            st.lastVideoTime  = 0;
+            st.frameEl.classList.add("has-image");
+            st.frameEl.classList.remove("connecting");
+            st.frameEl.classList.remove("error");
+            st.imgEl.style.display = "none";     // video owns the frame now
+            st.dotEl.classList.remove("bad");
+            st.dotEl.classList.remove("stale");
+            st.dotEl.classList.add("ok");
+            markRefreshed();                     // a real frame arrived
+        };
+        // TWO triggers for "the first frame is here", because they cover
+        // different truths: requestVideoFrameCallback fires on a COMPOSITED
+        // frame — the visual moment — but a hidden or occluded page
+        // composites nothing, so on it a healthy stream would sit
+        // "connecting" until the no-frame timer wrongly killed it (found
+        // live: the pane's hidden tab decoded 720p happily while rVFC
+        // stayed silent). timeupdate fires whenever the MEDIA CLOCK
+        // advances, visible or not. First one wins; firstFrame is
+        // idempotent.
+        if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(firstFrame);
+        video.addEventListener("timeupdate", () => {
+            if (video.currentTime > 0) firstFrame();
+        });
+        (async () => {
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            // Host-only candidates gather in milliseconds; cap the wait.
+            await new Promise((r) => {
+                if (pc.iceGatheringState === "complete") return r();
+                pc.addEventListener("icegatheringstatechange", () => {
+                    if (pc.iceGatheringState === "complete") r();
+                });
+                setTimeout(r, 1000);
+            });
+            st.webrtcAbort = new AbortController();
+            const r = await fetch(webrtcUrl(host), {
+                method: "POST",
+                headers: { "Content-Type": "application/sdp" },
+                body: pc.localDescription.sdp,
+                signal: st.webrtcAbort.signal,     // stopWebrtc cancels a fallback's orphaned offer
+            });
+            if (!r.ok) throw new Error(`signalling ${r.status}`);
+            await pc.setRemoteDescription({ type: "answer", sdp: await r.text() });
+        })().catch((e) => dead(e && e.message ? e.message : "negotiation failed"));
+        setMode(host, "webrtc");
+        if (st.bwEl) st.bwEl.style.visibility = "visible";
+    }
+
+    function startLive(host) {
+        const st = camState[host]; if (!st) return;
+        clearTileTimers(st);
+        stopWebrtc(st);             // leaving webrtc mode: close the pc, restore the img
+        releaseFrameUrl(st);        // leaving still mode: hand the blob back
+        st.mode   = "live";
+        st.paused = false;
+        st.frameEl.classList.remove("paused");
+        st.frameEl.classList.add("connecting");
+        const img = replaceImg(st);
+        img.src = mjpegUrl(host) + "?_t=" + Date.now();
+
+        // Safety timeout: if the MJPEG hasn't delivered a frame in 10s the
+        // socket is probably stuck somewhere upstream. Drop the tile to
+        // still polling so it shows something rather than CONNECTING… forever.
+        if (st.liveTimeout) clearTimeout(st.liveTimeout);
+        st.liveTimeout = setTimeout(() => {
+            if (camState[host]?.mode === "live"
+                && camState[host].frameEl.classList.contains("connecting")) {
+                // Route through degradeToStill rather than a bare startStill:
+                // the bare call left autoDegraded unset, so the watchdog's
+                // retry ladder never looked at this tile again and one missed
+                // 10 s window meant stills until the next re-layout.
+                degradeToStill(host, "MJPEG didn't connect in 10s");
+            }
+        }, 10000);
+
+        setMode(host, "live");
+        if (st.bwEl) st.bwEl.style.visibility = "visible";
+        // No markRefreshed here: STARTING a stream is not a frame. The first
+        // real frame stamps the clock from onFrameLoad.
+    }
+    function startStill(host) {
+        const st = camState[host]; if (!st) return;
+        const wasLive = st.mode === "live";
+        clearTileTimers(st);
+        stopWebrtc(st);             // no-op unless leaving webrtc mode
+        st.mode   = "still";
+        st.paused = false;
+        st.frameEl.classList.remove("paused");
+        st.frameEl.classList.remove("connecting");
+        // If we're coming from live (multipart MJPEG), replace the img element
+        // to fully tear down the connection. For still→still this is unnecessary
+        // and would just churn DOM, so skip it.
+        const img = wasLive ? replaceImg(st) : st.imgEl;
+        img.crossOrigin = "anonymous";
+        // Re-attach the canonical handlers unconditionally: a tile resuming
+        // from paused had them detached (see pauseTile) and skips replaceImg,
+        // so without this it would never report a frame again.
+        if (st.onFrameLoad)  img.onload  = st.onFrameLoad;
+        if (st.onFrameError) img.onerror = st.onFrameError;
+
+        // Load the next frame into a DETACHED image and only swap it in once it
+        // has actually decoded. Assigning straight to the visible img.src blanks
+        // the tile for the whole fetch — about 5 ms at home, but MEASURED at
+        // 756 ms for one snapshot over the reflector and 1780 ms when all nine
+        // go at once, against a 3 s refresh. That left every tile empty for most
+        // of each cycle, which is exactly the "cameras stop when I'm away"
+        // report: not a stall, the tiles were mid-reload nearly all the time.
+        // Holding the last good frame until the new one is ready means a slow
+        // link now costs latency instead of blanking.
+        // ASK, DON'T GUESS. The snapshot is refetched on a conditional request:
+        // we send back the Last-Modified we already hold, and IWS answers
+        // "304 Not Modified" in 53 BYTES when the frame has not changed, or
+        // ships the new one (~21 KB) when it has. That is what lets the tile
+        // poll far faster than the ~2 s at which frames are actually produced
+        // without paying for it — the old code appended "?t=<now>", so every
+        // URL was unique, the browser could never revalidate, and every single
+        // poll cost a whole frame. It is as close to being TOLD about a new
+        // frame as you can get without holding a connection open, which
+        // matters here: plugin handlers all share one thread, so a long-lived
+        // push stream would freeze the entire plugin.
+        //
+        // Explicit fetch rather than an <img> because JS has to SEE the 304 —
+        // and because with a stable URL, assigning the same src to the visible
+        // <img> is a no-op, so it would keep showing the frame it had.
+        const fetchFrame = () => {
+            // SKIP if the previous poll has not come back. The reflector is
+            // HTTP/1.1, so the browser allows 6 connections per origin; nine
+            // tiles polling every second over a 0.9 s link ask for more than
+            // that and the surplus queues. A queued poll is worthless — by the
+            // time it is answered its frame is stale — and a growing queue is
+            // exactly how the live MJPEG tiles ended up 30 s behind. Skipping
+            // means a slow link quietly polls less often rather than building a
+            // backlog it can never drain.
+            if (_idlePaused) return Promise.resolve();   // reflector, ten idle minutes: nothing until a tap (v2.96.1)
+            if (st.fetching) return Promise.resolve();
+            st.fetching = true;
+            // Time-box the request. Without this a wedged socket holds the
+            // in-flight guard above forever and the tile just stops.
+            const ctrl = new AbortController();
+            const abortTimer = setTimeout(() => ctrl.abort(), STILL_FETCH_TIMEOUT_MS);
+            const full = wantsFullSize(host);
+            // The two sizes are DIFFERENT FILES, so the timestamp we hold for
+            // one says nothing about the other — and because both are written
+            // in the same pass their timestamps are within a second of each
+            // other, which is exactly close enough to produce a wrong "nothing
+            // new" and leave a promoted tile showing its thumbnail. Forget it
+            // whenever the size changes.
+            if (st.srcFull !== full) { st.srcFull = full; st.lastMod = null; }
+            const headers = st.lastMod ? { "If-Modified-Since": st.lastMod } : {};
+            // no-store so the browser cannot answer from its own cache and hide
+            // the 304 from us; our conditional header IS the caching.
+            return fetch(snapshotUrl(host, full),
+                         { cache: "no-store", headers, signal: ctrl.signal })
+                .then(r => {
+                    if (r.status === 304) return null;      // nothing new: 53 bytes
+                    if (r.status === 404 && !full) {
+                        // No thumbnail on the server. Stop asking for one, on
+                        // every tile, and come back for the full-size picture
+                        // on the next tick rather than sitting blank.
+                        thumbsAvailable = false;
+                        return null;
+                    }
+                    if (!r.ok) { _stillFailed(st, "HTTP " + r.status); return null; }   // keep the last good frame, but count it
+                    st.lastMod = r.headers.get("Last-Modified") || st.lastMod;
+                    // Parsed copy for the age readout. Kept separate from
+                    // st.lastMod (the conditional-request bookkeeping) and
+                    // only promoted to frameModMs once the frame is actually
+                    // delivered below — a 304 or an error must not re-date
+                    // the picture already on screen.
+                    st._mod200 = Date.parse(r.headers.get("Last-Modified") || "");
+                    return r.blob();
+                })
+                .then(blob => {
+                    if (!blob) return;
+                    _stillOk(st);
+                    // Count what THIS PAGE actually pulled down. The old total
+                    // read go2rtc's bytes_recv, which is what the SERVER pulls
+                    // from the cameras over the house LAN — nothing to do with
+                    // this device. It read 3.0 MB/s on a phone that was really
+                    // using about 130 kB/s, which is exactly the wrong way to be
+                    // wrong when someone is watching their mobile data.
+                    _rxBytes += blob.size;
+                    st.lastFrameAt = Date.now();
+                    // A real frame arrived: date it, feed the skew tell, and
+                    // stamp the page-wide Updated clock — this is the ONLY
+                    // place a still may stamp it.
+                    if (st._mod200 != null && !isNaN(st._mod200)) {
+                        st.frameModMs = st._mod200;
+                        noteAgeAtReceipt(st.lastFrameAt - st.frameModMs);
+                    }
+                    markRefreshed();
+                    if (st.mode !== "still" || st.paused) return;   // mode changed mid-fetch
+                    const url = URL.createObjectURL(blob);
+                    const done = () => {
+                        // Revoke the PREVIOUS object URL only once the new one is
+                        // decoded, or the tile blanks between the two.
+                        if (st.objUrl) URL.revokeObjectURL(st.objUrl);
+                        st.objUrl = url;
+                    };
+                    img.addEventListener("load", done, { once: true });
+                    img.addEventListener("error", () => URL.revokeObjectURL(url), { once: true });
+                    img.src = url;
+                    st.frames = (st.frames || 0) + 1;
+                })
+                .catch(e => { _stillFailed(st, (e && e.name === "AbortError") ? "timed out" : "unreachable"); })
+                .finally(() => { st.fetching = false; clearTimeout(abortTimer); });
+        };
+        // The RECURRING fetch skips a hidden tab — no point spending someone's
+        // mobile data on frames nobody is looking at. The FIRST one never
+        // skips: a page opened in a background tab, or backgrounded while it
+        // loads, must still have a frame ready the moment it is looked at.
+        // Gating the initial paint on document.hidden left every tile blank
+        // until the next tick, which is how this was caught.
+        // Returns the fetch's promise so the chain below can wait for it. A
+        // hidden tab does no work and resolves at once, which keeps the chain
+        // ticking over without sending anything.
+        const refresh = () => (document.hidden ? Promise.resolve() : fetchFrame());
+        fetchFrame();
+        // Auto-degraded tiles poll slower — the link that couldn't carry MJPEG
+        // won't thank us for a 2s snapshot either.
+        const period = st.autoDegraded ? DEGRADED_POLL_MS
+                     : LINK === "home" ? POLL_MS
+                     : LINK === "reflector" ? (host === focusedHost ? REFLECTOR_FOCUS_MS : REFLECTOR_POLL_MS)
+                     : host === focusedHost ? FOCUS_POLL_MS
+                                            : REMOTE_POLL_MS;
+        // STAGGER the tiles across the period. Fired together, nine requests
+        // queue against the browser's ~6-per-origin cap and the last few are
+        // still in flight when the next tick cancels them — measured live, three
+        // tiles never completed a single load over the reflector. Spreading them
+        // keeps at most a couple in flight at once.
+        const slot = hosts.indexOf(host);
+        const offset = slot < 0 ? 0 : Math.round(period * (slot / Math.max(hosts.length, 1)));
+
+        // SELF-SCHEDULING, not setInterval. A fixed interval fires on its own
+        // beat regardless of whether the last request has come back, and the
+        // in-flight guard then has to throw the tick away — so a fetch that
+        // overruns costs a WHOLE period, not the few milliseconds it actually
+        // overran by. At a 1 s interval over a link with a ~0.9 s round trip
+        // that is marginal by design: ordinary jitter drops a tick, the next
+        // one lands 2 s later, and the refresh rate visibly sawtooths. Reported
+        // as "jumping between 3 and 7 seconds", and measured NOT to be the
+        // server — over three minutes the snapshot files were rewritten 797
+        // times at a mean of 2.04 s with no gap longer than 2.5 s.
+        //
+        // Scheduling the next poll from the moment the last one FINISHES keeps
+        // the cadence smooth at any link speed: fast link, it waits out the
+        // remainder of the period; slow link, it goes again after MIN_GAP_MS
+        // instead of skipping a beat. It also cannot overlap itself, so there
+        // is no pile-up to guard against in the first place.
+        const gen = (st.gen = (st.gen || 0) + 1);
+        const tick = () => {
+            if (st.gen !== gen) return;            // a newer chain owns this tile
+            const began = Date.now();
+            Promise.resolve(refresh()).catch(() => {}).then(() => {
+                if (st.gen !== gen || st.mode !== "still" || st.paused) return;
+                const spent = Date.now() - began;
+                st.stillTimer = setTimeout(tick, Math.max(MIN_GAP_MS, period - spent));
+            });
+        };
+        st.stillDelay = setTimeout(tick, offset);
+        setMode(host, "still");
+        // Hide the kB/s number on stills — snapshot bandwidth is trivial and
+        // we'd just show ~0 for every thumbnail.
+        if (st.bwEl) st.bwEl.style.visibility = "hidden";
+    }
+    // ── Slow-link degrade / restore ────────────────────────────
+    // Drop a stalled live tile to still-polling. Remembers that it was an
+    // AUTOMATIC drop (not a user/layout choice) so we know to try live again,
+    // and backs the retry off so a persistently bad link doesn't thrash the
+    // connection every minute.
+    function degradeToStill(host, why) {
+        const st = camState[host]; if (!st) return;
+        st.degradeCount  = (st.degradeCount || 0) + 1;
+        st.degradesSinceRecovery = (st.degradesSinceRecovery || 0) + 1;   // reset by a recovery, counted towards parking (v2.95.4)
+        st.autoDegraded  = true;
+        st.degradedAt    = Date.now();
+        st.retryAfterMs  = Math.min(LIVE_RETRY_BASE_MS * st.degradeCount, LIVE_RETRY_MAX_MS);
+        console.warn(`[cameras] ${host} ${why} — falling back to ${DEGRADED_POLL_MS/1000}s stills`
+                     + ` (retry live in ${Math.round(st.retryAfterMs/1000)}s)`);
+        startStill(host);
+        setMode(host, "still");
+    }
+    // Which tiles are entitled to hold a live stream right now. With a pool of
+    // one the entitlement FOLLOWS THE FOCUS, so it cannot be answered from the
+    // fixed DEFAULT_LIVE_SET: that set holds only hosts[0], which off-LAN gave
+    // both halves of one bug — a focused tile promoted by focusTile() could
+    // never regain live after a stall (the watchdog logged "retrying" every
+    // 1.5s while this gate silently refused), and hosts[0], demoted by a
+    // handover but still carrying autoDegraded, could restore ITSELF behind
+    // the user's back — two MJPEG sockets at once on the one link where that
+    // is exactly what we are avoiding.
+    function mayHoldLive(host) {
+        if (LIVE_FOLLOWS_FOCUS) return host === (focusedHost || DEFAULT_LIVE[0]);
+        return DEFAULT_LIVE_SET.has(host);
+    }
+    // Periodically give live another go. If the link has recovered the watchdog
+    // simply never fires again and the tile stays live; if it hasn't, we degrade
+    // again with a longer backoff.
+    function tryRestoreLive(host) {
+        const st = camState[host]; if (!st) return;
+        if (st.paused || !mayHoldLive(host)) {
+            // Not entitled any more (a handover moved the live slot). Stop the
+            // retry timer chasing it, or the watchdog logs a retry every tick
+            // for a tile it will never actually promote.
+            st.autoDegraded = false;
+            // Clearing the flag is not enough on its own: the running still
+            // chain captured DEGRADED_POLL_MS in its closure, so without a
+            // rebuild the tile keeps polling every 5 s indefinitely. Restart
+            // it so the period is recomputed from the now-cleared flag.
+            if (!st.paused && st.mode === "still") startStill(host);
+            return;
+        }
+        st.lastSig     = null;
+        st.lastChangeAt = Date.now();   // grace period before the watchdog can bite
+        startLive(host);
+    }
+
+    function pauseTile(host) {
+        const st = camState[host]; if (!st) return;
+        clearTileTimers(st);
+        stopWebrtc(st);             // a hidden tab must not hold a peer connection
+        st.paused = true;
+        st.mode   = "paused";
+        // Closing the connection: set src to transparent pixel. The browser
+        // keeps the last frame visible because we add the .paused overlay.
+        // Capture a snapshot of the current frame first so the tile still
+        // shows the last image instead of going black.
+        //
+        // Detach the frame handlers BEFORE touching src: both the captured
+        // data-URL frame and the transparent pixel fire a synthetic onload,
+        // and nine of those on every tab-hide painted green dots and stamped
+        // the page-wide "Updated" clock with loads that never happened.
+        // startStill/startLive re-attach the canonical handlers on resume.
+        st.imgEl.onload  = null;
+        st.imgEl.onerror = null;
+        st.lastFrameDataUrl = null;          // this pause's capture, not an earlier one
+        try { captureLastFrame(host); } catch (e) {}
+        // The captured frame has already replaced the stream src (so the
+        // socket is released); overwriting it with the transparent pixel
+        // threw the capture away a line after making it (v2.95.4).
+        if (!st.lastFrameDataUrl) st.imgEl.src = TRANSPARENT_PIXEL;
+        st.frameEl.classList.add("paused");
+        setMode(host, "paused");
+        if (st.bwEl) st.bwEl.style.visibility = "hidden";
+    }
+    function captureLastFrame(host) {
+        const st = camState[host]; if (!st) return;
+        if (!st.imgEl.complete || !st.imgEl.naturalWidth) return;
+        const c = document.createElement("canvas");
+        c.width  = st.imgEl.naturalWidth;
+        c.height = st.imgEl.naturalHeight;
+        c.getContext("2d").drawImage(st.imgEl, 0, 0);
+        try { st.lastFrameDataUrl = c.toDataURL("image/jpeg", 0.85); } catch (e) {}
+        if (st.lastFrameDataUrl) {
+            // Swap to the captured still so the tile shows the last frame even
+            // after we drop the MJPEG connection.
+            st.imgEl.src = st.lastFrameDataUrl;
+        }
+    }
+    function setMode(host, mode) {
+        const st = camState[host]; if (!st || !st.modeEl) return;
+        // The still chip states the tile's ACTUAL period from the same ladder
+        // startStill uses. It used to hardcode POLL_MS, so away tiles polling
+        // at 1 s wore a "↻ 2s" badge — spotted on CliveS's own screenshots
+        // while the footer said "@1s" beside it.
+        const stillPeriod = st.autoDegraded ? DEGRADED_POLL_MS
+                          : LINK === "home" ? POLL_MS
+                          : host === focusedHost ? FOCUS_POLL_MS
+                                                 : REMOTE_POLL_MS;
+        const labels = {
+            live:    "live",
+            webrtc:  "live · rtc",
+            // A tile dropped by the slow-link watchdog says so, so it's obvious
+            // why it isn't moving and that it wasn't a configuration choice.
+            still:   st.autoDegraded
+                        ? "↻ " + (stillPeriod / 1000) + "s · slow link"
+                        : "↻ " + (stillPeriod / 1000) + "s",   // e.g. "↻ 1s"
+            off:     "off",
+            paused:  "paused",
+        };
+        st.modeEl.textContent = labels[mode] || mode;
+        st.modeEl.setAttribute("data-mode", mode);
+    }
+
+    // ── Snapshot download ──────────────────────────────────────
+    function takeSnapshot(host) {
+        const st = camState[host]; if (!st) return;
+        const filename = `${slugify(names[host] || host)}_${tsStamp()}.jpg`;
+        // Canvas approach: works because the MJPEG proxy sends ACAO:* and the
+        // img has crossorigin="anonymous". Falls back to direct download of
+        // the snapshot poller file (cam-<ip>.jpg) on any failure.
+        const fallback = () => {
+            const a = document.createElement("a");
+            // true: someone saving a picture wants the full-size one, whatever
+            // the tile happens to be displaying.
+            a.href = snapshotUrl(host, true);
+            a.download = filename;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        };
+        // A WebRTC tile draws in the <video>; the <img> under it is the poster
+        // from before promotion, minutes old.
+        const rtc = st.mode === "webrtc" && st.videoEl && st.videoEl.videoWidth ? st.videoEl : null;
+        if (!rtc && (!st.imgEl.complete || !st.imgEl.naturalWidth)) return fallback();
+        try {
+            const c = document.createElement("canvas");
+            c.width  = rtc ? rtc.videoWidth  : st.imgEl.naturalWidth;
+            c.height = rtc ? rtc.videoHeight : st.imgEl.naturalHeight;
+            c.getContext("2d").drawImage(rtc || st.imgEl, 0, 0);
+            c.toBlob(blob => {
+                if (!blob) return fallback();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url; a.download = filename;
+                document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                setTimeout(() => URL.revokeObjectURL(url), 2000);
+            }, "image/jpeg", 0.92);
+        } catch (e) {
+            // SecurityError: tainted canvas (CORS not applied). Fall back.
+            fallback();
+        }
+    }
+
+    // ── Focus mode ─────────────────────────────────────────────
+    // Exactly one tile is focused (the big one at the top of the grid).
+    // Tapping any other tile just moves the focused class — live and still
+    // tiles keep their assigned mode forever. No swapping, no MJPEG
+    // reconnection on click.
+    function focusTile(host) {
+        if (focusedHost === host) return;
+        const previous = focusedHost;
+        if (focusedHost && camState[focusedHost]) {
+            camState[focusedHost].frameEl.closest(".cam").classList.remove("focused");
+        }
+        const wrap = camState[host]?.frameEl?.closest(".cam");
+        if (wrap) wrap.classList.add("focused");
+        document.getElementById("grid").classList.add("has-focus");
+        focusedHost = host;
+        if (wrap) wrap.scrollIntoView({ behavior: "smooth", block: "start" });
+
+        // Away over the tunnel the WEBRTC slot follows the focus. Stop the
+        // old tile FIRST — never two peer connections at once, the same rule
+        // as the never-two-MJPEG-sockets one below.
+        if (WEBRTC_FOCUS) {
+            // The previous focus drops to a still whether it was WebRTC OR the
+            // single MJPEG tile a near-tunnel fallback left it on (v2.95.1) —
+            // never two streams over the tunnel.
+            if (previous && camState[previous]
+                    && (camState[previous].mode === "webrtc" || camState[previous].mode === "live")) {
+                startStill(previous);            // closes the pc via stopWebrtc
+            }
+            const stN = camState[host];
+            if (stN && stN.mode !== "webrtc" && !stN.paused) {
+                stN.webrtcFails = 0;             // a promoted tile gets a clean slate
+                stN.webrtcRetryAt = 0;
+                startWebrtc(host);
+            }
+        }
+
+        // Off the LAN there is one live stream and it belongs to whichever
+        // tile is at the top. Hand it over: drop the old one to stills first
+        // so we are never holding two MJPEG sockets at once, which is what
+        // iOS Safari struggles with.
+        if (LIVE_FOLLOWS_FOCUS && camState[host] && camState[host].mode !== "live") {
+            if (previous && camState[previous] && camState[previous].mode === "live") {
+                startStill(previous);
+            }
+            const st = camState[host];
+            // Give the newly-promoted tile a clean slate — if it had been
+            // auto-degraded earlier, it deserves a fresh attempt rather than
+            // inheriting somebody else's backoff.
+            st.autoDegraded = false;
+            st.degradeCount = 0;
+            st.retryAfterMs = 0;
+            startLive(host);
+        }
+
+        // Off-LAN there is no live slot to move, but the focused tile polls
+        // faster than the rest — so both the tile gaining focus and the one
+        // losing it need their timer rebuilt at the new rate. Without this the
+        // faster interval would stay on whichever tile happened to be focused
+        // when the page loaded.
+        if (LINK !== "home") {
+            for (const h of [previous, host]) {
+                const s = h && camState[h];
+                if (s && s.mode === "still" && !s.paused) startStill(h);
+            }
+        }
+    }
+
+    // ── Grid construction ──────────────────────────────────────
+    function buildGrid() {
+        const grid = document.getElementById("grid");
+        grid.innerHTML = "";
+        for (const host of hosts) {
+            const name = names[host] || host;
+            const wrap = document.createElement("div");
+            wrap.className = "cam";
+            wrap.dataset.host = host;
+            wrap.innerHTML = `
+                <div class="cam-frame">
+                    <div class="cam-toolbar">
+                        <button class="cam-btn" data-action="snap" title="Snapshot">⤓</button>
+                    </div>
+                    <div class="placeholder">Connecting…</div>
+                    <img alt="${escAttr(name)}">
+                </div>
+                <div class="cam-meta">
+                    <span class="name"><span class="dot"></span></span>
+                    <span class="age"></span>
+                    <span class="bw">— kB/s</span>
+                    <span class="host"><span class="mode">live</span> · ${escAttr(host)}</span>
+                </div>`;
+            grid.appendChild(wrap);
+
+            const img    = wrap.querySelector("img");
+            const frame  = wrap.querySelector(".cam-frame");
+            const dot    = wrap.querySelector(".dot");
+            const modeEl = wrap.querySelector(".mode");
+            const bwEl   = wrap.querySelector(".bw");
+            const ageEl  = wrap.querySelector(".age");
+
+            camState[host] = { imgEl: img, frameEl: frame, dotEl: dot, modeEl, bwEl, ageEl,
+                                mode: "off", paused: false,
+                                lastBytes: null,
+                                // Wall-clock time of the most recent bytes-arrived
+                                // event from the camera→go2rtc telemetry. The
+                                // bandwidth-poll tick flips the dot to amber when
+                                // this gets > STALE_MS old (frozen-frame detection,
+                                // since <img> onerror doesn't fire for MJPEG that
+                                // simply stops mid-stream).
+                                lastFreshAt: null };
+
+            // ONE source of truth for the frame handlers, stored on the tile
+            // state: replaceImg attaches them to each fresh element, startStill
+            // re-attaches on resume, and pauseTile detaches them before poking
+            // src so a data-URL or transparent-pixel assignment can never fire
+            // a synthetic "frame arrived".
+            camState[host].onFrameLoad = () => {
+                const st = camState[host];
+                frame.classList.add("has-image");
+                frame.classList.remove("error");
+                frame.classList.remove("connecting");   // first frame arrived
+                if (st.liveTimeout) { clearTimeout(st.liveTimeout); st.liveTimeout = null; }
+                dot.classList.remove("bad");
+                dot.classList.remove("stale");
+                dot.classList.add("ok");
+                st.lastFreshAt = Date.now();        // bootstrap the watchdog
+                if (!st.paused) setMode(host, st.mode === "live" ? "live" : "still");
+                // Only a LIVE tile stamps Updated from onload — a still's
+                // onload fires for the objectURL swap of a frame the blob
+                // path already stamped, and double-stamping hid the gap
+                // between "we fetched something" and "a new frame arrived".
+                if (st.mode === "live") markRefreshed();
+            };
+            camState[host].onFrameError = () => {
+                const st = camState[host];
+                if (!st || st.paused) return;
+                if (st.mode === "live") {
+                    // A live socket dying mid-stream used to land here as a
+                    // terminal "Unreachable" — nothing ever retried it. Route
+                    // it through the degrade ladder instead: stills keep the
+                    // tile alive and the watchdog's backoff owns the retry.
+                    degradeToStill(host, "stream error");
+                    return;
+                }
+                frame.classList.remove("has-image");
+                frame.classList.add("error");
+                dot.classList.remove("ok");
+                dot.classList.remove("stale");
+                dot.classList.add("bad");
+                frame.querySelector(".placeholder").textContent = "Unreachable";
+                setMode(host, "off");
+            };
+            img.onload  = camState[host].onFrameLoad;
+            img.onerror = camState[host].onFrameError;
+
+            // Click frame (anywhere except a toolbar button) → focus this tile.
+            // Live/still mode of every tile is fixed for the lifetime of the
+            // page; clicking only changes which tile is the big one at the top.
+            frame.addEventListener("click", (e) => {
+                if (e.target.closest(".cam-btn")) return;
+                focusTile(host);
+            });
+
+            // Toolbar wiring — only Snapshot remains; click on the tile itself
+            // handles live/still toggle and focus changes.
+            wrap.querySelector('[data-action="snap"]').addEventListener("click", (e) => {
+                e.stopPropagation(); takeSnapshot(host);
+            });
+        }
+        document.getElementById("grid-cam-count").textContent = String(hosts.length);
+    }
+
+    // ── Re-layout / pause all ──────────────────────────────────
+    // Lays every tile out under the CURRENT policy: the default-live set gets
+    // MJPEG, everything else snapshot-polls. Used at boot, on resume, and on
+    // every policy change.
+    function relayoutAll() {
+        for (const host of hosts) {
+            const st = camState[host];
+            if (st) {
+                // A policy re-layout is a new world: backoff earned under the
+                // old policy is meaningless, and a latched autoDegraded would
+                // otherwise pin this tile to 5 s polls forever — the period
+                // ladder in startStill reads it. Mirrors what focusTile does
+                // for a promoted tile.
+                st.autoDegraded = false;
+                st.degradeCount = 0;
+                st.retryAfterMs = 0;
+                st.webrtcFails   = 0;
+                st.webrtcRetryAt = 0;
+            }
+            // mayHoldLive, not DEFAULT_LIVE_SET: with a pool of one the live
+            // entitlement FOLLOWS THE FOCUS, and a tab hide/show used to hand
+            // the slot back to hosts[0] regardless of which tile the user had
+            // focused before backgrounding the page.
+            if (WEBRTC_FOCUS && host === (focusedHost || hosts[0])) startWebrtc(host);
+            else if (mayHoldLive(host) && LIVE_POOL_SIZE > 0) startLive(host);
+            else                                 startStill(host);
+        }
+    }
+    function stopAll() {
+        for (const host of hosts) pauseTile(host);
+    }
+
+    // ── Bandwidth polling ──────────────────────────────────────
+    // Hits the plugin proxy's /streams endpoint, which forwards go2rtc's
+    // /api/streams JSON. We use the <slug>_mjpeg producer's bytes_recv counter
+    // — that's the bytes go2rtc reads from its ffmpeg pipe per stream, which
+    // tracks what we ship to the browser pretty closely.
+    let _bwTimer    = null;
+    let _bwLastTs   = null;        // last _writeTs we processed
+    // Stale-stream watchdog: if a camera's bytes_recv hasn't advanced in this
+    // many milliseconds, flip its dot to amber. MJPEG <img> tags don't fire
+    // `onerror` when a stream goes silent mid-flow (TCP stays open, frames
+    // just stop) so the bandwidth telemetry is the only reliable heartbeat.
+    const STALE_MS = 10000;
+    // Bytes this page has actually received, ever. Deltas between ticks give
+    // the real rate. Stills are exact (we can see each blob); a live MJPEG tile
+    // is not measurable from JS, so its share is still taken from go2rtc's
+    // producer counter — approximate, but at least those bytes genuinely are
+    // being sent to this device.
+    let _rxBytes = 0, _rxLast = 0, _rxLastAt = 0;
+    let _healthLastFetch = 0;
+    function paintCameraHealth(health) {
+        const el = document.getElementById("camera-health-bot");
+        if (!el || !health || typeof health !== "object") return;
+        const rows = Object.values(health);
+        if (!rows.length) return;
+        const offline = rows.filter(x => x && x.state === "offline").length;
+        const retrying = rows.filter(x => x && x.state === "retrying").length;
+        el.textContent = offline ? `${offline} camera${offline === 1 ? "" : "s"} offline`
+            : retrying ? `${retrying} camera${retrying === 1 ? "" : "s"} retrying`
+            : "health OK";
+        el.style.color = offline ? "var(--bad)" : retrying ? "var(--warn)" : "var(--on-color)";
+    }
+    /* One owner for both readouts. The top bar has room for the word, the
+       footer has not — and the footer's line must not grow (see .foot-line). */
+    function _setBw(rate) {
+        const top = document.getElementById("total-bw");
+        if (top) top.textContent = rate + " total";
+        const bot = document.getElementById("total-bw-bot");
+        if (bot) bot.textContent = rate;
+    }
+
+    function startBandwidthPoll() {
+        if (_bwTimer) clearInterval(_bwTimer);
+        const tick = async () => {
+            try {
+                // WebRTC tiles first: fold their inbound bytes into _rxBytes
+                // (they ARE bytes this page pulled down, measured exactly from
+                // the peer connection's own counters) and paint the per-tile
+                // rate. This tick runs once a second, so the delta is the rate.
+                for (const host of hosts) {
+                    const st = camState[host];
+                    if (!st || st.mode !== "webrtc" || !st.pc) continue;
+                    try {
+                        const stats = await st.pc.getStats();
+                        let inbound = null;
+                        stats.forEach((s) => {
+                            if (s.type === "inbound-rtp" && s.kind === "video") inbound = s;
+                        });
+                        if (inbound && inbound.bytesReceived != null) {
+                            const d = inbound.bytesReceived - (st.lastRtcBytes || 0);
+                            st.lastRtcBytes = inbound.bytesReceived;
+                            if (d > 0) _rxBytes += d;
+                            if (st.bwEl) {
+                                const k = d / 1024;
+                                st.bwEl.style.visibility = "visible";
+                                st.bwEl.textContent = k > 1024
+                                    ? `${(k / 1024).toFixed(1)} MB/s`
+                                    : `${k.toFixed(0)} kB/s`;
+                            }
+                        }
+                    } catch (e) { /* stats are best-effort */ }
+                }
+
+                // Update the total from our OWN byte counter first, so it is
+                // right whether or not we go on to ask the server anything.
+                const nowMs0 = Date.now();
+                let ownKBs = 0;
+                if (_rxLastAt) {
+                    const secs = (nowMs0 - _rxLastAt) / 1000;
+                    if (secs > 0) ownKBs = (_rxBytes - _rxLast) / 1024 / secs;
+                }
+
+                // A still tile's health is whether ITS OWN fetches are coming
+                // back — not whether go2rtc is receiving from that camera,
+                // which it does regardless of whether this page can reach it.
+                // Judging stills by the server's counter meant a tile could sit
+                // frozen showing a confident green dot.
+                for (const host of hosts) {
+                    const st = camState[host];
+                    if (!st || st.mode !== "still" || st.paused) continue;
+                    if (st.lastFrameAt == null) continue;
+                    const stale = (nowMs0 - st.lastFrameAt) > STALE_MS;
+                    if (st.dotEl.classList.contains("bad")) continue;
+                    st.dotEl.classList.toggle("stale", stale);
+                    st.dotEl.classList.toggle("ok", !stale);
+                }
+
+                // streams.json exists only to read go2rtc's per-producer byte
+                // counters, which are meaningful for LIVE tiles alone. Off the
+                // LAN there are none, so this was a request a second, from every
+                // phone, for a number nothing used.
+                const anyLive = hosts.some(h => camState[h] && camState[h].mode === "live");
+                const needsHealth = (Date.now() - _healthLastFetch) > 30000;
+                if (!anyLive && !needsHealth) {
+                    _rxLast = _rxBytes; _rxLastAt = nowMs0;
+                    const str = ownKBs > 1024 ? `${(ownKBs/1024).toFixed(1)} MB/s`
+                                              : `${ownKBs.toFixed(0)} kB/s`;
+                    _setBw(str);
+                    return;
+                }
+
+                const r = await fetch(streamsApi(), { cache: "no-store" });
+                if (!r.ok) return;
+                const data = await r.json();
+                _healthLastFetch = Date.now();
+                paintCameraHealth(data._cameraHealth);
+                // Health is the only reason an all-stills page reaches this
+                // far. Preserve its locally measured bandwidth rather than
+                // briefly replacing it with an irrelevant go2rtc total.
+                if (!anyLive) {
+                    _rxLast = _rxBytes; _rxLastAt = nowMs0;
+                    const str = ownKBs > 1024 ? `${(ownKBs/1024).toFixed(1)} MB/s`
+                                              : `${ownKBs.toFixed(0)} kB/s`;
+                    _setBw(str);
+                    return;
+                }
+                const ts   = data._writeTs;
+                // Skip if the file hasn't been refreshed since our last read —
+                // otherwise the delta is 0 and the display flicks to 0 kB/s.
+                if (ts == null || ts === _bwLastTs) return;
+                let total = 0;
+                const now = Date.now();
+                for (const host of hosts) {
+                    const slug = slugs[host];
+                    if (!slug) continue;
+                    const s = data[`${slug}_mjpeg`];
+                    const bytes = (s && s.producers && s.producers[0] &&
+                                   s.producers[0].bytes_recv) || 0;
+                    const st = camState[host];
+                    if (!st) continue;
+                    if (st.lastBytes != null && st.lastTs != null) {
+                        const dB = bytes - st.lastBytes;
+                        const dT = ts - st.lastTs;       // seconds (server clock)
+                        if (dB >= 0 && dT > 0) {
+                            const kBs = dB / 1024 / dT;
+                            st.bwEl.textContent = kBs > 1024
+                                ? `${(kBs/1024).toFixed(1)} MB/s`
+                                : `${kBs.toFixed(0)} kB/s`;
+                            // ONLY for a tile actually holding a live stream.
+                            // A still tile downloads a small JPEG once a second
+                            // while go2rtc goes on pulling RTSP from that camera
+                            // regardless — counting that here is what produced
+                            // the wildly overstated total.
+                            if (!st.paused && st.mode === "live") total += kBs;
+                        }
+                        // Stale-stream watchdog: if bytes have increased,
+                        // mark fresh and clear any amber state.
+                        if (dB > 0) {
+                            st.lastFreshAt = now;
+                            if (st.dotEl.classList.contains("stale")) {
+                                st.dotEl.classList.remove("stale");
+                                st.dotEl.classList.add("ok");
+                            }
+                        }
+                    }
+                    // Flip to amber if frames have stopped arriving for
+                    // STALE_MS+. Don't override "bad" (image-load error) —
+                    // that's a stronger signal. Also skip cams in "off" mode
+                    // because the tile isn't pulling frames anyway.
+                    if (st.lastFreshAt != null
+                            && (now - st.lastFreshAt) > STALE_MS
+                            && !st.dotEl.classList.contains("bad")
+                            && st.mode !== "off") {
+                        if (!st.dotEl.classList.contains("stale")) {
+                            st.dotEl.classList.remove("ok");
+                            st.dotEl.classList.add("stale");
+                        }
+                    }
+                    st.lastBytes = bytes;
+                    st.lastTs    = ts;
+                }
+                _bwLastTs = ts;
+                // Our own bytes were worked out at the top of the tick; add them
+                // to the live tiles' share. Computed once, used once — an
+                // earlier version of this did it in both places and doubled it.
+                total += ownKBs;
+                _rxLast = _rxBytes; _rxLastAt = nowMs0;
+                _setBw(total > 1024 ? `${(total/1024).toFixed(1)} MB/s`
+                                    : `${total.toFixed(0)} kB/s`);
+            } catch (e) { /* ignore */ }
+        };
+        tick();
+        // One tick in flight (v2.95.3): over the reflector a round trip took
+        // 0.9-1.8 s, so 1 s ticks overlapped and the rate bookkeeping raced.
+        let inflight = false;
+        _bwTimer = setInterval(() => {
+            if (inflight) return;
+            inflight = true;
+            Promise.resolve().then(tick).catch(() => {}).finally(() => { inflight = false; });
+        }, LINK === "reflector" ? 10000 : 1000);  // poll faster than file writes; a tenth of that through the reflector (v2.96.1)
+    }
+
+    // ── Client-side stall watchdog ─────────────────────────────
+    // Runs independently of the bandwidth poll (and of any server telemetry) so
+    // it still works when the page is reached over a link that can't sustain
+    // MJPEG — which is exactly when it's needed. Purely local: samples the
+    // rendered image and compares it with the previous sample.
+    let _stallTimer = null;
+    function startStallWatchdog() {
+        if (_stallTimer) clearInterval(_stallTimer);
+        const tick = () => {
+            const now = Date.now();
+            for (const host of hosts) {
+                const st = camState[host];
+                if (!st || st.paused) continue;
+
+                if (st.mode === "live") {
+                    const sig = frameSignature(st.imgEl);
+                    if (sig === null) continue;          // can't sample — stay out of the way
+                    if (st.lastSig === null || st.lastSig === undefined) {
+                        st.lastSig      = sig;
+                        st.lastChangeAt = now;
+                        continue;
+                    }
+                    if (sig !== st.lastSig) {
+                        st.lastSig      = sig;
+                        st.lastChangeAt = now;
+                        // Frames are flowing. If this tile had been degraded,
+                        // it has recovered — clear the marker and, after a good
+                        // run, forgive the backoff so a one-off blip doesn't
+                        // leave it permanently cautious.
+                        if (st.autoDegraded) {
+                            st.autoDegraded = false;
+                            st.recoveredAt  = now;
+                            st.degradesSinceRecovery = 0;
+                            setMode(host, "live");
+                            console.info(`[cameras] ${host} live stream recovered`);
+                        }
+                        if (st.recoveredAt && (now - st.recoveredAt) > LIVE_RETRY_MAX_MS) {
+                            st.degradeCount = 0;
+                            st.recoveredAt  = null;
+                        }
+                        continue;
+                    }
+                    // Unchanged. Degrade once we're past the stall threshold.
+                    if (st.lastChangeAt && (now - st.lastChangeAt) > LIVE_STALL_MS) {
+                        degradeToStill(host, `no new frame in ${Math.round((now - st.lastChangeAt)/1000)}s`);
+                    }
+                } else if (st.mode === "webrtc") {
+                    // Stall = the video clock stopped advancing. currentTime
+                    // is cheaper and more direct than canvas hashing, and a
+                    // WebRTC srcObject cannot taint a canvas anyway if this
+                    // ever wants the frameSignature treatment.
+                    const v = st.videoEl;
+                    if (!v || !st.webrtcGotFrame) continue;  // connecting — the timers own it
+                    if (v.currentTime > (st.lastVideoTime || 0)) {
+                        st.lastVideoTime    = v.currentTime;
+                        st.lastChangeAt     = now;
+                        st.webrtcStallTicks = 0;
+                    } else if ((st.webrtcStallTicks = (st.webrtcStallTicks || 0) + 1) >= 2) {
+                        st.webrtcStallTicks = 0;
+                        webrtcFallback(host, "video stalled");
+                    }
+                } else if (st.mode === "still" && st.autoDegraded) {
+                    // Six degrades without ONE recovery = the stream is not
+                    // coming back (or the picture is genuinely static, which
+                    // the hash cannot tell from a stall) — park on stills
+                    // until a user tap or a tab-resume re-layout, instead of
+                    // thrashing live/still on the retry ladder for ever.
+                    // Park after six degrades with no recovery between them, OR six
+                    // since the last recovery: a tile that recovered once at count 3
+                    // kept a truthy recoveredAt for ever and was never parked.
+                    if ((st.degradesSinceRecovery || 0) >= 6 || ((st.degradeCount || 0) >= 6 && !st.recoveredAt)) {
+                        // parked — no retry
+                    } else
+                    // Degraded tile — is it time to try live again?
+                    if (st.degradedAt && (now - st.degradedAt) >= (st.retryAfterMs || LIVE_RETRY_BASE_MS)) {
+                        console.info(`[cameras] ${host} retrying live after slow-link fallback`);
+                        tryRestoreLive(host);
+                    }
+                }
+                // A fallen webrtc tile retries on its own backoff, whatever
+                // mode the fallback left it in — but only while it is still
+                // the tile entitled to the slot.
+                if (WEBRTC_FOCUS && !st.paused && st.mode !== "webrtc"
+                        && host === (focusedHost || hosts[0])
+                        && st.webrtcRetryAt && now >= st.webrtcRetryAt) {
+                    st.webrtcRetryAt = 0;
+                    console.info(`[cameras] ${host} retrying webrtc after fallback`);
+                    startWebrtc(host);
+                }
+            }
+        };
+        _stallTimer = setInterval(tick, LIVE_PROBE_MS);
+    }
+
+    // ── Global controls ────────────────────────────────────────
+    // Measure the link and correct the policy if the guess was wrong. The
+    // address said "home", but a LAN address arriving over a Tailscale subnet
+    // route says exactly the same thing, and acting on it opened six MJPEG
+    // streams on a mobile connection. Only ever downgrades — a fast probe
+    // cannot make a reflector address local — so the worst case is a second of
+    // stills at home, against 44 Mbit/s of mobile data the other way round.
+    // ── Is this device on the house wi-fi? ────────────────────
+    // The best answer does not come from timing anything. The UniFi controller
+    // already knows which phones are associated with which access point, and
+    // the UniFiHealth plugin surfaces that as a device carrying `presence` and
+    // `essid`. So instead of inferring "probably home" from a round trip, ASK.
+    //
+    // Why this is worth the trouble: CliveS runs Tailscale permanently, home
+    // included, and rightly refuses to turn it off indoors — dropping it on
+    // wi-fi to earn live video would also drop it on café and hotel wi-fi.
+    // With the tunnel up, timing cannot separate home (116 ms measured) from
+    // 5G (245 ms measured). Wi-fi association can, exactly and instantly.
+    //
+    // Which phone this browser IS has to be stored per-device, so it lives in
+    // this browser's localStorage rather than the shared plugin config.
+    // Unpaired, everything falls back to the timing bands and behaves as before.
+    const PRESENCE_KEY = "dash_presence_device";
+    const PRESENCE_MAX_MIN = 3;    // a stale "home" is the dangerous direction
+    // NB _lastPresence is declared up beside camState — renderPolicy reads it
+    // at boot, long before this section runs.
+
+    function pairedPresenceId() {
+        try {
+            const v = JSON.parse(localStorage.getItem(PRESENCE_KEY) || "null");
+            return v && v.id ? v : null;
+        } catch (e) { return null; }
+    }
+
+    function homeByPresence() {
+        const paired = pairedPresenceId();
+        const key = (window.INDIGO_CONFIG || {}).apiKey;
+        if (!paired || !key) return Promise.resolve(null);   // null = no opinion
+        return fetch(`/v2/api/indigo.devices/${encodeURIComponent(paired.id)}`, {
+            cache: "no-store",
+            headers: { Authorization: "Bearer " + key, Accept: "application/json" },
+        })
+            .then(r => (r.ok ? r.json() : null))
+            .then(dev => {
+                const st = (dev && dev.states) || {};
+                if (st.presence == null) return null;
+                // Require it to be RECENTLY seen. UniFi debounces a client
+                // dropping off, so "home" can outlive the fact by a few minutes
+                // — and being wrongly at home is the expensive direction, six
+                // live streams on mobile data.
+                const mins = Number(st.minutesSinceSeen);
+                const fresh = !isNaN(mins) && mins <= PRESENCE_MAX_MIN;
+                return { home: String(st.presence) === "home" && fresh,
+                         essid: st.essid || "", mins: mins };
+            })
+            .catch(() => null);
+    }
+
+    // A still tile that fails three fetches in a row and has never shown a
+    // frame is NOT "Connecting…" — it is a dead camera or a bad config entry,
+    // and the tile says so (v2.95.3). Cleared by the next good frame.
+    function _stillFailed(st, why) {
+        st.stillFails = (st.stillFails || 0) + 1;
+        if (st.stillFails >= 3 && !st.hadFrame && st.frameEl) {
+            st.frameEl.classList.remove("connecting");
+            st.frameEl.classList.add("error");
+            st.frameEl.dataset.err = "No snapshot (" + why + ")";
+        }
+    }
+    function _stillOk(st) {
+        st.stillFails = 0;
+        st.hadFrame = true;
+        if (st.frameEl && st.frameEl.classList.contains("error")) {
+            st.frameEl.classList.remove("error");
+            delete st.frameEl.dataset.err;
+        }
+    }
+
+    let _measureInflight = null;
+    function measureAndApply() {
+        if (!(window.DashUI && DashUI.measuredClass)) return Promise.resolve();
+        // SINGLE-FLIGHT. Boot and a fast visibilitychange can both call this,
+        // and two overlapping runs would each re-lay-out every tile — the
+        // second tearing down streams the first had only just started.
+        if (_measureInflight) return _measureInflight;
+        _measureInflight = Promise.all([
+            DashUI.measuredClass(),
+            DashUI.probeRtt ? DashUI.probeRtt() : Promise.resolve(null),
+            homeByPresence(),
+        ]).then(([cls, ms, presence]) => {
+            // Wi-fi association BEATS timing when we have it. A phone the
+            // controller can see on the house wi-fi is on the house wi-fi,
+            // whatever a tunnel does to the round trip — the traffic never
+            // leaves the building, so the full live pool is affordable.
+            //
+            // Both must agree, though. Presence is required to be recent AND
+            // the round trip must still be inside the tunnel band, so a stale
+            // "home" from the controller cannot on its own open six streams on
+            // mobile data. Belt and braces, because that is the failure that
+            // stalled his phone in the first place.
+            let effective = cls, why = "";
+            if (presence && presence.home && cls !== "reflector"
+                    && ms != null && ms <= RTT_TUNNEL_MS) {
+                effective = "home";
+                why = ` (on ${presence.essid || "the house wi-fi"})`;
+            }
+            _lastPresence = presence;
+            // Remember the verdict — changed or not — so the next boot (or a
+            // resume within 60 s) starts from a MEASURED answer instead of the
+            // address guess. See bootPolicy.
+            cachePolicy(effective, ms);
+            // setPolicy is the ONE owner of the derivation (v2.95.1). This used
+            // to recompute a live COUNT here and relayout only when that count
+            // or the class changed — but the WebRTC band has a live count of
+            // ZERO by design (the focused tile streams WebRTC, the rest are
+            // stills), the same zero as the conservative boot policy. So a
+            // phone resumed on 5G after the 60 s cache lapsed booted "vpn, 0
+            // live", measured "vpn, 0 live", saw no change and never engaged
+            // WebRTC: nine stills, silently, on the exact link the feature was
+            // built for. Now: apply the policy, then relayout if ANY of the
+            // three things it decides moved.
+            const before = [LINK, LIVE_POOL_SIZE, WEBRTC_FOCUS];
+            setPolicy(effective, ms);
+            const after = [LINK, LIVE_POOL_SIZE, WEBRTC_FOCUS];
+            if (before.some((v, i) => v !== after[i])) {
+                console.info(`[cameras] link measured at ${Math.round(ms)}ms${why} — `
+                           + `${before[0]} -> ${after[0]}, ${after[1]} live`
+                           + `${after[2] ? ", webrtc focus" : ""}`);
+                relayoutAll();
+            }
+            renderPolicy(ms);
+        }).catch(() => { /* keep the current policy */ })
+          .finally(() => { _measureInflight = null; });
+        return _measureInflight;
+    }
+
+    // ── Pairing this browser with a presence device ───────────
+    // Deliberately per-BROWSER (localStorage), not in the shared plugin config:
+    // "which phone is this" is a different answer on every device, and the
+    // settings page saves to config that all of them share.
+    function renderPairButton() {
+        const btn = document.getElementById("pair-device");
+        if (!btn) return;
+        const p = pairedPresenceId();
+        btn.textContent = "this device is: " + (p ? p.name : "not set");
+    }
+    async function choosePresenceDevice() {
+        const key = (window.INDIGO_CONFIG || {}).apiKey;
+        if (!key) { alert("Connect this browser to Indigo first — the Connect form on the hub."); return; }
+        let devices = [];
+        try {
+            const r = await fetch("/v2/api/indigo.devices", {
+                headers: { Authorization: "Bearer " + key, Accept: "application/json" } });
+            if (!r.ok) throw new Error("HTTP " + r.status);
+            const all = await r.json();
+            // Anything exposing a `presence` state qualifies, so this is not
+            // tied to one plugin — another presence source would appear here too.
+            devices = (Array.isArray(all) ? all : []).filter(d =>
+                d && d.states && d.states.presence != null);
+        } catch (e) {
+            alert("Could not read the device list from Indigo: " + e.message);
+            return;
+        }
+        if (!devices.length) {
+            alert("No devices with a presence state were found. UniFiHealth creates "
+                + "one per tracked phone.");
+            return;
+        }
+        const lines = devices.map((d, i) => (i + 1) + ". " + d.name).join("\n");
+        const pick = prompt("Which of these is THIS device?\n\n" + lines
+            + "\n\nEnter a number, or 0 to forget the setting.", "1");
+        if (pick == null) return;
+        const n = parseInt(pick, 10);
+        if (n === 0) {
+            try { localStorage.removeItem(PRESENCE_KEY); } catch (e) {}
+        } else if (n >= 1 && n <= devices.length) {
+            const d = devices[n - 1];
+            try {
+                localStorage.setItem(PRESENCE_KEY, JSON.stringify({ id: d.id, name: d.name }));
+            } catch (e) {}
+        } else { return; }
+        renderPairButton();
+        if (window.DashUI && DashUI.forgetRtt) DashUI.forgetRtt();
+        measureAndApply();
+    }
+
+    // Pause streaming when the tab is hidden so we're not pulling video
+    // bandwidth from the cameras for nothing. Resume on visibility.
+    //
+    // Coming BACK is also the moment to re-check the link. A phone that was
+    // put down at home and picked up on mobile data is the ordinary case, and
+    // the old code could not notice: the verdict was cached for the whole
+    // browser session, so the page went on behaving as though it were at home
+    // until the tab was closed. Reported exactly that way — wi-fi off, no
+    // change. iOS has no network-change event worth relying on, but coming
+    // back to the page is a good enough proxy and costs three small fetches.
+    // A page being torn down must not leave a peer connection behind —
+    // iOS Safari kills the JS context on navigation but the ICE consumer on
+    // the server side otherwise lingers until its own timeout.
+    window.addEventListener("pagehide", () => {
+        for (const host of hosts) {
+            const st = camState[host];
+            if (st && st.pc) stopWebrtc(st);
+        }
+    });
+
+    document.addEventListener("visibilitychange", () => {
+        if (document.hidden) { stopAll(); return; }
+        // Re-decide from the cached measured verdict (bounded 60 s) before
+        // resuming a single tile. The old path resumed straight into the LAST
+        // policy, which for a phone put down at home and picked up on 5G was
+        // six live MJPEG streams into a mobile link.
+        bootPolicy();
+        relayoutAll();
+        if (window.DashUI && DashUI.forgetRtt) DashUI.forgetRtt();
+        measureAndApply();
+    });
+
+    // ── Boot ──────────────────────────────────────────────────
+    if (!hosts.length) {
+        document.getElementById("warn").innerHTML =
+            `<div class="config-warn">No cameras configured yet — add them on the
+             <a href="settings.html">Settings page</a> (camera credentials come from the
+             plugin's Configure dialog), then restart the plugin.</div>`;
+    } else {
+        buildGrid();
+        // Initial layout under the BOOT policy — the cached measured verdict,
+        // or conservative all-stills when there isn't a fresh one (see
+        // bootPolicy). measureAndApply below corrects it within a second or
+        // two; what it can no longer do is open six MJPEG streams on an
+        // unverified "home" guess.
+        relayoutAll();
+        // Pin focus to Garage (already live; this just adds the .focused class
+        // and the has-focus grid layout — no live-set change since Garage is
+        // already in the default pool).
+        const grid = document.getElementById("grid");
+        grid.classList.add("has-focus");
+        const wrap = camState[hosts[0]]?.frameEl?.closest(".cam");
+        if (wrap) wrap.classList.add("focused");
+        focusedHost = hosts[0];
+        startBandwidthPoll();
+        startStallWatchdog();
+        // Tap the footer policy line to toggle the debug view: every tile
+        // shows its age (plus the clock-skew tell), not just the focused one.
+        const policyLine = document.getElementById("link-policy");
+        if (policyLine) policyLine.addEventListener("click", () => {
+            try { localStorage.setItem("dash_cam_debug", debugAges() ? "0" : "1"); } catch (e) {}
+            tickAges();
+        });
+        renderPairButton();
+        const pairBtn = document.getElementById("pair-device");
+        if (pairBtn) pairBtn.addEventListener("click", choosePresenceDevice);
+
+        // Now MEASURE the link and correct the boot policy. Booting
+        // conservative means this is usually an UPGRADE (stills → the live
+        // pool at home); the reflector stays pinned by its address, which a
+        // fast probe can never make local. Worst case is a second of stills
+        // at home, against 44 Mbit/s of mobile data the other way round.
+        if (window.DashUI && DashUI.measuredClass) measureAndApply();
+    }
+    </script>
+<script src="a11y.js"></script>
+<script src="standalone-nav.js"></script>
+</body>
+</html>

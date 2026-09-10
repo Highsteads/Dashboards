@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Actions>
+
+    <!-- POST /message/com.clives.indigoplugin.dashboards/evoHomeAction/
+         Body: {"action_id": "<id>"}
+         Proxies the call to the EvoHome Heating Controller plugin so the
+         heating dashboard can trigger boost and force-heating operations. -->
+    <Action id="evoHomeAction" uiPath="hidden">
+        <Name>EvoHome Plugin Action</Name>
+        <CallbackMethod>handleEvoHomeAction</CallbackMethod>
+    </Action>
+
+    <!-- POST /message/com.clives.indigoplugin.dashboards/sigenApi/
+         Body: {"path": "status"|"history"|"daily"|"export-sync"|"years"|"calendar",
+                "query": {"hours": 24} }
+         Server-side proxy to the SigenEnergyManager :8179 data API (localhost),
+         so the energy/power-flow page works over the reflector (away from home),
+         not just on the LAN. Path is allow-listed; the upstream host is fixed
+         (no SSRF). Bearer-authenticated by IWS upstream. -->
+    <Action id="sigenApi" uiPath="hidden">
+        <Name>Sigenergy Dashboard Data Proxy</Name>
+        <CallbackMethod>handleSigenApi</CallbackMethod>
+    </Action>
+
+    <!-- POST /message/com.clives.indigoplugin.dashboards/systemHealth/
+         No body. Returns Mac vitals (disk/RAM/swap/load/uptime), the SQL
+         history DB size + Logs breakdown, and a device-health census
+         (errors, low battery, quiet devices, per-plugin counts). All computed
+         server-side — a browser can't read host stats. Bearer-authed by IWS. -->
+    <Action id="systemHealth" uiPath="hidden">
+        <Name>System Health Vitals</Name>
+        <CallbackMethod>handleSystemHealth</CallbackMethod>
+    </Action>
+
+    <!-- POST /message/com.clives.indigoplugin.dashboards/carbonAdvisor/
+         No body. Returns UK grid carbon intensity (current + 48h forecast +
+         generation mix) for the configured region, the live solar surplus and
+         tariff, and a "good time to run a load" recommendation combining them.
+         Carbon data from the free api.carbonintensity.org.uk (no key), cached
+         10 min server-side. Bearer-authed by IWS upstream. -->
+    <Action id="carbonAdvisor" uiPath="hidden">
+        <Name>Carbon-Aware Advisor</Name>
+        <CallbackMethod>handleCarbonAdvisor</CallbackMethod>
+    </Action>
+
+    <!-- POST /message/com.clives.indigoplugin.dashboards/timelineDay/
+         Body: {"date":"YYYY-MM-DD"} (default today, local). Returns one local
+         day of the house's activity as lanes (presence / lights / doors /
+         heating, each a list of per-device active spans in minutes-from-
+         midnight) plus a battery-SOC + solar-power trace, from the SQL Logger
+         history. Powers the timeline replay page. Bearer-authed by IWS. -->
+    <Action id="timelineDay" uiPath="hidden">
+        <Name>Timeline Day</Name>
+        <CallbackMethod>handleTimelineDay</CallbackMethod>
+    </Action>
+
+    <!-- POST /message/com.clives.indigoplugin.dashboards/solarStringHours/
+         Body: {"date":"YYYY-MM-DD"} (default today, local). Returns per-hour
+         per-PV-string kWh integrated from the SQL-logged pv1Watts..pv4Watts
+         states (SigenEnergyManager v5.67.0). Hours with no samples are null
+         so the page falls back to site totals rather than inventing zeros.
+         hours=[] when the columns don't exist. Server-cached 120 s.
+         Bearer-authed by IWS. Powers the Energy page's stacked hourly solar
+         chart (v2.79.0). -->
+    <Action id="laundryPlan" uiPath="hidden">
+        <Name>Laundry Plan</Name>
+        <CallbackMethod>handleLaundryPlan</CallbackMethod>
+    </Action>
+
+    <Action id="laundryDeadline" uiPath="hidden">
+        <Name>Laundry Deadline</Name>
+        <CallbackMethod>handleLaundryDeadline</CallbackMethod>
+    </Action>
+
+    <Action id="solarStringHours" uiPath="hidden">
+        <Name>Solar String Hours</Name>
+        <CallbackMethod>handleSolarStringHours</CallbackMethod>
+    </Action>
+
+    <!-- POST /message/com.clives.indigoplugin.dashboards/homeInsights/
+         No body. Returns anomalies vs each device's own norms from the SQL
+         Logger history: batteries falling fast, motion sensors gone quiet,
+         rooms off their usual temperature, devices on longer than their daily
+         norm. Server-cached 15 min. Bearer-authed by IWS. -->
+    <Action id="mainsMeters" uiPath="hidden">
+        <Name>Mains Meters</Name>
+        <CallbackMethod>handleMainsMeters</CallbackMethod>
+    </Action>
+
+    <!-- Everything known about ONE meter — live reading, identity, measured
+         offset, every state it publishes and its (credential-redacted)
+         configuration. Feeds meter.html, the drill-down from a Mains tile.
+         Bearer-authed by IWS. -->
+    <Action id="mainsMeter" uiPath="hidden">
+        <Name>Mains Meter Detail</Name>
+        <CallbackMethod>handleMainsMeter</CallbackMethod>
+    </Action>
+
+    <Action id="homeInsights" uiPath="hidden">
+        <Name>Home Insights</Name>
+        <CallbackMethod>handleHomeInsights</CallbackMethod>
+    </Action>
+
+    <!-- POST /message/com.clives.indigoplugin.dashboards/activityFeed/
+         No body. Returns a curated house diary from the event log (lock/door,
+         safety, system events), collapsed error/warning alerts, and an
+         automation panel (schedules due next, error-watch triggers, what's
+         switched off, the per-person door-code roster). Bearer-authed by IWS. -->
+    <Action id="activityFeed" uiPath="hidden">
+        <Name>Activity Feed + Automation Health</Name>
+        <CallbackMethod>handleActivityFeed</CallbackMethod>
+    </Action>
+
+    <!-- POST /message/com.clives.indigoplugin.dashboards/logErrors/
+         No body. Serves the state file written by Python Scripts/
+         Log_Error_Watch.py — the hourly event-log watch: which error
+         signatures are live, how often, and which are muted noise. The
+         judgement lives in the script; this only reads its output.
+         Bearer-authed by IWS (the file is NOT in the anonymous /public). -->
+    <Action id="logErrors" uiPath="hidden">
+        <Name>Log Error Watch Feed</Name>
+        <CallbackMethod>handleLogErrors</CallbackMethod>
+    </Action>
+
+    <!-- POST /message/com.clives.indigoplugin.dashboards/presenceData/
+         No body. Serves the presence timelines Presence_Watch.py writes to
+         Python Scripts/presence_data.json — 14 nights of room occupancy and
+         the bedroom sleep proxy. Deliberately NOT a /public file: that
+         namespace is anonymous and reflector-reachable. Bearer-authed by
+         IWS upstream (v2.71.0). -->
+    <Action id="presenceData" uiPath="hidden">
+        <Name>Presence Watch Data</Name>
+        <CallbackMethod>handlePresenceData</CallbackMethod>
+    </Action>
+
+    <!-- POST /message/com.clives.indigoplugin.dashboards/burnSetupToken/
+         Body: {"token": "<token>"}
+         Deletes a redeemed one-time setup link so it cannot be reused.
+         Bearer-authenticated by IWS upstream (the redeeming page has just
+         received the key, so it can authenticate). -->
+    <Action id="burnSetupToken" uiPath="hidden">
+        <Name>Burn Setup Token</Name>
+        <CallbackMethod>handleBurnSetupToken</CallbackMethod>
+    </Action>
+
+    <!-- POST /message/com.clives.indigoplugin.dashboards/changedSince/
+         Body: {"since": <server epoch float>}
+         Returns device IDs changed/deleted after `since` (fed by
+         subscribeToChanges) so pages refetch only what moved. -->
+    <Action id="changedSince" uiPath="hidden">
+        <Name>Changed Since</Name>
+        <CallbackMethod>handleChangedSince</CallbackMethod>
+    </Action>
+
+    <!-- Settings editor (v2.0.0). Both Bearer-authenticated by IWS upstream.
+         getDashboardsConfig — effective config + device index for pickers
+         saveDashboardsConfig — validate, persist dashboards_config.json,
+         apply live (cameras need a restart) -->
+    <Action id="getDashboardsConfig" uiPath="hidden">
+        <Name>Get Dashboards Config</Name>
+        <CallbackMethod>handleGetDashboardsConfig</CallbackMethod>
+    </Action>
+    <Action id="saveDashboardsConfig" uiPath="hidden">
+        <Name>Save Dashboards Config</Name>
+        <CallbackMethod>handleSaveDashboardsConfig</CallbackMethod>
+    </Action>
+
+    <!-- POST /message/com.clives.indigoplugin.dashboards/applyColour/
+         Body: {"deviceId": N, "preset": "warm"} or
+               {"deviceId": N, "brightness": 0-100, "whiteTemperature": K, ...}
+         Runs turn-on -> brightness -> colour IN ORDER on the server (v2.94.0).
+         The browser used to fire those three separately, so a phone that
+         locked mid-sequence left the lamp half-set and said nothing. -->
+    <Action id="applyColour" uiPath="hidden">
+        <Name>Apply Colour Preset</Name>
+        <CallbackMethod>handleApplyColour</CallbackMethod>
+    </Action>
+
+    <!-- POST /message/com.clives.indigoplugin.dashboards/verifyPin/
+         Body: {"pin": "<entered>"} → {"ok": true, "valid": bool}
+         Server-side PIN check for the per-tile PIN speed bump (v2.1.0). -->
+    <Action id="verifyPin" uiPath="hidden">
+        <Name>Verify Control PIN</Name>
+        <CallbackMethod>handleVerifyPin</CallbackMethod>
+    </Action>
+
+    <!-- POST /message/com.clives.indigoplugin.dashboards/customPages/
+         Body: {"op": "list"|"save"|"delete", ...} — JSON custom-page
+         definitions (v2.5.0). Bearer-authenticated by IWS. -->
+    <Action id="customPages" uiPath="hidden">
+        <Name>Custom Pages (internal)</Name>
+        <CallbackMethod>handleCustomPages</CallbackMethod>
+    </Action>
+
+    <!-- POST /message/com.clives.indigoplugin.dashboards/historyQuery/
+         Body: {"action": "states"|"series", "deviceId": N, "state": "...",
+                "hours": N, "maxPoints": N}
+         Read-only time-series queries over SQL Logger's history DB (v2.4.0)
+         — powers the Graphs page. Bearer-authenticated by IWS. -->
+    <Action id="historyQuery" uiPath="hidden">
+        <Name>History Query</Name>
+        <CallbackMethod>handleHistoryQuery</CallbackMethod>
+    </Action>
+
+
+    <!-- v3.12.0: plugin-provided MCP tools. An Indigo MCP server that reads
+         Contents/Resources/mcp-manifest.json calls this via executeAction with
+         props {tool, arguments}. It is NOT an HTTP endpoint: a browser hitting
+         /message/.../mcp_tool_invoke/ is answered with a 404, never a tool. -->
+    <Action id="mcp_tool_invoke" uiPath="hidden">
+        <Name>MCP Tool Invocation Endpoint</Name>
+        <CallbackMethod>handle_mcp_tool_invoke</CallbackMethod>
+    </Action>
+</Actions>

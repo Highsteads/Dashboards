@@ -1,0 +1,214 @@
+<?xml version="1.0"?>
+<PluginConfig>
+
+	<Field id="label_intro" type="label">
+		<Label>Dashboards reads INDIGO_URL / INDIGO_API_KEY / DAHUA_USER / DAHUA_PASS from IndigoSecrets.py first. If you don't use IndigoSecrets.py, fill in the fallback fields below. All other options (legacy Sigen URL, cameras list, swap-out host, etc.) follow further down. The main-mosaic cameras and the per-room extras (doors, appliances, includes) are edited on the Settings page, not here.</Label>
+	</Field>
+
+	<Field id="sep_creds" type="separator"/>
+
+	<Field id="label_creds" type="label">
+		<Label>Credentials — fallbacks (IndigoSecrets.py wins if present):</Label>
+	</Field>
+	<Field id="indigoUrl" type="textfield" defaultValue="">
+		<Label>Indigo API URL:</Label>
+	</Field>
+	<Field id="hlpUrl" type="label" fontSize="mini" alignWithControl="true">
+		<Label>Base URL of the Indigo REST API, e.g. http://127.0.0.1:8176. Fallback for IndigoSecrets.INDIGO_URL. Leave blank to use http://127.0.0.1:8176 — fill it in if your web server runs on another port.</Label>
+	</Field>
+	<Field id="indigoApiKey" type="textfield" defaultValue="" secure="true">
+		<Label>Indigo API Key:</Label>
+	</Field>
+	<Field id="hlpKey" type="label" fontSize="mini" alignWithControl="true">
+		<Label>Bearer API key for the Indigo REST API. Fallback for IndigoSecrets.INDIGO_API_KEY. NOTE: "secure" masks this field in the dialog but stores it in plain text in the plugin prefs file — prefer IndigoSecrets.py if you can.</Label>
+	</Field>
+	<Field id="dahuaUser" type="textfield" defaultValue="">
+		<Label>Camera User:</Label>
+	</Field>
+	<Field id="dahuaPass" type="textfield" defaultValue="" secure="true">
+		<Label>Camera Password:</Label>
+	</Field>
+	<Field id="hlpDahua" type="label" fontSize="mini" alignWithControl="true">
+		<Label>Camera admin username + password (works for both Dahua and Hikvision). Fallbacks for IndigoSecrets.DAHUA_USER / DAHUA_PASS. Only needed if you have cameras configured. Stored in plain text in the prefs file (see the API-key note above).</Label>
+	</Field>
+
+	<Field id="sep0" type="separator"/>
+
+	<Field id="sigenLegacyUrl" type="textfield" defaultValue="">
+		<Label>Sigen Dashboard URL:</Label>
+	</Field>
+	<Field id="hlpSigen" type="label" fontSize="mini" alignWithControl="true">
+		<Label>Optional. URL of a legacy Sigenergy mini-dashboard (e.g. http://192.168.1.10:8179/). Used only by the "Open Sigenergy Battery Dashboard (legacy)" menu item; leave blank to disable the item. Read from IndigoSecrets.SIGEN_DASHBOARD_URL first; this field is a fallback.</Label>
+	</Field>
+
+	<Field id="sep1" type="separator"/>
+
+	<Field id="camerasJson" type="textfield" defaultValue="">
+		<Label>Cameras (JSON):</Label>
+	</Field>
+	<Field id="hlpCameras" type="label" fontSize="mini" alignWithControl="true">
+		<Label>Optional JSON list of camera objects. Each object needs host, name, vendor ("dahua" or "hikvision"). Read from IndigoSecrets.DASHBOARDS_CAMERAS first; this field is a fallback. Example: [{"host":"192.168.1.50","name":"Front Door","vendor":"dahua"},{"host":"192.168.1.51","name":"Drive","vendor":"hikvision"}]. Leave blank to disable the cameras grid and go2rtc (the :8177 proxy still runs, for /bootstrap only). All cams share DAHUA_USER / DAHUA_PASS from IndigoSecrets (despite the name, those creds also work for Hikvision).</Label>
+	</Field>
+
+	<Field id="swapOutHost" type="textfield" defaultValue="">
+		<Label>Swap-Out Host (optional):</Label>
+	</Field>
+	<Field id="hlpSwapOut" type="label" fontSize="mini" alignWithControl="true">
+		<Label>Optional. Host of the camera that gets bumped from live MJPEG to a still snapshot when the user peeks at a tail-of-list camera. Defaults to the LAST entry in the Cameras list. Override only if a different cam is the better drop candidate.</Label>
+	</Field>
+
+	<Field id="sep2" type="separator"/>
+
+	<Field id="hiddenScenesJson" type="textfield" defaultValue="">
+		<Label>Hidden Scenes (JSON):</Label>
+	</Field>
+	<Field id="hlpHiddenScenes" type="label" fontSize="mini" alignWithControl="true">
+		<Label>Optional JSON list of action groups to hide from the Scenes page. Entries match an action group name, an action group ID, or "folder:Folder Name" to hide a whole folder. Read from IndigoSecrets.DASHBOARDS_HIDDEN_SCENES first; this field is a fallback. Example: ["Internal Reset", "folder:Maintenance"]</Label>
+	</Field>
+
+	<Field id="sep_carbon" type="separator"/>
+
+	<Field id="carbonRegionId" type="menu" defaultValue="4">
+		<Label>Carbon Region:</Label>
+		<List>
+			<Option value="0">Off (not in Great Britain)</Option>
+			<Option value="1">North Scotland</Option>
+			<Option value="2">South Scotland</Option>
+			<Option value="3">North West England</Option>
+			<Option value="4">North East England</Option>
+			<Option value="5">Yorkshire</Option>
+			<Option value="6">North Wales &amp; Merseyside</Option>
+			<Option value="7">South Wales</Option>
+			<Option value="8">West Midlands</Option>
+			<Option value="9">East Midlands</Option>
+			<Option value="10">East England</Option>
+			<Option value="11">South West England</Option>
+			<Option value="12">South England</Option>
+			<Option value="13">London</Option>
+			<Option value="14">South East England</Option>
+			<Option value="15">England (national)</Option>
+			<Option value="16">Scotland</Option>
+			<Option value="17">Wales</Option>
+			<Option value="18">GB (whole grid)</Option>
+		</List>
+	</Field>
+	<Field id="hlpCarbon" type="label" fontSize="mini" alignWithControl="true">
+		<Label>Region used by the Carbon page for grid-intensity + generation-mix data (the free Carbon Intensity API, no key needed — it covers Great Britain only). Pick the DNO region closest to you, or Off to hide the Carbon page and stop the lookups.</Label>
+	</Field>
+
+	<Field id="sep_boot" type="separator"/>
+
+	<Field id="bootstrapKeySeed" type="checkbox" defaultValue="true">
+		<Label>Auto-seed the API key to LAN browsers</Label>
+	</Field>
+	<Field id="hlpBoot" type="label" fontSize="mini" alignWithControl="true">
+		<Label>When on (default), a browser on your LAN or Tailnet is handed the API key automatically on first visit, so it never has to be typed in. Turn this OFF if you run read-only guest devices and want the guest boundary strictly enforced — trusted devices then pair via the "Generate One-Time Setup Link" menu item instead. Off is more secure, on is more convenient.</Label>
+	</Field>
+
+	<Field id="sep_weather" type="separator"/>
+	<Field id="label_weather" type="label">
+		<Label>Weather card extras (optional — IndigoSecrets OWM_API_KEY / LATITUDE / LONGITUDE win if present):</Label>
+	</Field>
+	<Field id="owmApiKey" type="textfield" defaultValue="" secure="true">
+		<Label>OpenWeatherMap API key:</Label>
+	</Field>
+	<Field id="siteLatitude" type="textfield" defaultValue="">
+		<Label>Site latitude:</Label>
+	</Field>
+	<Field id="siteLongitude" type="textfield" defaultValue="">
+		<Label>Site longitude:</Label>
+	</Field>
+	<Field id="hlpWeather" type="label" fontSize="mini" alignWithControl="true">
+		<Label>Adds sunset, today's high/low, UV and conditions to the hub's Weather card. Without these the card still works from your Ecowitt sensors alone.</Label>
+	</Field>
+
+	<Field id="sep_health" type="separator"/>
+	<Field id="healthStaleHours" type="textfield" defaultValue="48">
+		<Label>System Health: battery device quiet after (hours):</Label>
+	</Field>
+	<Field id="healthLowBatteryPct" type="textfield" defaultValue="20">
+		<Label>System Health: low-battery threshold (%):</Label>
+	</Field>
+	<Field id="hlpHealth" type="label" fontSize="mini" alignWithControl="true">
+		<Label>Stale hours: a battery device that has not changed state for this long is listed as quiet on the System Health page. Low battery %: devices at or below this level are listed as low.</Label>
+	</Field>
+
+	<Field id="go2rtcPath" type="textfield" defaultValue="">
+		<Label>go2rtc binary path (optional):</Label>
+	</Field>
+	<Field id="hlpGo2rtc" type="label" fontSize="mini" alignWithControl="true">
+		<Label>Leave blank to look for go2rtc on the PATH and then at ~/bin/go2rtc. Only needed if your copy lives somewhere else.</Label>
+	</Field>
+
+	<Field id="sep_hist" type="separator"/>
+
+	<Field id="hlpHistHead" type="label">
+		<Label>History database</Label>
+	</Field>
+	<Field id="historyBackend" type="menu" defaultValue="sqlite">
+		<Label>SQL Logger backend:</Label>
+		<List>
+			<Option value="sqlite">SQLite (default)</Option>
+			<Option value="postgres">PostgreSQL</Option>
+		</List>
+	</Field>
+	<Field id="hlpHist" type="label" fontSize="mini" alignWithControl="true">
+		<Label>Where Indigo's SQL Logger writes its history. Leave this on SQLite unless you have deliberately pointed the SQL Logger at a PostgreSQL server. The Graphs, Timeline and Home Insights cards all read from here. Use "Test History Connection" in the Plugins menu after changing it.</Label>
+	</Field>
+
+	<Field id="hlpPgSecrets" type="label" fontSize="mini" visibleBindingId="historyBackend" visibleBindingValue="postgres">
+		<Label>These are read from IndigoSecrets.py first (HISTORY_PG_HOST, HISTORY_PG_PORT, HISTORY_PG_USER, HISTORY_PG_PASSWORD, HISTORY_PG_DATABASE); the fields below are the fallback for installs without that file. Access is read-only — the plugin never writes to the history database.</Label>
+	</Field>
+	<Field id="pgHost" type="textfield" defaultValue="127.0.0.1" visibleBindingId="historyBackend" visibleBindingValue="postgres">
+		<Label>Host:</Label>
+	</Field>
+	<Field id="pgPort" type="textfield" defaultValue="5432" visibleBindingId="historyBackend" visibleBindingValue="postgres">
+		<Label>Port:</Label>
+	</Field>
+	<Field id="pgDatabase" type="textfield" defaultValue="indigo_history" visibleBindingId="historyBackend" visibleBindingValue="postgres">
+		<Label>Database:</Label>
+	</Field>
+	<Field id="pgUser" type="textfield" defaultValue="postgres" visibleBindingId="historyBackend" visibleBindingValue="postgres">
+		<Label>User:</Label>
+	</Field>
+	<Field id="pgPassword" type="textfield" defaultValue="" visibleBindingId="historyBackend" visibleBindingValue="postgres">
+		<Label>Password:</Label>
+	</Field>
+
+	<Field id="sep_reflector" type="separator"/>
+
+	<Field id="lblReflector" type="label" fontSize="small">
+		<Label>Indigo's reflector relays remote traffic through Indigo Domotics' own servers, and they pay for it. Camera pictures are far heavier than the reflector is meant for: nine snapshots a second from one page away from home is several gigabytes a day. If you reach this server another way when you are out — Tailscale, WireGuard, a VPN back to the house — turn this on and the dashboards will refuse the reflector entirely.</Label>
+	</Field>
+	<Field id="reflectorBlock" type="checkbox" defaultValue="false">
+		<Label>Refuse the reflector:</Label>
+		<Description>Serve the dashboards on the local network and VPN only</Description>
+	</Field>
+
+	<Field id="sep3" type="separator"/>
+
+	<Field id="logActivityToEventLog" type="checkbox" defaultValue="false">
+		<Label>Log routine activity to the Indigo Event Log:</Label>
+		<Description>Off by default</Description>
+	</Field>
+	<Field id="hlpActivity" type="label" fontSize="mini" alignWithControl="true">
+		<Label>Leave this off and the routine narration - page and asset copies, config.js writes, and the camera poller, MJPEG proxy and go2rtc starting and stopping - is written at Debug, which normally means this plugin's own log file and not the Event Log. Ten to thirteen of them land on every restart, and the Event Log is shared with every other plugin. Tick this while you are setting the plugin up and they go to the Event Log as well. Warnings and errors always go to the Event Log either way, whichever setting you choose.</Label>
+	</Field>
+	<Field id="hlpActivityLevel" type="label" fontSize="mini" alignWithControl="true">
+		<Label>This box is not the only switch, so read it together with Log Level below. Log Level sets the lowest level this plugin puts in the Event Log: at Debug the narration goes there whether this box is ticked or not, and at Warning it stays out of the Event Log even when it is ticked. Everything written either way is in this plugin's own log file, at Logs / com.clives.indigoplugin.dashboards / plugin.log.</Label>
+	</Field>
+
+	<Field id="logLevel" type="menu" defaultValue="20">
+		<Label>Log Level:</Label>
+		<List>
+			<Option value="10">Debug</Option>
+			<Option value="20">Info</Option>
+			<Option value="30">Warning</Option>
+			<Option value="40">Error</Option>
+		</List>
+	</Field>
+	<Field id="hlpLogLevel" type="label" fontSize="mini" alignWithControl="true">
+		<Label>The lowest level that reaches the shared Indigo Event Log. It does not touch this plugin's own log file, which always keeps everything. Debug puts the routine narration above into the Event Log as well, so use it while you are chasing a problem and put it back to Info afterwards. Warnings and errors reach the Event Log whatever you pick here - Error behaves the same as Warning - because the estate's log watcher reads the Event Log and nothing else, and a fault it cannot see is a fault nobody is watching.</Label>
+	</Field>
+
+</PluginConfig>

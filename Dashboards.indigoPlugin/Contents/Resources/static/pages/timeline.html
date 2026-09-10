@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+    <meta name="indigo-page-name" content="Timeline">
+    <meta name="indigo-page-icon" content="clock.arrow.circlepath">
+    <meta name="indigo-page-description" content="Replay a day of the house — presence, lights, doors, heating and battery on one scrubbable timeline">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Dashboards">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#5856d6">
+    <link rel="apple-touch-icon" sizes="180x180" href="/public/dashboards/apple-touch-icon.png">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+<title>Timeline · Dashboards</title>
+<link rel="stylesheet" href="dashboards-theme.css">
+<style>
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{overflow-x:hidden;width:100%;max-width:100vw}
+body{background:var(--bg);color:var(--text);font-family:var(--font-ui);
+  font-size:14px;min-height:100vh;-webkit-overflow-scrolling:touch;padding-top:max(80px,calc(72px + env(safe-area-inset-top)))}
+header{display:grid;grid-template-columns:1fr 2fr 1fr;align-items:center;gap:8px;
+  padding:10px max(16px,env(safe-area-inset-right)) 10px max(16px,env(safe-area-inset-left));padding-top:max(10px,env(safe-area-inset-top));
+  position:fixed;top:0;left:0;right:0;z-index:10;background:rgba(249,249,251,0.82);
+  -webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid var(--border-soft)}
+@media (prefers-color-scheme:dark){header{background:rgba(22,22,24,0.80)}}
+.hdr-left{justify-self:start}.hdr-right{justify-self:end}
+.hdr-center{justify-self:stretch;text-align:center;min-width:0;display:flex;flex-direction:column;align-items:center;gap:1px;line-height:1.15}
+header h1{font-size:20px;font-weight:700;letter-spacing:-.02em;white-space:nowrap}
+.topbar-status{font-size:11px;color:var(--text-secondary);white-space:nowrap}
+.nav-btn{background:var(--card-bg);border:1px solid var(--border-soft);color:var(--accent);padding:8px 14px;border-radius: var(--r-md);
+  font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;text-decoration:none;display:inline-flex;align-items:center;gap:4px;
+  min-height:36px;transition:transform .08s ease-out,background .15s,border-color .15s;white-space:nowrap;-webkit-tap-highlight-color:transparent}
+.nav-btn:hover{background:var(--card-bg-alt);border-color:var(--accent)}
+.nav-btn:active{transform:translateY(2px) scale(.96);background:var(--accent);color:#fff}
+.main{padding:16px;display:flex;flex-direction:column;gap:12px;max-width:1000px;margin:0 auto}
+.card{background:var(--card-bg);border:1px solid var(--border-soft);border-radius: var(--r-xl);padding:16px 18px;box-shadow:var(--shadow)}
+
+/* date bar */
+.datebar{display:flex;align-items:center;justify-content:center;gap:14px}
+.datebar button{background:var(--card-bg-alt);border:1px solid var(--border-soft);color:var(--accent);width:40px;height:40px;
+  border-radius: var(--r-md);font-size:20px;cursor:pointer;font-family:inherit;line-height:1}
+.datebar button:disabled{opacity:.3;cursor:default}
+.datebar .dlab{font-size:17px;font-weight:700;min-width:180px;text-align:center}
+.datebar .today-btn{width:auto;padding:0 14px;font-size:13px;font-weight:600}
+
+/* playhead readout */
+.now-time{font-size:34px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1}
+.now-sub{font-size:12px;color:var(--text-secondary);margin-top:2px}
+.now-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.nchip{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;padding:6px 11px;border-radius: var(--r-md);
+  background:var(--card-bg-alt);border:1px solid var(--border-soft);color:var(--text)}
+.nchip.dim{color:var(--text-muted)}
+.nchip .nc-list{font-weight:400;color:var(--text-secondary)}
+
+/* timeline lanes */
+.tl-wrap{position:relative;user-select:none;touch-action:pan-y}
+.lane{display:grid;grid-template-columns:96px 1fr;align-items:center;gap:10px;margin:9px 0}
+.lane-lab{font-size:12px;font-weight:600;color:var(--text-secondary);text-align:right;line-height:1.2}
+.lane-lab .lane-n{display:block;font-size:10.5px;color:var(--text-muted);font-weight:400}
+.lane-track{position:relative;height:26px;background:var(--track);border-radius: var(--r-sm);overflow:hidden}
+.seg{position:absolute;top:3px;bottom:3px;border-radius:4px;opacity:.9}
+/* energy lane taller with its own svg */
+.energy-lane .lane-track{height:64px;background:var(--card-bg-alt)}
+#energy-svg{position:absolute;inset:0;width:100%;height:100%}
+/* axis */
+.tl-axis{display:grid;grid-template-columns:96px 1fr;gap:10px;margin-top:4px}
+.axis-marks{position:relative;height:16px;font-size:10px;color:var(--text-muted)}
+.axis-marks span{position:absolute;transform:translateX(-50%);font-variant-numeric:tabular-nums}
+/* playhead */
+.playhead{position:absolute;top:0;bottom:0;width:2px;background:var(--accent);z-index:5;pointer-events:none;left:0}
+.playhead::before{content:"";position:absolute;top:-4px;left:-4px;width:10px;height:10px;border-radius:50%;background:var(--accent)}
+.tl-lanes{position:relative}
+.scrubline{position:absolute;top:0;bottom:16px;width:2px;background:var(--accent);z-index:6;pointer-events:none;
+  left:96px;margin-left:10px}
+.hint{font-size:11px;color:var(--text-muted);margin-top:10px;text-align:center}
+.empty{font-size:12.5px;color:var(--text-muted);padding:8px 0}
+.loading{text-align:center;padding:60px 20px;color:var(--text-secondary)}
+.spinner{width:24px;height:24px;border:3px solid var(--track);border-top-color:var(--accent);border-radius:50%;
+  animation:spin .8s linear infinite;margin:0 auto 12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:12px;font-size:11px;color:var(--text-secondary)}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.sw{width:11px;height:11px;border-radius:3px;flex:none}
+html{-webkit-text-size-adjust:100%}
+@supports (min-height:100dvh){body{min-height:100dvh}}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{transition-duration:.01ms!important;animation-duration:.01ms!important}}
+@media (max-width:520px){
+  header h1{font-size:16px}.main{padding:10px}.now-time{font-size:28px}
+  .lane{grid-template-columns:72px 1fr}.lane-lab{font-size:11px}.scrubline{left:72px}
+  .tl-axis{grid-template-columns:72px 1fr}
+}
+
+.topbar h1 .dsh-icon,h1 .dsh-icon{width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;opacity:.85}
+</style>
+</head>
+<body>
+<header>
+  <div class="hdr-left"><a class="nav-btn" href="index.html">&larr; Home</a></div>
+  <div class="hdr-center">
+    <h1><span data-icon="clock"></span> Timeline</h1>
+    <span class="topbar-status" id="status">Loading&#8230;</span>
+  </div>
+  <div class="hdr-right"><a class="nav-btn" href="presence.html">Presence &rarr;</a></div>
+</header>
+
+<main class="main">
+  <section class="card">
+    <div class="datebar">
+      <button id="prev" aria-label="Previous day">&#8249;</button>
+      <div class="dlab" id="dlab">&#8212;</div>
+      <button id="next" aria-label="Next day">&#8250;</button>
+      <button class="today-btn nav-btn" id="today" style="min-height:32px">Today</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="now-time" id="now-time">&#8212;</div>
+    <div class="now-sub" id="now-sub">Drag across the timeline to replay the day</div>
+    <div class="now-chips" id="now-chips"></div>
+  </section>
+
+  <section class="card">
+    <div id="tl-body">
+      <div class="loading"><div class="spinner"></div><p>Building the day&#8230;</p></div>
+    </div>
+  </section>
+</main>
+
+<script src="chart.umd.min.js"></script>
+<script src="config.js" onerror="window.INDIGO_CONFIG_MISSING=true"></script>
+<script src="dashboards-auth.js"></script>
+    <script src="dashboards-ui.js"></script>
+<script src="dashboards-gate.js"></script>
+<script>
+const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
+
+const EP = "/message/com.clives.indigoplugin.dashboards/timelineDay/";
+async function fetchDay(date) {
+  // The liveness gate (v2.95.3): one tap here mid-restart wedged IWS for
+  // five minutes, and this page never loaded the gate at all.
+  if (window.DashGate && await window.DashGate.check() === "down") {
+    throw new Error("the Dashboards plugin is restarting — try again in a moment");
+  }
+  const key = (window.INDIGO_CONFIG || {}).apiKey || "";
+  const r = await fetch(EP, { method:"POST",
+    headers:{ "Authorization":"Bearer "+key, "Content-Type":"application/json" },
+    body: JSON.stringify({ date }) });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return r.json();
+}
+function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;"); }
+function pad(n){ return String(n).padStart(2,"0"); }
+function hm(min){ const m=Math.round(Math.max(0,Math.min(1440,min))); return pad(Math.floor(m/60))+":"+pad(m%60); }   // round FIRST — 59.6 used to print "00:60"
+function ymd(d){ return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
+
+let selDate = new Date();
+let DAY = null;          // last fetched payload
+let playMin = null;      // current playhead minute (null = end/now)
+
+function dayLabel(d){
+  const today = new Date(); today.setHours(0,0,0,0);
+  const dd = new Date(d); dd.setHours(0,0,0,0);
+  const diff = Math.round((today - dd)/86400000);
+  const base = d.toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"});
+  return base + (diff===0?" · Today":diff===1?" · Yesterday":"");
+}
+
+function render(){
+  document.getElementById("dlab").textContent = dayLabel(selDate);
+  document.getElementById("next").disabled = ymd(selDate) >= ymd(new Date());
+  const body = document.getElementById("tl-body");
+  if (!DAY || !DAY.ok){ body.innerHTML = '<div class="empty">No data for this day.</div>'; return; }
+
+  const lanes = (DAY.lanes||[]).filter(l => l.devices.length || l.key==="heating");
+  const isToday = ymd(selDate) === ymd(new Date());
+  // live "now" cap for today
+  const nowMin = isToday ? (new Date().getHours()*60 + new Date().getMinutes()) : 1440;
+
+  let h = '<div class="tl-wrap" id="tlwrap"><div class="tl-lanes" id="tllanes">';
+  for (const lane of lanes){
+    let segs = "";
+    // stack device spans into one lane row (all devices share the row, coloured by lane)
+    for (const dev of lane.devices){
+      for (const s of dev.spans){
+        const x = (s[0]/1440*100), w = ((s[1]-s[0])/1440*100);
+        segs += `<div class="seg" style="left:${x}%;width:${w}%;background:${lane.colour}" title="${esc(dev.name)} ${hm(s[0])}–${hm(s[1])}"></div>`;
+      }
+    }
+    if (!lane.devices.length) segs = `<div class="empty" style="padding-left:8px;line-height:20px">none today</div>`;
+    h += `<div class="lane">
+      <div class="lane-lab">${esc(lane.label)}<span class="lane-n">${lane.devices.length? lane.devices.length+" active":""}</span></div>
+      <div class="lane-track">${segs}</div></div>`;
+  }
+  // energy lane
+  if (DAY.energy && DAY.energy.points.length){
+    h += `<div class="lane energy-lane">
+      <div class="lane-lab">Battery &amp; solar<span class="lane-n">SOC / kW</span></div>
+      <div class="lane-track"><svg id="energy-svg" viewBox="0 0 1000 64" preserveAspectRatio="none"></svg></div></div>`;
+  }
+  h += `</div><div class="scrubline" id="scrub" style="display:none"></div></div>`;
+  // axis
+  h += '<div class="tl-axis"><div></div><div class="axis-marks">';
+  for (let hh=0; hh<=24; hh+=3) h += `<span style="left:${hh/24*100}%">${pad(hh)}</span>`;
+  h += '</div></div>';
+  h += '<div class="legend">' + lanes.map(l=>`<span><span class="sw" style="background:${l.colour}"></span>${esc(l.label)}</span>`).join("")
+     + (DAY.energy&&DAY.energy.points.length?`<span><span class="sw" style="background:var(--soc)"></span>Battery SOC</span><span><span class="sw" style="background:var(--solar)"></span>Solar</span>`:"")
+     + '</div>';
+  h += '<div class="hint">Tap or drag anywhere on the timeline to scrub · release to see the house at that moment</div>';
+  body.innerHTML = h;
+
+  drawEnergy();
+  wireScrub();
+  setPlayhead(playMin == null ? nowMin : playMin);
+}
+
+function drawEnergy(){
+  const svg = document.getElementById("energy-svg");
+  if (!svg || !DAY.energy) return;
+  const pts = DAY.energy.points;
+  // solar area (0..peak) + SOC line (0..100), both across 0..1440 min
+  const maxPv = Math.max(1000, ...pts.map(p=>p.pv||0));
+  const X = m => (m/1440*1000);
+  const socY = v => 62 - (Math.max(0,Math.min(100,v))/100)*60;
+  const pvY  = v => 62 - (Math.max(0,v)/maxPv)*60;
+  let solar = "", socline = "";
+  pts.forEach((p,i)=>{
+    if (p.pv!=null){ solar += (solar?"L":"M") + X(p.m).toFixed(1) + " " + pvY(p.pv).toFixed(1) + " "; }
+  });
+  if (solar){ const last = pts.filter(p=>p.pv!=null).slice(-1)[0]; const first=pts.filter(p=>p.pv!=null)[0];
+    solar = "M"+X(first.m).toFixed(1)+" 62 " + solar.replace(/^M/,"L") + "L"+X(last.m).toFixed(1)+" 62 Z"; }
+  pts.forEach(p=>{ if(p.soc!=null){ socline += (socline?"L":"M") + X(p.m).toFixed(1) + " " + socY(p.soc).toFixed(1) + " "; }});
+  const sol = getComputedStyle(document.documentElement).getPropertyValue("--solar").trim()||"#f5a623";
+  const soc = getComputedStyle(document.documentElement).getPropertyValue("--soc").trim()||"#34c759";
+  svg.innerHTML =
+    (solar?`<path d="${solar}" fill="${sol}" fill-opacity="0.28"/>`:"") +
+    (socline?`<path d="${socline}" fill="none" stroke="${soc}" stroke-width="2" vector-effect="non-scaling-stroke"/>`:"");
+}
+
+function energyAt(min){
+  if (!DAY.energy || !DAY.energy.points.length) return null;
+  let best=null;
+  for (const p of DAY.energy.points){ if (p.m<=min) best=p; else break; }
+  return best || DAY.energy.points[0];
+}
+
+function setPlayhead(min){
+  playMin = Math.max(0, Math.min(1440, min));
+  const scrub = document.getElementById("scrub");
+  const lanes = document.getElementById("tllanes");
+  if (scrub && lanes){
+    const track = lanes.querySelector(".lane-track");
+    // position within the track column
+    const pct = playMin/1440;
+    scrub.style.display = "block";
+    scrub.style.left = "";
+    scrub.style.right = "";
+    // the scrubline sits over the track area: use the lane-track's geometry
+    const lane = lanes.querySelector(".lane");
+    const trackEl = lane.querySelector(".lane-track");
+    const wrap = document.getElementById("tlwrap").getBoundingClientRect();
+    const tr = trackEl.getBoundingClientRect();
+    scrub.style.left = (tr.left - wrap.left + pct*tr.width) + "px";
+    scrub.style.marginLeft = "0";
+  }
+  // readout
+  document.getElementById("now-time").textContent = hm(playMin);
+  const isToday = ymd(selDate)===ymd(new Date());
+  document.getElementById("now-sub").textContent =
+    selDate.toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"})
+    + (isToday && playMin >= (new Date().getHours()*60+new Date().getMinutes())-1 ? " · now" : "");
+  const chips = [];
+  for (const lane of (DAY.lanes||[])){
+    const active = lane.devices.filter(d => d.spans.some(s => playMin>=s[0] && playMin<s[1]));
+    if (active.length){
+      const names = active.map(d=>shortName(d.name)).slice(0,4).join(", ") + (active.length>4?` +${active.length-4}`:"");
+      chips.push(`<span class="nchip" style="border-color:${lane.colour}66"><b style="color:${lane.colour}">${laneIcon(lane.key)} ${active.length}</b> <span class="nc-list">${esc(names)}</span></span>`);
+    }
+  }
+  const e = energyAt(playMin);
+  if (e){
+    if (e.soc!=null) chips.push(`<span class="nchip"><b style="color:var(--soc)">${I("battery")} ${e.soc}%</b></span>`);
+    if (e.pv!=null)  chips.push(`<span class="nchip"><b style="color:var(--solar)">${I("sun")} ${e.pv>=1000?(e.pv/1000).toFixed(1)+" kW":e.pv+" W"}</b></span>`);
+  }
+  if (!chips.length) chips.push('<span class="nchip dim">Quiet — nothing active</span>');
+  document.getElementById("now-chips").innerHTML = chips.join("");
+}
+function laneIcon(k){ return I(k==="presence"?"walk":k==="lights"?"bulb":k==="doors"?"window":k==="heating"?"flame":"") || "●"; }
+function shortName(n){ return String(n).replace(/\s+(Presence Sensor|Motion Sensor|Contact Sensor|Sensor|Radiator|Light|Lights|Plug)$/i,"").trim() || n; }
+
+function wireScrub(){
+  const wrap = document.getElementById("tlwrap");
+  const lanes = document.getElementById("tllanes");
+  if (!wrap || !lanes) return;
+  const trackEl = lanes.querySelector(".lane-track");
+  let dragging = false;
+  const toMin = (clientX) => {
+    const tr = trackEl.getBoundingClientRect();
+    return Math.max(0, Math.min(1440, (clientX - tr.left)/tr.width*1440));
+  };
+  const onMove = (x) => setPlayhead(toMin(x));
+  wrap.addEventListener("pointerdown", e => { dragging=true; wrap.setPointerCapture(e.pointerId); onMove(e.clientX); });
+  wrap.addEventListener("pointermove", e => { if (dragging) onMove(e.clientX); });
+  wrap.addEventListener("pointerup",   () => { dragging=false; });
+  wrap.addEventListener("pointercancel", () => { dragging=false; });
+  if (!window._tlResizeWired && (window._tlResizeWired = true))   // once, not once per render
+    window.addEventListener("resize", () => setPlayhead(playMin==null?0:playMin));
+}
+
+async function load(){
+  document.getElementById("status").textContent = "Loading…";
+  document.getElementById("tl-body").innerHTML = '<div class="loading"><div class="spinner"></div><p>Building the day…</p></div>';
+  try {
+    DAY = await fetchDay(ymd(selDate));
+    playMin = null;   // reset to now/end on a new day
+    render();
+    document.getElementById("status").textContent = "Scrub to replay";
+  } catch(e){
+    document.getElementById("tl-body").innerHTML = `<div class="empty">Couldn't load the day — ${esc(e.message)}</div>`;
+    document.getElementById("status").textContent = "Error";
+  }
+}
+
+document.getElementById("prev").addEventListener("click", ()=>{ selDate.setDate(selDate.getDate()-1); load(); });
+document.getElementById("next").addEventListener("click", ()=>{ if (ymd(selDate) < ymd(new Date())){ selDate.setDate(selDate.getDate()+1); load(); } });
+document.getElementById("today").addEventListener("click", ()=>{ selDate = new Date(); load(); });
+
+if (!window.INDIGO_CONFIG || !window.INDIGO_CONFIG.apiKey) location.href = "index.html";
+else load();
+</script>
+<script src="dashboards-icons.js"></script>
+<script src="a11y.js"></script>
+<script src="standalone-nav.js"></script>
+</body>
+</html>

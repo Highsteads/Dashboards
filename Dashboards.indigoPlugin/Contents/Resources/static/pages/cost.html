@@ -1,0 +1,1278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta name="indigo-page-name" content="Cost">
+    <meta name="indigo-page-icon" content="sterlingsign.circle.medium">
+    <meta name="indigo-page-description" content="Whole-house energy cost — bills, export earnings, solar savings, month position and trends">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Dashboards">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#5856d6">
+    <link rel="apple-touch-icon" sizes="180x180" href="/public/dashboards/apple-touch-icon.png">
+    <title>Cost · Dashboards</title>
+<link rel="stylesheet" href="dashboards-theme.css">
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   Cost — whole-house financial view.
+
+   v2.46.0 rebuild. The page kept the Energy page's layout but none of
+   its depth: no gradient hero, no semantic colour tokens, no chip or
+   badge vocabulary, plain tables, undersized charts. It now carries the
+   full token set and the component grammar from system-health.html, so
+   the three modern pages read as one system.
+
+   NB the per-column "Standing" row was REMOVED long ago — standing
+   charges are already inside the Electric and Gas figures, and a third
+   row read as if it were another addend.
+   ═══════════════════════════════════════════════════════════════ */
+:root {
+    --hero-grad: linear-gradient(160deg, rgba(52,199,89,0.07), rgba(88,86,214,0.04) 55%, rgba(255,255,255,0));
+    --money-grad: linear-gradient(160deg, rgba(52,199,89,0.06), rgba(255,255,255,0) 60%);
+}
+@media (prefers-color-scheme: dark){
+  :root {
+    --hero-grad: linear-gradient(160deg, rgba(48,209,88,0.12), rgba(125,122,255,0.06) 55%, rgba(0,0,0,0));
+    --money-grad: linear-gradient(160deg, rgba(48,209,88,0.10), rgba(0,0,0,0) 60%);
+}
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{overflow-x:hidden;width:100%;max-width:100vw}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--font-ui);
+  font-size:14px;
+  min-height:100vh;
+  -webkit-overflow-scrolling:touch;
+  padding-top:max(80px, calc(72px + env(safe-area-inset-top)));
+}
+header{
+  display:grid;
+  grid-template-columns:1fr 2fr 1fr;
+  align-items:center;gap:8px;
+  padding:10px max(16px,env(safe-area-inset-right)) 10px max(16px,env(safe-area-inset-left));
+  padding-top:max(10px,env(safe-area-inset-top));
+  position:fixed;top:0;left:0;right:0;z-index:10;
+  background:rgba(249,249,251,0.82);
+  -webkit-backdrop-filter:saturate(180%) blur(20px);
+  backdrop-filter:saturate(180%) blur(20px);
+  border-bottom:1px solid var(--border-soft);
+}
+@media (prefers-color-scheme: dark){
+  header{background:rgba(22,22,24,0.80)}
+}
+.hdr-left {justify-self:start}
+.hdr-right{justify-self:end}
+.hdr-center{
+  justify-self:stretch;text-align:center;min-width:0;
+  display:flex;flex-direction:column;align-items:center;gap:1px;line-height:1.15;
+}
+header h1{font-size:20px;font-weight:700;letter-spacing:-.02em;white-space:nowrap}
+.topbar-status{font-size:11px;color:var(--text-secondary);font-variant-numeric:tabular-nums;white-space:nowrap}
+.topbar-status .ts::before{
+  content:'●';color:var(--on-color);margin-right:4px;
+  animation:live-pulse 2.4s ease-in-out infinite;
+}
+@keyframes live-pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.nav-btn{
+  background:var(--card-bg);border:1px solid var(--border-soft);color:var(--accent);
+  padding:8px 14px;border-radius: var(--r-md);font-size:14px;font-weight:600;cursor:pointer;
+  font-family:inherit;text-decoration:none;display:inline-flex;align-items:center;gap:4px;
+  min-height:36px;transition:transform .08s ease-out, background .15s, border-color .15s;
+  user-select:none;-webkit-tap-highlight-color:transparent;white-space:nowrap;
+}
+.nav-btn:hover{background:var(--card-bg-alt);border-color:var(--accent)}
+.nav-btn:active{transform:translateY(2px) scale(.96);background:var(--accent);color:#fff}
+
+.main{padding:16px;display:flex;flex-direction:column;gap:12px;max-width:1140px;margin:0 auto}
+.main > *{min-width:0}
+.sec-label{
+  font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;
+  color:var(--text-secondary);margin:14px 4px 0;
+}
+.card{
+  background:var(--card-bg);border:1px solid var(--border-soft);
+  border-radius: var(--r-xl);padding:18px;box-shadow:var(--shadow);
+  animation:card-in .4s ease-out both;
+  transition:box-shadow .2s ease, transform .2s ease;
+}
+.card:hover{box-shadow:var(--shadow-hover)}
+@keyframes card-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.card h2{
+  font-size:11px;font-weight:600;color:var(--text-secondary);
+  text-transform:uppercase;letter-spacing:.7px;margin-bottom:12px;
+}
+.card h2 .h2sub{font-weight:500;text-transform:none;letter-spacing:0;color:var(--text-muted)}
+.muted{color:var(--text-muted)}
+.good{color:var(--on-color)}
+.bad{color:var(--bad)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+@media(max-width:760px){.grid2{grid-template-columns:1fr}}
+
+/* ── shared component grammar (from system-health.html) ── */
+.chip{
+  display:inline-flex;align-items:center;gap:5px;
+  font-size:11.5px;font-weight:600;border-radius: var(--r-pill);padding:4px 10px;
+  border:1px solid var(--border-soft);color:var(--text-secondary);
+  background:var(--card-bg-alt);white-space:nowrap;
+}
+.chip.good{background:rgba(52,199,89,.12);border-color:rgba(52,199,89,.28);color:var(--on-color)}
+.chip.warn{background:rgba(255,149,0,.12);border-color:rgba(255,149,0,.28);color:var(--warn)}
+.chip.bad {background:rgba(255,59,48,.12);border-color:rgba(255,59,48,.28);color:var(--bad)}
+.badge{
+  font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;
+  color:var(--text-secondary);border:1px solid var(--border-soft);
+  border-radius: var(--r-sm);padding:2px 7px;white-space:nowrap;
+}
+.badge.settled{color:var(--on-color);border-color:rgba(52,199,89,.35)}
+.badge.prov{color:var(--warn);border-color:rgba(255,149,0,.35)}
+.bar{height:8px;border-radius:5px;background:var(--track);overflow:hidden;display:flex}
+.bar-fill{height:100%;transition:width .45s cubic-bezier(.22,.61,.36,1)}
+/* 2px of surface between segments so adjacent fills never merge */
+.bar-fill + .bar-fill{box-shadow:-2px 0 0 var(--card-bg-alt)}
+
+/* ── hero ── */
+.hero{background:var(--card-bg);background-image:var(--hero-grad)}
+.hero-top{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.hero-big{
+  font-size:46px;font-weight:800;color:var(--on-color);line-height:1;
+  font-variant-numeric:tabular-nums;letter-spacing:-.03em;
+}
+.hero-big.neg{color:var(--bad)}
+.hero-lab{font-size:13px;color:var(--text-secondary);margin-top:5px}
+.hero-chips{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+
+/* the saving, split into the two things that make it up */
+.split{margin-top:18px}
+.split .bar{height:12px;border-radius: var(--r-sm)}
+.split-key{
+  display:flex;gap:18px;flex-wrap:wrap;margin-top:9px;
+  font-size:12px;color:var(--text-secondary);
+}
+.split-key i{
+  width:9px;height:9px;border-radius:3px;display:inline-block;
+  margin-right:6px;vertical-align:-1px;
+}
+.split-key b{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums;margin-left:5px}
+.hero-foot{
+  display:flex;gap:8px 22px;flex-wrap:wrap;margin-top:16px;
+  padding-top:14px;border-top:1px solid var(--border-soft);
+  font-size:12.5px;color:var(--text-secondary);
+}
+.hero-foot b{color:var(--text);font-variant-numeric:tabular-nums;font-weight:600}
+
+/* ── bill columns ── */
+.wh-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+.wh-col{background:var(--card-bg-alt);border:1px solid var(--border-soft);border-radius: var(--r-lg);padding:14px 15px}
+.wh-head{font-size:14px;font-weight:700;margin-bottom:2px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.wh-date{font-size:11px;color:var(--text-secondary);font-weight:400}
+.wh-head .badge{margin-left:auto}
+.bill-big{
+  font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;
+  letter-spacing:-.025em;margin:10px 0 3px;
+}
+.bill-big .bb-lab{font-size:11px;font-weight:500;color:var(--text-muted);letter-spacing:0}
+.cover{margin:11px 0 13px}
+.cover-lab{
+  display:flex;justify-content:space-between;font-size:10.5px;
+  color:var(--text-muted);margin-bottom:5px;
+}
+.kv{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;padding:3px 0;color:var(--text-secondary)}
+.kv b{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums}
+.kv .good{color:var(--on-color)}
+.kv-sub{font-size:11px;color:var(--text-muted);margin:-2px 0 5px}
+.kv.netrow{border-top:1px solid var(--border-soft);margin-top:7px;padding-top:9px}
+.kv.netrow b{font-size:16px}
+.wh-badge{margin-top:11px;border-radius: var(--r-sm);padding:8px 11px;font-size:12.5px;font-weight:600;text-align:center}
+.wh-badge.good{background:rgba(52,199,89,.15);color:var(--on-color)}
+.wh-badge.bad{background:rgba(255,59,48,.15);color:var(--bad)}
+.wh-badge.prov{color:var(--text-secondary);border:1px dashed var(--border-soft)}
+.wh-badge.unknown{color:var(--text-muted);border:1px dashed var(--border-soft)}
+.note{font-size:11px;color:var(--text-muted);margin-top:12px;line-height:1.45}
+.note a{color:var(--accent)}
+
+/* ── metric tiles ── */
+.mtiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.mtile{background:var(--card-bg-alt);border:1px solid var(--border-soft);border-radius: var(--r-md);padding:11px 13px}
+.mt-lab{font-size:10.5px;color:var(--text-secondary);margin-bottom:3px}
+.mt-val{font-size:19px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.mt-sub{font-size:10.5px;color:var(--text-muted);margin-top:2px}
+.mt-val.good{color:var(--on-color)}
+.mt-val.bad{color:var(--bad)}
+.mt-val.warn{color:var(--warn)}
+.mtile .bar{margin-top:8px;height:6px}
+
+/* ── charts ──
+   Two single-axis charts rather than one with a second y-scale. The daily
+   figures run to a few pounds and the running total to tens, so sharing an
+   axis flattened the bars — but two scales on one frame invite the reader to
+   compare heights that are not comparable. */
+.chart-wrap{position:relative;height:220px;margin-top:14px}
+.chart-wrap.h150{height:150px}
+.chart-cap{font-size:11px;color:var(--text-muted);margin-top:8px;text-align:center}
+
+/* ── tariff ── */
+.tariff-rate{font-size:30px;font-weight:700;color:var(--warn);font-variant-numeric:tabular-nums;letter-spacing:-.025em}
+.tariff-rate.exp{color:var(--grid-exp)}
+.tariff-sub{font-size:11px;color:var(--text-secondary);margin-top:3px}
+.tariff-tmrw{margin-top:12px;padding-top:11px;border-top:1px solid var(--border-soft);font-size:13px;color:var(--text-secondary)}
+.tariff-tmrw b{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums}
+.tmrw-up{color:var(--bad);font-weight:700}
+.tmrw-down{color:var(--on-color);font-weight:700}
+
+/* ── tables ── */
+.table-scroll{overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch}
+.period-table{width:100%;border-collapse:separate;border-spacing:0;font-size:12px}
+.period-table th{
+  text-align:right;color:var(--text-secondary);font-weight:600;padding:9px 8px;
+  border-bottom:1px solid var(--border-soft);font-size:10.5px;
+  text-transform:uppercase;letter-spacing:.4px;white-space:nowrap;
+  position:sticky;top:0;background:var(--card-bg);z-index:1;
+}
+.period-table th:first-child{text-align:left}
+.period-table td{
+  text-align:right;padding:10px 8px;border-bottom:1px solid var(--border-soft);
+  font-variant-numeric:tabular-nums;white-space:nowrap;
+}
+.period-table td:first-child{text-align:left;font-weight:600;white-space:normal}
+.period-table tbody tr:hover td{background:var(--card-bg-alt)}
+.period-table tr:last-child td{border-bottom:none}
+.period-table tfoot td{border-top:2px solid var(--border-soft);font-weight:700;padding-top:11px}
+.period-pos{color:var(--on-color)}
+.period-neg{color:var(--bad)}
+.period-table .avg{color:var(--text-muted);font-size:10.5px;display:block;font-weight:400}
+.period-table td.tdays{color:var(--text-secondary);font-size:11px;font-weight:400}
+.wow-delta{font-size:11px;font-weight:700;margin-left:5px;white-space:nowrap}
+.wow-delta.good{color:var(--on-color)}
+.wow-delta.bad{color:var(--bad)}
+.wow-delta.flat{color:var(--text-muted)}
+.chart-tabs{display:flex;gap:6px;flex-wrap:wrap}
+.chart-tab{
+  background:var(--card-bg-alt);color:var(--text-secondary);
+  border:1px solid var(--border-soft);border-radius: var(--r-sm);
+  padding:6px 14px;font-size:12px;cursor:pointer;font-family:inherit;min-height:32px;
+  transition:background .15s, color .15s, border-color .15s;
+}
+.chart-tab:hover{color:var(--text)}
+.chart-tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+/* ── loading + help tips ── */
+.loading{text-align:center;padding:60px 20px;color:var(--text-secondary)}
+.spinner{width:24px;height:24px;border:3px solid var(--off-color);border-top-color:var(--accent);
+  border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.skel{
+  background:linear-gradient(90deg,var(--card-bg-alt) 25%,var(--border-soft) 37%,var(--card-bg-alt) 63%);
+  background-size:400% 100%;animation:shimmer 1.4s ease-in-out infinite;border-radius: var(--r-sm);
+}
+@keyframes shimmer{0%{background-position:100% 50%}100%{background-position:0 50%}}
+.help-tip{
+  position:fixed;pointer-events:none;z-index:60;max-width:300px;
+  background:var(--card-bg);border:1px solid var(--border);border-radius: var(--r-md);
+  padding:10px 14px;box-shadow:0 12px 32px rgba(0,0,0,.15);
+  opacity:0;transform:translateY(4px);transition:opacity .18s ease, transform .18s ease;
+  font-size:12px;line-height:1.45;
+}
+.help-tip.help-tip-show{opacity:1;transform:translateY(0)}
+.help-tip .help-tip-title{color:var(--accent);font-weight:600;font-size:11px;letter-spacing:.4px;text-transform:uppercase;margin-bottom:6px}
+
+/* ── Safari / a11y polish ── */
+html{-webkit-text-size-adjust:100%}
+body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+@supports (min-height:100dvh){body{min-height:100dvh}}
+a,button,input,select,textarea{-webkit-tap-highlight-color:transparent}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{
+    transition-duration:.01ms !important;
+    animation-duration:.01ms !important;
+    scroll-behavior:auto !important;
+  }
+}
+@media(max-width:480px){
+  header{padding:8px 12px;padding-top:max(8px,env(safe-area-inset-top))}
+  header h1{font-size:15px}
+  .main{padding:10px;gap:10px}
+  .card{padding:14px}
+  .hero-big{font-size:36px}
+  .bill-big{font-size:24px}
+  .tariff-rate{font-size:26px}
+  .hero-chips{justify-content:flex-start}
+}
+
+.topbar h1 .dsh-icon,h1 .dsh-icon{width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;opacity:.85}
+</style>
+</head>
+<body>
+<header>
+  <div class="hdr-left"><a class="nav-btn" href="index.html">&larr; Home</a></div>
+  <div class="hdr-center">
+    <h1><span data-icon="money"></span> Cost</h1>
+    <span class="topbar-status"><span class="ts">Updated <span id="ts">&#8212;</span></span> &middot; every 30s</span>
+  </div>
+  <div class="hdr-right"><a class="nav-btn" href="energy.html">Energy &rarr;</a></div>
+</header>
+
+<main class="main">
+
+  <!-- hero: today's solar benefit, split into its two parts -->
+  <section class="card hero" data-help-title="Saved by solar today" data-help="What today would have cost on grid alone, minus what it actually netted. Two parts: the import you avoided by using your own generation, and what the export earned. Both at today's unit rates — the standing charge is the same either way, so it cancels out and is not in this figure.">
+    <div class="hero-top">
+      <div>
+        <div class="hero-big" id="hero-benefit">&#8212;</div>
+        <div class="hero-lab">saved today by solar &amp; battery</div>
+      </div>
+      <div class="hero-chips" id="hero-chips"></div>
+    </div>
+
+    <div class="split">
+      <div class="bar" id="split-bar" role="img" aria-label="Saving split between avoided import and export earnings">
+        <div class="bar-fill" id="split-avoided" style="width:0%;background:var(--solar)"></div>
+        <div class="bar-fill" id="split-export"  style="width:0%;background:var(--chart-export)"></div>
+      </div>
+      <div class="split-key">
+        <span data-help-title="Import avoided" data-help="Units the house used that came from solar or the battery instead of the grid, valued at today's unit rate.">
+          <i style="background:var(--solar)"></i>Import avoided<b id="key-avoided">&#8212;</b>
+        </span>
+        <span data-help-title="Export earned" data-help="Units sent to the grid today, valued at the export rate.">
+          <i style="background:var(--chart-export)"></i>Export earned<b id="key-export">&#8212;</b>
+        </span>
+      </div>
+    </div>
+
+    <div class="hero-foot">
+      <span data-help-title="Import paid" data-help="Units drawn from the grid today at today's unit rate. This is the unit cost alone — the standing charge sits in the whole-house bill below.">Import paid (units) <b id="hero-import">&#8212;</b></span>
+      <span data-help-title="Grid-only" data-help="What today's usage would have cost drawn entirely from the grid, at today's unit rate.">Grid-only would&#8217;ve cost <b id="hero-nosolar">&#8212;</b></span>
+      <span data-help-title="Net grid, energy only" data-help="Export earnings minus import unit cost. This is NOT the same as the bill columns' &ldquo;Net after bill&rdquo; below, which also carries the standing charge and gas — the two are on different footings and will differ.">Net grid <span class="muted">(energy only)</span> <b id="hero-net">&#8212;</b></span>
+      <span id="hero-rates" class="muted"></span>
+    </div>
+  </section>
+
+  <!-- bills -->
+  <div class="sec-label">Bills</div>
+  <section class="card">
+    <h2 data-help-title="Whole-house bill" data-help="Total Octopus cost per day — electric AND gas, unit plus standing charges (the standing charges are inside each fuel's figure, not a separate addend). Settled days are frozen at the rates that applied on the day; provisional days firm up when Octopus settles, about a day in arrears.">Whole-house bill <span class="h2sub">electric + gas, incl. standing charges</span></h2>
+    <div class="wh-grid" id="bill-cols">
+      <div class="wh-col"><div class="skel" style="height:150px"></div></div>
+      <div class="wh-col"><div class="skel" style="height:150px"></div></div>
+      <div class="wh-col"><div class="skel" style="height:150px"></div></div>
+    </div>
+    <div class="note" id="gas-note" style="display:none">Gas has no live meter, so provisional days estimate it from the latest settled day — the figures firm up once Octopus settles (~a day in arrears).</div>
+  </section>
+
+  <!-- month -->
+  <div class="sec-label">This month</div>
+  <section class="card">
+    <h2 data-help-title="Month position" data-help="Settled days only. Net = export earnings minus the whole-house bill. The projection is a simple run-rate: the settled-days average scaled to the full month — not a forecast.">Month to date <span class="h2sub" id="month-sub">&#8212;</span></h2>
+    <div class="mtiles">
+      <div class="mtile" data-help-title="Net position" data-help="Export earnings minus the whole-house bill across this month's settled days.">
+        <div class="mt-lab">Net position</div><div class="mt-val" id="m-net">&#8212;</div><div class="mt-sub" id="m-net-sub"></div>
+      </div>
+      <div class="mtile" data-help-title="Bill so far" data-help="Whole-house bill total across the settled days this month.">
+        <div class="mt-lab">Bill so far</div><div class="mt-val" id="m-bill">&#8212;</div><div class="mt-sub" id="m-days"></div>
+      </div>
+      <div class="mtile" data-help-title="Export so far" data-help="Export earnings total across the settled days this month.">
+        <div class="mt-lab">Export so far</div><div class="mt-val good" id="m-export">&#8212;</div>
+        <div class="mt-sub" id="m-cover-sub"></div>
+        <div class="bar"><div class="bar-fill" id="m-cover-bar" style="width:0%;background:var(--chart-export)"></div></div>
+      </div>
+      <div class="mtile" data-help-title="Days self-funded" data-help="Settled days this month where export earnings covered the whole-house bill outright.">
+        <div class="mt-lab">Days self-funded</div><div class="mt-val" id="m-sf">&#8212;</div>
+        <div class="mt-sub">export beat the bill</div>
+        <div class="bar"><div class="bar-fill" id="m-sf-bar" style="width:0%;background:var(--on-color)"></div></div>
+      </div>
+      <div class="mtile" data-help-title="Full-month projection" data-help="Settled-days average scaled to the number of days in this month. A run-rate, not a forecast — sunny or cloudy weeks will move it.">
+        <div class="mt-lab">Projected month net</div><div class="mt-val" id="m-proj">&#8212;</div>
+        <div class="mt-sub" id="m-proj-sub">run-rate</div>
+        <div class="bar"><div class="bar-fill" id="m-days-bar" style="width:0%;background:var(--accent)"></div></div>
+      </div>
+      <div class="mtile" data-help-title="Octopus account balance" data-help="Live account balance from the Octopus Kraken ledger.">
+        <div class="mt-lab">Account balance</div><div class="mt-val" id="m-bal">&#8212;</div><div class="mt-sub" id="m-bal-sub"></div>
+      </div>
+    </div>
+    <div class="chart-wrap"><canvas id="chart30" role="img" aria-label="Daily whole-house bill against export earnings, last 30 settled days"></canvas></div>
+    <div class="chart-cap">Daily bill against export earnings &mdash; last 30 settled days</div>
+    <div class="chart-wrap h150"><canvas id="chart30cum" role="img" aria-label="Running net across the last 30 settled days"></canvas></div>
+    <div class="chart-cap">Running net across the same window &mdash; above the line means export has covered the bills</div>
+  </section>
+
+  <section class="card" id="wow-card" style="display:none">
+    <h2 data-help-title="Week on week" data-help="The last 7 recorded days against the 7 before, and against the same week last year (364-day offset so weekdays line up). Estimated from each day's saved rates and kWh — electric unit plus standing charge, export at the day's rate — so it is close to, but not identical to, the bill-exact figures above. Days recorded before the plugin started saving the standing charge use the most recent known one, otherwise old and new weeks would not be comparable.">Week on week <span class="h2sub">&#8212; and the same week last year</span></h2>
+    <div class="table-scroll">
+      <table class="period-table" id="wow-table"></table>
+    </div>
+    <div class="note" id="wow-note"></div>
+  </section>
+
+  <!-- ── grid events (Axle VPP) ──
+       Hidden entirely until the ledger holds something. An install with no VPP
+       account should not carry an empty card explaining a thing it does not
+       do. -->
+  <section class="card" id="vpp-card" style="display:none">
+    <h2 data-help-title="Grid events" data-help="What Axle has settled for each grid event. They pay £1 per kWh of the change measured against a baseline — what they reckon the house would have done anyway — rather than on raw export, so the kWh here reads a little under what actually left the house.">Grid events <span class="h2sub" id="vpp-sub">&#8212;</span></h2>
+
+    <div class="mtiles" style="margin-bottom:14px">
+      <div class="mtile" data-help-title="Available" data-help="Sitting in the Axle account, ready to withdraw.">
+        <div class="mt-lab">Available to withdraw</div>
+        <div class="mt-val good" id="v-avail">&#8212;</div>
+        <div class="mt-sub" id="v-avail-sub"></div>
+      </div>
+      <div class="mtile" data-help-title="Lifetime" data-help="Everything Axle has ever credited, grid events and everything else.">
+        <div class="mt-lab">Lifetime earnings</div>
+        <div class="mt-val" id="v-life">&#8212;</div>
+        <div class="mt-sub" id="v-life-sub"></div>
+      </div>
+      <div class="mtile" data-help-title="This month" data-help="Settled grid events and top-ups dated this month. Nothing settled yet reads as pending, not as zero — settlement runs several days behind the event.">
+        <div class="mt-lab">This month</div>
+        <div class="mt-val" id="v-month">&#8212;</div>
+        <div class="mt-sub" id="v-month-sub"></div>
+      </div>
+      <div class="mtile" data-help-title="From grid events" data-help="Grid events alone, with the monthly floor payments and any signup or referral credit kept separate — lumping them together flatters the battery.">
+        <div class="mt-lab">From grid events</div>
+        <div class="mt-val" id="v-events">&#8212;</div>
+        <div class="mt-sub" id="v-events-sub"></div>
+      </div>
+    </div>
+
+    <div class="table-scroll">
+      <table class="period-table" id="vpp-table"></table>
+    </div>
+    <div class="note" id="vpp-note"></div>
+  </section>
+
+  <!-- tariff context -->
+  <div class="sec-label">Rates</div>
+  <div class="grid2">
+    <section class="card">
+      <h2 data-help-title="Import tariff" data-help="Octopus Tracker — the unit rate changes daily at midnight and is published the day before.">Import tariff</h2>
+      <div class="tariff-rate"><span id="tar-rate">&#8212;</span>p</div>
+      <div class="tariff-sub" id="tar-name">&#8212;</div>
+      <div class="tariff-tmrw">Tomorrow: <b id="tar-tmrw">&#8212;</b>p <span id="tar-delta"></span></div>
+    </section>
+    <section class="card">
+      <h2 data-help-title="Export rate" data-help="Octopus Outgoing — flat rate per kWh exported.">Export rate</h2>
+      <div class="tariff-rate exp"><span id="exp-rate">&#8212;</span>p</div>
+      <div class="tariff-sub">Octopus Outgoing &middot; flat</div>
+      <div class="tariff-tmrw">Tomorrow&#8217;s forecast surplus: <b id="exp-surplus">&#8212;</b> &middot; about <b id="exp-surplus-gbp">&#8212;</b></div>
+    </section>
+  </div>
+
+  <!-- totals -->
+  <div class="sec-label">Totals</div>
+  <section class="card">
+    <h2 data-help-title="Period totals" data-help="Roll-ups over rolling 7 days, this calendar month and rolling 365 days. Every historical day is valued at its own saved rate. The row is a sum you can check by eye: solar benefit = grid-only − elec bill + export earned.">Period totals <span class="h2sub">and per-day average</span></h2>
+    <div class="table-scroll">
+    <table class="period-table">
+      <thead><tr>
+        <th>Period</th><th>Days</th><th>Solar benefit</th><th>Grid-only</th>
+        <th>Elec bill</th><th>Export earned</th><th>Import paid</th><th>Net grid</th>
+      </tr></thead>
+      <tbody id="period-tbody"><tr><td colspan="8" class="muted">&#8212;</td></tr></tbody>
+    </table>
+    </div>
+    <div class="note">
+      <strong>Solar benefit = Grid-only &minus; Elec bill + Export earned.</strong>
+      &ldquo;Grid-only&rdquo; is what the same usage would have cost with no solar behind it, standing charge included.
+      &ldquo;Elec bill&rdquo; is the actual whole-house electric cost, unit plus standing.
+      &ldquo;Net grid&rdquo; is export earnings minus import unit cost.
+      Bill-exact from the Octopus ledger. Energy charts live on the <a href="energy.html">Energy page</a>.
+    </div>
+  </section>
+
+  <section class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+      <h2 style="margin-bottom:0" data-help-title="Calendar months" data-help="Per-month financials for the selected year, on the same basis as Period totals. The current month is flagged partial.">&#8203;<span id="cal-year">&#8212;</span> calendar months</h2>
+      <div class="chart-tabs" id="cal-year-tabs"></div>
+    </div>
+    <div class="table-scroll">
+    <table class="period-table">
+      <thead><tr>
+        <th>Month</th><th>Days</th><th>Solar benefit</th><th>Grid-only</th>
+        <th>Elec bill</th><th>Export earned</th><th>Import paid</th><th>Net grid</th>
+      </tr></thead>
+      <tbody id="cal-tbody"><tr><td colspan="8" class="muted">&#8212;</td></tr></tbody>
+      <tfoot>
+        <tr>
+          <td>Year total</td>
+          <td class="tdays" id="cal-total-days">&#8212;</td>
+          <td id="cal-total-benefit">&#8212;</td>
+          <td id="cal-total-nosolar">&#8212;</td>
+          <td id="cal-total-elec">&#8212;</td>
+          <td id="cal-total-export">&#8212;</td>
+          <td id="cal-total-import">&#8212;</td>
+          <td id="cal-total-net">&#8212;</td>
+        </tr>
+      </tfoot>
+    </table>
+    </div>
+  </section>
+
+</main>
+
+<script src="chart.umd.min.js"></script>
+<script src="energy-calc.js"></script>
+<script src="config.js" onerror="window.INDIGO_CONFIG_MISSING=true"></script>
+<script src="dashboards-auth.js"></script>
+<script src="dashboards-gate.js"></script>
+<script src="dashboards-ui.js"></script>
+
+<script>
+/* Cost page data layer — the same bill-exact source as the Energy page:
+   SigenEnergyManager economics via the reflector-friendly sigenApi proxy.
+   Shared arithmetic and formatters live in energy-calc.js, where they are
+   tested by tests/test_energy_cost.mjs. */
+const SIGEN_PROXY = '/message/com.clives.indigoplugin.dashboards/sigenApi/';
+async function sigenFetch(path, query) {
+  // v2.70.0: never call /message/ while the plugin is stopping — a
+  // request in flight when the host dies wedges all of IWS for ~5 min.
+  if (window.DashGate && await window.DashGate.check() === "down")
+    throw new Error("Dashboards plugin restarting");
+  const key = (window.INDIGO_CONFIG || {}).apiKey || '';
+  return fetch(SIGEN_PROXY, {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: path, query: query || {} }),
+  });
+}
+
+const POLL_INTERVAL_MS = 30000;
+const gbp = DashCalc.gbp;
+/* setText/cssVar/tweenNumber come from the SHARED dashboards-ui.js — this
+   page carried its own older copies, which is exactly the drift the shared
+   module exists to prevent. esc/_wireHelpTips stay local (not in DashUI). */
+const setText = DashUI.setText;
+function esc(t) { return String(t == null ? '' : t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+const cssVar = DashUI.cssVar;
+function fmtDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso + 'T12:00:00');
+  return isNaN(d) ? iso : d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+const tweenNumber = DashUI.tweenNumber;
+function setBar(id, pct, colour) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.style.width = Math.max(0, Math.min(100, pct || 0)) + '%';
+  if (colour) el.style.background = colour;
+}
+
+/* hover help tips (desktop) */
+function _wireHelpTips() {
+  let tip = document.getElementById('help-tip');
+  if (!tip) {
+    tip = document.createElement('div');
+    tip.id = 'help-tip';
+    tip.className = 'help-tip';
+    document.body.appendChild(tip);
+  }
+  const showTip = (e) => {
+    const el = e.currentTarget;
+    const title = el.dataset.helpTitle || '';
+    const body = el.dataset.help || '';
+    tip.innerHTML = (title ? '<div class="help-tip-title">' + esc(title) + '</div>' : '') + esc(body);
+    tip.classList.add('help-tip-show');
+    moveTip(e);
+  };
+  const moveTip = (e) => {
+    const r = tip.getBoundingClientRect();
+    const margin = 12;
+    let x = e.clientX + 14, y = e.clientY + 14;
+    if (x + r.width > window.innerWidth - margin) x = window.innerWidth - r.width - margin;
+    if (y + r.height > window.innerHeight - margin) y = e.clientY - r.height - 14;
+    tip.style.left = Math.max(margin, x) + 'px';
+    tip.style.top = Math.max(margin, y) + 'px';
+  };
+  const hideTip = () => tip.classList.remove('help-tip-show');
+  document.querySelectorAll('[data-help]').forEach(el => {
+    if (el.dataset._helpWired) return;
+    el.dataset._helpWired = '1';
+    el.addEventListener('mouseenter', showTip);
+    el.addEventListener('mousemove', moveTip);
+    el.addEventListener('mouseleave', hideTip);
+  });
+}
+
+/* ── hero ── */
+function renderHero(econ) {
+  const t = (econ && econ.today) || {};
+  const heroEl = document.getElementById('hero-benefit');
+  if (t.solar_benefit_gbp != null) {
+    const v = t.solar_benefit_gbp;
+    tweenNumber(heroEl, Math.abs(v), { decimals: 2, prefix: v < 0 ? '−£' : '£', duration: 700 });
+    heroEl.classList.toggle('neg', v < 0);
+  } else {
+    heroEl.textContent = '—';
+    heroEl.classList.remove('neg');
+  }
+
+  /* The saving has two halves worth seeing apart: the import you did not have
+     to buy, and what the export brought in. */
+  const avoided = (t.no_solar_cost_gbp != null && t.import_cost_gbp != null)
+    ? Math.max(0, t.no_solar_cost_gbp - t.import_cost_gbp) : null;
+  const earned = t.export_revenue_gbp;
+  setText('key-avoided', gbp(avoided));
+  setText('key-export', gbp(earned));
+  const tot = (avoided || 0) + (earned || 0);
+  if (tot > 0) {
+    setBar('split-avoided', (avoided || 0) / tot * 100);
+    setBar('split-export', (earned || 0) / tot * 100);
+  } else {
+    setBar('split-avoided', 0);
+    setBar('split-export', 0);
+  }
+
+  setText('hero-import', gbp(t.import_cost_gbp));
+  setText('hero-nosolar', gbp(t.no_solar_cost_gbp));
+  const netEl = document.getElementById('hero-net');
+  netEl.textContent = gbp(t.net_today_gbp, { signed: true });
+  /* An unknown figure stays neutral — it used to be painted green. */
+  netEl.className = (t.net_today_gbp == null) ? 'muted'
+    : (t.net_today_gbp < 0 ? 'bad' : 'good');
+
+  const rates = [];
+  if (t.import_rate_p != null) rates.push('import ' + DashCalc.fmtPence(t.import_rate_p) + 'p');
+  if (t.export_rate_p != null) rates.push('export ' + DashCalc.fmtPence(t.export_rate_p) + 'p');
+  setText('hero-rates', rates.length ? 'at ' + rates.join(' / ') : '');
+}
+
+function renderHeroChips(d) {
+  const wrap = document.getElementById('hero-chips');
+  if (!wrap) return;
+  const wh = (d.economics && d.economics.whole_house) || {};
+  const chips = [];
+  const today = wh.today;
+  if (today && today.rate_missing) {
+    chips.push('<span class="chip warn">Unit rate unavailable</span>');
+  } else if (today && today.covered === true) {
+    chips.push('<span class="chip good">Today covered</span>');
+  } else if (today && today.covered === false) {
+    chips.push('<span class="chip">Today not yet covered</span>');
+  }
+  if (wh.month && wh.month.days) {
+    chips.push('<span class="chip ' + (wh.month.in_credit ? 'good' : '') + '">Month '
+      + gbp(wh.month.net_gbp, { signed: true }) + '</span>');
+  }
+  if (wh.balance_gbp != null) {
+    chips.push('<span class="chip ' + (wh.balance_gbp >= 0 ? 'good' : 'bad') + '">Balance '
+      + gbp(wh.balance_gbp) + '</span>');
+  }
+  wrap.innerHTML = chips.join('');
+}
+
+/* ── bill columns ──
+   Standing charges are INSIDE the Electric and Gas figures; they show as a
+   per-fuel "unit + standing" subline, never as a third addend. */
+function billCol(label, c, dateIso) {
+  if (!c) {
+    return '<div class="wh-col"><div class="wh-head">' + esc(label)
+      + '<span class="badge">awaiting settlement</span></div><div class="muted">—</div></div>';
+  }
+  const tag = c.provisional
+    ? '<span class="badge prov">provisional</span>'
+    : '<span class="badge settled">settled</span>';
+  const head = '<div class="wh-head">' + esc(label)
+    + (dateIso ? ' <span class="wh-date">' + esc(fmtDate(dateIso)) + '</span>' : '') + tag + '</div>';
+
+  /* The plugin returns nulls rather than a guess when the unit rate is
+     unavailable — it used to bill the standing charge on its own and call the
+     day covered. */
+  if (c.rate_missing || c.bill_gbp == null) {
+    return '<div class="wh-col">' + head
+      + '<div class="bill-big muted">— <span class="bb-lab">whole-house</span></div>'
+      + '<div class="kv"><span>Export earned</span><b class="good">' + gbp(c.export_gbp) + '</b></div>'
+      + '<div class="wh-badge unknown">No unit rate for this day — the bill cannot be worked out</div>'
+      + '</div>';
+  }
+
+  const net = Number(c.net_gbp);
+  /* How much of the bill the export covered, capped at 100 so a good day does
+     not run off the end of the bar. */
+  const coverPct = c.bill_gbp > 0 ? Math.min(100, (c.export_gbp || 0) / c.bill_gbp * 100) : 100;
+  const cover = '<div class="cover">'
+    + '<div class="cover-lab"><span>export covers ' + coverPct.toFixed(0) + '% of the bill</span>'
+    + '<span>' + gbp(c.export_gbp) + ' / ' + gbp(c.bill_gbp) + '</span></div>'
+    + '<div class="bar"><div class="bar-fill" style="width:' + coverPct.toFixed(1)
+    + '%;background:' + (coverPct >= 100 ? 'var(--chart-export)' : 'var(--warn)') + '"></div></div></div>';
+
+  const badge = c.provisional
+    ? '<div class="wh-badge prov">' + (net >= 0 ? 'On track — covering by ' + gbp(Math.abs(net)) : 'Behind by ' + gbp(Math.abs(net))) + ' (provisional)</div>'
+    : (c.covered
+      ? '<div class="wh-badge good">Covered — export beat the bill by ' + gbp(Math.abs(net)) + '</div>'
+      : '<div class="wh-badge bad">Short — export missed the bill by ' + gbp(Math.abs(net)) + '</div>');
+
+  return '<div class="wh-col">' + head
+    + '<div class="bill-big">' + gbp(c.bill_gbp) + ' <span class="bb-lab">whole-house</span></div>'
+    + cover
+    + '<div class="kv"><span>Electric</span><b>' + gbp(c.electric_gbp) + '</b></div>'
+    + '<div class="kv-sub">unit ' + gbp(c.electric_unit_gbp) + '  +  standing ' + gbp(c.electric_standing_gbp) + '</div>'
+    + '<div class="kv"><span>Gas' + (c.gas_estimated ? ' (est)' : '') + '</span><b>' + gbp(c.gas_gbp) + '</b></div>'
+    + '<div class="kv-sub">unit ' + gbp(c.gas_unit_gbp) + '  +  standing ' + gbp(c.gas_standing_gbp) + '</div>'
+    + '<div class="kv"><span>Export earned</span><b class="good">' + gbp(c.export_gbp) + '</b></div>'
+    + '<div class="kv netrow"><span>Net after bill</span><b class="' + (net >= 0 ? 'good' : 'bad') + '">' + gbp(net, { signed: true }) + '</b></div>'
+    + badge
+    + '</div>';
+}
+
+/* ── charts ──
+   Deliberately two charts on one axis each, not one chart with two y-scales.
+   The daily figures run to a few pounds and the running total to tens; a
+   second axis would invite comparing heights that are not comparable. */
+const CHART_BASE = {
+  responsive: true, maintainAspectRatio: false, animation: false, resizeDelay: 200,
+  interaction: { mode: 'index', intersect: false },
+  plugins: {
+    tooltip: {
+      backgroundColor: 'rgba(28,28,30,.94)', borderColor: 'rgba(128,128,128,.25)',
+      borderWidth: 1, titleColor: '#a5a2ff', bodyColor: '#f5f5f7', padding: 9,
+      callbacks: { label: (c) => c.dataset.label + ': ' + gbp(c.parsed.y) },
+    },
+  },
+};
+function axisTicks() {
+  return { font: { size: 9 }, color: cssVar('--text-secondary', '#86868b') };
+}
+
+let _chart30 = null, _chart30Sig = null;
+function renderChart30(series) {
+  const cv = document.getElementById('chart30');
+  if (!cv || typeof Chart === 'undefined') return;
+  const rows = (series || []).filter(s => s && s.date != null);
+  if (!rows.length) return;
+  const round2 = n => Math.round((Number(n) || 0) * 100) / 100;
+  const labels = rows.map(s => {
+    const d = new Date(s.date + 'T12:00:00');
+    return isNaN(d) ? s.date : (d.getDate() + '/' + (d.getMonth() + 1));
+  });
+  const bill = rows.map(s => round2(s.bill));
+  const exp  = rows.map(s => round2(s.export));
+  const billColor = cssVar('--chart-bill', '#ba7517');
+  const expColor  = cssVar('--chart-export', '#34c759');
+  const sig = labels.join('|') + '#' + exp.join(',') + '#' + bill.join(',');
+  const existing = (typeof Chart.getChart === 'function') ? Chart.getChart(cv) : _chart30;
+  if (existing) {
+    _chart30 = existing;
+    if (_chart30Sig === sig) return;
+    _chart30Sig = sig;
+    existing.data.labels = labels;
+    existing.data.datasets[0].data = exp;
+    existing.data.datasets[1].data = bill;
+    existing.update('none');
+    return;
+  }
+  _chart30Sig = sig;
+  _chart30 = new Chart(cv, {
+    type: 'bar',
+    data: { labels: labels, datasets: [
+      { label: 'Export earned', data: exp,  backgroundColor: expColor,  borderRadius: 4, borderSkipped: 'bottom' },
+      { label: 'Whole-house bill', data: bill, backgroundColor: billColor, borderRadius: 4, borderSkipped: 'bottom' },
+    ] },
+    options: { ...CHART_BASE,
+      /* 2px of surface between neighbouring bars so they never merge */
+      datasets: { bar: { barPercentage: 0.86, categoryPercentage: 0.82 } },
+      plugins: { ...CHART_BASE.plugins,
+        legend: { labels: { color: cssVar('--text-secondary', '#86868b'),
+                            font: { size: 10.5 }, boxWidth: 10, boxHeight: 10, usePointStyle: true,
+                            pointStyle: 'rectRounded' } } },
+      scales: {
+        x: { grid: { display: false }, ticks: { ...axisTicks(), maxRotation: 0, autoSkip: true } },
+        y: { beginAtZero: true, grid: { color: 'rgba(128,128,128,.12)' },
+             ticks: { ...axisTicks(), callback: v => '£' + v } },
+      } }
+  });
+}
+
+let _chartCum = null, _chartCumSig = null;
+function renderChartCum(series) {
+  const cv = document.getElementById('chart30cum');
+  if (!cv || typeof Chart === 'undefined') return;
+  const rows = (series || []).filter(s => s && s.date != null);
+  if (!rows.length) return;
+  const round2 = n => Math.round((Number(n) || 0) * 100) / 100;
+  const labels = rows.map(s => {
+    const d = new Date(s.date + 'T12:00:00');
+    return isNaN(d) ? s.date : (d.getDate() + '/' + (d.getMonth() + 1));
+  });
+  let running = 0;
+  const cum = rows.map(s => { running += (Number(s.export) || 0) - (Number(s.bill) || 0); return round2(running); });
+  const accent = cssVar('--accent', '#5856d6');
+  const sig = labels.join('|') + '#' + cum.join(',');
+  const existing = (typeof Chart.getChart === 'function') ? Chart.getChart(cv) : _chartCum;
+  if (existing) {
+    _chartCum = existing;
+    if (_chartCumSig === sig) return;
+    _chartCumSig = sig;
+    existing.data.labels = labels;
+    existing.data.datasets[0].data = cum;
+    existing.update('none');
+    return;
+  }
+  _chartCumSig = sig;
+  _chartCum = new Chart(cv, {
+    type: 'line',
+    data: { labels: labels, datasets: [
+      { label: 'Running net', data: cum, borderColor: accent, borderWidth: 2,
+        pointRadius: 0, pointHoverRadius: 4, tension: 0.3, fill: { target: 'origin' },
+        backgroundColor: 'rgba(88,86,214,.10)' },
+    ] },
+    options: { ...CHART_BASE,
+      /* One series, so the caption names it and no legend box is needed. */
+      plugins: { ...CHART_BASE.plugins, legend: { display: false } },
+      scales: {
+        x: { grid: { display: false }, ticks: { ...axisTicks(), maxRotation: 0, autoSkip: true } },
+        y: { grid: { color: 'rgba(128,128,128,.12)' },
+             ticks: { ...axisTicks(), callback: v => '£' + v } },
+      } }
+  });
+}
+
+/* ── period + calendar tables ──
+   Column order matches the identity the note states:
+     solar benefit = grid-only − elec bill + export earned  */
+function moneyCell(total, avg, posNeg) {
+  if (total == null) return '<td class="muted">—</td>';
+  const cls = posNeg ? (total < 0 ? 'period-neg' : 'period-pos') : '';
+  const totStr = (total < 0 ? '−£' : '£') + Math.abs(total).toFixed(2);
+  const avgStr = (avg == null) ? ''
+    : '<span class="avg">' + (avg < 0 ? '−£' : '£') + Math.abs(avg).toFixed(2) + '/day</span>';
+  return '<td class="' + cls + '">' + totStr + avgStr + '</td>';
+}
+function moneyRow(label, p) {
+  const days = (p && p.days != null) ? p.days : 0;
+  if (!days) return '<tr><td>' + label + '</td><td class="tdays">0</td><td colspan="6" class="muted">no data</td></tr>';
+  const elec = p.elec_whole_house_total_gbp;
+  const elecAvg = (p.elec_whole_house_avg_gbp != null) ? p.elec_whole_house_avg_gbp
+    : ((elec != null && days) ? elec / days : null);
+  return '<tr><td>' + label + '</td><td class="tdays">' + days + '</td>'
+    + moneyCell(p.benefit_total_gbp,  p.benefit_avg_gbp,  true)
+    + moneyCell(p.no_solar_total_gbp, p.no_solar_avg_gbp, false)
+    + moneyCell(elec, elecAvg, false)
+    + moneyCell(p.export_total_gbp,   p.export_avg_gbp,   false)
+    + moneyCell(p.import_total_gbp,   p.import_avg_gbp,   false)
+    + moneyCell(p.net_total_gbp,      p.net_avg_gbp,      true)
+    + '</tr>';
+}
+function renderPeriods(periods) {
+  const tbody = document.getElementById('period-tbody');
+  if (!tbody || !periods) return;
+  tbody.innerHTML = [['week', 'Week (last 7d)'], ['month', 'Month (so far)'], ['year', 'Year (last 365d)']]
+    .map(([key, label]) => moneyRow(label, periods[key] || {})).join('');
+}
+
+let _calCurrentYear = null;
+let _calYearsLoaded = false;
+async function loadYearTabs() {
+  if (_calYearsLoaded) return;
+  _calYearsLoaded = true;
+  try {
+    const r = await sigenFetch('years');
+    if (!r.ok) return;
+    const d = await r.json();
+    const years = (d.years || []).slice();
+    const cy = new Date().getFullYear().toString();
+    if (years.indexOf(cy) === -1) years.push(cy);
+    years.sort();
+    const wrap = document.getElementById('cal-year-tabs');
+    if (!wrap) return;
+    wrap.innerHTML = years.map(y => '<button class="chart-tab" data-year="' + y + '">' + y + '</button>').join('');
+    wrap.querySelectorAll('.chart-tab').forEach(btn => {
+      btn.addEventListener('click', () => switchCalYear(btn.dataset.year));
+    });
+    setActiveCalTab(_calCurrentYear || cy);
+  } catch (e) { /* silent */ }
+}
+function setActiveCalTab(year) {
+  document.querySelectorAll('#cal-year-tabs .chart-tab').forEach(b => {
+    b.classList.toggle('active', b.dataset.year === year);
+  });
+}
+async function switchCalYear(year) {
+  _calCurrentYear = year;
+  setActiveCalTab(year);
+  try {
+    const r = await sigenFetch('calendar', { year: year });
+    if (!r.ok) return;
+    renderCalendarMonths(await r.json());
+  } catch (e) { /* silent */ }
+}
+function renderCalendarMonths(cal) {
+  if (!cal || !cal.months) return;
+  if (_calCurrentYear === null) _calCurrentYear = String(cal.year);
+  loadYearTabs();
+  setText('cal-year', cal.year);
+  const tbody = document.getElementById('cal-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = cal.months.map(m => {
+    if (!m.days) return '<tr><td>' + esc(m.month_name) + '</td><td class="tdays">0</td><td colspan="6" class="muted">—</td></tr>';
+    const label = esc(m.month_name) + (m.partial ? ' <span class="muted">(partial)</span>' : '');
+    return moneyRow(label, m);
+  }).join('');
+
+  /* Sum first, round once — totalling twelve already-rounded months drifted by
+     up to six pence across a year. */
+  const sums = { days: 0, benefit: 0, net: 0, nosol: 0, imp: 0, exp: 0, elec: 0 };
+  let any = false, incomplete = false;
+  cal.months.forEach(m => {
+    if (!m.days) return;
+    any = true;
+    // A month with days but no benefit/net figure (rate missing, older
+    // record set) renders as a dash in its own row; the footer used to add
+    // it as zero and print a confident total (v2.95.4).
+    if (m.benefit_total_gbp == null || m.net_total_gbp == null) incomplete = true;
+    sums.days    += m.days;
+    sums.benefit += m.benefit_total_gbp  || 0;
+    sums.net     += m.net_total_gbp      || 0;
+    sums.nosol   += m.no_solar_total_gbp || 0;
+    sums.imp     += m.import_total_gbp   || 0;
+    sums.exp     += m.export_total_gbp   || 0;
+    sums.elec    += m.elec_whole_house_total_gbp || 0;
+  });
+  setText('cal-total-days', any ? sums.days : '0');
+  const fmtG = (v, posNeg) => {
+    if (!any) return '—';
+    const cls = posNeg ? (v < 0 ? 'period-neg' : 'period-pos') : '';
+    return '<span class="' + cls + '">' + (v < 0 ? '−£' : '£') + Math.abs(v).toFixed(2) + '</span>';
+  };
+  const incompleteTag = incomplete ? '<small class="muted" title="one or more months have no figure for this"> (incomplete)</small>' : '';
+  document.getElementById('cal-total-benefit').innerHTML = fmtG(sums.benefit, true) + incompleteTag;
+  document.getElementById('cal-total-nosolar').innerHTML = fmtG(sums.nosol, false);
+  document.getElementById('cal-total-elec').innerHTML    = fmtG(sums.elec, false);
+  document.getElementById('cal-total-export').innerHTML  = fmtG(sums.exp, false);
+  document.getElementById('cal-total-import').innerHTML  = fmtG(sums.imp, false);
+  document.getElementById('cal-total-net').innerHTML     = fmtG(sums.net, true) + incompleteTag;
+}
+
+/* ── month tiles ── */
+function renderMonth(econ) {
+  const wh = (econ && econ.whole_house) || {};
+  const m = wh.month;
+  if (m) {
+    const mn = document.getElementById('m-net');
+    mn.textContent = gbp(m.net_gbp, { signed: true });
+    mn.className = 'mt-val ' + (m.in_credit ? 'good' : 'bad');
+    setText('m-net-sub', m.in_credit ? 'in credit' : 'owing');
+    setText('m-bill', gbp(m.bill_gbp));
+    setText('m-export', gbp(m.export_gbp));
+    setText('m-days', m.days + ' settled day' + (m.days === 1 ? '' : 's'));
+
+    const coverPct = m.bill_gbp > 0 ? Math.min(100, (m.export_gbp || 0) / m.bill_gbp * 100) : 100;
+    setText('m-cover-sub', 'covers ' + coverPct.toFixed(0) + '% of the bill');
+    setBar('m-cover-bar', coverPct);
+
+    /* Month length and label from the SERVER's month, not the browser's — the
+       plugin works in Europe/London, and on the 1st or last of a month a
+       browser in another timezone would label and scale a different month. */
+    const key = serverMonthKey(econ);
+    const [yy, mm] = key ? key.split('-').map(Number) : [null, null];
+    const dim = (yy && mm) ? new Date(yy, mm, 0).getDate()
+      : new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+    const monthName = (yy && mm)
+      ? new Date(yy, mm - 1, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })
+      : new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+    setText('month-sub', monthName + ' · ' + m.days + ' of ' + dim + ' days settled');
+    setBar('m-days-bar', m.days / dim * 100);
+
+    if (m.days > 0) {
+      const projNet = m.net_gbp / m.days * dim;
+      const pe = document.getElementById('m-proj');
+      pe.textContent = gbp(projNet, { signed: true });
+      pe.className = 'mt-val ' + (projNet >= 0 ? 'good' : 'bad');
+      setText('m-proj-sub', 'bill ' + gbp(m.bill_gbp / m.days * dim)
+        + ' / export ' + gbp(m.export_gbp / m.days * dim));
+    }
+  }
+  if (wh.self_funded) {
+    const sf = document.getElementById('m-sf');
+    const cov = wh.self_funded.covered_days, tot = wh.self_funded.settled_days;
+    sf.textContent = cov + ' / ' + tot;
+    sf.className = 'mt-val ' + ((tot > 0 && cov === tot) ? 'good' : '');
+    setBar('m-sf-bar', tot > 0 ? cov / tot * 100 : 0);
+  }
+  if (wh.balance_gbp != null) {
+    const bal = document.getElementById('m-bal');
+    bal.textContent = gbp(wh.balance_gbp);
+    bal.className = 'mt-val ' + (wh.balance_gbp >= 0 ? 'good' : 'bad');
+    setText('m-bal-sub', wh.balance_gbp >= 0 ? 'in credit' : 'owing');
+  }
+  renderChart30(wh.series30 || []);
+  renderChartCum(wh.series30 || []);
+}
+
+/* The current month as the plugin sees it ("YYYY-MM"), taken from the month it
+   flags partial. Falls back to the browser's month if nothing is flagged. */
+function serverMonthKey(econ) {
+  const cal = econ && econ.calendar_months;
+  if (cal && cal.months) {
+    const partial = cal.months.find(m => m.partial && m.month_key);
+    if (partial) return partial.month_key;
+  }
+  return null;
+}
+
+/* ── main render ── */
+function render(d) {
+  const econ = d.economics || {};
+  const wh = econ.whole_house || {};
+
+  renderHero(econ);
+  renderHeroChips(d);
+
+  const cols = document.getElementById('bill-cols');
+  cols.innerHTML = billCol('Today', wh.today, null)
+    + billCol('Yesterday', wh.yesterday, wh.yesterday_date)
+    + billCol('Day before', wh.day_before, wh.day_before_date);
+  const anyEst = [wh.today, wh.yesterday, wh.day_before].some(c => c && c.gas_estimated);
+  document.getElementById('gas-note').style.display = anyEst ? 'block' : 'none';
+
+  renderMonth(econ);
+
+  if (d.tariff) {
+    setText('tar-rate', d.tariff.today_p != null ? Number(d.tariff.today_p).toFixed(2) : '—');
+    setText('tar-name', (d.tariff.name || '—') + (d.tariff.product_code ? ' · ' + d.tariff.product_code : ''));
+    setText('tar-tmrw', d.tariff.tomorrow_p != null ? Number(d.tariff.tomorrow_p).toFixed(2) : 'TBD');
+    const delta = document.getElementById('tar-delta');
+    if (delta && d.tariff.today_p != null && d.tariff.tomorrow_p != null) {
+      const diff = d.tariff.tomorrow_p - d.tariff.today_p;
+      if (Math.abs(diff) < 0.05) { delta.textContent = ''; delta.className = ''; }
+      else if (diff > 0) { delta.textContent = '▲ +' + diff.toFixed(1) + 'p'; delta.className = 'tmrw-up'; }
+      else { delta.textContent = '▼ ' + diff.toFixed(1) + 'p'; delta.className = 'tmrw-down'; }
+    }
+  }
+  if (d.solar) {
+    /* Two decimals, trimmed — a 12.5p rate used to print as "13p" while the
+       maths went on using 12.5. */
+    setText('exp-rate', DashCalc.fmtPence(d.solar.export_rate_p));
+    setText('exp-surplus', d.solar.tomorrow_surplus_kwh != null
+      ? Math.round(d.solar.tomorrow_surplus_kwh) + ' kWh' : '—');
+    setText('exp-surplus-gbp', gbp(d.solar.tomorrow_revenue_gbp));
+  }
+
+  renderPeriods(econ.periods);
+  const incomingYear = econ.calendar_months && econ.calendar_months.year;
+  if (_calCurrentYear === null || String(incomingYear) === _calCurrentYear) {
+    renderCalendarMonths(econ.calendar_months);
+  } else {
+    loadYearTabs();
+  }
+
+  _wireHelpTips();
+}
+
+/* ── week-on-week compare ──
+   Money view of the last 7 recorded days against the 7 before, and the same
+   week last year (a 364-day offset keeps weekdays aligned). Estimated
+   page-side from each day's saved rates and kWh — close to, but not the same
+   engine as, the bill-exact figures above; the card's help text says so. */
+async function refreshWeekCompare() {
+  try {
+    /* 400 days so the year window can reach. The plugin capped this at 365
+       until v5.52.0, which is why the year column never appeared: the window
+       needs offsets 364-370 and only 364 was ever reachable. */
+    const r = await sigenFetch('daily', { days: 400 });
+    if (!r.ok) return;
+    const records = (await r.json()).records || [];
+    if (records.length < 14) return;
+    const byDate = new Map(records.map(x => [x.date, x]));
+    const anchorMs = Date.parse(records[records.length - 1].date) + 43200000; // noon, DST-safe
+
+    /* Most of the early history predates per-day standing charges. Without a
+       fallback those days billed at £0.00 standing while recent days carried
+       ~62p, so a comparison reported a bill rise that was nothing but the age
+       of the data. */
+    const fallbackStanding = DashCalc.latestStandingP(records);
+    const fallbackUnit = DashCalc.latestUnitP(records);
+    const fallbackExport = DashCalc.latestExportP ? DashCalc.latestExportP(records) : null;
+    const cur  = DashCalc.winMoney(byDate, anchorMs, 0,   fallbackStanding, fallbackUnit, fallbackExport);
+    const prev = DashCalc.winMoney(byDate, anchorMs, 7,   fallbackStanding, fallbackUnit, fallbackExport);
+    const yr   = DashCalc.winMoney(byDate, anchorMs, 364, fallbackStanding, fallbackUnit, fallbackExport);
+    const haveYear = yr.found >= 5;
+
+    const g = v => (v < 0 ? '&#8722;&pound;' : '&pound;') + Math.abs(v).toFixed(2);
+    const cell = (w, f) => w.found ? g(w[f]) : '&#8212;';
+    const chip = (c, p, higherIsGood) => {
+      const pct = DashCalc.pctDelta(c, p);
+      if (pct === null) return '';
+      if (Math.abs(pct) < 0.5) return '<span class="wow-delta flat">&#8212;</span>';
+      const up = pct > 0;
+      const good = (up === higherIsGood);
+      return '<span class="wow-delta ' + (good ? 'good' : 'bad') + '">'
+        + (up ? '&#9650;' : '&#9660;') + ' ' + Math.abs(pct).toFixed(0) + '%</span>';
+    };
+    const ROWS = [
+      { label: 'Electric bill &asymp;', field: 'bill', good: false },
+      { label: 'Export earned',         field: 'exp',  good: true  },
+      { label: 'Net position',          field: 'net',  good: true  },
+    ];
+    // Say how many days a window actually holds when it is short: a 7-day
+    // total divided into a 5-day one read as a drop (v2.95.4).
+    const days = w => (w.found && w.found < 7) ? ` (${w.found} recorded)` : '';
+    let html = '<thead><tr><th></th><th>Last 7 days' + days(cur) + '</th><th>Previous 7' + days(prev) + '</th><th>Same week last year</th></tr></thead><tbody>';
+    for (const m of ROWS) {
+      html += '<tr><td>' + m.label + '</td>'
+        + '<td><strong>' + cell(cur, m.field) + '</strong> '
+        + chip((cur.found && cur.found === prev.found) ? cur[m.field] : null, prev.found ? prev[m.field] : null, m.good) + '</td>'
+        + '<td>' + cell(prev, m.field) + '</td>'
+        + '<td>' + (haveYear ? cell(yr, m.field) : '&#8212;') + '</td></tr>';
+    }
+    document.getElementById('wow-table').innerHTML = html + '</tbody>';
+
+    const note = document.getElementById('wow-note');
+    const estimated = (cur.found - cur.standingKnown) + (prev.found - prev.standingKnown);
+    let text = 'Estimated from each day’s saved rates.';
+    if (estimated > 0 && fallbackStanding != null) {
+      text += ' ' + estimated + ' of these days predate saved standing charges and use the latest known '
+        + DashCalc.fmtPence(fallbackStanding) + 'p/day, so the two weeks stay comparable.';
+    }
+    const rateEst = (cur.found - (cur.rateKnown || 0)) + (prev.found - (prev.rateKnown || 0));
+    if (rateEst > 0 && fallbackUnit != null) {
+      text += ' ' + rateEst + ' of these days have no saved unit rate and use the latest known one.';
+    }
+    if (!haveYear) {
+      text += ' Year-on-year unlocks once a full year of history exists — recording started '
+        + new Date(records[0].date + 'T12:00:00').toLocaleDateString('en-GB',
+            { day: 'numeric', month: 'short', year: 'numeric' }) + '.';
+    } else {
+      text += ' The year column uses a 364-day offset so weekdays line up.';
+    }
+    note.textContent = text;
+    document.getElementById('wow-card').style.display = '';
+  } catch (e) { /* optional card — never breaks the page */ }
+}
+
+/* ── grid events (Axle VPP) ──
+   Two sources, never merged: what Axle SETTLED and what our own snapshots
+   recorded. The gap between them is the point of showing both — Axle pays on
+   the change against a baseline, so ~0.2 kWh under our figure is ordinary and
+   a much bigger gap means the export ran past the paid hour.
+
+   THE RULE THROUGHOUT: a figure that is not known renders as "pending" or a
+   dash, NEVER as £0.00. Settlement runs days behind the event, so the newest
+   event is normally unsettled, and a confident zero there would report a loss
+   that never happened. */
+function _vppMoney(v) {
+  return v == null ? null : (v < 0 ? '&#8722;&pound;' : '&pound;') + Math.abs(v).toFixed(2);
+}
+
+async function refreshVpp() {
+  try {
+    const r = await sigenFetch('vpp');
+    if (!r.ok) return;                       // older plugin: no such path
+    const d = await r.json();
+    if (!d || (d.lifetime_gbp == null && !(d.events || []).length)) return;
+
+    const set = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
+
+    set('v-avail', _vppMoney(d.available_gbp) || 'unknown');
+    set('v-avail-sub', d.can_withdraw
+      ? 'ready to withdraw'
+      : (d.withdraw_threshold_gbp != null
+          ? 'threshold ' + _vppMoney(d.withdraw_threshold_gbp) : ''));
+
+    set('v-life', _vppMoney(d.lifetime_gbp) || 'unknown');
+    set('v-life-sub', (d.events_settled || 0) + ' settled event'
+      + ((d.events_settled === 1) ? '' : 's'));
+
+    /* month_to_date_gbp is null — not 0 — when nothing has settled this month.
+       Early in a month that is the normal state and it must not read as a
+       month of no earnings. */
+    if (d.month_to_date_gbp == null) {
+      set('v-month', '&#8212;');
+      set('v-month-sub', 'nothing settled yet');
+    } else {
+      set('v-month', _vppMoney(d.month_to_date_gbp));
+      set('v-month-sub', d.events_pending
+        ? d.events_pending + ' awaiting settlement' : 'settled');
+    }
+
+    const kinds = d.by_kind || {};
+    set('v-events', _vppMoney(kinds.events_gbp) || '&#8212;');
+    const other = [];
+    if (kinds.top_ups_gbp) other.push(_vppMoney(kinds.top_ups_gbp) + ' monthly');
+    if (kinds.other_gbp)   other.push(_vppMoney(kinds.other_gbp) + ' bonuses');
+    set('v-events-sub', other.length ? 'plus ' + other.join(' &middot; ') : '');
+
+    /* Next window, or the honest absence of one. */
+    const nx = d.next_event;
+    let sub;
+    if (nx) {
+      const hrs = nx.seconds_until_start / 3600;
+      const when = hrs > 0
+        ? (hrs < 1 ? 'in ' + Math.round(hrs * 60) + ' min' : 'in ' + hrs.toFixed(1) + ' h')
+        : 'running now';
+      sub = 'next ' + esc(nx.start_local) + '&ndash;' + esc(nx.end_local) + ' (' + when + ')';
+    } else {
+      sub = 'no window announced';
+    }
+    document.getElementById('vpp-sub').innerHTML = '&#8212; ' + sub;
+
+    /* Axle's settled figures only. Our own per-event export is still recorded
+       in the ledger, and is still the thing that makes an over-running window
+       detectable, but it does not belong in this table: it is measured over a
+       different span from Axle's, so putting the two side by side invited the
+       reading that a wide gap meant Axle had short-changed us. */
+    const rows = (d.events || []).map(e => {
+      const paid = e.settled
+        ? '<strong>' + _vppMoney(e.paid_gbp) + '</strong>'
+        : '<span class="muted">pending</span>';
+      const paidKwh = e.paid_kwh == null ? '&#8212;' : e.paid_kwh.toFixed(3);
+      return '<tr><td>' + esc(e.start_local) + '&ndash;' + esc(e.end_local) + '</td>'
+        + '<td>' + paid + '</td><td>' + paidKwh + '</td></tr>';
+    }).join('');
+
+    document.getElementById('vpp-table').innerHTML =
+      '<thead><tr><th>Window</th><th>Paid</th><th>kWh</th></tr></thead><tbody>'
+      + (rows || '<tr><td colspan="3" class="muted">&#8212;</td></tr>') + '</tbody>';
+
+    let note = 'Axle pays £1 per kWh of the change measured against a baseline, '
+      + 'so the kWh here is a little under what actually left the house.';
+    if (d.axle_age_days != null && d.axle_age_days >= 7) {
+      note += ' The Axle figures were last imported ' + Math.round(d.axle_age_days)
+        + ' days ago, so recently settled events may be missing.';
+    }
+    document.getElementById('vpp-note').innerHTML = note;
+    document.getElementById('vpp-card').style.display = '';
+  } catch (e) { /* optional card — never breaks the page */ }
+}
+
+/* ── boot ── */
+async function load() {
+  try {
+    const r = await sigenFetch('status');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    // An upstream error payload has no economics; rendering it blanked every
+    // bill to "awaiting settlement" under a fresh timestamp (v2.95.3). Name
+    // the error in the header and keep the last good figures on screen.
+    if (d && d.error) { setText('ts', 'Error: ' + d.error); return; }
+    setText('ts', d.timestamp || new Date().toLocaleTimeString('en-GB'));
+    render(d);
+  } catch (e) {
+    setText('ts', 'Fetch error: ' + e.message);
+  }
+}
+if (!window.INDIGO_CONFIG || !window.INDIGO_CONFIG.apiKey) { location.href = 'index.html'; }
+else if (window.DashFeatures && DashFeatures.sigenAbsent('Cost')) {
+  /* v3.13.0: no SigenEnergyManager — the notice is on screen in place of the
+     page and there is nothing to poll. */
+}
+else {
+  load(); setInterval(load, POLL_INTERVAL_MS);
+  refreshWeekCompare(); setInterval(refreshWeekCompare, 60 * 60 * 1000);
+  /* Five minutes: the ledger only moves when an event ends or Axle's figures
+     are re-imported, so polling it at the page's 30s cadence would be asking
+     the same question a hundred times an hour. */
+  refreshVpp(); setInterval(refreshVpp, 5 * 60 * 1000);
+}
+_wireHelpTips();
+</script>
+<script src="dashboards-icons.js"></script>
+<script src="a11y.js"></script>
+<script src="standalone-nav.js"></script>
+</body>
+</html>

@@ -1,0 +1,178 @@
+/* Filename:    dashboards-theme.css
+ * Description: The one place the dashboard's colours, type and shape live.
+ *
+ *              Every page used to declare the whole palette itself, light and
+ *              dark, in its own inline <style>. Twenty-three copies drift, and
+ *              they had: the page background was #f5f5f7 on eighteen pages and
+ *              #f2f2f7 on five, so it visibly changed as you navigated;
+ *              fourteen pages used #ff453a for errors, which is the DARK-mode
+ *              red, in light mode; there were three different card shadows,
+ *              two different secondary greys and three different track greys.
+ *              None of that was a decision anyone made.
+ *
+ *              Canonical values are taken from the five most recently
+ *              redesigned pages (energy, cost, index, system-health, timeline)
+ *              rather than by majority, because those are the ones that were
+ *              deliberately chosen.
+ *
+ *              Loaded with a <link> BEFORE each page's own <style>, so a page
+ *              can still override anything it genuinely needs to. The hero and
+ *              money gradients are page-specific by design and are left that
+ *              way — the defaults here are only a starting point.
+ * Author:      CliveS & Claude Opus 5
+ * Date:        28-07-2026
+ * Version:     1.0
+ */
+
+:root {
+    /* ── surfaces ── */
+    --bg:             #f2f2f7;
+    --card-bg:        #ffffff;
+    --card-bg-alt:    #f5f5f8;
+
+    /* ── text ── */
+    --text:           #1d1d1f;
+    --text-secondary: #86868b;
+    --text-muted:     #98989d;
+
+    /* ── lines and separators ── */
+    --border:         #d2d2d7;
+    --border-soft:    #e8e8ed;
+    --track:          #e5e5ea;   /* progress-bar trough */
+
+    /* ── states ── */
+    --accent:         #5856d6;
+    --on-color:       #34c759;
+    --off-color:      #d2d2d7;
+    --warn:           #ff9500;
+    --bad:            #ff3b30;
+
+    --shadow:         0 1px 2px rgba(0,0,0,0.05), 0 4px 14px rgba(0,0,0,0.05);
+    --shadow-hover:   0 8px 24px rgba(0,0,0,0.10);
+
+    /* ── semantic energy colours ──
+       Change these here and every chart, ribbon and flow leg follows.
+
+       Measured under Viénot/Brettel simulation with CIEDE2000. Solar against
+       battery was the worst pair on the board and the one that matters most,
+       since they sit next to each other on the flow diagram, in the Sankey and
+       in every chart:
+
+                          light            dark
+         before      protan  5.4       protan  2.9      both a clear fail
+         after       protan 33.4       protan 21.9
+
+       SOLAR IS UNCHANGED. Only the battery green moved, from a bright mint to
+       a deeper sea green, which does the whole job: under protanopia amber and
+       mint converge to nearly the same olive, and darkening one of them is the
+       one move that separates them. It also fixes a readability problem nobody
+       had noticed — the old mint was contrast 2.22 on a white card, below the
+       3.0 that large bold text needs, and it is 6.56 now.
+
+       Nothing else regressed: the worst remaining pair went 8.8 -> 11.0. Two
+       faults are deliberately NOT fixed. Green versus red cannot be fixed at
+       all — it is the defining confusion of deuteranopia, so position and
+       labels have to carry it, and on the flow diagram and Sankey they do.
+       Export blue versus home purple (deutan 5.0) needs home to become a
+       raspberry #a02261, which is a bigger change of identity than the fault
+       warrants while both are labelled wherever they appear. */
+    --solar:          #f5a623;
+    --bat:            #2c6850;
+    --bat-in:         #1a8f3c;   /* charging — darker than --bat so the charge
+                                    and discharge bars read apart */
+    --bat-chg:        #0a84ff;   /* flow-diagram battery leg, charging */
+    --bat-dis:        #ff3b30;   /* flow-diagram battery leg, discharging */
+    --grid-imp:       #ff3b30;
+    --grid-exp:       #0a84ff;
+    --home-load:      #af52de;
+    --chart-bill:     #ba7517;
+    --chart-export:   #34c759;
+    --move:           #34a0d6;   /* timeline: movement lane */
+    --now:            #ff3b30;   /* timeline: the playhead */
+
+    /* ── gradients (pages override these; these are the neutral defaults) ── */
+    --hero-grad:  linear-gradient(160deg, rgba(88,86,214,0.05), rgba(10,132,255,0.04) 45%, rgba(52,199,89,0.05));
+    --money-grad: linear-gradient(160deg, rgba(52,199,89,0.06), rgba(255,255,255,0) 60%);
+
+    /* ── type ──
+       Fourteen pages declared the stack without 'Segoe UI', so on Windows and
+       Android most of the dashboard fell back to generic sans while a handful
+       did not. One stack now, and pages should use var(--font-ui). */
+    --font-ui: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+    /* ── shape ──
+       Seventeen different border-radius values were in use with no scale
+       behind them — 43 declarations at 10px sitting beside 16 at 12px and 24
+       at 14px, which is what makes a UI feel slightly off without your being
+       able to name why. 162 of them now read from this scale.
+       What is deliberately NOT on it: anything at 5px or below. Those are bar
+       and dot radii tuned to the element's own height (5px on a 10px-tall bar
+       is a fully round end), so snapping them to a scale would be wrong. */
+    --r-xs:   4px;    /* tiny chips */
+    --r-sm:   8px;    /* badges, chips, inputs, small buttons */
+    --r-md:  12px;    /* nav buttons, inner tiles */
+    --r-lg:  16px;    /* cards */
+    --r-xl:  18px;    /* hero cards */
+    --r-pill: 999px;  /* pills and toggles */
+
+    /* ── aliases ──
+       Five names ended up meaning the same colour (--good/--green/--soc/
+       --chart-export/--on-color were all #34c759; --err/--red/--now/--bad all
+       the same red; --amber and --warn the same). Kept as aliases so existing
+       page CSS carries on working unchanged rather than needing 23 rewrites.
+       Prefer the canonical name in new work. */
+    --good:  var(--on-color);
+    --green: var(--on-color);
+    --soc:   var(--on-color);
+    --err:   var(--bad);
+    --red:   var(--bad);
+    --amber: var(--warn);
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg:             #000000;
+        --card-bg:        #1c1c1e;
+        --card-bg-alt:    #26262a;
+
+        --text:           #f5f5f7;
+        --text-secondary: #98989d;
+        --text-muted:     #6e6e72;
+
+        --border:         #38383a;
+        --border-soft:    #2c2c2e;
+        --track:          #2c2c2e;
+
+        --accent:         #7d7aff;
+        --on-color:       #30d158;
+        --off-color:      #48484a;
+        --warn:           #ff9f0a;
+        --bad:            #ff453a;
+
+        --shadow:         0 1px 3px rgba(0,0,0,0.4);
+        --shadow-hover:   0 8px 24px rgba(0,0,0,0.55);
+
+        --solar:          #ffb340;
+        --bat:            #409677;
+        --bat-in:         #1e7a35;
+        --bat-chg:        #0a84ff;
+        --bat-dis:        #ff453a;
+        --grid-imp:       #ff453a;
+        --grid-exp:       #0a84ff;
+        --home-load:      #bf5af2;
+        --chart-bill:     #d4622e;
+        --chart-export:   #30d158;
+        --move:           #64d2ff;
+        --now:            #ff453a;
+
+        --hero-grad:  linear-gradient(160deg, rgba(125,122,255,0.10), rgba(10,132,255,0.06) 45%, rgba(48,209,88,0.08));
+        --money-grad: linear-gradient(160deg, rgba(48,209,88,0.10), rgba(0,0,0,0) 60%);
+    }
+}
+
+/* Camera page: the connection-policy / build line in the footer. Deliberately
+   quiet — it is diagnostic, not chrome — but always present, because two
+   rounds of "the cameras still stop" were spent not knowing which policy the
+   device had chosen or whether it had the current page at all. */
+.link-policy { opacity: .65; font-size: .82em; letter-spacing: .2px; }

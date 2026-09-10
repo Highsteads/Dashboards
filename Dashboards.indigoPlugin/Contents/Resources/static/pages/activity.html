@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<!--
+  Filename:    activity.html
+  Description: Activity feed + automation health. A curated "house diary" from
+               the Indigo event log (lock/door, safety and system events),
+               collapsed error/warning alerts, and an automation panel — what
+               fires next, what watches for problems, what's switched off, and
+               the per-person door-code roster. All via the Dashboards plugin's
+               server-side activityFeed endpoint.
+  Author:      CliveS & Claude Opus 4.8
+  Date:        01-07-2026
+  Version:     1.0
+-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta name="indigo-page-name" content="Activity">
+    <meta name="indigo-page-icon" content="list.bullet.rectangle">
+    <meta name="indigo-page-description" content="House diary and automation health">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Dashboards">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#5856d6">
+    <link rel="apple-touch-icon" sizes="180x180" href="/public/dashboards/apple-touch-icon.png">
+    <title>Activity</title>
+    <link rel="stylesheet" href="dashboards-theme.css">
+    <style>
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: var(--font-ui);
+            background: var(--bg); color: var(--text);
+            padding: max(80px, calc(72px + env(safe-area-inset-top))) 0 max(32px, env(safe-area-inset-bottom));
+            min-height: 100vh; -webkit-overflow-scrolling: touch; }
+        .topbar { position: fixed; top: 0; left: 0; right: 0; z-index: 10;
+            background: var(--card-bg); border-bottom: 1px solid var(--border); box-shadow: var(--shadow);
+            padding: 10px max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left));
+            padding-top: max(10px, env(safe-area-inset-top)); }
+        .topbar-3col { display: grid; grid-template-columns: 1fr 2fr 1fr; align-items: center; gap: 8px;
+            max-width: 900px; margin: 0 auto; }
+        .hdr-left { justify-self: start; } .hdr-right { justify-self: end; }
+        .hdr-center { justify-self: stretch; text-align: center; min-width: 0;
+            display: flex; flex-direction: column; align-items: center; gap: 1px; line-height: 1.15; }
+        .hdr-center h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
+        .topbar-status { font-size: 11px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+        .nav-btn { background: var(--card-bg); border: 1px solid var(--border); color: var(--accent);
+            padding: 8px 14px; border-radius: var(--r-md); font-size: 14px; font-weight: 600; cursor: pointer;
+            font-family: inherit; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;
+            min-height: 36px; box-shadow: 0 1px 2px rgba(0,0,0,0.08); white-space: nowrap; }
+        .container { max-width: 900px; margin: 0 auto;
+            padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left)); }
+
+        .card { background: var(--card-bg); border-radius: var(--r-lg); padding: 14px 16px; box-shadow: var(--shadow); margin-bottom: 14px; }
+        .card-title { font-size: 13px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        .card-title .pill { font-size: 11px; font-weight: 600; color: var(--text-secondary); }
+        .sub-h { font-size: 12px; font-weight: 700; color: var(--text-secondary); margin: 12px 0 4px; text-transform: uppercase; letter-spacing: .03em; }
+        .sub-h:first-child { margin-top: 0; }
+
+        .row { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); font-size: 13px; }
+        .row:first-child { border-top: 0; }
+        .row .ic { flex: 0 0 18px; text-align: center; font-size: 14px; line-height: 1.4; }
+        .row .bd { flex: 1; min-width: 0; }
+        .row .bd .m { line-height: 1.35; word-break: break-word; }
+        .row .bd .s { font-size: 11.5px; color: var(--text-secondary); margin-top: 1px; }
+        .row .rt { flex: 0 0 auto; font-size: 11.5px; color: var(--text-secondary); font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .row.err { border-left: 3px solid var(--bad); padding-left: 8px; margin-left: -8px; }
+        .row.warn { border-left: 3px solid var(--warn); padding-left: 8px; margin-left: -8px; }
+        .cnt { display: inline-block; font-size: 11px; font-weight: 700; padding: 0 6px; border-radius: var(--r-sm); margin-left: 6px;
+            background: var(--track); color: var(--text-secondary); }
+        .cnt.err { background: rgba(255,69,58,0.16); color: var(--bad); }
+        .cnt.warn { background: rgba(255,149,0,0.16); color: var(--warn); }
+        .kbadge { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: var(--r-sm);
+            background: var(--track); color: var(--text-secondary); }
+        .empty { font-size: 12.5px; color: var(--text-secondary); padding: 4px 0; }
+        .empty.ok { color: var(--good); }
+        .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+        .chip { font-size: 12px; padding: 4px 10px; border-radius: var(--r-sm); background: var(--track); color: var(--text);
+            display: inline-flex; align-items: center; gap: 6px; }
+        .chip b { font-weight: 700; }
+        .chip .slot { font-size: 10.5px; color: var(--text-secondary); }
+        details { margin-top: 8px; } summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--accent); padding: 4px 0; }
+        .note { font-size: 11px; color: var(--text-secondary); margin-top: 10px; line-height: 1.5; }
+        .loading { text-align: center; padding: 60px 20px; color: var(--text-secondary); }
+        .spinner { width: 24px; height: 24px; border: 3px solid var(--off-color); border-top-color: var(--accent);
+            border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .bottombar { position: sticky; bottom: 0; z-index: 10; background: var(--card-bg);
+            border-top: 1px solid var(--border); box-shadow: 0 -1px 3px rgba(0,0,0,0.08);
+            padding: 8px 16px; padding-bottom: max(8px, env(safe-area-inset-bottom)); margin-top: 16px; }
+        .bottombar-inner { text-align: center; max-width: 900px; margin: 0 auto; font-size: 13px;
+            color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+    
+        /* ═══ Shared Apple/Safari polish (v2.25.0) ═════════════════
+           Appended uniformly across pages: frosted translucent bars, laptop
+           hover states, keyboard focus rings, reduced-motion support, and
+           Safari/iOS fixes (dynamic viewport height, text-size-adjust, tap
+           highlight). Selectors a page lacks simply never match. */
+        html { -webkit-text-size-adjust: 100%; }
+        body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+        @supports (min-height: 100dvh) { body { min-height: 100dvh; } }
+        a, button, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+        :focus-visible { outline: 2px solid var(--accent, #5856d6); outline-offset: 2px; }
+        .topbar, .bottombar {
+            background: rgba(249, 249, 251, 0.82);
+            -webkit-backdrop-filter: saturate(180%) blur(20px);
+            backdrop-filter: saturate(180%) blur(20px);
+            box-shadow: none;
+        }
+        @media (prefers-color-scheme: dark) {
+            .topbar, .bottombar { background: rgba(22, 22, 24, 0.80); }
+        }
+        @media (hover: hover) and (pointer: fine) {
+            a.card:hover, a.dash-card:hover, .fav-tile:not(.fav-reading):hover, a.home-cam:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+            }
+            .nav-btn:hover { transform: translateY(-1px); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                transition-duration: 0.01ms !important;
+                animation-duration: 0.01ms !important;
+                scroll-behavior: auto !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <div class="topbar-3col">
+            <div class="hdr-left"><a class="nav-btn" href="index.html">&larr; Home</a></div>
+            <div class="hdr-center">
+                <h1>Activity</h1>
+                <span class="topbar-status">Updated <span id="ts">—</span> · Next <span id="cdwn">—</span>s</span>
+            </div>
+            <div class="hdr-right"><a class="nav-btn" href="timeline.html">Timeline →</a></div>
+        </div>
+    </header>
+    <div class="container">
+        <div id="content"><div class="loading"><div class="spinner"></div><p>Connecting…</p></div></div>
+    </div>
+
+    <script src="config.js" onerror="window.INDIGO_CONFIG_MISSING=true"></script>
+    <script src="dashboards-auth.js"></script>
+    <script src="dashboards-ui.js"></script>
+    <script src="dashboards-gate.js"></script>
+    <script>
+const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
+
+    const POLL_INTERVAL_MS = 30000;
+    let _lastUpdate = 0;
+    function _pad(n) { return String(n).padStart(2, "0"); }
+    function tickStatus() {
+        let ts = "—";
+        if (_lastUpdate) { const d = new Date(_lastUpdate); ts = _pad(d.getHours())+":"+_pad(d.getMinutes())+":"+_pad(d.getSeconds()); }
+        const elapsed = _lastUpdate ? (Date.now()-_lastUpdate)/1000 : 0;
+        const cd = Math.max(0, Math.round(POLL_INTERVAL_MS/1000 - elapsed));
+        for (const id of ["ts","ts-bot"]) { const e=document.getElementById(id); if(e) e.textContent=ts; }
+        for (const id of ["cdwn","cdwn-bot"]) { const e=document.getElementById(id); if(e) e.textContent=String(cd); }
+    }
+    setInterval(tickStatus, 1000);
+
+    const ACT_EP = "/message/com.clives.indigoplugin.dashboards/activityFeed/";
+    async function actFetch() {
+        // v2.70.0: never call /message/ while the plugin is stopping — a
+        // request in flight when the host dies wedges all of IWS for ~5 min.
+        if (window.DashGate && await window.DashGate.check() === "down")
+            throw new Error("Dashboards plugin restarting");
+        const key = (window.INDIGO_CONFIG || {}).apiKey || "";
+        return fetch(ACT_EP, { method: "POST",
+            headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
+            body: "{}" });
+    }
+
+    function esc(t) { const d = document.createElement("div"); d.textContent = String(t==null?"":t); return d.innerHTML; }
+    // Resolved at RENDER time, not module time — this inline script runs
+    // before dashboards-icons.js loads (it sits at the end of <body>), so a
+    // constant built here would freeze every icon as "" for the page's life.
+    function catIcon(cat) {
+        return { lock: I("lock"), safety: I("drop"), system: I("gear"), event: "•" }[cat] || "•";
+    }
+    function inWords(min) {
+        if (min == null || isNaN(min)) return "";
+        if (min < 1) return "now";
+        if (min < 60) return "in " + min + "m";
+        const h = Math.floor(min / 60), m = min % 60;
+        return m ? `in ${h}h ${m}m` : `in ${h}h`;
+    }
+
+    if (!window.INDIGO_CONFIG || !window.INDIGO_CONFIG.apiKey) { location.href = "index.html"; }
+    else { start(); }
+    function start() {
+        load();
+        setInterval(load, POLL_INTERVAL_MS);
+        document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
+    }
+
+    async function load() {
+        if (document.hidden) return;              // a background tab makes no /message/ calls
+        try {
+            const r = await actFetch();
+            if (!r.ok) throw new Error("HTTP " + r.status);
+            const d = await r.json();
+            _lastUpdate = Date.now(); tickStatus();
+            render(d);
+        } catch (e) {
+            document.getElementById("content").innerHTML =
+                `<div class="loading"><p>Couldn't reach the activity data.<br><small>${esc(e.message)}</small></p></div>`;
+        }
+    }
+
+    function render(d) {
+        const alerts = d.alerts || [], diary = d.diary || [], au = d.automation || {};
+        const c = au.counts || {};
+        let html = "";
+
+        // ── Alerts ────────────────────────────────────────────────────────
+        html += `<div class="card"><div class="card-title"><span>Alerts</span>
+            <span class="pill">errors &amp; warnings</span></div>`;
+        if (alerts.length) {
+            for (const a of alerts) {
+                const cls = a.level === "error" ? "err" : "warn";
+                html += `<div class="row ${cls}">
+                    <div class="bd"><div class="m">${esc(a.message)}${a.count>1?`<span class="cnt ${cls}">×${a.count}</span>`:""}</div>
+                        <div class="s">${esc(a.src)}</div></div>
+                    <div class="rt">${esc(a.last)}</div></div>`;
+            }
+        } else { html += `<div class="empty ok">${I("check")} All quiet — no errors or warnings in the recent log.</div>`; }
+        html += `</div>`;
+
+        // ── House diary ───────────────────────────────────────────────────
+        html += `<div class="card"><div class="card-title"><span>House diary</span>
+            <span class="pill">doors · safety · system</span></div>`;
+        if (diary.length) {
+            for (const e of diary) {
+                html += `<div class="row">
+                    <div class="ic">${catIcon(e.cat)}</div>
+                    <div class="bd"><div class="m">${esc(e.msg)}${e.count>1?`<span class="cnt">×${e.count}</span>`:""}</div><div class="s">${esc(e.src)}</div></div>
+                    <div class="rt">${esc(e.time)}</div></div>`;
+            }
+        } else { html += `<div class="empty">Nothing notable in the recent log — locks, doors, leaks and plugin restarts show here. A script talking to itself does not.</div>`; }
+        html += `</div>`;
+
+        // ── Automation health ─────────────────────────────────────────────
+        html += `<div class="card"><div class="card-title"><span>Automation</span>
+            <span class="pill">${c.schedules||0} schedules · ${c.triggers||0} triggers${(c.schedules_off||c.triggers_off)?` · ${(c.schedules_off||0)+(c.triggers_off||0)} off`:""}</span></div>`;
+
+        // Coming up
+        const nxt = au.next || [];
+        html += `<div class="sub-h">Coming up</div>`;
+        if (nxt.length) {
+            for (const s of nxt) {
+                html += `<div class="row"><div class="ic">⏰</div>
+                    <div class="bd"><div class="m">${esc(s.name)}</div></div>
+                    <div class="rt">${esc(s.when)} · ${esc(inWords(s.in_min))}</div></div>`;
+            }
+        } else { html += `<div class="empty">No timed schedules armed.</div>`; }
+
+        // Watching for problems
+        const w = au.watchers || [];
+        if (w.length) {
+            html += `<details><summary>Watching for problems · ${w.length}</summary>`;
+            for (const x of w) html += `<div class="row"><div class="ic">${I("shield")}</div><div class="bd"><div class="m">${esc(x.name)}</div></div></div>`;
+            html += `<div class="note">These triggers fire an action when a specific error appears in the log (SQL Logger, Z-Wave no-ack, HomeKit, and so on) — your safety net.</div></details>`;
+        }
+
+        // Switched off
+        const off = au.disabled || [];
+        if (off.length) {
+            html += `<details><summary>Switched off · ${off.length}</summary>`;
+            for (const o of off) html += `<div class="row"><div class="ic">⏸️</div><div class="bd"><div class="m">${esc(o.name)}</div></div><div class="rt"><span class="kbadge">${esc(o.kind)}</span></div></div>`;
+            html += `<div class="note">Disabled schedules and triggers. Some are off on purpose (Octopus Tracker daily rate, the VPP sweeps) — this list just makes sure nothing is off by accident.</div></details>`;
+        }
+
+        // Door codes
+        const codes = au.codes || [];
+        if (codes.length) {
+            html += `<details><summary>Door codes · ${codes.length}</summary><div class="chips" style="margin-top:8px">`;
+            for (const k of codes) {
+                const lbl = (k.label && /[a-z]/i.test(k.label)) ? k.label : "";   // never show numeric (PIN) labels
+                const who = lbl && lbl !== k.person ? `${k.person} · ${lbl}` : k.person;
+                html += `<span class="chip"><b>${esc(who)}</b><span class="slot">#${k.slot}</span></span>`;
+            }
+            html += `</div><div class="note">Who holds a front-door keypad code. When a code is used it shows up in the house diary above.</div></details>`;
+        }
+
+        html += `</div>`;
+        document.getElementById("content").innerHTML = html;
+    }
+    </script>
+
+    <footer class="bottombar">
+        <div class="bottombar-inner">Updated <span id="ts-bot">—</span> · Next refresh <span id="cdwn-bot">—</span>s</div>
+    </footer>
+    <script src="dashboards-icons.js"></script>
+<script src="a11y.js"></script>
+    <script src="standalone-nav.js"></script>
+</body>
+</html>

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<!--
+  Filename:    setup.html
+  Description: One-time setup link redeemer. Opened as setup.html#<token>,
+               it fetches the matching setup-<token>.json payload, stores the
+               API key in this browser's localStorage, asks the plugin to burn
+               the token (single use), then heads to the hub.
+  Author:      CliveS & Claude Fable 5
+  Date:        11-06-2026
+  Version:     1.0
+-->
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Dashboards — Setup</title>
+    <link rel="stylesheet" href="dashboards-theme.css">
+    <style>
+        
+        body {
+            margin: 0; background: var(--bg); color: var(--text);
+            font-family: var(--font-ui);
+            display: flex; align-items: center; justify-content: center;
+            min-height: 100vh;
+        }
+        .card {
+            background: var(--card-bg); border-radius: var(--r-lg); padding: 32px 28px;
+            max-width: 380px; margin: 16px; text-align: center;
+            box-shadow: 0 4px 24px rgba(0,0,0,.08);
+        }
+        h1 { font-size: 1.3rem; margin: 0 0 12px; }
+        p  { color: var(--text-secondary); font-size: .95rem; line-height: 1.45; }
+        .spinner {
+            width: 28px; height: 28px; margin: 0 auto 16px;
+            border: 3px solid var(--bg); border-top-color: var(--accent);
+            border-radius: 50%; animation: spin .8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .error h1 { color: var(--err); }
+        a { color: var(--accent); }
+    
+        /* ═══ Shared Apple/Safari polish (v2.25.0) ═════════════════
+           Appended uniformly across pages: frosted translucent bars, laptop
+           hover states, keyboard focus rings, reduced-motion support, and
+           Safari/iOS fixes (dynamic viewport height, text-size-adjust, tap
+           highlight). Selectors a page lacks simply never match. */
+        html { -webkit-text-size-adjust: 100%; }
+        body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+        @supports (min-height: 100dvh) { body { min-height: 100dvh; } }
+        a, button, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+        :focus-visible { outline: 2px solid var(--accent, #5856d6); outline-offset: 2px; }
+        .topbar, .bottombar {
+            background: rgba(249, 249, 251, 0.82);
+            -webkit-backdrop-filter: saturate(180%) blur(20px);
+            backdrop-filter: saturate(180%) blur(20px);
+            box-shadow: none;
+        }
+        @media (prefers-color-scheme: dark) {
+            .topbar, .bottombar { background: rgba(22, 22, 24, 0.80); }
+        }
+        @media (hover: hover) and (pointer: fine) {
+            a.card:hover, a.dash-card:hover, .fav-tile:not(.fav-reading):hover, a.home-cam:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+            }
+            .nav-btn:hover { transform: translateY(-1px); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                transition-duration: 0.01ms !important;
+                animation-duration: 0.01ms !important;
+                scroll-behavior: auto !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="card" id="card">
+        <div class="spinner"></div>
+        <h1>Setting up…</h1>
+        <p>Pairing this browser with your Indigo server.</p>
+    </div>
+    <script src="dashboards-gate.js"></script>
+<script>
+        "use strict";
+        const card = document.getElementById("card");
+
+        function fail(msg) {
+            card.classList.add("error");
+            card.innerHTML = `<h1>Setup link not valid</h1>
+                <p>${msg}</p>
+                <p>Generate a fresh link from
+                   <b>Plugins&nbsp;&rarr;&nbsp;Dashboards&nbsp;&rarr;&nbsp;Generate One-Time Setup Link</b>
+                   and try again, or enter the API key by hand on the
+                   <a href="index.html">hub page</a>.</p>`;
+        }
+
+        async function run() {
+            const token = (location.hash || "").replace(/^#/, "").trim();
+            if (!/^[A-Za-z0-9_-]{20,64}$/.test(token)) {
+                fail("No setup token found in the link.");
+                return;
+            }
+            let payload;
+            try {
+                const res = await fetch(`setup-${token}.json`, { cache: "no-store" });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                payload = await res.json();
+            } catch (e) {
+                fail("This link has already been used or has expired (links live for 10 minutes).");
+                return;
+            }
+            if (!payload || !payload.apiKey) {
+                fail("The setup payload was incomplete.");
+                return;
+            }
+
+            localStorage.setItem("indigo_config", JSON.stringify({
+                baseURL: location.origin,
+                apiKey:  payload.apiKey
+            }));
+
+            // Burn the token server-side — single use. We are authenticated
+            // now (we hold the key), so the Bearer-gated endpoint accepts it.
+            try {
+                // Skip the burn while the plugin is restarting rather than wedge
+                // IWS; an unredeemed link is swept by TTL within ten minutes.
+                if (window.DashGate && await window.DashGate.check() === "down") throw new Error("plugin restarting");
+                await fetch(`${location.origin}/message/com.clives.indigoplugin.dashboards/burnSetupToken/`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": "Bearer " + payload.apiKey
+                    },
+                    body: JSON.stringify({ token })
+                });
+            } catch (e) {
+                // Non-fatal — the TTL sweep will get it within 10 minutes.
+            }
+
+            card.innerHTML = `<h1>All paired</h1>
+                <p>This browser is now connected. Taking you to the dashboard&hellip;</p>`;
+            setTimeout(() => { location.href = "index.html"; }, 900);
+        }
+        run();
+    </script>
+    <script src="a11y.js"></script>
+</body>
+</html>

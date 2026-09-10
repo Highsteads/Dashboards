@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<!--
+  Filename:    scenes.html
+  Description: Scenes page — every Indigo action group as a tappable button,
+               grouped by Indigo folder. Driven by the plugin-generated
+               scenes.json; execution goes straight to the Indigo REST API
+               (indigo.actionGroup.execute).
+  Author:      CliveS & Claude Fable 5
+  Date:        11-06-2026
+  Version:     1.0
+-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta name="indigo-page-name" content="Scenes">
+    <meta name="indigo-page-icon" content="sparkles">
+    <meta name="indigo-page-description" content="Run Indigo action groups, grouped by folder">
+
+    <!-- iOS / macOS Web App (File → Add to Dock on Mac, Share → Add to Home Screen on iPhone). -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Dashboards">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#5856d6">
+    <link rel="apple-touch-icon" sizes="180x180" href="/public/dashboards/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="/public/dashboards/apple-touch-icon-167.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="/public/dashboards/apple-touch-icon-152.png">
+    <link rel="apple-touch-icon-precomposed" href="/public/dashboards/apple-touch-icon.png">
+    <title>Scenes</title>
+    <link rel="stylesheet" href="dashboards-theme.css">
+    <style>
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: var(--font-ui);
+            background: var(--bg); color: var(--text);
+            padding: max(80px, calc(72px + env(safe-area-inset-top))) 0 max(32px, env(safe-area-inset-bottom));
+            min-height: 100vh; -webkit-overflow-scrolling: touch;
+        }
+        .topbar {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 10;
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            padding: 10px max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left));
+            padding-top: max(10px, env(safe-area-inset-top));
+        }
+        .topbar-3col {
+            display: grid; grid-template-columns: 1fr 2fr 1fr;
+            align-items: center; gap: 8px;
+            max-width: 900px; margin: 0 auto;
+        }
+        .topbar-3col .hdr-left  { justify-self: start; display: flex; }
+        .topbar-3col .hdr-right { justify-self: end;   display: flex; }
+        .topbar-3col .hdr-center {
+            justify-self: stretch; text-align: center; min-width: 0;
+            display: flex; flex-direction: column; align-items: center;
+            gap: 1px; line-height: 1.15;
+        }
+        .topbar-3col h1 {
+            font-size: 20px; font-weight: 700; margin: 0;
+            letter-spacing: -0.02em; white-space: nowrap;
+            overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+        }
+        .topbar-3col .topbar-status {
+            font-size: 11px; color: var(--text-secondary);
+            font-variant-numeric: tabular-nums; white-space: nowrap;
+            max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+        }
+        .nav-btn {
+            background: var(--card-bg); border: 1px solid var(--border);
+            color: var(--accent); padding: 8px 14px; border-radius: var(--r-md);
+            font-size: 14px; font-weight: 600; cursor: pointer;
+            text-decoration: none; display: inline-flex; align-items: center;
+            font-family: inherit;
+        }
+        .nav-btn:active { background: var(--accent); color: #fff; }
+        main { max-width: 900px; margin: 0 auto; padding: 0 16px; }
+        .folder { margin-bottom: 24px; }
+        .folder h2 {
+            font-size: 14px; font-weight: 600; color: var(--text-secondary);
+            text-transform: uppercase; letter-spacing: .04em;
+            margin: 0 4px 10px;
+        }
+        .scene-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(min(46%, 220px), 1fr));
+            gap: 10px;
+        }
+        .scene-btn {
+            background: var(--card-bg); border: 1px solid var(--border);
+            border-radius: var(--r-lg); box-shadow: var(--shadow);
+            padding: 16px 14px; font-size: 15px; font-weight: 600;
+            color: var(--text); font-family: inherit; cursor: pointer;
+            text-align: left; line-height: 1.3;
+            transition: transform .08s, border-color .15s, background .15s;
+            -webkit-tap-highlight-color: transparent;
+            min-height: 58px;
+        }
+        .scene-btn:active { transform: scale(.97); }
+        .scene-btn.running {
+            border-color: var(--accent); color: var(--accent);
+            pointer-events: none;
+        }
+        .scene-btn.done {
+            border-color: var(--on-color); color: var(--on-color);
+        }
+        .scene-btn.failed {
+            border-color: var(--err); color: var(--err);
+        }
+        .empty, .loading {
+            color: var(--text-secondary); text-align: center;
+            padding: 48px 16px; font-size: 15px;
+        }
+        #toast {
+            position: fixed; left: 50%; transform: translateX(-50%);
+            bottom: max(24px, env(safe-area-inset-bottom)); z-index: 30;
+            background: var(--text); color: var(--bg);
+            padding: 10px 18px; border-radius: var(--r-md);
+            font-size: 14px; font-weight: 600;
+            opacity: 0; pointer-events: none; transition: opacity .25s;
+            max-width: 86vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        #toast.show { opacity: 1; }
+    
+        /* ═══ Shared Apple/Safari polish (v2.25.0) ═════════════════
+           Appended uniformly across pages: frosted translucent bars, laptop
+           hover states, keyboard focus rings, reduced-motion support, and
+           Safari/iOS fixes (dynamic viewport height, text-size-adjust, tap
+           highlight). Selectors a page lacks simply never match. */
+        html { -webkit-text-size-adjust: 100%; }
+        body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+        @supports (min-height: 100dvh) { body { min-height: 100dvh; } }
+        a, button, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+        :focus-visible { outline: 2px solid var(--accent, #5856d6); outline-offset: 2px; }
+        .topbar, .bottombar {
+            background: rgba(249, 249, 251, 0.82);
+            -webkit-backdrop-filter: saturate(180%) blur(20px);
+            backdrop-filter: saturate(180%) blur(20px);
+            box-shadow: none;
+        }
+        @media (prefers-color-scheme: dark) {
+            .topbar, .bottombar { background: rgba(22, 22, 24, 0.80); }
+        }
+        @media (hover: hover) and (pointer: fine) {
+            a.card:hover, a.dash-card:hover, .fav-tile:not(.fav-reading):hover, a.home-cam:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+            }
+            .nav-btn:hover { transform: translateY(-1px); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                transition-duration: 0.01ms !important;
+                animation-duration: 0.01ms !important;
+                scroll-behavior: auto !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <div class="topbar-3col">
+            <div class="hdr-left"><a class="nav-btn" href="index.html">&larr; Home</a></div>
+            <div class="hdr-center">
+                <h1>Scenes</h1>
+                <div class="topbar-status" id="status">Loading&hellip;</div>
+            </div>
+            <div class="hdr-right"></div>
+        </div>
+    </header>
+
+    <main id="content"><div class="loading">Loading scenes&hellip;</div></main>
+    <div id="toast"></div>
+
+    <!-- Plugin-generated config + browser-stored key merge. -->
+    <script src="config.js" onerror="window.INDIGO_CONFIG_MISSING=true"></script>
+    <script src="dashboards-auth.js"></script>
+    <script src="dashboards-ui.js"></script>
+    <!-- dashboard.js was MISSING here from v2.73.0 (commit 3b5c000, 31-Jul-2026)
+         until v2.75.0: that release swapped this page's hand-rolled fetch for
+         IndigoAPI but never added the script, so every scene press threw
+         ReferenceError straight into the catch and toasted "failed". The gate
+         goes with it — DashAction's watcher polls /message/, and an ungated
+         poll into a restarting plugin is what wedges IWS for five minutes. -->
+    <script src="dashboards-gate.js"></script>
+    <script src="dashboard.js"></script>
+    <script src="dashboards-action.js"></script>
+    <script>
+    "use strict";
+    (function () {
+        const CFG = window.INDIGO_CONFIG || {};
+        if (!CFG.baseURL || !CFG.apiKey) {
+            location.href = "index.html";   // pair via the hub's Connect form first
+            return;
+        }
+
+        const esc = s => String(s == null ? "" : s)
+            .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+
+        let toastTimer = null;
+        function toast(msg) {
+            const t = document.getElementById("toast");
+            t.textContent = msg;
+            t.classList.add("show");
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => t.classList.remove("show"), 2200);
+        }
+
+        async function executeScene(id, name, btn) {
+            // Through the shared client, not a hand-rolled fetch — the raw call
+            // bypassed every guard in IndigoAPI._cmd (PIN speed-bump, guest
+            // read-only refusal, demo simulation).
+            if (!window._scenesApi) window._scenesApi = new IndigoAPI();
+            // DashAction takes the button over and, where the scene has a watch
+            // configured (the doors), holds it until the sensors confirm the
+            // thing actually happened. The toast stays as the secondary channel
+            // — it reads at a glance from across the room, where the button
+            // does not.
+            const ok = await DashAction.run({
+                api:      window._scenesApi,
+                key:      "scene:" + id,
+                actionId: id,
+                title:    name,
+                sentText: "Sent"
+            });
+            // run() answers false from its re-entry guard when the same scene
+            // is still being watched — a second tap is "already running", not
+            // a failure (v2.95.3).
+            if (ok === false && DashAction.pending && DashAction.pending("scene:" + id)) {
+                toast(`${name} is already running`);
+            } else {
+                toast(ok ? `${name} executed` : `${name} failed`);
+            }
+        }
+
+        function render(data) {
+            const main = document.getElementById("content");
+            const folders = (data && data.folders) || [];
+            const total = folders.reduce((n, f) => n + f.scenes.length, 0);
+            document.getElementById("status").textContent =
+                total ? `${total} scenes in ${folders.length} folders` : "No scenes";
+            if (!total) {
+                main.innerHTML = `<div class="empty">No action groups to show.<br>
+                    Hidden entries can be managed via DASHBOARDS_HIDDEN_SCENES.</div>`;
+                return;
+            }
+            main.innerHTML = folders.map(f => `
+                <section class="folder">
+                    <h2>${esc(f.name)}</h2>
+                    <div class="scene-grid">
+                        ${f.scenes.map(s => `
+                            <button class="scene-btn" data-id="${s.id}" data-name="${esc(s.name)}" data-dsh-act-key="scene:${s.id}">
+                                ${esc(s.name)}
+                            </button>`).join("")}
+                    </div>
+                </section>`).join("");
+            main.querySelectorAll(".scene-btn").forEach(btn => {
+                btn.addEventListener("click", () =>
+                    executeScene(parseInt(btn.dataset.id, 10), btn.dataset.name, btn));
+            });
+            // This page reloads itself every 60 s; a door watch can easily
+            // outlive that, so repaint the takeover onto the rebuilt buttons.
+            DashAction.repaint();
+        }
+
+        async function load() {
+            try {
+                const res = await fetch("scenes.json", { cache: "no-store" });
+                if (!res.ok) throw new Error("HTTP " + res.status);
+                render(await res.json());
+            } catch (e) {
+                document.getElementById("content").innerHTML =
+                    `<div class="empty">Could not load scenes.json (${esc(e.message)}).<br>
+                     Restart the Dashboards plugin and reload.</div>`;
+                document.getElementById("status").textContent = "Error";
+            }
+        }
+
+        load();
+        setInterval(load, 60000);   // folders/groups change rarely
+    })();
+    </script>
+    <script src="a11y.js"></script>
+    <script src="standalone-nav.js"></script>
+</body>
+</html>

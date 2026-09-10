@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<!--
+  Filename:    alerts.html
+  Description: Browser notification rules (v2.6.0). Pick devices/variables and
+               conditions; while this page (or the installed home-screen app)
+               is open, matching changes raise a system notification. Rules
+               live in THIS browser's localStorage — nothing is stored on the
+               server and there is no push service, so notifications stop when
+               every dashboard tab is closed. The page says so honestly.
+  Author:      CliveS & Claude Fable 5
+  Date:        11-06-2026
+  Version:     1.0
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Alerts</title>
+<link rel="stylesheet" href="dashboards-theme.css">
+<style>
+    
+    html, body { background: var(--bg); color: var(--text); margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    header { display: flex; align-items: center; gap: 12px; padding: 14px 18px; }
+    header a { color: var(--accent); text-decoration: none; font-size: 15px; }
+    header h1 { font-size: 20px; margin: 0; flex: 1; text-align: center; }
+    header .spacer { width: 48px; }
+    main { max-width: 640px; margin: 0 auto; padding: 0 14px 32px;
+           display: flex; flex-direction: column; gap: 14px; }
+    .card { background: var(--card-bg); border: 1px solid var(--border);
+            border-radius: var(--r-lg); padding: 16px; }
+    .card h2 { margin: 0 0 8px; font-size: 16px; }
+    .hint { color: var(--text-secondary); font-size: 13.5px; line-height: 1.5; }
+    button { font-size: 15px; padding: 10px 14px; border-radius: var(--r-md); border: 0;
+             background: var(--accent); color: #fff; cursor: pointer; }
+    button.quiet { background: none; color: var(--accent); padding: 6px 8px; }
+    button:disabled { opacity: .5; }
+    select, input[type=text] { font-size: 15px; padding: 8px 10px; border-radius: var(--r-sm);
+        border: 1px solid var(--border); background: var(--bg); color: var(--text);
+        max-width: 100%; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+    .rule { display: flex; gap: 10px; align-items: center; padding: 10px 0;
+            border-top: 1px solid var(--border); }
+    .rule:first-of-type { border-top: 0; }
+    .rule .name { flex: 1; min-width: 0; }
+    .rule .name b { display: block; font-size: 15px; overflow: hidden;
+                    text-overflow: ellipsis; white-space: nowrap; }
+    .rule .name span { font-size: 13px; color: var(--text-secondary); }
+    .rule .now { font-size: 13px; color: var(--text-secondary); white-space: nowrap; }
+    .badge { font-size: 12px; padding: 3px 8px; border-radius: var(--r-sm); color: #fff; }
+    .badge.ok { background: var(--green); } .badge.off { background: var(--text-secondary); }
+    #log { list-style: none; margin: 8px 0 0; padding: 0; font-size: 14px; }
+    #log li { padding: 6px 0; border-top: 1px solid var(--border); }
+    #log li time { color: var(--text-secondary); font-size: 12.5px; margin-right: 8px; }
+    .pill { display: inline-block; font-size: 12.5px; color: var(--text-secondary);
+            border: 1px solid var(--border); border-radius: var(--r-pill); padding: 3px 10px; }
+
+        /* ═══ Shared Apple/Safari polish (v2.25.0) ═════════════════
+           Appended uniformly across pages: frosted translucent bars, laptop
+           hover states, keyboard focus rings, reduced-motion support, and
+           Safari/iOS fixes (dynamic viewport height, text-size-adjust, tap
+           highlight). Selectors a page lacks simply never match. */
+        html { -webkit-text-size-adjust: 100%; }
+        body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+        @supports (min-height: 100dvh) { body { min-height: 100dvh; } }
+        a, button, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+        :focus-visible { outline: 2px solid var(--accent, #5856d6); outline-offset: 2px; }
+        .topbar, .bottombar {
+            background: rgba(249, 249, 251, 0.82);
+            -webkit-backdrop-filter: saturate(180%) blur(20px);
+            backdrop-filter: saturate(180%) blur(20px);
+            box-shadow: none;
+        }
+        @media (prefers-color-scheme: dark) {
+            .topbar, .bottombar { background: rgba(22, 22, 24, 0.80); }
+        }
+        @media (hover: hover) and (pointer: fine) {
+            a.card:hover, a.dash-card:hover, .fav-tile:not(.fav-reading):hover, a.home-cam:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+            }
+            .nav-btn:hover { transform: translateY(-1px); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                transition-duration: 0.01ms !important;
+                animation-duration: 0.01ms !important;
+                scroll-behavior: auto !important;
+            }
+        }
+    </style>
+</head>
+<body>
+<header>
+    <a href="index.html">‹ Home</a>
+    <h1><span data-icon="bell"></span> Alerts</h1>
+    <span class="spacer"></span>
+</header>
+<main>
+    <div class="card" id="logwatch-card">
+        <h2>Indigo log errors</h2>
+        <div class="hint" id="logwatch-meta">Loading…</div>
+        <div id="logwatch-rows"></div>
+        <div class="hint" style="margin-top:10px;">
+            This one is server-side and always on. The hourly watch runs on the
+            Indigo server whether or not this page is open, and sends its own
+            Pushover and email when something new turns up. The rules below are
+            a separate thing — they live in this browser only.
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>How this works</h2>
+        <div class="hint">
+            Pick the devices and variables you care about below. While this page —
+            or the dashboard installed on your home screen — is <b>open</b>, any
+            matching change raises a notification on this device. Being honest:
+            there is no cloud push service behind this, so when every dashboard
+            tab is closed, notifications stop. It shines on a wall tablet, a
+            kiosk, or a pinned browser tab.
+        </div>
+        <div class="row">
+            <button id="perm-btn">Enable notifications on this device</button>
+            <span id="perm-state" class="pill">checking…</span>
+            <label class="pill"><input type="checkbox" id="master" checked> alerts active</label>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Add a rule</h2>
+        <div class="row">
+            <select id="kind">
+                <option value="device">Device</option>
+                <option value="variable">Variable</option>
+            </select>
+            <select id="entity"><option>Loading…</option></select>
+            <select id="cond">
+                <option value="on">turns on</option>
+                <option value="off">turns off</option>
+                <option value="change">changes at all</option>
+            </select>
+            <button id="add-btn">Add</button>
+        </div>
+        <div class="hint" id="add-hint" style="margin-top:8px;"></div>
+    </div>
+
+    <div class="card">
+        <h2>Your rules</h2>
+        <div id="rules"><div class="hint">No rules yet — add one above.</div></div>
+    </div>
+
+    <div class="card">
+        <h2>Recent alerts</h2>
+        <ul id="log"><li class="hint">Nothing yet.</li></ul>
+    </div>
+</main>
+
+<script src="config.js" onerror="window.INDIGO_CONFIG_MISSING=true"></script>
+<script src="dashboards-auth.js"></script>
+    <script src="dashboards-ui.js"></script>
+<script src="dashboards-gate.js"></script>
+<script src="dashboard.js"></script>
+<script>
+// Declared BEFORE the watcher (v2.95.1). This used to sit in the THIRD script
+// block, after the watcher had already run — and the watcher's paintRules()
+// calls I("cross") for every saved rule at load. A `const` in a later script
+// block does not exist yet when an earlier block runs, so any browser with a
+// rule saved threw ReferenceError inside the IIFE: the picker and Add button
+// (wired before the throw) worked, the "now" column stayed "—" for ever and
+// not one notification was ever raised. The page looked alive and was not.
+const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
+(function () {
+    "use strict";
+    const STORE_KEY = "dash_alerts";
+    const $ = id => document.getElementById(id);
+
+    // ── rules persistence (this browser only) ────────────────────────────
+    let rules = [];
+    try { rules = (JSON.parse(localStorage.getItem(STORE_KEY) || "{}").rules) || []; }
+    catch (e) { rules = []; }
+    const saveRules = () => localStorage.setItem(STORE_KEY, JSON.stringify({ rules }));
+
+    // ── notification permission ──────────────────────────────────────────
+    let swReg = null;
+    if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.register("sw.js").then(r => { swReg = r; }).catch(() => {});
+    }
+    function paintPerm() {
+        const el = $("perm-state");
+        if (!("Notification" in window)) { el.textContent = "not supported in this browser"; $("perm-btn").disabled = true; return; }
+        el.textContent = { granted: "allowed", denied: "blocked in browser settings", default: "not yet allowed" }[Notification.permission];
+        $("perm-btn").disabled = Notification.permission !== "default";
+    }
+    $("perm-btn").onclick = () => Notification.requestPermission().then(paintPerm);
+    paintPerm();
+
+    function notify(title, body) {
+        if (!("Notification" in window) || Notification.permission !== "granted") return;
+        try {
+            if (swReg && swReg.showNotification) {
+                swReg.showNotification(title, { body, icon: "apple-touch-icon-192.png", tag: title + "|" + body });
+            } else {
+                new Notification(title, { body, icon: "apple-touch-icon-192.png", tag: title + "|" + body });
+            }
+        } catch (e) { /* notification refused — nothing else to do */ }
+    }
+
+    function logAlert(text) {
+        const log = $("log");
+        if (log.firstElementChild && log.firstElementChild.classList.contains("hint")) log.innerHTML = "";
+        const li = document.createElement("li");
+        const t = document.createElement("time");
+        t.textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        li.appendChild(t); li.appendChild(document.createTextNode(text));
+        log.prepend(li);
+        while (log.children.length > 50) log.removeChild(log.lastChild);
+    }
+
+    // ── connection + pickers ─────────────────────────────────────────────
+    let api = null;
+    // The constructor-throw assumption is FALSE since the auth shim always
+    // defines INDIGO_CONFIG — an unpaired browser used to hammer 401s every
+    // 3 s with no way to the Connect form. Check properly and redirect.
+    if (!IndigoAPI.isConfigured()) {
+        location.href = "index.html";
+    } else {
+        try { api = new IndigoAPI(); } catch (e) { /* unreachable belt */ }
+    }
+
+    let devices = [], variables = [];
+    function paintEntityPicker() {
+        const kind = $("kind").value;
+        const list = kind === "device" ? devices : variables;
+        $("entity").innerHTML = list.map(x =>
+            `<option value="${x.id}">${String(x.name).replace(/</g, "&lt;")}</option>`).join("")
+            || "<option value=''>none found</option>";
+        // condition menu: variables only support "changes"
+        $("cond").disabled = kind === "variable";
+        if (kind === "variable") $("cond").value = "change";
+        $("add-hint").textContent = kind === "variable"
+            ? "Variable rules fire whenever the value changes."
+            : "“Turns on / turns off” use the device's on/off state; “changes at all” watches its display value too.";
+    }
+    $("kind").onchange = paintEntityPicker;
+
+    async function loadEntities() {
+        if (!api) return;
+        try {
+            devices = (await api.getDevices()).slice()
+                .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+            variables = (await api.getVariables()).slice()
+                .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+            paintEntityPicker();
+        } catch (e) {
+            $("entity").innerHTML = "<option value=''>connection failed</option>";
+        }
+    }
+    loadEntities();
+
+    // ── rule list UI ─────────────────────────────────────────────────────
+    const COND_TEXT = { on: "turns on", off: "turns off", change: "changes" };
+    function paintRules() {
+        const box = $("rules");
+        if (!rules.length) { box.innerHTML = '<div class="hint">No rules yet — add one above.</div>'; return; }
+        box.innerHTML = "";
+        rules.forEach((r, i) => {
+            const row = document.createElement("div");
+            row.className = "rule";
+            row.innerHTML = `<div class="name"><b>${String(r.name).replace(/</g, "&lt;")}</b>
+                <span>${r.kind} · ${COND_TEXT[r.cond] || r.cond}</span></div>
+                <span class="now" data-now="${r.kind}:${r.id}">—</span>`;
+            const toggle = document.createElement("button");
+            toggle.className = "quiet";
+            toggle.textContent = r.enabled ? "pause" : "resume";
+            toggle.onclick = () => { r.enabled = !r.enabled; saveRules(); paintRules(); };
+            const del = document.createElement("button");
+            del.className = "quiet"; del.innerHTML = I("cross");
+            del.onclick = () => { rules.splice(i, 1); saveRules(); paintRules(); };
+            const badge = document.createElement("span");
+            badge.className = "badge " + (r.enabled ? "ok" : "off");
+            badge.textContent = r.enabled ? "on" : "paused";
+            row.appendChild(badge); row.appendChild(toggle); row.appendChild(del);
+            box.appendChild(row);
+        });
+    }
+    $("add-btn").onclick = () => {
+        const kind = $("kind").value, id = parseInt($("entity").value, 10);
+        if (!id) return;
+        const list = kind === "device" ? devices : variables;
+        const ent = list.find(x => x.id === id);
+        if (!ent) return;
+        const cond = kind === "variable" ? "change" : $("cond").value;
+        if (rules.some(r => r.kind === kind && r.id === id && r.cond === cond)) return;
+        rules.push({ kind, id, name: ent.name, cond, enabled: true });
+        saveRules(); paintRules();
+    };
+    paintRules();
+
+    // ── the watcher ──────────────────────────────────────────────────────
+    // prev holds last-seen state per entity; first poll only seeds it so
+    // opening the page never fires a storm of "alerts" for current state.
+    const prev = new Map();   // "device:123" -> {on, ui} / "variable:9" -> {val}
+    let seeded = false;
+
+    function paintNow(key, text) {
+        document.querySelectorAll(`[data-now="${key}"]`)
+            .forEach(el => { el.textContent = text; });
+    }
+
+    async function pollDevices() {
+        if (!api || !rules.some(r => r.kind === "device")) return;
+        let devs;
+        try { devs = await api.getDevices(); } catch (e) { return; }
+        const byId = new Map(devs.map(d => [d.id, d]));
+        for (const r of rules.filter(r => r.kind === "device")) {
+            const d = byId.get(r.id);
+            const key = "device:" + r.id;
+            if (!d) { paintNow(key, "missing"); continue; }
+            const now = { on: !!d.onState, ui: String(d.displayStateValUi ?? "") };
+            paintNow(key, now.ui || (now.on ? "ON" : "OFF"));
+            const was = prev.get(key);
+            prev.set(key, now);
+            if (!was || !seeded || !r.enabled || !$("master").checked) continue;
+            if (r.cond === "on"  && now.on && !was.on)
+                fire(r, `${r.name} turned on`);
+            if (r.cond === "off" && !now.on && was.on)
+                fire(r, `${r.name} turned off`);
+            if (r.cond === "change" && (now.on !== was.on || now.ui !== was.ui))
+                fire(r, `${r.name}: ${now.ui || (now.on ? "ON" : "OFF")}`);
+        }
+        seeded = true;
+    }
+
+    async function pollVariables() {
+        if (!api || !rules.some(r => r.kind === "variable")) return;
+        let vars;
+        try { vars = await api.getVariables(); } catch (e) { return; }
+        const byId = new Map(vars.map(v => [v.id, v]));
+        for (const r of rules.filter(r => r.kind === "variable")) {
+            const v = byId.get(r.id);
+            const key = "variable:" + r.id;
+            if (!v) { paintNow(key, "missing"); continue; }
+            paintNow(key, String(v.value));
+            const was = prev.get(key);
+            prev.set(key, { val: String(v.value) });
+            if (!was || !r.enabled || !$("master").checked) continue;
+            if (String(v.value) !== was.val)
+                fire(r, `${r.name} is now ${v.value}`);
+        }
+    }
+
+    // per-rule cooldown so a chattering sensor can't spam 20 notifications
+    const lastFired = new Map();
+    function fire(rule, text) {
+        const key = rule.kind + ":" + rule.id + ":" + rule.cond;
+        const now = Date.now();
+        if ((now - (lastFired.get(key) || 0)) < 30000) return;   // 30s per rule
+        lastFired.set(key, now);
+        notify(((window.INDIGO_CONFIG || {}).siteName || "Dashboards"), text);
+        logAlert(text);
+    }
+
+    setInterval(pollDevices, 3000);
+    setInterval(pollVariables, 10000);
+    pollDevices(); pollVariables();
+})();
+</script>
+<script>
+/* Server-side log-error watch. Reads the state file written hourly by
+   Python Scripts/Log_Error_Watch.py via a Bearer-authed endpoint — the
+   judgement about what is new or muted lives in that script, never here. */
+(function () {
+    "use strict";
+    const EP = "/message/com.clives.indigoplugin.dashboards/logErrors/";
+    const POLL_MS = 5 * 60 * 1000;
+    const $ = id => document.getElementById(id);
+    const esc = t => { const d = document.createElement("div"); d.textContent = String(t == null ? "" : t); return d.innerHTML; };
+
+    function shortTime(s) {
+        if (!s) return "";
+        const m = String(s).match(/^(\d{4})-(\d\d)-(\d\d) (\d\d:\d\d)/);
+        if (!m) return String(s);
+        const d = new Date(`${m[1]}-${m[2]}-${m[3]}T${m[4]}`);
+        const today = new Date();
+        const sameDay = d.getFullYear() === today.getFullYear()
+            && d.getMonth() === today.getMonth() && d.getDate() === today.getDate();
+        return sameDay ? m[4] : d.toLocaleDateString(undefined, { weekday: "short" }) + " " + m[4];
+    }
+
+    function render(data) {
+        const meta = $("logwatch-meta"), body = $("logwatch-rows");
+        if (!meta || !body) return;
+        const feed = (data && data.feed) || {};
+        const rows = feed.rows || [];
+
+        if (data && data.note) { meta.textContent = data.note; body.innerHTML = ""; return; }
+        if (!rows.length) {
+            meta.textContent = "Nothing in the log worth flagging"
+                + (feed.generatedLocal ? " · checked " + shortTime(feed.generatedLocal) : "");
+            body.innerHTML = "";
+            return;
+        }
+
+        const e = feed.errors || 0, w = feed.warnings || 0;
+        const bits = [];
+        if (e) bits.push(e + (e === 1 ? " error" : " errors"));
+        if (w) bits.push(w + (w === 1 ? " warning" : " warnings"));
+        meta.textContent = (bits.join(" · ") || "all quiet")
+            + (feed.generatedLocal ? " · checked " + shortTime(feed.generatedLocal) : "");
+
+        body.innerHTML = rows.map(r => {
+            const colour = r.muted ? "var(--text-secondary)"
+                : (r.level === "error" ? "var(--red)" : "#ff9500");
+            const count = r.count > 1 ? ` <span class="pill">x${esc(r.count)}</span>` : "";
+            const muted = r.muted ? ' <span class="pill">muted</span>' : "";
+            return `<div style="display:flex;gap:9px;padding:7px 0;border-top:1px solid var(--border);">
+                <span aria-hidden="true" style="color:${colour};line-height:1.35;">●</span>
+                <div style="min-width:0;flex:1;">
+                    <div style="font-size:14px;word-break:break-word;">${esc(r.message)}</div>
+                    <div class="hint" style="margin-top:2px;">${esc(r.source)}${count}${muted}
+                        · last ${esc(shortTime(r.last))}</div>
+                </div></div>`;
+        }).join("");
+    }
+
+    async function load() {
+        const key = (window.INDIGO_CONFIG || {}).apiKey || "";
+        if (!key) return;
+        // v2.70.0: skip while the plugin is stopping — see dashboards-gate.js.
+        if (window.DashGate && await window.DashGate.check() === "down") return;
+        try {
+            const r = await fetch(EP, {
+                method: "POST",
+                headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
+                body: "{}"
+            });
+            if (!r.ok) throw new Error("HTTP " + r.status);
+            render(await r.json());
+        } catch (err) {
+            const meta = $("logwatch-meta");
+            if (meta) meta.textContent = "Log watch unavailable (" + err.message + ")";
+        }
+    }
+
+    load();
+    setInterval(load, POLL_MS);
+})();
+</script>
+<script src="dashboards-icons.js"></script>
+<script src="a11y.js"></script>
+<script src="standalone-nav.js"></script>
+</body>
+</html>

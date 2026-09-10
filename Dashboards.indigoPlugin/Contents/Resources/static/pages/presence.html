@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<!--
+  Filename:    presence.html
+  Description: Presence watch (v1.0) — per-night presence timelines for the
+               Living Room (18:00-23:00) and Bedroom 1 (20:30-08:00) sensor
+               pairs. Two sensor tracks plus a derived "Both" track that turns
+               amber wherever the pair disagree (one unit dropping a still
+               person), per-sensor stats, dropout callouts, a PIR movement
+               strip, a bedroom sleep proxy and a 7-night pattern strip with
+               date scrollback. Data comes from the Bearer-authed presenceData
+               endpoint, which serves what Presence_Watch.py builds from the
+               SQL Logger history. v1.1: was an anonymous /public
+               presence.json — 14 nights of bedroom occupancy must not be
+               readable from the public internet, so the page now needs the
+               same key as every other data page.
+  Author:      CliveS & Claude Fable 5
+  Date:        31-07-2026
+  Version:     1.1
+-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta name="indigo-page-name" content="Presence">
+    <meta name="indigo-page-icon" content="figure.walk.motion">
+    <meta name="indigo-page-description" content="Presence sensor timelines, night by night">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Dashboards">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#5856d6">
+    <link rel="apple-touch-icon" sizes="180x180" href="/public/dashboards/apple-touch-icon.png">
+    <title>Presence</title>
+    <link rel="stylesheet" href="dashboards-theme.css">
+    <style>
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: var(--font-ui);
+            background: var(--bg); color: var(--text);
+            padding: max(80px, calc(72px + env(safe-area-inset-top))) 0 max(32px, env(safe-area-inset-bottom));
+            min-height: 100vh;
+        }
+        .topbar {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 10;
+            background: var(--card-bg); border-bottom: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            padding: 10px 16px; padding-top: max(10px, env(safe-area-inset-top));
+        }
+        .topbar-3col {
+            display: grid; grid-template-columns: 1fr 2fr 1fr; align-items: center;
+            gap: 8px; max-width: 980px; margin: 0 auto;
+        }
+        .topbar-3col h1 { font-size: 20px; font-weight: 700; text-align: center; margin: 0; }
+        .topbar-status { font-size: 11px; color: var(--text-secondary); text-align: center; }
+        .nav-btn {
+            background: var(--card-bg); border: 1px solid var(--border);
+            color: var(--accent); padding: 8px 14px; border-radius: var(--r-md);
+            font-size: 14px; font-weight: 600; cursor: pointer;
+            text-decoration: none; display: inline-flex; font-family: inherit;
+        }
+        main { max-width: 980px; margin: 0 auto; padding: 0 16px; }
+        .card {
+            background: var(--card-bg); border: 1px solid var(--border);
+            border-radius: var(--r-lg); box-shadow: var(--shadow);
+            padding: 16px; margin-bottom: 16px;
+        }
+        .datepick { display: flex; align-items: center; justify-content: center; gap: 14px; }
+        .datepick button {
+            background: var(--bg); border: 1px solid var(--border); color: var(--accent);
+            width: 38px; height: 38px; border-radius: var(--r-md); font-size: 20px;
+            cursor: pointer; font-family: inherit; line-height: 1;
+        }
+        .datepick button:disabled { opacity: 0.3; cursor: default; }
+        .datepick .lab { font-size: 17px; font-weight: 700; min-width: 130px; text-align: center; }
+        .datepick .sub { font-size: 11px; color: var(--text-secondary); text-align: center; margin-top: 2px; }
+        .legend { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center;
+                  font-size: 11px; color: var(--text-secondary); margin-top: 12px; }
+        .legend span { display: flex; align-items: center; gap: 5px; }
+        .sw { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+        .roomhead { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
+        .roomhead h2 { font-size: 17px; font-weight: 700; }
+        .roomhead .win { font-size: 12px; color: var(--text-secondary); }
+        .trow { display: flex; align-items: center; gap: 8px; margin: 7px 0; }
+        .trow .rlab { width: 58px; font-size: 12px; color: var(--text-secondary); text-align: right; flex: none; }
+        .trow .rlab.bold { color: var(--text); font-weight: 600; }
+        .trk { position: relative; flex: 1; height: 18px; border-radius: 5px;
+               background: var(--track); overflow: hidden; }
+        .trk.big { height: 22px; }
+        .seg { position: absolute; top: 0; bottom: 0; border-radius: 3px; }
+        .nowline { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--now); z-index: 3; }
+        .future { position: absolute; top: 0; bottom: 0; right: 0; background: var(--card-bg); opacity: 0.55; z-index: 2; }
+        .actstrip { position: relative; flex: 1; height: 20px; }
+        .abar { position: absolute; bottom: 0; background: var(--move); opacity: 0.5; border-radius: 1px; }
+        .axis { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-secondary);
+                margin-left: 66px; margin-top: 2px; }
+        .mgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 14px; }
+        @media (max-width: 480px) { .mgrid { grid-template-columns: repeat(2, 1fr); } }
+        .mc { background: var(--bg); border-radius: var(--r-sm); padding: 8px 10px; }
+        .mc .l { font-size: 11px; color: var(--text-secondary); }
+        .mc .v { font-size: 17px; font-weight: 600; margin-top: 1px; font-variant-numeric: tabular-nums; }
+        .sens { font-size: 12px; color: var(--text-secondary); margin-top: 10px; line-height: 1.6;
+                font-variant-numeric: tabular-nums; }
+        .sens b { color: var(--text); font-weight: 600; }
+        .callout { display: flex; gap: 8px; align-items: flex-start; margin-top: 10px;
+                   padding: 9px 11px; border-radius: var(--r-sm); font-size: 12.5px; line-height: 1.4; }
+        .callout.warn { background: rgba(255,149,0,0.14); color: var(--amber); }
+        .callout.ok { background: rgba(52,199,89,0.12); color: var(--on-color); }
+        .callout.info { background: rgba(120,120,128,0.14); color: var(--text-secondary); }
+        .callout b { font-weight: 700; }
+        .striplab { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin: 16px 0 6px; }
+        .srow { display: flex; align-items: center; gap: 8px; margin: 3px 0; cursor: pointer; }
+        .srow .d { width: 58px; font-size: 11px; color: var(--text-secondary); text-align: right; flex: none; }
+        .srow.sel .d { color: var(--accent); font-weight: 700; }
+        .mini { position: relative; flex: 1; height: 9px; border-radius: 3px; background: var(--track); overflow: hidden; }
+        .empty { color: var(--text-secondary); text-align: center; padding: 28px 12px; font-size: 13px; }
+    
+        /* ═══ Shared Apple/Safari polish (v2.25.0) ═════════════════
+           Appended uniformly across pages: frosted translucent bars, laptop
+           hover states, keyboard focus rings, reduced-motion support, and
+           Safari/iOS fixes (dynamic viewport height, text-size-adjust, tap
+           highlight). Selectors a page lacks simply never match. */
+        html { -webkit-text-size-adjust: 100%; }
+        body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+        @supports (min-height: 100dvh) { body { min-height: 100dvh; } }
+        a, button, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+        :focus-visible { outline: 2px solid var(--accent, #5856d6); outline-offset: 2px; }
+        .topbar, .bottombar {
+            background: rgba(249, 249, 251, 0.82);
+            -webkit-backdrop-filter: saturate(180%) blur(20px);
+            backdrop-filter: saturate(180%) blur(20px);
+            box-shadow: none;
+        }
+        @media (prefers-color-scheme: dark) {
+            .topbar, .bottombar { background: rgba(22, 22, 24, 0.80); }
+        }
+        @media (hover: hover) and (pointer: fine) {
+            a.card:hover, a.dash-card:hover, .fav-tile:not(.fav-reading):hover, a.home-cam:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+            }
+            .nav-btn:hover { transform: translateY(-1px); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                transition-duration: 0.01ms !important;
+                animation-duration: 0.01ms !important;
+                scroll-behavior: auto !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <div class="topbar-3col">
+            <div><a class="nav-btn" href="index.html">&larr; Home</a></div>
+            <div>
+                <h1>Presence</h1>
+                <div class="topbar-status" id="status">Loading…</div>
+            </div>
+            <div></div>
+        </div>
+    </header>
+
+    <main>
+        <section class="card">
+            <div class="datepick">
+                <button id="prev" aria-label="Older night">&lsaquo;</button>
+                <div>
+                    <div class="lab" id="dlabel">—</div>
+                    <div class="sub" id="dsub"></div>
+                </div>
+                <button id="next" aria-label="Newer night">&rsaquo;</button>
+            </div>
+            <div class="legend">
+                <span><span class="sw" style="background:var(--on-color)"></span>both detected</span>
+                <span><span class="sw" style="background:var(--amber)"></span>one dropped</span>
+                <span><span class="sw" style="background:var(--track)"></span>clear</span>
+                <span><span class="sw" style="background:var(--move);opacity:0.6"></span>movement</span>
+            </div>
+        </section>
+        <div id="rooms"></div>
+        <div class="empty" id="empty" style="display:none"></div>
+    </main>
+
+    <script src="config.js"></script>
+    <script src="dashboards-auth.js"></script>
+    <script src="dashboards-ui.js"></script>
+    <script src="dashboards-gate.js"></script>
+    <script>
+"use strict";
+const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
+
+    (function () {
+        const $ = id => document.getElementById(id);
+        // Escape for safe HTML interpolation (v2.38.0 hardening). presence.json
+        // is written by our own Presence_Watch.py so the risk is nil, but the
+        // page keeps the escape-everything convention regardless.
+        const esc = s => String(s == null ? "" : s)
+            .replace(/&/g, "&amp;").replace(/"/g, "&quot;")
+            .replace(/'/g, "&#39;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        let DATA = null, selDate = null;
+
+        const pad = n => (n < 10 ? "0" + n : "" + n);
+        function clock(minOfDay) { minOfDay = ((Math.round(minOfDay) % 1440) + 1440) % 1440; return pad(Math.floor(minOfDay / 60)) + ":" + pad(minOfDay % 60); }
+        function minToClock(room, m) { return clock(room.window.startMinOfDay + m); }
+        function dur(m) { m = Math.round(m); const h = Math.floor(m / 60), mm = m % 60; return h ? (mm ? h + "h " + mm + "m" : h + "h") : mm + "m"; }
+        const pct = (v, span) => (100 * v / span);
+
+        function segHtml(segs, span, color) {
+            return segs.map(s => {
+                const l = pct(s[0], span), w = pct(s[1] - s[0], span);
+                return `<span class="seg" style="left:${l.toFixed(2)}%;width:${Math.max(w,0.3).toFixed(2)}%;background:${color}"></span>`;
+            }).join("");
+        }
+        function bothHtml(both, span) {
+            const g = segHtml((both.green || []).map(s => [s[0], s[1]]), span, "var(--on-color)");
+            const a = (both.amber || []).map(s => {
+                const l = pct(s[0], span), w = pct(s[1] - s[0], span);
+                return `<span class="seg" style="left:${l.toFixed(2)}%;width:${Math.max(w,0.3).toFixed(2)}%;background:var(--amber);z-index:2"></span>`;
+            }).join("");
+            return g + a;
+        }
+        function activityHtml(act, span) {
+            if (!act || !act.points || !act.points.length) return "";
+            const bw = pct(act.bucketMin, span);
+            return act.points.map(p => {
+                const l = pct(p.t, span), h = Math.max(12, Math.round(100 * p.c / act.max));
+                return `<span class="abar" style="left:${l.toFixed(2)}%;width:${Math.max(bw-0.3,0.6).toFixed(2)}%;height:${h}%"></span>`;
+            }).join("");
+        }
+        function axisHtml(room) {
+            const span = room.window.spanMin, step = span <= 320 ? 60 : 120, ticks = [];
+            for (let o = 0; o <= span - 1; o += step) ticks.push(o);
+            if (ticks[ticks.length - 1] !== span) ticks.push(span);
+            return `<div class="axis">` + ticks.map(o => `<span>${minToClock(room, o)}</span>`).join("") + `</div>`;
+        }
+        function nowFutureHtml(night, span) {
+            if (!night.live || night.nowMin == null) return "";
+            const l = Math.min(100, pct(night.nowMin, span));
+            return `<span class="future" style="left:${l.toFixed(2)}%"></span><span class="nowline" style="left:${l.toFixed(2)}%"></span>`;
+        }
+
+        function trackRow(label, segsHtml, night, span, bold, big) {
+            return `<div class="trow"><span class="rlab ${bold ? 'bold' : ''}">${label}</span>` +
+                   `<div class="trk ${big ? 'big' : ''}">${segsHtml}${nowFutureHtml(night, span)}</div></div>`;
+        }
+
+        function renderRoom(room) {
+            const span = room.window.spanMin;
+            const night = room.byDate[selDate];
+            let html = `<section class="card"><div class="roomhead"><h2>${esc(room.title)}</h2>` +
+                       `<span class="win">${room.window.start}–${room.window.end}</span></div>`;
+            if (!night) {
+                html += `<div class="empty">No data for this night — the ${room.window.start}–${room.window.end} window hasn't run yet.</div>`;
+                html += stripHtml(room);
+                return html + `</section>`;
+            }
+            const order = room.sensorOrder, labels = room.sensorLabels;
+            const status = room.sensorStatus || {};
+            order.forEach(sid => {
+                const st = night.stats[sid] || {};
+                const segs = st.hasData ? segHtml(night.tracks[sid] || [], span, "var(--on-color)") : "";
+                // Say WHY a track is empty — disabled, missing or in error —
+                // instead of a confident blank (v2.95.3, Presence_Watch 1.3).
+                const why = status[sid] && status[sid] !== "ok" ? ` <span class="muted">(${esc(status[sid])})</span>` : "";
+                html += trackRow(esc(labels[sid]) + why, segs, night, span, false, false);
+            });
+            html += trackRow(order.length > 2 ? `All ${order.length}` : "Both",
+                             bothHtml(night.both, span), night, span, true, true);
+            if (night.activity) html += `<div class="trow"><span class="rlab">moves</span><div class="actstrip">${activityHtml(night.activity, span)}</div></div>`;
+            html += axisHtml(room);
+
+            const s = night.summary;
+            html += `<div class="mgrid">` +
+                mc("First seen", s.firstSeenMin != null ? minToClock(room, s.firstSeenMin) : "—") +
+                mc("Last clear", s.lastClearMin != null ? minToClock(room, s.lastClearMin) : "—") +
+                mc("Occupied", s.occMin ? dur(s.occMin) + " · " + s.occPct + "%" : "—") +
+                mc(s.bothPresent ? "Disagreed" : "Sensors",
+                   s.bothPresent ? (s.disagreeMin ? dur(s.disagreeMin) : "0m")
+                                 : `${s.reportingCount ?? 1} of ${s.sensorCount ?? order.length}`) +
+                `</div>`;
+
+            html += `<div class="sens">`;
+            order.forEach(sid => {
+                const st = night.stats[sid] || {};
+                if (st.hasData) html += `<div><b>${esc(labels[sid])}</b> · ${dur(st.occMin)} (${st.occPct}%) · ${st.transitions} changes · longest ${dur(st.longestHold)}</div>`;
+                else html += `<div><b>${esc(labels[sid])}</b> · no data yet</div>`;
+            });
+            html += `</div>`;
+
+            if (room.title.indexOf("Bedroom") === 0 && night.sleep) {
+                const sl = night.sleep;
+                html += `<div class="mgrid">` +
+                    mc("Settled", minToClock(room, sl.settledMin)) +
+                    mc("Up", minToClock(room, sl.upMin)) +
+                    mc("In bed", dur(sl.inBedMin)) +
+                    mc("Wakeups", "" + sl.wakeups) +
+                    `</div>`;
+            }
+
+            (night.dropouts || []).forEach(d => {
+                html += `<div class="callout warn"><span>${I("warn")}</span><span><b>${esc(d.dropped)}</b> dropped ` +
+                        `${minToClock(room, d.startMin)}–${minToClock(room, d.endMin)} (${d.mins}m) while <b>${esc(d.held)}</b> held.</span></div>`;
+            });
+            const missing = order.filter(sid => !(night.stats[sid] || {}).hasData);
+            if (night.summary.bothPresent && !(night.dropouts || []).length) {
+                const agreedWho = order.length > 2 ? `All ${order.length} sensors` : "Both sensors";
+                html += `<div class="callout ok"><span>${I("check")}</span><span>${agreedWho} agreed all night — no dropouts.</span></div>`;
+            }
+            if (missing.length) {
+                const reporting = order.length - missing.length;
+                html += `<div class="callout info"><span>ⓘ</span><span>${reporting} of ${order.length} sensors reporting — ` +
+                        `<b>${esc(joinLabels(missing.map(sid => labels[sid])))}</b> ${missing.length === 1 ? "has" : "have"} no data for this night yet.</span></div>`;
+            }
+
+            html += stripHtml(room);
+            return html + `</section>`;
+        }
+
+        function mc(label, val) { return `<div class="mc"><div class="l">${label}</div><div class="v">${val}</div></div>`; }
+        function joinLabels(names) {
+            if (names.length <= 1) return names[0] || "";
+            if (names.length === 2) return `${names[0]} and ${names[1]}`;
+            return names.slice(0, -1).join(", ") + ` and ${names[names.length - 1]}`;
+        }
+
+        function stripHtml(room) {
+            const span = room.window.spanMin;
+            const dates = DATA.dates.filter(d => room.byDate[d]).slice(0, 7);
+            if (dates.length < 2) return "";
+            let h = `<div class="striplab">Last ${dates.length} nights</div>`;
+            dates.forEach(d => {
+                const n = room.byDate[d];
+                h += `<div class="srow ${d === selDate ? 'sel' : ''}" data-date="${d}">` +
+                     `<span class="d">${shortLabel(d)}</span><div class="mini">${bothHtml(n.both, span)}</div></div>`;
+            });
+            return h;
+        }
+        function shortLabel(d) {
+            const lab = DATA.labels[d];
+            if (lab === "Tonight") return "Tonight";
+            if (lab === "Last night") return "Last";
+            return lab.replace(/^(\w\w)\w*\s/, "$1 ");
+        }
+
+        function render() {
+            if (!DATA || !DATA.dates.length) { $("empty").style.display = "block"; $("empty").textContent = "No presence data yet."; return; }
+            $("empty").style.display = "none";      // a later good load clears the failure banner
+            if (!selDate || DATA.dates.indexOf(selDate) < 0) selDate = DATA.dates[0];
+            const idx = DATA.dates.indexOf(selDate);
+            $("dlabel").textContent = DATA.labels[selDate] || selDate;
+            $("dsub").textContent = new Date(selDate + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
+            $("next").disabled = idx <= 0;
+            $("prev").disabled = idx >= DATA.dates.length - 1;
+            const order = ["living_room", "bedroom_1"];
+            $("rooms").innerHTML = order.filter(k => DATA.rooms[k]).map(k => renderRoom(DATA.rooms[k])).join("");
+            document.querySelectorAll(".srow").forEach(el => el.addEventListener("click", () => { selDate = el.dataset.date; render(); }));
+            const t = DATA.generatedLocal ? DATA.generatedLocal.slice(11, 16) : "";
+            $("status").textContent = "Updated " + t;
+        }
+
+        $("prev").addEventListener("click", () => { const i = DATA.dates.indexOf(selDate); if (i < DATA.dates.length - 1) { selDate = DATA.dates[i + 1]; render(); } });
+        $("next").addEventListener("click", () => { const i = DATA.dates.indexOf(selDate); if (i > 0) { selDate = DATA.dates[i - 1]; render(); } });
+
+        async function load() {
+            const key = (window.INDIGO_CONFIG || {}).apiKey || "";
+            if (!key) {
+                $("status").textContent = "Not connected";
+                $("empty").style.display = "block";
+                $("empty").textContent = "This page needs the dashboard key — open the hub once to connect, then come back.";
+                return;
+            }
+            // v2.70.0 gate: never call /message/ while the plugin is stopping.
+            if (window.DashGate && await window.DashGate.check() === "down") return;
+            try {
+                const r = await fetch("/message/com.clives.indigoplugin.dashboards/presenceData/", {
+                    method: "POST",
+                    headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
+                    body: "{}"
+                });
+                if (!r.ok) throw new Error("HTTP " + r.status);
+                const d = await r.json();
+                if (!d || d.ok === false) throw new Error(d && d.error ? d.error : "no data");
+                DATA = d;
+                render();
+            } catch (e) {
+                $("status").textContent = "No data";
+                $("empty").style.display = "block";
+                $("empty").textContent = "Couldn't load presence data — the Presence_Watch.py script may not have run yet.";
+            }
+        }
+        load();
+        setInterval(load, 120000);
+    })();
+    </script>
+    <script src="dashboards-icons.js"></script>
+<script src="a11y.js"></script>
+</body>
+</html>

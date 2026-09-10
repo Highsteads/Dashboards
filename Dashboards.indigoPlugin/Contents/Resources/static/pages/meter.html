@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<!--
+  Filename:    meter.html
+  Description: One mains meter, in as much detail as this house holds on it.
+               Reached by tapping a tile on mains.html; `?id=<deviceId>`.
+
+               It exists because two plugs could not be told apart. Both Athom
+               monitors carry their ESPHome discovery name — 574f8d and 574eeb
+               — and nothing on the census said which was which. So this page
+               leads with the things that identify a PHYSICAL plug: its address
+               and network name, how long it has been powered, its lifetime
+               energy, and the shape of its load over the last day. A freezer
+               cycling on and off looks nothing like a television.
+
+               Nothing here is a control. The page reads.
+  Author:      CliveS & Claude Opus 5
+  Date:        08-09-2026
+  Version:     1.0
+-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta name="indigo-page-name" content="Meter">
+    <meta name="indigo-page-icon" content="plug">
+    <meta name="indigo-page-description" content="Everything this house knows about one 240 V meter">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Dashboards">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#5856d6">
+    <link rel="apple-touch-icon" sizes="180x180" href="/public/dashboards/apple-touch-icon.png">
+    <title>Meter &middot; Dashboards</title>
+<link rel="stylesheet" href="dashboards-theme.css">
+<style>
+:root {
+    --hero-grad: linear-gradient(160deg, rgba(245,166,35,0.07), rgba(88,86,214,0.04) 55%, rgba(255,255,255,0));
+}
+@media (prefers-color-scheme: dark){
+  :root {
+    --hero-grad: linear-gradient(160deg, rgba(255,179,64,0.12), rgba(125,122,255,0.06) 55%, rgba(0,0,0,0));
+}
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{overflow-x:hidden;width:100%;max-width:100vw}
+body{
+  background:var(--bg);color:var(--text);
+  font-family:var(--font-ui);
+  font-size:14px;min-height:100vh;-webkit-overflow-scrolling:touch;
+  padding-top:max(80px, calc(72px + env(safe-area-inset-top)));
+}
+header{
+  display:grid;grid-template-columns:1fr 2fr 1fr;align-items:center;gap:8px;
+  padding:10px max(16px,env(safe-area-inset-right)) 10px max(16px,env(safe-area-inset-left));
+  padding-top:max(10px,env(safe-area-inset-top));
+  position:fixed;top:0;left:0;right:0;z-index:10;
+  background:rgba(249,249,251,0.82);
+  -webkit-backdrop-filter:saturate(180%) blur(20px);
+  backdrop-filter:saturate(180%) blur(20px);
+  border-bottom:1px solid var(--border-soft);
+}
+@media (prefers-color-scheme: dark){header{background:rgba(22,22,24,0.80)}}
+.hdr-left{justify-self:start}.hdr-right{justify-self:end}
+.hdr-center{justify-self:stretch;text-align:center;min-width:0;display:flex;flex-direction:column;align-items:center;gap:1px;line-height:1.15}
+header h1{font-size:20px;font-weight:700;letter-spacing:-.02em;white-space:nowrap}
+.topbar-status{font-size:11px;color:var(--text-secondary);font-variant-numeric:tabular-nums;white-space:nowrap}
+.topbar-status .ts::before{content:'●';color:var(--on-color);margin-right:4px;animation:live-pulse 2.4s ease-in-out infinite}
+@keyframes live-pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.nav-btn{
+  background:var(--card-bg);border:1px solid var(--border-soft);color:var(--accent);
+  padding:8px 14px;border-radius: var(--r-md);font-size:14px;font-weight:600;cursor:pointer;
+  font-family:inherit;text-decoration:none;display:inline-flex;align-items:center;gap:4px;
+  min-height:36px;transition:transform .08s ease-out, background .15s, border-color .15s;
+  user-select:none;-webkit-tap-highlight-color:transparent;white-space:nowrap;
+}
+.nav-btn:hover{background:var(--card-bg-alt);border-color:var(--accent)}
+.nav-btn:active{transform:translateY(2px) scale(.96);background:var(--accent);color:#fff}
+
+.main{padding:16px;display:flex;flex-direction:column;gap:12px;max-width:940px;margin:0 auto}
+.main > *{min-width:0}
+.sec-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--text-secondary);margin:14px 4px 0}
+.card{
+  background:var(--card-bg);border:1px solid var(--border-soft);
+  border-radius: var(--r-xl);padding:18px;box-shadow:var(--shadow);
+  animation:card-in .4s ease-out both;
+}
+@keyframes card-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.card h2{font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.7px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.card h2 .pill{font-weight:500;text-transform:none;letter-spacing:0;color:var(--text-muted);font-variant-numeric:tabular-nums}
+.muted{color:var(--text-muted)}
+.good{color:var(--on-color)}.warn{color:var(--warn)}.bad{color:var(--bad)}
+
+/* verdict hero */
+.hero{background:var(--card-bg);background-image:var(--hero-grad)}
+.hero-top{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.hero-icon{font-size:34px;line-height:1}
+.hero-verdict{font-size:24px;font-weight:800;letter-spacing:-.02em}
+.hero-sub{font-size:12.5px;color:var(--text-secondary);margin-top:2px}
+.hero-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;padding:6px 11px;border-radius: var(--r-md);
+  background:var(--card-bg-alt);border:1px solid var(--border-soft);color:var(--text);font-variant-numeric:tabular-nums}
+.chip.good{background:rgba(52,199,89,.14);border-color:rgba(52,199,89,.25);color:var(--on-color)}
+.chip.warn{background:rgba(255,149,0,.14);border-color:rgba(255,149,0,.25);color:var(--warn)}
+.chip.bad{background:rgba(255,69,58,.14);border-color:rgba(255,69,58,.25);color:var(--bad)}
+
+/* gauges */
+.strip{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+@media(max-width:720px){.strip{grid-template-columns:repeat(2,1fr)}}
+.gauge{background:var(--card-bg);border:1px solid var(--border-soft);border-radius: var(--r-lg);padding:14px 16px;box-shadow:var(--shadow)}
+.gauge-lab{font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.6px}
+.gauge-big{font-size:26px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums;margin-top:4px;letter-spacing:-.02em}
+.gauge-sub{font-size:11.5px;color:var(--text-muted);margin-top:2px}
+.gauge .bar{margin-top:8px}
+.gauge.warn .gauge-big{color:var(--warn)}
+.gauge.bad .gauge-big{color:var(--bad)}
+
+/* meters / kv */
+.meter{margin-bottom:14px}
+.meter:last-child{margin-bottom:0}
+.meter-head{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;margin-bottom:6px}
+.meter-head b{font-variant-numeric:tabular-nums}
+.bar{height:8px;border-radius:5px;background:var(--track);overflow:hidden}
+.bar-fill{height:100%;border-radius:5px;transition:width .4s ease}
+.meter-note{font-size:11px;color:var(--text-muted);margin-top:5px;line-height:1.45}
+.kv{display:flex;justify-content:space-between;font-size:12.5px;padding:5px 0;color:var(--text-secondary);border-top:1px solid var(--border-soft)}
+.kv:first-child{border-top:0}
+.kv b{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
+.badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius: var(--r-sm)}
+.badge.good{background:rgba(52,199,89,.16);color:var(--on-color)}
+.badge.warn{background:rgba(255,149,0,.16);color:var(--warn)}
+.badge.bad{background:rgba(255,69,58,.16);color:var(--bad)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:720px){.grid2{grid-template-columns:1fr}}
+
+.ditem{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--border-soft);font-size:13px}
+.ditem:first-child{border-top:0}
+.ditem .dn{flex:1;min-width:0}
+.ditem .dn b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ditem .dn span{font-size:11.5px;color:var(--text-secondary)}
+.ditem .dv{font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:600}
+.empty{font-size:12.5px;color:var(--text-muted);padding:4px 0}
+
+table.ptable{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums}
+table.ptable th,table.ptable td{text-align:right;padding:7px 6px;border-bottom:1px solid var(--border-soft)}
+table.ptable th:first-child,table.ptable td:first-child{text-align:left}
+table.ptable th{font-size:11px;color:var(--text-secondary);font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+table.ptable tr:last-child td{border-bottom:none}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--off-color);margin-right:6px;vertical-align:middle}
+.dot.on{background:var(--on-color)}.dot.off{background:var(--bad)}
+
+details{margin-top:8px}
+summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--accent)}
+.note{font-size:11px;color:var(--text-muted);margin-top:10px;line-height:1.5}
+.loading{text-align:center;padding:60px 20px;color:var(--text-secondary)}
+.spinner{width:24px;height:24px;border:3px solid var(--off-color);border-top-color:var(--accent);
+  border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Safari / a11y polish */
+html{-webkit-text-size-adjust:100%}
+body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+@supports (min-height:100dvh){body{min-height:100dvh}}
+a,button,input,select,textarea{-webkit-tap-highlight-color:transparent}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{transition-duration:.01ms !important;animation-duration:.01ms !important;scroll-behavior:auto !important}
+}
+@media(max-width:480px){
+  header{padding:8px 12px;padding-top:max(8px,env(safe-area-inset-top))}
+  header h1{font-size:15px}
+  .main{padding:10px;gap:10px}
+  .card{padding:14px}
+  .gauge-big{font-size:22px}
+  .hero-verdict{font-size:20px}
+}
+
+.topbar h1 .dsh-icon,h1 .dsh-icon{width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;opacity:.85}
+
+/* A device name is as long as its owner made it, and the ESPHome ones run to
+   30 characters. The house h1 is `white-space:nowrap`, so without this the
+   title runs straight under the Mains and Home buttons on a phone. */
+header h1{overflow:hidden;text-overflow:ellipsis;max-width:100%}
+#hdr-name{overflow:hidden;text-overflow:ellipsis}
+
+/* ── sparkline ───────────────────────────────────────────────────────────────
+   Inline SVG rather than the Chart.js bundle: this is one line with no axes,
+   legend or interaction, and the bundle is 205 KB. `preserveAspectRatio=none`
+   stretches the box to the card, and `vector-effect` keeps the stroke a
+   constant width while it does — without it the line thins as the card widens. */
+.spark-wrap{margin-top:6px}
+.spark{width:100%;height:110px;display:block}
+.spark path.line{fill:none;stroke-width:1.6;vector-effect:non-scaling-stroke}
+.spark path.area{stroke:none;opacity:.14}
+.spark line.grid{stroke:var(--border-soft);stroke-width:1;vector-effect:non-scaling-stroke}
+.spark-head{display:flex;justify-content:space-between;align-items:baseline;
+  font-size:11.5px;color:var(--text-secondary);font-variant-numeric:tabular-nums;gap:8px}
+.spark-head b{color:var(--text);font-weight:600}
+.spark-ends{display:flex;justify-content:space-between;font-size:10.5px;
+  color:var(--text-muted);font-variant-numeric:tabular-nums;margin-top:2px}
+
+
+/* ── the status line says when it has stopped ────────────────────────────────
+   A page that has rendered once could never report that it had stopped: the
+   error handler only speaks when #content is EMPTY, so a dead poll left
+   plausible-looking readings on screen with nothing but a quietly frozen clock
+   to say so. Neither CliveS nor I could settle it from what was visible. The
+   dot goes amber and stops pulsing, and the line says how long it has been. */
+.topbar-status.stale{color:var(--warn);font-weight:600}
+.topbar-status.stale .ts::before{color:var(--warn);animation:none}
+
+
+/* ── why this page does not flash ────────────────────────────────────────────
+   The house `.card` carries `animation:card-in .4s ease-out both` — a fade-up
+   meant as a FIRST-PAINT flourish. This page replaces the whole of #content on
+   every 30-second poll, which recreates every card and replays it, so the
+   entire page faded up from transparent twice a minute. That is the flashing.
+   It runs once now and never again. */
+.card{animation:none}
+#content.first-paint .card{animation:card-in .4s ease-out both}
+
+/* ── readings and configuration ─────────────────────────────────────────── */
+.table-scroll{overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch}
+.mono{font-family:var(--font-mono);font-size:11.5px}
+.wrapval{white-space:normal;word-break:break-word;max-width:26rem}
+.hidden-val{color:var(--text-muted);font-style:italic}
+.sub{font-size:10.5px;color:var(--text-muted);font-weight:500}
+.dot.stale{background:var(--warn)}
+.off-hi{color:var(--warn)}
+.off-lo{color:var(--accent)}
+details summary{padding:4px 0}
+details[open] summary{margin-bottom:6px}
+@media(max-width:480px){
+  table.ptable{font-size:11.5px}
+  table.ptable th,table.ptable td{padding:6px 4px}
+  .wrapval{max-width:12rem}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="hdr-left"><a class="nav-btn" href="mains.html">&larr; Mains</a></div>
+  <div class="hdr-center">
+    <h1><span data-icon="plug"></span> <span id="hdr-name">Meter</span></h1>
+    <span class="topbar-status" id="freshness"><span class="ts">Updated <span id="ts">&#8212;</span></span> <span id="cadence">&middot; every 30s</span></span>
+  </div>
+  <div class="hdr-right"><a class="nav-btn" href="index.html">Home &rarr;</a></div>
+</header>
+
+<main class="main">
+  <div id="content"><div class="loading"><div class="spinner"></div><p>Connecting&#8230;</p></div></div>
+</main>
+
+<script src="config.js" onerror="window.INDIGO_CONFIG_MISSING=true"></script>
+<script src="dashboards-auth.js"></script>
+<script src="dashboards-ui.js"></script>
+<script src="dashboards-gate.js"></script>
+<script>
+const POLL_INTERVAL_MS = 30000;
+const BASE   = "/message/com.clives.indigoplugin.dashboards/";
+const DEV_ID = parseInt(new URLSearchParams(location.search).get("id") || "0", 10);
+const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
+
+if (!window.INDIGO_CONFIG || !window.INDIGO_CONFIG.apiKey) { location.href = "index.html"; }
+
+async function post(endpoint, body) {
+    // Never call /message/ while the plugin is stopping — a request in flight
+    // when the host dies wedges the whole of IWS for five minutes.
+    if (window.DashGate && await window.DashGate.check() === "down")
+        throw new Error("Dashboards plugin restarting");
+    const key = (window.INDIGO_CONFIG || {}).apiKey || "";
+    const r = await fetch(BASE + endpoint + "/", { method: "POST",
+        headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
+        body: JSON.stringify(body || {}) });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const d = await r.json();
+    if (d.ok === false) throw new Error(d.error || "endpoint error");
+    return d;
+}
+
+function esc(t) { const d = document.createElement("div"); d.textContent = String(t == null ? "" : t); return d.innerHTML; }
+function has(v) { return v !== null && v !== undefined && v !== "" && !isNaN(Number(v)); }
+function num(v, dp) { return has(v) ? Number(v).toFixed(dp == null ? 1 : dp) : "&#8212;"; }
+function signed(v, dp) { const n = Number(v); return (n > 0 ? "+" : "") + n.toFixed(dp == null ? 2 : dp); }
+function plural(n, one, many) { return Number(n) === 1 ? one : (many || one + "s"); }
+function setTs() {
+    const d = new Date(), p = n => String(n).padStart(2, "0");
+    const el = document.getElementById("ts");
+    if (el) el.textContent = p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
+    // Only a poll that actually returned data may reset this, and clearing the
+    // amber immediately beats waiting up to five seconds for the next sweep.
+    _lastGood = Date.now();
+    markFreshness();
+}
+function hhmm(epoch, withDay) {
+    const d = new Date(epoch * 1000), p = n => String(n).padStart(2, "0");
+    const t = p(d.getHours()) + ":" + p(d.getMinutes());
+    // A 24-hour window opens YESTERDAY, so a bare pair of times reads
+    // "19:08 to 18:44" and looks like the chart is drawn backwards.
+    return withDay ? d.toLocaleDateString(undefined, { weekday: "short" }) + " " + t : t;
+}
+
+/* ── the sparkline ───────────────────────────────────────────────────────────
+   A flat line, a square wave and a slow sag say completely different things
+   about what a plug is feeding, which is the whole reason this chart is here. */
+function sparkline(points, colourVar, dp) {
+    const pts = (points || []).filter(p => p.avg !== null && p.avg !== undefined);
+    if (pts.length < 2)
+        return `<div class="empty">Not enough history yet to draw a line.</div>`;
+    const W = 600, H = 110, PAD = 4;
+    const xs = pts.map(p => p.t);
+    const ys = pts.map(p => p.avg);
+    const t0 = Math.min(...xs), t1 = Math.max(...xs);
+    let lo = Math.min(...pts.map(p => (p.min === null || p.min === undefined) ? p.avg : p.min));
+    let hi = Math.max(...pts.map(p => (p.max === null || p.max === undefined) ? p.avg : p.max));
+    // A dead-flat series has no range to scale against and every point would
+    // land on one edge. Open a small window round it so the line sits centred.
+    if (hi - lo < 1e-9) { const c = hi || 1; lo = c - Math.abs(c) * 0.05 - 0.5; hi = c + Math.abs(c) * 0.05 + 0.5; }
+    const span = (t1 - t0) || 1;
+    const x = t => PAD + ((t - t0) / span) * (W - PAD * 2);
+    const y = v => PAD + (1 - (v - lo) / (hi - lo)) * (H - PAD * 2);
+    const d = pts.map((p, i) => (i ? "L" : "M") + x(p.t).toFixed(1) + " " + y(p.avg).toFixed(1)).join(" ");
+    const area = d + ` L${x(t1).toFixed(1)} ${H - PAD} L${x(t0).toFixed(1)} ${H - PAD} Z`;
+    const crossesMidnight =
+        new Date(t0 * 1000).toDateString() !== new Date(t1 * 1000).toDateString();
+    const mid = (lo + hi) / 2;
+    const grid = [lo, mid, hi].map(v =>
+        `<line class="grid" x1="0" y1="${y(v).toFixed(1)}" x2="${W}" y2="${y(v).toFixed(1)}"/>`).join("");
+    const last = ys[ys.length - 1];
+    return `<div class="spark-head">
+        <span>low <b>${num(lo, dp)}</b> &middot; high <b>${num(hi, dp)}</b></span>
+        <span>now <b>${num(last, dp)}</b></span>
+      </div>
+      <svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
+        ${grid}
+        <path class="area" d="${area}" fill="var(${colourVar})"/>
+        <path class="line" d="${d}" stroke="var(${colourVar})"/>
+      </svg>
+      <div class="spark-ends"><span>${hhmm(t0, crossesMidnight)}</span><span>${
+          hhmm(t1, crossesMidnight)}</span></div>`;
+}
+
+/* ── how fresh is what you are looking at ───────────────────────────────────
+   Driven by its OWN timer, not by the poll: a poll that has died cannot be
+   trusted to report that it has died. Pure so a test can drive it. */
+const STALE_AFTER_MS = 90000;          // three missed thirty-second polls
+let _lastGood = 0;
+
+function agoWords(ms) {
+    const s = Math.round(ms / 1000);
+    if (s < 90) return s + (s === 1 ? " second" : " seconds");
+    const m = Math.round(s / 60);
+    if (s < 3600) return m + (m === 1 ? " minute" : " minutes");
+    const h = Math.round(s / 3600);
+    return h + (h === 1 ? " hour" : " hours");
+}
+
+function freshness(ageMs) {
+    // Before anything has arrived there is nothing to be stale about — the
+    // loading card is already saying so, and an amber "not updating" over a
+    // page that has never loaded would be its own kind of wrong.
+    if (!(ageMs >= 0)) return { stale: false, text: "&middot; every 30s" };
+    if (ageMs <= STALE_AFTER_MS) return { stale: false, text: "&middot; every 30s" };
+    return { stale: true, text: "&middot; not updating for " + agoWords(ageMs) };
+}
+
+function markFreshness() {
+    const bar = document.getElementById("freshness");
+    const cad = document.getElementById("cadence");
+    if (!bar || !cad || !_lastGood) return;
+    const f = freshness(Date.now() - _lastGood);
+    bar.classList.toggle("stale", f.stale);
+    cad.innerHTML = f.text;
+}
+setInterval(markFreshness, 5000);
+
+/* One writer for the page, so the DOM is touched as little as possible.
+   - Identical output writes NOTHING: a rebuild drops text selection and closes
+     anything the reader has opened, for no gain.
+   - The entry animation is added for the first paint only (see the CSS above).
+   - Anything the reader has opened is reopened after the swap — the settings
+     fold on this page used to snap shut every thirty seconds. */
+let _painted = false, _lastHtml = "";
+function paint(html) {
+    const host = document.getElementById("content");
+    if (!host || html === _lastHtml) return;
+    _lastHtml = html;
+    const opened = Array.from(host.querySelectorAll("details[open]"))
+                        .map(d => d.id).filter(Boolean);
+    if (!_painted) host.classList.add("first-paint");
+    host.innerHTML = html;
+    for (const id of opened) {
+        const d = host.querySelector("#" + id);
+        if (d) d.open = true;
+    }
+    if (!_painted) {
+        _painted = true;
+        setTimeout(() => host.classList.remove("first-paint"), 600);
+    }
+}
+
+/* ── the page ───────────────────────────────────────────────────────────────*/
+function renderHero(d) {
+    const m = d.meter, id = d.identity;
+    const state = m ? m.state : "";
+    // The headline must not be a number the rest of the page is refusing to
+    // show. The gauges already dash out a dead meter's reading and say "last
+    // known value"; the hero was printing 793.8 W in 24-point beside "the
+    // device is not answering", which is the loudest thing on the page saying
+    // the opposite of the truth.
+    const verdict = !m ? "Not a meter"
+        : (state === "live" ? num(m.watts, 1) + " W" : "&#8212;");
+    // "reading now, last heard 10 days ago" is a contradiction on a meter that
+    // only speaks when something changes, and most of this estate's meters do.
+    const polls = !!(m && m.sources && m.sources.volts);
+    let sub;
+    if (!m) {
+        sub = esc(d.why || "This device reports no power.");
+    } else if (state !== "live") {
+        // Keep the figure, but as history rather than as a reading.
+        sub = esc(m.why || state)
+            + (has(m.watts) ? ` &#8212; it last read ${num(m.watts, 1)} W` : "");
+    } else if (has(m.lastKnownWatts)) {
+        sub = `switched off &#8212; it last reported ${num(m.lastKnownWatts, 1)} W and does
+               not send a zero, so that figure is not counted`;
+    } else if (polls) {
+        sub = "reading now" + (m.ago ? ", last heard " + esc(m.ago) + " ago" : "");
+    } else {
+        sub = "reports only when something changes"
+            + (m.ago ? ", last spoke " + esc(m.ago) + " ago" : "");
+    }
+    const chips = [];
+    if (id.model) chips.push(`<div class="chip">${esc(id.model)}</div>`);
+    if (id.pluginName) chips.push(`<div class="chip">${esc(id.pluginName)}${
+        id.pluginVersion ? " " + esc(id.pluginVersion) : ""}</div>`);
+    if (m && m.onState !== null && m.onState !== undefined)
+        chips.push(`<div class="chip ${m.onState ? "good" : ""}">${m.onState ? "Switched on" : "Switched off"}</div>`);
+    if (m && m.state !== "live") chips.push(`<div class="chip bad">${esc(m.why || m.state)}</div>`);
+    if (!id.enabled) chips.push(`<div class="chip warn">Communication disabled</div>`);
+    // One line covering the whole page rather than a caveat on each card: on a
+    // meter that is not answering, EVERY figure below — voltage, current,
+    // uptime, wi-fi signal — is the last value it sent, and several of them
+    // look perfectly ordinary. A plug with no mains still reads 250 V here.
+    const frozen = (m && m.state !== "live")
+        ? `<div class="note">Every figure below is the last value this meter sent before it
+           stopped answering, not a reading of now. Its lifetime energy and its measured
+           offset still stand — those are history by nature.</div>` : "";
+    return `<section class="card hero">
+      <div class="hero-top">
+        <div class="hero-icon">${I("plug")}</div>
+        <div>
+          <div class="hero-verdict">${verdict}</div>
+          <div class="hero-sub">${sub}</div>
+        </div>
+      </div>
+      ${chips.length ? `<div class="hero-chips">${chips.join("")}</div>` : ""}
+      ${frozen}
+    </section>`;
+}
+
+function renderStrip(d) {
+    const m = d.meter;
+    if (!m) return "";
+    const gone = m.state !== "live";
+    const g = (lab, val, sub, cls) => `<div class="gauge${cls ? " " + cls : ""}">
+        <div class="gauge-lab">${lab}</div>
+        <div class="gauge-big">${val}</div>
+        <div class="gauge-sub">${sub}</div>
+      </div>`;
+    return `<div class="strip">
+      ${g("Power", (gone ? "&#8212;" : num(m.watts, 1) + " W"),
+          gone ? "last known value"
+               : (has(m.lastKnownWatts)
+                    ? `switched off, last drew ${num(m.lastKnownWatts, 1)} W`
+                    : "as the meter reports it"))}
+      ${g("Voltage", (gone || !has(m.volts)) ? "&#8212;" : num(m.volts, 1) + " V",
+          m.voltsImplausible ? "not a believable reading" : "raw, uncorrected",
+          m.voltsImplausible ? "bad" : "")}
+      ${g("Current", (gone || !has(m.amps)) ? "&#8212;" : num(m.amps, 3) + " A", "RMS")}
+      ${g("Power factor", (gone || !has(m.pf)) ? "&#8212;" : num(m.pf, 2),
+          m.pf === null || m.pf === undefined ? "not available"
+            : (m.pfSource === "derived" ? "worked out from W, V and A" : "reported by the meter"))}
+    </div>`;
+}
+
+/* This is the question the page was built to answer. */
+function renderIdentity(d) {
+    const id = d.identity, m = d.meter;
+    const rows = [];
+    const kv = (k, v) => { if (v !== null && v !== undefined && v !== "") rows.push(
+        `<div class="kv">${k}<b>${v}</b></div>`); };
+    kv("Indigo name", esc(id.name));
+    kv("Description", esc(id.description));
+    kv("Room or folder", esc(id.folder));
+    kv("Model", esc(id.model) + (id.subModel ? ` <span class="sub">${esc(id.subModel)}</span>` : ""));
+    kv("Hardware address", id.address ? `<span class="mono">${esc(id.address)}</span>` : "");
+    // Named rather than auto-capitalised: "ip" came out as "Ip", and these are
+    // the rows someone reads to work out which physical plug they are holding.
+    const PROP_LABELS = [
+        ["ip", "IP address"], ["ip_address", "IP address"], ["hostname", "Network name"],
+        ["friendly_name", "Zigbee name"], ["mac_address", "MAC address"],
+        ["ieee_address", "Zigbee address"], ["vendor", "Made by"], ["model", "Model code"],
+        ["boardModel", "Board"], ["esphomeVersion", "ESPHome version"], ["port", "Port"],
+        ["channel_id", "Channel"], ["power_source", "Powered by"],
+    ];
+    const seen = new Set();
+    for (const [k, label] of PROP_LABELS) {
+        const v = (d.props || {})[k];
+        if (v === undefined || v === null || String(v) === "" || seen.has(label)) continue;
+        seen.add(label);
+        kv(label, `<span class="mono">${esc(v)}</span>`);
+    }
+    kv("Device id", `<span class="mono">${id.id}</span>`);
+    kv("Device type", `<span class="mono">${esc(id.deviceTypeId)}</span>`);
+    kv("Driven by", esc(id.pluginName) + (id.pluginVersion ? " " + esc(id.pluginVersion) : "")
+        + (id.pluginRunning === false ? ' <span class="bad">(not running)</span>' : ""));
+    kv("Last heard from", id.lastSuccessfulComm
+        ? esc(id.lastSuccessfulComm) + (m && m.ago ? ` <span class="sub">${esc(m.ago)} ago</span>` : "")
+        : "never");
+    if (id.errorState) kv("Error", `<span class="bad">${esc(id.errorState)}</span>`);
+    return `<section class="card"><h2>Which plug is this?</h2>${rows.join("")}
+      <div class="note">The address and the network name are what identify the physical
+      thing. Where two plugs are named alike, the lifetime energy below and the shape of
+      the load above usually settle which is which — a freezer cycling on and off looks
+      nothing like a television.</div></section>`;
+}
+
+function renderTrust(d) {
+    const o = d.offset;
+    const head = `<section class="card"><h2>How far this meter is out</h2>`;
+    if (d.offsetBuilding)
+        return head + `<div class="empty">Still measuring. This reads a week of history for
+          every meter in the house and appears on a later refresh.</div></section>`;
+    if (!o) {
+        // "Not measured" and "measured as zero" are different facts, and a card
+        // rendered blank for both would let an absence read as agreement.
+        const src = (d.meter && d.meter.sources) || {};
+        const why = !src.volts
+            ? "This meter reports power but not voltage, so there is nothing to compare against the inverter."
+            : "There are not yet enough paired readings from this meter to tell a calibration offset from a busy afternoon.";
+        return head + `<div class="empty">${why}</div></section>`;
+    }
+    const ref = (d.reference || {}).name || "the inverter";
+    const cls = o.mean >= 0 ? "off-hi" : "off-lo";
+    const dir = o.mean >= 0 ? "higher" : "lower";
+    return `<section class="card">
+      <h2>How far this meter is out <span class="pill">${d.offsetDays || 7} ${
+          plural(d.offsetDays || 7, "day")} of ten-minute means</span></h2>
+      <div class="kv">Average difference from ${esc(ref)}
+        <b class="${cls}">${signed(o.mean)} V</b></div>
+      <div class="kv">Range over the week<b>${signed(o.min)} to ${signed(o.max)} V</b></div>
+      <div class="kv">As a percentage<b>${signed(o.percent, 2)}%</b></div>
+      <div class="kv">Paired readings behind it<b>${o.pairs}</b></div>
+      ${d.spread ? `<div class="kv">Spread across all ${d.spread.meters} meters<b>${num(d.spread.spread, 1)} V</b></div>` : ""}
+      <div class="note">This meter reads about ${num(Math.abs(o.mean), 2)} V ${dir} than
+      ${esc(ref)} does. Neither is calibrated, so treat that as the distance between two
+      instruments rather than as this one's error. The voltage above is shown raw.</div>
+    </section>`;
+}
+
+function renderEnergy(d) {
+    const m = d.meter;
+    if (!m) return "";
+    const st = {};
+    for (const r of (d.states || [])) st[r.name] = r;
+    const src = m.sources || {};
+    const rows = [], used = new Set();
+
+    // Prefer the meter's OWN display string over a number formatted here: it
+    // carries the unit and the precision the device meant. Formatting
+    // energyKwhToday as 0.00 hid a real 0.001 kWh, and a bare wifiRssi of -57
+    // is a number with no idea what it is.
+    const show = (name) => {
+        const r = st[name];
+        if (!r) return null;
+        used.add(name);
+        return (r.display !== null && r.display !== undefined && r.display !== "")
+            ? esc(r.display) : esc(r.value);
+    };
+    const kv = (k, v, note) => { if (v !== null && v !== undefined && v !== "")
+        rows.push(`<div class="kv">${k}<b>${v}${
+            note ? ` <span class="sub">${note}</span>` : ""}</b></div>`); };
+
+    // A duration in bare seconds is unreadable, and neither Shelly's sysUptime
+    // nor ESPHome's uptime ships a display string for it.
+    const dur = (secs) => {
+        let n = Number(secs);
+        if (!isFinite(n) || n < 0) return null;
+        const d0 = Math.floor(n / 86400); n -= d0 * 86400;
+        const h = Math.floor(n / 3600);   n -= h * 3600;
+        const mn = Math.floor(n / 60);
+        const bits = [];
+        if (d0) bits.push(d0 + " " + plural(d0, "day"));
+        if (h) bits.push(h + " " + plural(h, "hour"));
+        if (!d0 && mn) bits.push(mn + " " + plural(mn, "minute"));
+        return bits.length ? bits.join(", ") : "under a minute";
+    };
+
+    if (src.today) kv("Used today", show(src.today));
+    // Labelled from WHICH state answered: the fallback list ends at
+    // energyKwhMonth, which is a month, and a fixed "Lifetime total" caption
+    // called a Shelly's 0.10 kWh month a lifetime.
+    if (src.total) kv(/month/i.test(src.total) ? "Used this month" : "Lifetime total",
+                      show(src.total));
+    kv("Since it last restarted", show("totalEnergySinceBoot"));
+    if (!used.has("energy")) kv("The meter's own energy counter", show("energy"));
+
+    for (const name of ["sysUptime", "uptime"]) {
+        if (st[name] === undefined || used.has(name)) continue;
+        const r = st[name];
+        const human = dur(r.value);
+        // A plugin that already formats it wins; this only fills the gap.
+        kv("Powered up for", (r.display && isNaN(Number(r.display))) ? esc(r.display)
+                             : (human || esc(r.value)));
+        used.add(name);
+        break;
+    }
+    kv("Its own temperature", show("deviceTempC") || show("addonTempC"));
+    const rssi = st["wifiRssi"] ? st["wifiRssi"] : st["wifiSignalDb"];
+    if (rssi) {
+        const v = (rssi.display && String(rssi.display).trim() !== "")
+            ? esc(rssi.display) : esc(rssi.value) + " dBm";
+        kv("Wi-Fi signal", v, st["wifiSsid"] ? "on " + esc(st["wifiSsid"].value) : "");
+    }
+    kv("Zigbee link quality", show("linkQuality"));
+
+    if (!rows.length) return "";
+    return `<section class="card"><h2>Energy and condition</h2>${rows.join("")}
+      <div class="note">A lifetime total is the strongest fingerprint a plug has — two
+      identical devices installed at different times will never share one, and neither
+      will their uptimes.</div></section>`;
+}
+
+function renderHistory(id, sources) {
+    return `<section class="card">
+      <h2>The last 24 hours <span class="pill" id="hist-note">loading&#8230;</span></h2>
+      <div id="hist-watts" class="spark-wrap"></div>
+      <div id="hist-volts" class="spark-wrap"></div>
+      <div class="note">Averaged into buckets from the logger's own history, which records
+      a value only when it changes. A flat line means nothing changed, not that nothing was
+      recorded.</div></section>`;
+}
+
+function renderStates(d) {
+    const rows = (d.states || []);
+    if (!rows.length) return "";
+    let html = `<section class="card">
+      <h2>Every reading it publishes <span class="pill">${rows.length}</span></h2>
+      <div class="table-scroll"><table class="ptable"><thead><tr>
+        <th>Reading</th><th>Value</th></tr></thead><tbody>`;
+    for (const r of rows) {
+        const shown = (r.display !== null && r.display !== undefined && r.display !== "")
+            ? r.display : r.value;
+        html += `<tr><td class="mono">${esc(r.name)}</td>
+            <td class="wrapval">${esc(shown)}</td></tr>`;
+    }
+    html += `</tbody></table></div></section>`;
+    return html;
+}
+
+function renderProps(d) {
+    const props = d.props || {};
+    const keys = Object.keys(props);
+    if (!keys.length) return "";
+    let rows = "";
+    for (const k of keys) {
+        const v = props[k];
+        const hidden = v === "(hidden)";
+        rows += `<tr><td class="mono">${esc(k)}</td>
+            <td class="wrapval ${hidden ? "hidden-val" : "mono"}">${esc(v)}</td></tr>`;
+    }
+    return `<section class="card">
+      <h2>How it is configured <span class="pill">${keys.length}</span></h2>
+      <details id="props-fold"><summary>Show the plugin's own settings for this device</summary>
+        <div class="table-scroll"><table class="ptable"><thead><tr>
+          <th>Setting</th><th>Value</th></tr></thead><tbody>${rows}</tbody></table></div>
+      </details>
+      <div class="note">Read from the owning plugin's own store. Anything that could be a
+      credential is shown as "(hidden)" and never leaves the server.</div></section>`;
+}
+
+async function drawHistory(d) {
+    const src = (d.meter && d.meter.sources) || {};
+    const note = document.getElementById("hist-note");
+    const jobs = [
+        ["hist-watts", src.watts, "Power (W)", "--home-load", 1],
+        ["hist-volts", src.volts, "Voltage (V)", "--solar", 1],
+    ];
+    let drawn = 0;
+    for (const [elId, state, label, colour, dp] of jobs) {
+        const el = document.getElementById(elId);
+        if (!el) continue;
+        if (!state) { el.innerHTML = ""; continue; }
+        try {
+            const r = await post("historyQuery",
+                { action: "series", deviceId: DEV_ID, state: state, hours: 24, maxPoints: 180 });
+            el.innerHTML = `<div class="gauge-lab" style="margin-top:10px">${label}</div>`
+                + sparkline(r.points, colour, dp);
+            drawn++;
+        } catch (e) {
+            el.innerHTML = `<div class="gauge-lab" style="margin-top:10px">${label}</div>
+                <div class="empty">${esc(e.message)}</div>`;
+        }
+    }
+    if (note) note.textContent = drawn ? "from the logger" : "no history";
+}
+
+function render(d) {
+    const id = d.identity || {};
+    document.title = (id.name || "Meter") + " · Dashboards";
+    const hdr = document.getElementById("hdr-name");
+    if (hdr) hdr.textContent = id.name || "Meter";
+    paint(renderHero(d)
+        + renderStrip(d)
+        + `<div class="sec-label">Identity</div>`
+        + renderIdentity(d)
+        + (d.meter ? renderHistory(id.id, d.meter.sources) : "")
+        + `<div class="sec-label">Measurement</div>`
+        + renderTrust(d)
+        + renderEnergy(d)
+        + `<div class="sec-label">Everything else</div>`
+        + renderStates(d)
+        + renderProps(d));
+}
+
+let drawnOnce = false;
+async function tick() {
+    if (!DEV_ID) {
+        paint(`<section class="card"><h2>No meter chosen</h2>
+             <div class="empty">Open this page from a tile on the Mains page.</div></section>`);
+        return;
+    }
+    try {
+        const d = await post("mainsMeter", { id: DEV_ID });
+        render(d);
+        setTs();
+        // The chart is a second round trip and the readings must not wait for
+        // it. Drawn once — a 24-hour line does not move in thirty seconds, and
+        // redrawing it on every poll would double the history load for nothing.
+        if (!drawnOnce && d.meter) { drawnOnce = true; drawHistory(d); }
+    } catch (e) {
+        // Leave evidence. A stall that is caught and silently swallowed is
+        // exactly as undiagnosable as one that is not caught at all.
+        console.error("[Meter] poll failed:", e);
+        const el = document.getElementById("content");
+        // Through paint() too, or _lastHtml goes stale and the next identical
+        // healthy render is skipped as a no-op, leaving this card on screen.
+        if (el && !el.querySelector(".card")) {
+            paint(`<section class="card"><h2>Not reading</h2>
+                <div class="empty">${esc(e.message)}. <a href="mains.html">Back to Mains</a>.</div>
+                </section>`);
+        }
+    }
+}
+tick();
+setInterval(tick, POLL_INTERVAL_MS);
+</script>
+<script src="dashboards-icons.js"></script>
+<script src="a11y.js"></script>
+<script src="standalone-nav.js"></script>
+</body>
+</html>

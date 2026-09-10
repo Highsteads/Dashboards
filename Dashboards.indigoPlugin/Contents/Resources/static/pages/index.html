@@ -1,0 +1,2351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta name="indigo-page-name" content="Dashboards">
+    <meta name="indigo-page-icon" content="house.fill">
+    <meta name="indigo-page-description" content="Home dashboards hub">
+    
+    <!-- iOS / macOS Web App (File → Add to Dock on Mac, Share → Add to Home Screen on iPhone). -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Dashboards">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#5856d6">
+    <link rel="apple-touch-icon" sizes="180x180" href="/public/dashboards/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="/public/dashboards/apple-touch-icon-167.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="/public/dashboards/apple-touch-icon-152.png">
+    <link rel="apple-touch-icon-precomposed" href="/public/dashboards/apple-touch-icon.png">
+    <title>Dashboards</title>
+    <link rel="stylesheet" href="dashboards-theme.css">
+    <link rel="stylesheet" href="dashboards-tiles.css">
+    <style>
+        :root {
+    --hero-grad: linear-gradient(160deg, rgba(88,86,214,0.05), rgba(10,132,255,0.04) 45%, rgba(52,199,89,0.05));
+}
+        @media (prefers-color-scheme: dark) {
+            :root {
+    --hero-grad: linear-gradient(160deg, rgba(125,122,255,0.10), rgba(10,132,255,0.06) 45%, rgba(48,209,88,0.08));
+}
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: var(--font-ui);
+            background: var(--bg); color: var(--text);
+            padding: max(80px, calc(72px + env(safe-area-inset-top))) 0 max(32px, env(safe-area-inset-bottom));
+            min-height: 100vh;
+            -webkit-overflow-scrolling: touch;
+        }
+        .topbar {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 10;
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            padding: 10px max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left));
+            padding-top: max(10px, env(safe-area-inset-top));
+            margin-bottom: 0;
+        }
+        .topbar-inner {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 10px; flex-wrap: wrap;
+            max-width: 900px; margin: 0 auto;
+        }
+        .topbar h1 { font-size: 18px; font-weight: 600; margin: 0; letter-spacing: -.01em; }
+        /* ── 3-column topbar (Back · Title + Updated · Top) ── */
+        .topbar-3col {
+            display: grid;
+            grid-template-columns: 1fr 2fr 1fr;
+            align-items: center;
+            gap: 8px;
+        }
+        .topbar-3col .hdr-left  { justify-self: start; display: flex; }
+        .topbar-3col .hdr-right { justify-self: end;   display: flex; }
+        .topbar-3col .hdr-center {
+            justify-self: stretch;
+            text-align: center;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1px;
+            line-height: 1.15;
+        }
+        .topbar-3col h1 {
+            font-size: 20px;
+            font-weight: 700;
+            margin: 0;
+            letter-spacing: -0.02em;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
+        }
+        .topbar-3col .topbar-status {
+            font-size: 11px;
+            color: var(--text-secondary);
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .topbar-status .ts::before {
+            content: '●'; color: var(--on-color); margin-right: 4px;
+            animation: live-pulse 2.4s ease-in-out infinite;
+        }
+        @keyframes live-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+        .nav-btn {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            color: var(--accent);
+            padding: 8px 14px;
+            border-radius: var(--r-md);
+            font-size: 14px; font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+            text-decoration: none;
+            display: inline-flex; align-items: center; gap: 4px;
+            min-height: 36px;
+            transition: transform 0.08s ease-out, background 0.15s, box-shadow 0.08s, border-color 0.15s;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            white-space: nowrap;
+        }
+        .nav-btn:hover  { background: var(--bg); border-color: var(--accent); }
+        .nav-btn:active {
+            transform: translateY(2px) scale(0.96);
+            background: var(--accent); color: #fff;
+            box-shadow: 0 0 0 rgba(0,0,0,0);
+        }
+
+
+        .hdr-left, .hdr-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .topbar-status { font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+        .bottombar {
+            position: sticky; bottom: 0; z-index: 10;
+            background: var(--card-bg);
+            border-top: 1px solid var(--border);
+            box-shadow: 0 -1px 3px rgba(0,0,0,0.08);
+            padding: 8px max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left));
+            padding-bottom: max(8px, env(safe-area-inset-bottom));
+            margin-top: 16px;
+        }
+        .bottombar-inner {
+            text-align: center;
+            max-width: 900px; margin: 0 auto;
+            font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums;
+            line-height: 1.4;
+        }
+        .container {
+            max-width: 900px; margin: 0 auto;
+            padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
+        }
+        .footer {
+            text-align: center; font-size: 12px; color: var(--text-secondary);
+            margin-top: 32px;
+        }
+        .footer a { color: var(--accent); text-decoration: none; }
+
+        /* ── Favourites (v2.10.0): one-tap tiles pinned at the top of the hub ── */
+        .fav-card { max-width: 900px; margin: 0 auto 16px; }
+        .fav-h {
+            font-size: 12px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 1.2px; color: var(--text-secondary); margin: 0 4px 8px;
+        }
+        /* One size for every favourite (v2.97.0). The tiles used to take
+           their height from their contents, so a reading tile with a big
+           number sat taller than the room shortcuts beside it and the card
+           read as three different things. A fixed row height makes the whole
+           card one grid; the name clamps to two lines so a long one cannot
+           push out of it. */
+        .fav-grid {
+            display: grid; gap: 10px;
+            grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
+            grid-auto-rows: var(--fav-tile-h, 84px);
+        }
+        .fav-tile {
+            background: var(--card-bg); border: 1px solid var(--border-soft);
+            border-radius: var(--r-lg); box-shadow: var(--shadow);
+            padding: 12px 12px; cursor: pointer;
+            display: flex; flex-direction: column; gap: 6px; align-items: flex-start;
+            text-align: left; font-family: inherit; color: inherit;
+            min-height: 0; height: 100%; justify-content: center; overflow: hidden;
+            transition: transform 0.12s, box-shadow 0.12s, border-color 0.15s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .fav-tile:active { transform: scale(0.96); }
+        /* Room shortcuts (v2.89.0) — second row of the favourites card. Same
+           tile shape so the card reads as one thing, but they are anchors and
+           carry the accent colour to say "this goes somewhere" rather than
+           "this switches something". */
+        .fav-grid-rooms { margin-top: 10px; }
+        .fav-tile.fav-roomlink { text-decoration: none; }
+        .fav-tile.fav-roomlink .fav-state { color: var(--accent); }
+        .fav-tile.on { border-color: var(--on-color); }
+        .fav-tile.busy { opacity: 0.55; }
+        .fav-name { font-size: 14px; font-weight: 600; line-height: 1.2;
+            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+            overflow: hidden; }
+        .fav-state { font-size: 12px; color: var(--text-secondary); }
+        .fav-tile.on .fav-state { color: var(--on-color); font-weight: 600; }
+        /* v2.19.0 — reading tiles: read-only value, not a switch */
+        .fav-tile.fav-reading { cursor: default; }
+        .fav-tile.fav-reading:active { transform: none; }
+        .fav-state.val { font-size: 17px; font-weight: 700; color: var(--text);
+            font-variant-numeric: tabular-nums; }
+
+        /* ── v2.93.0 — group favourite: several devices, one tile ────────
+           Borrows the on-tile border so a group that is fully on looks like a
+           device that is on. PARTIAL gets its own dashed border rather than a
+           new colour: "some of these are on" is a different KIND of fact from
+           on or off, and saying it in the border as well as the words keeps it
+           legible to anyone reading the card by colour. The state line always
+           spells the count out — colour only reinforces it. */
+        .fav-tile.fav-group-part { border-style: dashed; border-color: var(--on-color); }
+        .fav-tile.fav-group-part .fav-state { color: var(--on-color); font-weight: 600; }
+        .fav-tile.fav-group-unknown .fav-state { color: var(--text-secondary); }
+
+        /* ── v2.76.0 — door favourite: ONE state-driven tile ──────────────
+           White closed (the quiet default), BLUE while moving either way,
+           RED filled when open, AMBER when stuck, grey dash when unknown.
+           Text always carries the state; colour only reinforces it. The
+           moving/open blues and reds match the GarageDoor plugin's hall-lamp
+           convention, so the house speaks one colour language. */
+        .fav-tile.fav-door { position: relative; overflow: hidden; }
+        .fav-tile.fav-door .fav-state { font-weight: 600; }
+        .fav-tile.fav-door-open { background: var(--bad); border-color: var(--bad); }
+        .fav-tile.fav-door-open .fav-name, .fav-tile.fav-door-open .fav-state { color: #fff; }
+        .fav-tile.fav-door-opening, .fav-tile.fav-door-closing, .fav-tile.fav-door-moving {
+            /* same blue in both schemes, like the palette's other blues */
+            background: #0a84ff; border-color: #0a84ff; cursor: default; }
+        .fav-tile.fav-door-opening .fav-name, .fav-tile.fav-door-opening .fav-state,
+        .fav-tile.fav-door-closing .fav-name, .fav-tile.fav-door-closing .fav-state,
+        .fav-tile.fav-door-moving .fav-name, .fav-tile.fav-door-moving .fav-state { color: #fff; }
+        .fav-tile.fav-door-opening:active, .fav-tile.fav-door-closing:active,
+        .fav-tile.fav-door-moving:active, .fav-tile.fav-door-unknown:active { transform: none; }
+        .fav-tile.fav-door-stuck { background: var(--warn); border-color: var(--warn); }
+        .fav-tile.fav-door-stuck .fav-name, .fav-tile.fav-door-stuck .fav-state { color: #fff; }
+        .fav-tile.fav-door-unknown { cursor: default; }
+        .fav-tile.fav-door-unknown .fav-state { color: var(--text-muted); }
+        /* v2.77.0 — lock-flavoured door (front door): Unlocked is the blue
+           transitional state, but nothing is moving, so no sweep bar. */
+        .fav-tile.fav-door-unlocked { background: #0a84ff; border-color: #0a84ff; cursor: default; }
+        .fav-tile.fav-door-unlocked .fav-name, .fav-tile.fav-door-unlocked .fav-state { color: #fff; }
+        .fav-tile.fav-door-unlocked:active { transform: none; }
+        /* v2.77.0 — reading tiles: optional value colour bands (red below
+           badBelow, amber below warnBelow, green otherwise). No bands
+           configured = the plain tile, unchanged. */
+        .fav-state.val.fav-val-good { color: var(--on-color); }
+        .fav-state.val.fav-val-warn { color: var(--warn); }
+        .fav-state.val.fav-val-bad  { color: var(--bad); }
+        /* Sweep bar while the door is in motion — mirrors the action veil's,
+           so movement started at the hall button reads the same as a press. */
+        .fav-tile.fav-door-opening::after, .fav-tile.fav-door-closing::after,
+        .fav-tile.fav-door-moving::after {
+            content: ""; position: absolute; bottom: 0; left: 0; height: 3px; width: 38%;
+            background: rgba(255,255,255,.92);
+            animation: fav-door-sweep 1.1s ease-in-out infinite; }
+        @keyframes fav-door-sweep { 0% { left: -40%; } 100% { left: 100%; } }
+        @media (prefers-reduced-motion: reduce) {
+            .fav-tile.fav-door-opening::after, .fav-tile.fav-door-closing::after,
+            .fav-tile.fav-door-moving::after { animation: none; left: 0; width: 100%; opacity: .45; }
+        }
+
+        /* ── v2.95.0 — the light-hub notice ──────────────────────────────
+           The light hub used to remove the camera mosaic, the weather panel
+           and the alerts strip with NOTHING said, so a phone that measured
+           badly looked exactly like a phone with broken cameras. It reads as
+           a fault because an absence always does. This row is the whole fix:
+           it never hides, it says what is missing and why, and it is the
+           button that overrides the verdict. */
+
+        /* ── Command-centre sections (cameras / energy / weather / heating / alerts) ── */
+        #cameras-mosaic {
+            display: grid; gap: 8px;
+            grid-template-columns: repeat(4, 1fr);
+            max-width: 900px; margin: 0 auto 16px;
+        }
+        /* 4-across on wide; 2×2 on tablet/phone landscape; 2-wide on portrait
+           phones so each tile stays large enough to glance at. */
+        @media (max-width: 700px) { #cameras-mosaic { grid-template-columns: repeat(2, 1fr); } }
+        .home-cam {
+            background: #000; border-radius: var(--r-md); overflow: hidden;
+            box-shadow: var(--shadow); cursor: pointer;
+            display: block;
+        }
+        .home-cam-frame { aspect-ratio: 16 / 9; background: #000; overflow: hidden; }
+        .home-cam-frame { position: relative; }
+        .cam-badge {
+            position: absolute; right: 6px; bottom: 6px;
+            font-size: 9.5px; font-weight: 600; letter-spacing: .3px;
+            padding: 1px 6px; border-radius: var(--r-pill);
+            background: rgba(0,0,0,.55); color: #fff;
+            backdrop-filter: saturate(140%) blur(4px);
+        }
+        .home-cam-frame img {
+            width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none;
+        }
+
+        .dash-row {
+            display: grid; gap: 10px; max-width: 900px; margin: 0 auto 16px;
+            grid-template-columns: 1fr 1fr;
+        }
+        /* The glance row holds THREE cards in two columns, so before v3.3.0 the
+           third wrapped underneath Energy and left a hole the size of the
+           Weather card beside it, while the grid stretched Solar to Energy's
+           full height for nothing — 623px of card around 240px of content.
+           Energy now spans both rows on the left and Solar sits above Weather
+           on the right, each at its natural height.
+
+           Auto-placement does the work rather than pinned rows, deliberately:
+           Solar hides itself when there is no per-string payload (an older
+           SigenEnergyManager, or an inverter without the registers), and with
+           fixed rows that would leave the hole back where it started. As it is,
+           Weather simply moves up beside Energy. */
+        @media (min-width: 601px) {
+            .dash-row.glance                   { align-items: start; }
+            .dash-row.glance > #energy-detail  { grid-row: span 2; }
+        }
+        /* Everything collapses to a single column at phone width, the glance
+           row (Energy + Weather) included — see the note on it below. Their
+           renderers emit a shorter row set on narrow viewports, since the
+           diagram above already carries the four headline figures. */
+        @media (max-width: 600px) {
+            .dash-row              { grid-template-columns: 1fr; }
+            /* The Energy and Weather pair used to stay side by side here, which
+               left each card about 205px wide on a phone — too narrow for the
+               power-flow diagram to be readable, and the reason the diagram was
+               desktop-only. Stacked, each gets the full width and both the
+               diagram and the solar forecast read properly. */
+            .dash-row.glance       { grid-template-columns: 1fr; gap: 10px; }
+            .dash-row.glance .dash-card { padding: 14px 14px; }
+            .dash-row.glance .dash-card .row { font-size: 13px; padding: 2px 0; }
+            .dash-row.glance .dash-card .big { font-size: 22px; }
+            .dash-row.glance .dash-card h3   { font-size: 11px; margin-bottom: 8px; }
+        }
+        .dash-card {
+            background: var(--card-bg); border-radius: var(--r-lg); padding: 14px 16px;
+            border: 1px solid var(--border-soft);
+            box-shadow: var(--shadow);
+            color: inherit; text-decoration: none; display: block;
+            cursor: pointer;
+            transition: transform 0.15s, box-shadow 0.15s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .dash-card:active { transform: scale(0.98); }
+        .dash-card h3 {
+            font-size: 12px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.6px; color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+        .dash-card .row {
+            display: flex; justify-content: space-between; align-items: baseline;
+            font-size: 13px; padding: 2px 0;
+            font-variant-numeric: tabular-nums;
+        }
+        .dash-card .row .key  { color: var(--text-secondary); }
+        .dash-card .row .val  { font-weight: 600; color: var(--text); }
+        .dash-card .big       { font-size: 22px; font-weight: 700; color: var(--accent); }
+        .dash-card .ok        { color: var(--on-color); }
+        .dash-card .warn      { color: #ff9500; }
+        .dash-card .bad       { color: #ff453a; }
+        .dash-card .muted     { color: var(--text-secondary); font-size: 12px; }
+        /* Home Insights rows (v2.42.0) */
+        .insight-row {
+            display: flex; align-items: flex-start; gap: 10px;
+            padding: 6px 0; border-top: 1px solid var(--border, rgba(128,128,128,0.15));
+        }
+        .insight-row:first-of-type { border-top: none; }
+        .insight-row .ins-icon  { font-size: 16px; line-height: 1.3; }
+        .insight-row .ins-icon .dsh-icon { width: 17px; height: 17px; vertical-align: -.18em; }
+        .insight-row .ins-body  { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+        .insight-row .ins-title { font-size: 13px; font-weight: 600; color: var(--text); }
+        .insight-row.warn .ins-title { color: #ff9500; }
+        .insight-row .ins-detail { font-size: 12px; color: var(--text-secondary); }
+        .attention-strip { display:flex; align-items:center; gap:10px; border-left:4px solid #ff9500; }
+        .attention-strip .attention-count { font-size:18px; font-weight:700; color:#ff9500; }
+        .attention-strip .attention-copy { min-width:0; }
+        .attention-strip .attention-title { font-size:13px; font-weight:650; color:var(--text); }
+        .attention-strip .attention-detail { font-size:12px; color:var(--text-secondary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .dash-card .heat-line {
+            display: grid; grid-template-columns: 1fr auto auto;
+            gap: 8px; font-size: 12px; padding: 2px 0;
+            font-variant-numeric: tabular-nums;
+        }
+        .dash-card .heat-line .zone-name { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .dash-card .heat-line .zone-temp { color: var(--text-secondary); }
+        .dash-card .heat-line .zone-dot {
+            width: 8px; height: 8px; border-radius: 50%; background: var(--off-color);
+            margin: 6px 0;
+        }
+        .dash-card .heat-line .zone-dot.on { background: #ff9500; }
+        .dash-card .alert-open {
+            display: flex; justify-content: space-between; align-items: baseline;
+            font-size: 12px; padding: 2px 0;
+        }
+        .dash-card .alert-open .name { color: var(--text); }
+        .dash-card .alert-open .when { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+
+        #config-form {
+            max-width: 400px; margin: 60px auto; padding: 24px;
+            background: var(--card-bg); border-radius: var(--r-lg); box-shadow: var(--shadow);
+        }
+        #config-form h2 { font-size: 20px; margin-bottom: 12px; }
+        #config-form label { display: block; font-size: 14px; color: var(--text-secondary); margin-top: 12px; }
+        #config-form input {
+            width: 100%; padding: 10px; margin-top: 4px; border: 1px solid var(--border);
+            border-radius: var(--r-sm); font-size: 15px; background: var(--bg); color: var(--text);
+        }
+        #config-form button {
+            margin-top: 16px; width: 100%; padding: 12px; border: none; border-radius: var(--r-md);
+            background: var(--accent); color: white; font-size: 16px; font-weight: 600; cursor: pointer;
+        }
+        #config-form p { font-size: 13px; color: var(--text-secondary); margin-top: 8px; }
+    
+        /* ═══ Shared Apple/Safari polish (v2.25.0) ═════════════════
+           Appended uniformly across pages: frosted translucent bars, laptop
+           hover states, keyboard focus rings, reduced-motion support, and
+           Safari/iOS fixes (dynamic viewport height, text-size-adjust, tap
+           highlight). Selectors a page lacks simply never match. */
+        html { -webkit-text-size-adjust: 100%; }
+        body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+        @supports (min-height: 100dvh) { body { min-height: 100dvh; } }
+        a, button, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+        :focus-visible { outline: 2px solid var(--accent, #5856d6); outline-offset: 2px; }
+        .topbar, .bottombar {
+            background: rgba(249, 249, 251, 0.82);
+            -webkit-backdrop-filter: saturate(180%) blur(20px);
+            backdrop-filter: saturate(180%) blur(20px);
+            box-shadow: none;
+        }
+        @media (prefers-color-scheme: dark) {
+            .topbar, .bottombar { background: rgba(22, 22, 24, 0.80); }
+        }
+        @media (hover: hover) and (pointer: fine) {
+            a.card:hover, a.dash-card:hover, .fav-tile:not(.fav-reading):hover, a.home-cam:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+            }
+            .nav-btn:hover { transform: translateY(-1px); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                transition-duration: 0.01ms !important;
+                animation-duration: 0.01ms !important;
+                scroll-behavior: auto !important;
+            }
+        }
+    
+        /* Solar generation + forecast, at the top of the Weather card. Sun is
+           weather, and the card was a wall of text rows with nothing to look
+           at. Same chart the Energy page draws, from the same function. */
+        .wx-solar { margin: 0 0 12px; }
+        .wx-solar h3 { margin-bottom: 8px; }
+        .wx-solar-head {
+            display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap;
+            margin-bottom: 6px;
+        }
+        .wx-solar-big {
+            font-size: 26px; font-weight: 700; color: var(--solar);
+            font-variant-numeric: tabular-nums; letter-spacing: -.02em; line-height: 1;
+        }
+        .wx-solar-sub { font-size: 12px; color: var(--text-secondary); }
+        .wx-solar-bar {
+            height: 5px; background: var(--track); border-radius: 3px;
+            overflow: hidden; margin: 7px 0 8px;
+        }
+        .wx-solar-fill { height: 100%; background: var(--solar); border-radius: 3px; transition: width .5s; }
+        #wx-fc { width: 100%; height: auto; display: block; }
+        .wx-solar-meta {
+            display: flex; justify-content: space-between; gap: 8px;
+            font-size: 11.5px; color: var(--text-secondary); margin-top: 4px;
+        }
+        .wx-solar-meta b { color: var(--text); font-variant-numeric: tabular-nums; font-weight: 600; }
+        /* v2.80.0 — per-string legend under the hub's hourly solar chart */
+        .wx-sol-legend {
+            display: flex; gap: 10px; flex-wrap: wrap;
+            font-size: 11px; color: var(--text-secondary); margin: 2px 0 6px;
+        }
+        .wx-sol-legend span.li { display: inline-flex; align-items: center; gap: 4px; }
+        .wx-sol-legend i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+        #wx-sol-score { color: var(--text-secondary); }
+        .wx-rule { height: 1px; background: var(--border-soft); margin: 12px 0 10px; }
+.reflector-note { margin: 8px 0 12px; padding: 10px 14px; border-radius: 10px; background: rgba(255,170,0,.12); border: 1px solid rgba(255,170,0,.45); font-size: 14px; }
+.reflector-note a { color: inherit; text-decoration: underline; word-break: break-all; }
+#cameras-mosaic.cam-paused .home-cam-frame::after { content: "paused — tap to resume"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.55); color: #fff; font-size: 13px; }
+</style>
+<style>
+        .back-to-top {
+            position: fixed;
+            bottom: max(80px, calc(72px + env(safe-area-inset-bottom)));
+            right: max(16px, env(safe-area-inset-right));
+            width: 44px; height: 44px;
+            border-radius: 50%;
+            background: var(--accent); color: #fff;
+            border: none; cursor: pointer;
+            font-size: 22px; font-weight: 700;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+            opacity: 0; pointer-events: none;
+            transition: opacity 0.25s, transform 0.15s;
+            z-index: 9;
+            font-family: inherit;
+        }
+        .back-to-top.visible { opacity: 0.9; pointer-events: auto; }
+        .back-to-top:hover  { opacity: 1; transform: translateY(-2px); }
+        .back-to-top:active { transform: translateY(0); opacity: 0.85; }
+
+        /* v2.18.0 — power-cut/storm banner; v2.30.0 — hero + linked pulse chips.
+           NB pre-2.30 the .good chip used var(--good), which this page never
+           defined — the who's-home chip silently lost its green. Fixed to
+           --on-color (and --warn/--bad now exist in :root too). */
+        #house-banner { display:block; text-decoration:none; border-radius: var(--r-lg);
+            padding:12px 16px; margin-bottom:14px; font-weight:700; font-size:15px;
+            color:#fff; box-shadow:var(--shadow); }
+        #house-banner.bad  { background:var(--bad); }
+        #house-banner.warn { background:var(--warn); }
+        #hub-hero {
+            background: var(--card-bg);
+            background-image: var(--hero-grad);
+            border: 1px solid var(--border-soft);
+            border-radius: var(--r-lg); box-shadow: var(--shadow);
+            padding: 16px 18px; margin: 0 auto 16px; max-width: 900px;
+        }
+        .hero-top { display:flex; justify-content:space-between; align-items:flex-start;
+            gap:12px; flex-wrap:wrap; margin-bottom:12px; }
+        .hero-greet { font-size:24px; font-weight:800; letter-spacing:-0.02em; line-height:1.15; }
+        .hero-date { font-size:13px; color:var(--text-secondary); margin-top:2px; }
+        .hero-sun { font-size:12.5px; color:var(--text-secondary); text-align:right;
+            line-height:1.6; font-variant-numeric:tabular-nums; }
+        .hero-sun b { color:var(--text); font-weight:600; }
+        .pulse-row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+        .pulse-chip { display:inline-flex; align-items:center; gap:6px; font-size:13px;
+            font-weight:600; padding:6px 11px; border-radius: var(--r-md);
+            background:var(--card-bg-alt); border:1px solid var(--border-soft);
+            color:var(--text); text-decoration:none;
+            transition: transform 0.12s, border-color 0.15s;
+            -webkit-tap-highlight-color: transparent; }
+        a.pulse-chip:active { transform: scale(0.95); }
+        @media (hover: hover) and (pointer: fine) {
+            a.pulse-chip:hover { border-color: var(--accent); transform: translateY(-1px); }
+        }
+        .pulse-chip.good { background:rgba(52,199,89,0.14); border-color:rgba(52,199,89,0.25); color:var(--on-color); }
+        .pulse-chip.warn { background:rgba(255,149,0,0.14); border-color:rgba(255,149,0,0.25); color:var(--warn); }
+        .pulse-chip.bad  { background:rgba(255,69,58,0.14); border-color:rgba(255,69,58,0.25); color:var(--bad); }
+        .pulse-chip .pc-num { font-variant-numeric:tabular-nums; }
+    </style>
+<link rel="stylesheet" href="dashboard-refresh.css">
+</head>
+<body>
+    <header class="topbar">
+        <div class="topbar-inner topbar-3col">
+            <div class="hdr-left"></div>
+            <div class="hdr-center">
+                <h1 id="site-name">Dashboards</h1>
+                <span class="topbar-status"><span class="ts">Updated <span id="ts">—</span></span> · live</span>
+            </div>
+            <div class="hdr-right">
+                <button class="nav-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Back to top">↑ Top</button>
+            </div>
+        </div>
+    </header>
+    <main id="content" class="container">
+        <div id="reflector-note" class="reflector-note" hidden></div>
+        <!-- Power-cut / storm banner (v2.18.0): hidden unless the Sigen API
+             reports an ongoing power cut or an active storm export-hold. -->
+        <a id="house-banner" href="energy.html" style="display:none"></a>
+        <!-- Hub hero (v2.30.0): greeting + date + sun/conditions, with the
+             house-pulse chips (each a deep link) and a live carbon chip.
+             Replaces the old separate House Pulse card. -->
+        <section id="hub-hero">
+            <div class="hero-top">
+                <div>
+                    <div class="hero-greet" id="hero-greet">Welcome</div>
+                    <div class="hero-date" id="hero-date"></div>
+                </div>
+                <div class="hero-sun" id="hero-sun"></div>
+            </div>
+            <div class="pulse-row" id="pulse-row"></div>
+        </section>
+        <!-- Favourites (v2.10.0): one-tap device/scene tiles, pinned at the very
+             top. Populated from window.INDIGO_CONFIG.favourites by
+             renderFavouritesCard(); hidden when no favourites are configured. -->
+        <div id="favourites" class="fav-card" style="display:none"></div>
+        <!-- Camera mosaic — rendered ONCE in start() so the 3s poll doesn't
+             tear down the MJPEG connections. Pure visual, no data binding. -->
+        <div id="cameras-mosaic"></div>
+        <!-- Two-column row: Energy + Weather. Each card updates every 5s
+             via loadSummary(). They stack on phones (≤600px). -->
+        <div class="dash-row glance">
+            <a id="energy-detail" class="dash-card" href="energy.html"></a>
+            <!-- Solar is its own card (v2.98.0). It used to be drawn INSIDE the
+                 weather card, so the whole of the day's generation — the number
+                 most often looked at on this page — opened the weather page
+                 when tapped. Now the solar half goes to Energy and the weather
+                 half to Weather, which is what each of them is about. -->
+            <a id="solar-now"     class="dash-card" href="energy.html" style="display:none"></a>
+            <a id="weather-now"   class="dash-card" href="ecowitt.html"></a>
+        </div>
+        <!-- v3.13.0: the one line that explains a missing Energy card. Hidden
+             unless config.js says SigenEnergyManager is absent. -->
+        <p id="hub-feature-note" class="muted" hidden></p>
+        <!-- v2.97.0: House, Rooms and Tools sit ABOVE Doors & Windows. They
+             are how you leave this page, so they belong within reach rather
+             than under two status cards. -->
+        <nav class="grid" id="grid" aria-label="Dashboard sections">
+            <a class="card card-energy" href="menu.html?g=house">
+                <div class="card-icon" data-icon="house"></div>
+                <div class="card-title">House</div>
+                <div class="card-desc">Energy, heating, cameras, weather</div>
+            </a>
+            <a class="card card-room" href="menu.html?g=rooms">
+                <div class="card-icon" data-icon="lounge"></div>
+                <div class="card-title">Rooms</div>
+                <div class="card-desc">Every room, lights and sensors</div>
+            </a>
+            <a class="card card-system" href="menu.html?g=tools">
+                <div class="card-icon" data-icon="gear"></div>
+                <div class="card-title">Tools</div>
+                <div class="card-desc">Active, scenes, system, settings</div>
+            </a>
+        </nav>
+        <!-- Doors & Windows summary, full-width (Heating glance card removed
+             v2.11.0; House Pulse chips moved into the hero v2.30.0). -->
+        <div class="dash-row" style="grid-template-columns:1fr;">
+            <a id="alerts-strip"    class="dash-card" href="timeline.html"></a>
+        </div>
+        <!-- Home Insights (v2.42.0): anomalies vs each device's own norms
+             (battery falling fast, sensor gone quiet, room off its usual
+             temperature, device on longer than normal). Fed by the plugin's
+             homeInsights endpoint (15-min server cache); hidden until the
+             first successful fetch. -->
+        <div class="dash-row" style="grid-template-columns:1fr;">
+            <div id="insights-card" class="dash-card" style="display:none"></div>
+            <a id="logwatch-card" class="dash-card" href="alerts.html" style="display:none"></a>
+        </div>
+        <!-- v2.88.0: House, Rooms and Tools were three stacked walls of tiles
+             sitting open on the landing page. They are navigation rather than
+             status, so each is now one tile that loads its own page — the same
+             shape as Energy · Now loading the energy page. The hub keeps only
+             what it is for: the greeting, the favourites, Energy · Now. -->
+        <p class="footer">
+            <a href="#" onclick="resetConfig(); return false;">Reset connection</a>
+        </p>
+    </main>
+
+    <!-- Plugin-generated config: window.INDIGO_CONFIG, from the settings store or Configure. The API key is never in it. -->
+    <script src="config.js" onerror="window.INDIGO_CONFIG_MISSING=true"></script>
+    <script src="dashboards-auth.js"></script>
+    <script src="dashboards-gate.js"></script>
+    <script src="dashboard.js"></script>
+    <script src="energy-calc.js"></script>
+    <script src="dashboards-ui.js"></script>
+    <script src="dashboards-icons.js"></script>
+    <script src="dashboards-action.js"></script>
+    <script>
+    // ── Refresh status: drives Updated / Next refresh in both top + bottom bar.
+    const POLL_INTERVAL_MS = 3000;
+    let _lastUpdate = 0;
+    function _pad(n) { return String(n).padStart(2, "0"); }
+    function markRefreshed() {
+        _lastUpdate = Date.now();
+        tickRefreshStatus();
+    }
+    function tickRefreshStatus() {
+        let tsStr = "—";
+        if (_lastUpdate) {
+            const d = new Date(_lastUpdate);
+            tsStr = _pad(d.getHours()) + ":" + _pad(d.getMinutes()) + ":" + _pad(d.getSeconds());
+        }
+        for (const id of ["ts", "ts-bot"]) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = tsStr;
+        }
+    }
+    // "Updated" is stamped ONLY by loadSummary on real data — a blind timer
+    // here kept the clock advancing through a total outage, hiding the one
+    // signal that anything was wrong (the v2.67.0 cameras lesson).
+
+    // ── page logic ────────────────────────────────────────────
+    // Client-side mirror of plugin_utils.as_bool — v2 API custom states can
+    // arrive as real booleans, 0/1, or the STRINGS "true"/"True".
+    const asBool = v => v === true || v === 1 || String(v).toLowerCase() === "true";
+    let ROOMS = null;       // rooms.json contents; populated once at boot
+    // Declared BEFORE bootCommandCentre() is called below — it reads these,
+    // and a `const` referenced before its line has been evaluated is a
+    // ReferenceError, not undefined.
+    const HEAVY_REGIONS = ["cameras-mosaic", "solar-now", "weather-now", "alerts-strip",
+                           "insights-card", "logwatch-card"];
+    // Per-device override (v2.95.0). "1" = always the full hub on this
+    // browser, "0" = always the light one, absent = let the link decide.
+    // CliveS never asked for the cameras to come off the hub at all, so the
+    // measurement gets to choose the DEFAULT and never gets to overrule him.
+    // v2.97.0 — THE LIGHT HUB IS GONE. It hid the cameras, weather and alerts
+    // whenever the link measured slow, and an absent region reads as a broken
+    // one however carefully it is explained (it was reported as "the cameras
+    // have disappeared" the first time, which is what the notice was added
+    // for). The data it saved is now saved where the data actually is: the
+    // camera strip polls by what the link can carry and pauses when nobody is
+    // looking. So the hub shows the whole hub, everywhere, always.
+    let _leanHub = false;
+    let _heavyStarted = false;
+    if (typeof IndigoAPI === "undefined" || !IndigoAPI.isConfigured()) {
+        showConfigForm();
+    } else {
+        bootCommandCentre();
+    }
+
+    // ── Away lean hub (v2.87.0) ─────────────────────────────────────────
+    // Away from home the landing page is three things: the greeting, the
+    // favourites, and Energy · Now. Everything else is reachable from the
+    // House and Rooms tiles below, and is not gathered until you go there.
+    //
+    // The saving is NOT the cards — those fetches were already fired in
+    // parallel and never blocked first paint. It is the CAMERA MOSAIC: four
+    // thumbnails re-fetched every 3 s is a steady ~16 KB/s for as long as the
+    // page is open, which on a mobile link is the difference you actually
+    // feel. The rest is a handful of requests that stop being made at all.
+    //
+    // LEAN IS THE DEFAULT, and it stays lean until the link is MEASURED as
+    // home — the same reasoning the camera policy already uses. The page's
+    // address is the LAN address either way, so believing the address would
+    // hand a 5G connection the full hub. At home this costs one extra render.
+
+    function applyHubLayout() {
+        for (const id of HEAVY_REGIONS) {
+            const el = document.getElementById(id);
+            if (!el) continue;
+            // Only ever force-hide. Cards that hide themselves when they have
+            // nothing to say (insights, logwatch) must keep that right, so the
+            // full layout clears our marker and leaves their own display rule
+            // to decide — otherwise an empty card would be forced visible.
+            if (_leanHub) {
+                if (!el.dataset.leanHidden) {
+                    // Remember the inline value we are about to overwrite.
+                    // insights-card and logwatch-card ship display:none and
+                    // reveal themselves only when they have something to say;
+                    // restoring them to "" would paint an empty card on every
+                    // home load, which is exactly what it did.
+                    el.dataset.leanPrev = el.style.display || "";
+                    el.dataset.leanHidden = "1";
+                }
+                el.style.display = "none";
+            } else if (el.dataset.leanHidden) {
+                el.style.display = el.dataset.leanPrev || "";
+                delete el.dataset.leanHidden;
+                delete el.dataset.leanPrev;
+            }
+        }
+    }
+
+    // Optional plugin (v3.13.0): without SigenEnergyManager there is no energy
+    // to draw, so the Energy card, the Solar card and the power-cut banner go,
+    // and ONE line says why — a gap on this page reads as a fault otherwise.
+    // Returns true when the plugin is absent.
+    function applySigenAvailability() {
+        const off = (window.INDIGO_CONFIG || {}).sigenAvailable === false;
+        for (const id of ["energy-detail", "solar-now", "house-banner"]) {
+            const el = document.getElementById(id);
+            if (el && off) el.style.display = "none";
+        }
+        const note = document.getElementById("hub-feature-note");
+        if (note) {
+            note.hidden = !off;
+            note.textContent = off
+                ? "Energy, Cost and Laundry need the SigenEnergyManager plugin, which is not installed. Everything else here works without it."
+                : "";
+        }
+        return off;
+    }
+
+    // Say what has been withheld, and offer the way out (v2.95.0).
+    //
+    // Silent is the one thing this must never be. Hiding the mosaic without a
+    // word is indistinguishable from the cameras being broken, and that is
+    // precisely how it was read: same build, same server, cameras on the
+    // laptop and gone on the phone, with nothing anywhere to say why.
+
+
+    // Settle the hub once the link is known (v2.95.0). One function for the
+    // probe, the failed probe and the no-measurement fallback: three copies of
+    // this decision is how the override would come to mean different things on
+    // different paths.
+    //
+    // ORDER MATTERS. The regions are unhidden and the refreshers started
+    // together, because the mosaic is DRAWN by the refreshers — revealing the
+    // box without starting them shows an empty frame, which is the original
+    // fault again in different clothes.
+    function _goFull(cls) {
+        // Everything, always (v2.97.0). `cls` is still passed in because the
+        // CAMERA STRIP reads the measured class — it just no longer decides
+        // whether the rest of the page exists.
+        _leanHub = false;
+        try { applyHubLayout(); } catch (e) { console.warn("hub layout", e); }
+        try { startHeavyRefreshers(); } catch (e) { console.warn("heavy refreshers", e); }
+    }
+
+    // The refreshers that only feed regions the lean hub does not show.
+    // Idempotent: the upgrade path can call it without stacking intervals.
+    let _heavyTimers = [];
+    function startHeavyRefreshers() {
+        if (_heavyStarted) return;
+        _heavyStarted = true;
+        _refreshStringHours();
+        _heavyTimers.push(setInterval(_refreshStringHours, 5 * 60 * 1000));
+        _refreshInsights();
+        _heavyTimers.push(setInterval(_refreshInsights, 5 * 60 * 1000));
+        _refreshLogWatch();
+        _heavyTimers.push(setInterval(_refreshLogWatch, 5 * 60 * 1000));
+        renderCamerasOnce();
+        // typeof-guarded: the contract tests eval this function on its own.
+        if (typeof _applyStreamBudget === "function") _applyStreamBudget();
+    }
+    function stopHeavyRefreshers() {
+        _heavyTimers.forEach(clearInterval);
+        _heavyTimers = [];
+        _stripTimers.forEach(t => { clearInterval(t); clearTimeout(t); });
+        _stripTimers = [];
+        // Release every stream socket: a hidden <img> with a multipart src
+        // keeps downloading.
+        document.querySelectorAll("#cameras-mosaic img").forEach(img => {
+            img.onerror = null; img.src = _STRIP_TRANSPARENT_PX;
+        });
+        const mount = document.getElementById("cameras-mosaic");
+        if (mount) mount.innerHTML = "";
+        _heavyStarted = false;
+    }
+
+    async function bootCommandCentre() {
+        // Load rooms.json once — we need it to find every radiator + contact
+        // sensor across the house for the Heating and Alerts cards.
+        try {
+            const r = await fetch("rooms.json?t=" + Date.now(), { cache: "no-store" });
+            if (r.ok) ROOMS = await r.json();
+        } catch (_) { ROOMS = null; }
+        // Guarded: this is presentation only. Whatever it does, the greeting,
+        // the favourites and Energy · Now must still come up.
+        try { applyHubLayout(); }
+        catch (e) { console.warn("hub layout failed — showing everything", e); _leanHub = false; }
+        let _sigenOff = false;
+        try { _sigenOff = applySigenAvailability(); }
+        catch (e) { console.warn("sigen availability", e); }
+        // OWM forecast. Kept even when lean: the hero's own sun/sunset line
+        // reads it, it is a 0.3 KB static file, and the greeting is one of the
+        // three things asked for.
+        _refreshOwm().then(renderHero);
+        setInterval(() => _refreshOwm().then(renderHero), 10 * 60 * 1000);
+        // Energy · Now — one of the three. Stays on the lean hub. Not polled
+        // at all without SigenEnergyManager (v3.13.0).
+        if (!_sigenOff) {
+            _refreshSigen();
+            setInterval(_refreshSigen, 30 * 1000);
+        }
+        // The grid-carbon poll (v2.30.0) was removed in v2.66.0 along with its
+        // chip: nothing on this page reads it now, so it was a request every 5
+        // minutes for a value nobody looked at. The Carbon PAGE is untouched
+        // and still linked from the tile wall — it fetches its own data.
+        renderHero();
+        setInterval(renderHero, 60 * 1000);   // greeting/date roll over on their own
+        // Time the link. At home this upgrades to the full hub and starts the
+        // heavy refreshers; away it never opens a stream or makes those calls
+        // at all. A failed probe stays lean, which is the safe direction.
+        if (window.DashUI && DashUI.measuredClass) {
+            // Raced against a timeout (v2.95.3): a probe that hangs (IWS wedge,
+            // TCP accepts and never answers) neither resolves nor rejects for
+            // minutes, and the hub sat unsettled the whole time.
+            Promise.race([DashUI.measuredClass(),
+                          new Promise((_, rej) => setTimeout(() => rej(new Error("probe timeout")), 8000))])
+                // _measuredLink is recorded HERE and only here, from a real
+                // measurement. renderCamerasOnce reads it to choose live
+                // streams over polled stills, and the note reads it to know
+                // whether the override is actually overriding anything — so
+                // dropping this assignment silently costs the LAN its live
+                // tiles AND makes the note say the wrong thing.
+                .then(cls => { _measuredLink = cls; _goFull(cls); })
+                // A probe that could not complete leaves the verdict unknown.
+                // Unknown is lean, unless this device has said otherwise.
+                .catch(() => { _goFull(null); });
+        } else {
+            // No measurement available at all: fall back to the old behaviour
+            // rather than permanently hiding half the hub from a home browser.
+            _goFull("home");
+        }
+        setupFavourites();          // one-time delegated click handler for fav tiles
+        loadSummary();
+        // In-flight guard lives in loadSummary itself — on a slow link the
+        // fixed 3 s beat used to stack overlapping getDevices calls.
+        setInterval(loadSummary, POLL_INTERVAL_MS);
+    }
+
+    // ── Hub hero (v2.30.0): greeting + date + sun/conditions ──
+    function renderHero() {
+        const now = new Date();
+        const h = now.getHours();
+        const greet = h < 5 ? "Good night" : h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+        const gEl = document.getElementById("hero-greet");
+        if (gEl) gEl.textContent = greet;
+        const dEl = document.getElementById("hero-date");
+        if (dEl) {
+            const date = now.toLocaleDateString("en-GB",
+                { weekday: "long", day: "numeric", month: "long" });
+            // Running version (v2.66.0), sat beside the date so it is visible
+            // at the top of the page without being shouted. window.DASHBOARDS_BUILD
+            // is written into config.js by the PLUGIN at startup, so it reports
+            // the build actually running rather than one baked into this file —
+            // and it deliberately reads the global directly, NOT via
+            // INDIGO_CONFIG, because dashboards-auth.js rebuilds that object
+            // from a whitelist and would drop it. Omitted when absent (demo
+            // site, older config.js) rather than shown as an empty separator.
+            const ver = window.DASHBOARDS_BUILD || "";
+            dEl.textContent = ver ? `${date} · v${ver}` : date;
+        }
+        const sEl = document.getElementById("hero-sun");
+        if (sEl) {
+            const owm = window.__OWM_DATA || null;
+            const parts = [];
+            if (owm) {
+                const cond = owm.now_conditions || owm.today_summary || "";
+                const hiLo = (Number.isFinite(owm.today_max) && Number.isFinite(owm.today_min))
+                    ? `<b>${owm.today_max.toFixed(0)}°</b> / ${owm.today_min.toFixed(0)}°` : "";
+                if (cond || hiLo) parts.push([escapeAttr(cond), hiLo].filter(Boolean).join(" · "));
+                const sr = _fmtSunTime(owm.sunrise, owm.tz_offset);
+                const ss = _fmtSunTime(owm.sunset, owm.tz_offset);
+                if (sr || ss) parts.push(`${DashIcons.svg("sun")} ${sr || "—"} ↑ · ${ss || "—"} ↓`);
+            }
+            sEl.innerHTML = parts.join("<br>");
+        }
+    }
+
+    // ── Home Insights card (v2.42.0) — anomalies vs the house's own norms.
+    // Served from the plugin's 15-min cache, so a 5-minute page poll is cheap.
+    let INSIGHTS = null;
+    async function _refreshInsights() {
+        if (document.hidden) return;
+        if (window.DashGate && await window.DashGate.check() === "down") return;
+        try {
+            const key = (window.INDIGO_CONFIG || {}).apiKey || "";
+            if (!key) return;   // guest-paired (no key): a bare Bearer is a 401, and three of those re-pair the browser (v2.95.1)
+            const r = await _msg("/message/com.clives.indigoplugin.dashboards/homeInsights/", JSON.stringify({}));
+            if (_authRefused(r)) return;
+            if (r.ok) {
+                INSIGHTS = await r.json();
+                renderInsightsCard();
+                // First call after a plugin restart answers {building:true}
+                // while the server assembles the norms — check back shortly
+                // rather than waiting a full 5-min poll.
+                if (INSIGHTS && INSIGHTS.building) setTimeout(_refreshInsights, 20000);
+            }
+        } catch (_) { /* insights are optional — never block the hub */ }
+    }
+    function renderInsightsCard() {
+        const el = document.getElementById("insights-card");
+        if (!el) return;
+        if (!INSIGHTS || !INSIGHTS.ok || INSIGHTS.building) { el.style.display = "none"; return; }
+        const items = INSIGHTS.insights || [];
+        const c = INSIGHTS.checked || {};
+        const checks = (c.batteries || 0) + (c.sensors || 0) + (c.rooms || 0) + (c.devices || 0);
+        if (!items.length) { el.style.display = "none"; return; }
+        const rows = items.map(i => `
+            <div class="insight-row${i.level === "warn" ? " warn" : ""}">
+                <span class="ins-icon" aria-hidden="true">${DashIcons.has(i.icon) ? DashIcons.svg(i.icon) : escapeAttr(i.icon || "•")}</span>
+                <span class="ins-body">
+                    <span class="ins-title">${escapeAttr(i.title)}</span>
+                    <span class="ins-detail">${escapeAttr(i.detail)}</span>
+                </span>
+            </div>`).join("");
+        el.innerHTML = `<h3>Insights · ${items.length} out of the ordinary</h3>${rows}`;
+        el.style.display = _leanHub ? "none" : "block";
+    }
+
+    // ── log-error watch chip ────────────────────────────────────────────────
+    // Stays hidden unless the hourly watch has live, unmuted errors to report,
+    // so a healthy log costs the hub nothing. Detail lives on alerts.html.
+    async function _refreshLogWatch() {
+        if (document.hidden) return;
+        const el = document.getElementById("logwatch-card");
+        if (!el) return;
+        if (window.DashGate && await window.DashGate.check() === "down") return;
+        try {
+            const key = (window.INDIGO_CONFIG || {}).apiKey || "";
+            if (!key) return;   // guest-paired (no key): a bare Bearer is a 401, and three of those re-pair the browser (v2.95.1)
+            const r = await _msg("/message/com.clives.indigoplugin.dashboards/logErrors/", JSON.stringify({}));
+            if (_authRefused(r) || !r.ok) return;
+            const d = await r.json();
+            const feed = (d && d.feed) || {};
+            const errs = feed.errors || 0;
+            if (!errs) { el.style.display = "none"; return; }
+            const worst = (feed.rows || []).filter(x => x.level === "error" && !x.muted)[0];
+            const detail = worst ? `${worst.source} — ${worst.message}` : "";
+            el.innerHTML = `<h3>Log · ${errs} ${errs === 1 ? "error" : "errors"}</h3>
+                <div class="row"><span>${escapeAttr(detail.slice(0, 110))}</span></div>`;
+            el.style.display = _leanHub ? "none" : "block";
+        } catch (_) { /* the watch is optional — never block the hub */ }
+    }
+
+    // ── Custom link tiles (config-driven) ─────────────────────
+    // Full-size hub cards that open an arbitrary URL in a new tab, defined in
+    // Settings → Custom links and published in window.INDIGO_CONFIG.customLinks
+    // ([{title, url, desc?, icon?}]). Inserted before the utility cluster
+    // (Active/Scenes/System/Activity/Settings). Built with textContent (no innerHTML)
+    // and the URL scheme is re-checked here, so a config value can't inject markup.
+
+    // ── Camera strip (rendered ONCE) ───────────────────────────
+    // Every tile used to open its own MJPEG stream. Four of them is about
+    // 17 Mbit/s, continuously, on the page you land on — and unlike
+    // cameras.html this had no stall watchdog and no fallback, so on a weak
+    // link it simply sat there.
+    //
+    // What we do now depends on how the page was reached (DashUI.linkClass):
+    //   home       every tile live, as before. It is all on the LAN.
+    //   vpn        the FIRST tile stays live; the rest poll the snapshot the
+    //              plugin already writes every 2s. About 4.5 Mbit/s.
+    //   reflector  no tile can stream — the MJPEG port is not fronted by the
+    //              reflector at all — so every tile polls.
+    // The snapshots themselves are now fetched at tile width rather than the
+    // camera's full resolution, which took them from ~124 KB to ~38 KB.
+    let _stripTimers = [];
+    let _measuredLink = null;    // set once the link has been timed, not guessed
+    let _stripIdle  = false;     // reflector only: pictures paused until a tap (v2.96.1)
+    let _stripGuard = null;
+    let _liveBudget = null;      // live tiles this link can carry — MEASURED (v2.97.0)
+
+    /* Measure what the link can carry, then re-render the strip if the answer
+       changed how many tiles stream. THE RE-RENDER IS THE POINT: the strip is
+       built before any measurement exists, so without this it keeps the
+       conservative first answer for the life of the page — which is precisely
+       how a phone sitting in the same room as the cameras showed 3-second
+       stills. Re-runs on return to the tab, because the network may have
+       changed while it was away. */
+    function _applyStreamBudget(delayMs) {
+        if (!window.DashUI || !DashUI.streamBudget) { _liveBudget = 1; return Promise.resolve(); }
+        // Give the page a moment to finish loading first: a probe that runs
+        // while the hub is still fetching devices, thumbnails and the energy
+        // payload measures the queue rather than the link.
+        return new Promise(r => setTimeout(r, delayMs == null ? 1500 : delayMs))
+            .then(() => DashUI.streamBudget()).then(n => {
+            if (n === _liveBudget) return;
+            _liveBudget = n;
+            if (_heavyStarted) renderCamerasOnce();
+        }).catch(() => {});
+    }
+
+    // Live strip tiles release their MJPEG sockets when the tab is hidden —
+    // four streams at ~17 Mbit/s total for a page nobody is looking at — and
+    // reconnect fresh on return. (The still tiles already skip hidden ticks.)
+    const _STRIP_TRANSPARENT_PX =
+        "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+    document.addEventListener("visibilitychange", () => {
+        document.querySelectorAll('#cameras-mosaic img[data-live="1"]').forEach(img => {
+            if (document.hidden) {
+                if (!img.dataset.liveSrc) img.dataset.liveSrc = img.src;
+                img.src = _STRIP_TRANSPARENT_PX;
+            } else if (img.dataset.liveSrc) {
+                img.src = img.dataset.liveSrc.split("?")[0] + "?_t=" + Date.now();
+                delete img.dataset.liveSrc;
+            }
+        });
+        if (!document.hidden) {
+            loadSummary();
+            if (_heavyStarted) {
+                _refreshInsights(); _refreshLogWatch();
+                // The link may be a different one now — measure again before
+                // trusting the streams the last one could afford.
+                if (window.DashUI && DashUI.forgetBw) DashUI.forgetBw();
+                _applyStreamBudget();
+            }
+        }
+    });
+
+    function renderCamerasOnce() {
+        const cfg   = window.CAMERA_CONFIG || {};
+        const hosts = cfg.mainCameras || [];
+        const names = cfg.names || {};
+        const port  = cfg.mjpegPort || 8177;
+        const path  = cfg.mjpegPath || "/mjpeg/{host}";
+        // The thumbnail, not the full picture. These four tiles are the
+        // smallest camera images anywhere in the dashboards and this is the
+        // landing page, so it is the one place the saving is worth most:
+        // MEASURED, 33.2 KB per full picture against 12.3 KB per thumbnail.
+        // Falls back to the full picture if the server is not writing thumbs.
+        const full  = cfg.imagePattern || "cam-{host}.jpg";
+        let   still = cfg.thumbPattern || full;
+        const mount = document.getElementById("cameras-mosaic");
+        if (!mount || !hosts.length) return;
+
+        // _measuredLink is filled in by the probe below. Until it lands the
+        // address is only a guess, and a LAN address reached over a Tailscale
+        // subnet route is identical to the real thing — believing it opened
+        // four live streams on a mobile connection. So assume REMOTE until the
+        // link has actually been measured: at home that costs one render of
+        // stills, away it costs nothing at all.
+        const guess    = window.DashUI ? DashUI.linkClass() : "home";
+        const link     = _measuredLink || (guess === "home" ? "vpn" : guess);
+        // How many tiles may stream is a question about BANDWIDTH, and it is
+        // answered by measurement (see DashUI.streamBudget). Until that lands
+        // the answer is none, which costs one render of stills at home and
+        // nothing at all away. _liveBudget is filled in by _applyStreamBudget.
+        const budget   = link === "reflector" ? 0 : (_liveBudget == null ? 0 : _liveBudget);
+        // Live only at home. Off-LAN a live tile measured 30 s+ behind while
+        // the stills were 5-8 s behind, because MJPEG queues on a link that
+        // cannot drain it and never recovers — worse than a still on latency
+        // AND on data. See the note in cameras.html setPolicy().
+        const canLive  = budget > 0;
+        const liveAll  = budget >= hosts.length;
+        // Through the reflector every still is carried by Indigo's servers
+        // (v2.96.1): 15 s, and the strip pauses after ten idle minutes.
+        const pollMs   = link === "home" ? 2000 : link === "reflector" ? 15000 : 3000;
+        if (link === "reflector" && !_stripGuard && window.DashUI && DashUI.idleGuard) {
+            _stripGuard = DashUI.idleGuard(10 * 60 * 1000,
+                () => { _stripIdle = true;  mount.classList.add("cam-paused"); },
+                () => { _stripIdle = false; mount.classList.remove("cam-paused");
+                        mount.querySelectorAll('img[data-live="0"]').forEach(img => window._hubSwapIn && window._hubSwapIn(img)); });
+        }
+
+        _stripTimers.forEach(clearInterval);
+        _stripTimers = [];
+
+        mount.innerHTML = hosts.map((host, i) => {
+            const name   = names[host] || host;
+            const isLive = liveAll || (canLive && i < budget);
+            const src    = isLive
+                ? `${location.protocol}//${location.hostname}:${port}${path.replace("{host}", host)}?_t=${Date.now()}`
+                : `${still.replace("{host}", host)}?_t=${Date.now()}`;
+            // NB the first paint carries an inline onerror as well, because the
+            // refresh handler above cannot run until the first interval fires —
+            // without this a server with no thumbnails shows an empty strip for
+            // a full poll period on the landing page.
+            // The badge only appears when we are NOT on the LAN, so the strip
+            // stays clean at home but a tile that is deliberately refreshing
+            // slowly does not read as a frozen one.
+            const badge = liveAll ? "" :
+                `<span class="cam-badge">${isLive ? "live" : (pollMs / 1000) + "s"}</span>`;
+            return `
+                <a class="home-cam" href="cameras.html" title="${escapeAttr(name)}">
+                    <div class="home-cam-frame">
+                        <img crossorigin="anonymous" alt="${escapeAttr(name)}"
+                             data-host="${escapeAttr(host)}" data-live="${isLive ? 1 : 0}"
+                             data-full="${escapeAttr(full.replace("{host}", host))}"
+                             onerror="if(window._hubDemoteTile){window._hubDemoteTile(this);}else if(this.dataset.full&&this.src.indexOf(this.dataset.full)<0){this.src=this.dataset.full;}"
+                             src="${escapeAttr(src)}">
+                        ${badge}
+                    </div>
+                </a>`;
+        }).join("");
+
+        // One timer for the whole strip rather than one per tile — fewer
+        // wake-ups. Each tile decodes its next frame off-screen and only swaps
+        // it in when it is ready: assigning to a visible img.src blanks the
+        // tile for the whole fetch, which is ~5 ms at home but was measured at
+        // 756 ms per snapshot over the reflector, so the strip spent most of
+        // every cycle empty. The requests are also spread across the period
+        // rather than fired together, so they do not queue against the
+        // browser's ~6-connections-per-origin cap.
+        const stills = Array.from(mount.querySelectorAll('img[data-live="0"]'));
+        // A LIVE tile whose stream fails (proxy or go2rtc down) becomes a
+        // polled still with a badge, instead of one frozen frame that looked
+        // live for the rest of the page's life (v2.95.3).
+        window._hubDemoteTile = (img) => {
+            if (!img || !img.isConnected) return;
+            if (img.dataset.live === "1") {
+                img.dataset.live = "0";
+                const frame = img.parentElement;
+                if (frame && !frame.querySelector(".cam-badge")) {
+                    const b = document.createElement("span");
+                    b.className = "cam-badge"; b.textContent = (pollMs / 1000) + "s";
+                    frame.appendChild(b);
+                }
+                _stripTimers.push(setInterval(() => window._hubSwapIn && window._hubSwapIn(img), pollMs));
+            }
+            if (img.dataset.full && img.src.indexOf(img.dataset.full) < 0) img.src = img.dataset.full;
+        };
+        {
+            const swapIn = (img) => {
+                if (document.hidden) return;          // nothing to see; send nothing
+                if (_stripIdle) return;               // reflector, nobody has touched the page in 10 min
+                // The strip is rebuilt on resize/orientation change, so a
+                // pending stagger timer can outlive the tile it was made for.
+                if (!img.isConnected) return;
+                const next = new Image();
+                next.crossOrigin = "anonymous";
+                next.onload = () => { img.src = next.src; };
+                next.onerror = () => {
+                    // A thumbnail that will not load almost certainly is not
+                    // there — the server has nothing to shrink pictures with.
+                    // Fall the whole strip back to the full-size pictures
+                    // rather than leave four empty tiles on the landing page.
+                    // Only ever demotes, so this cannot flap.
+                    if (still !== full) { still = full; swapIn(img); }
+                };
+                next.src = `${still.replace("{host}", img.dataset.host)}?_t=${Date.now()}`;
+            };
+            window._hubSwapIn = swapIn;
+            if (stills.length) stills.forEach((img, i) => {
+                const offset = Math.round(pollMs * (i / stills.length));
+                _stripTimers.push(setTimeout(() => {
+                    swapIn(img);
+                    _stripTimers.push(setInterval(() => swapIn(img), pollMs));
+                }, offset));
+            });
+        }
+    }
+    function escapeAttr(s) {
+        return String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    }
+
+    // ── Compact formatters reused by each card ────────────────
+    // fmtKw comes from energy-calc.js now. The hub used to carry its own copy
+    // that printed one decimal at every size, so the same reading showed as
+    // "4.2 kW" here and "4.21 kW" on the energy page.
+    const fmtKw = DashCalc.fmtKw;
+    function relTime(iso) {
+        if (!iso) return "";
+        const t = Date.parse(iso); if (isNaN(t)) return "";
+        const mins = Math.round((Date.now() - t) / 60000);
+        if (mins < 1)  return "just now";
+        if (mins < 60) return mins + "m ago";
+        const hrs = Math.round(mins / 60);
+        if (hrs < 24)  return hrs + "h ago";
+        return Math.round(hrs / 24) + "d ago";
+    }
+    // ── Card renderers ───────────────────────────────────────────────
+    // The card's shell is built ONCE and only its rows are rewritten after
+    // that. The flow diagram is an SVG with running animations, and this
+    // renderer fires on the 3s device poll — an innerHTML rewrite would tear
+    // it down and rebuild it twenty times a minute. Same reason the camera
+    // mosaic is mounted once in start().
+    let _energyFlow = null;
+    let _energyShell = false;
+    let _lastDevices = null;
+
+    // Rotating the phone changes which rows belong under the diagram. The poll
+    // is every 3s, so without this the card sits on the wrong row set for up to
+    // three seconds after a turn — which is long enough to look like a fault.
+    // The diagram itself is untouched by this; only the rows are rewritten.
+    let _rotTimer = null;
+    function _onViewportChange() {
+        clearTimeout(_rotTimer);
+        _rotTimer = setTimeout(() => {
+            if (_lastDevices) {
+                try { renderEnergyCard(_lastDevices); } catch (e) { console.warn("energy card", e); }
+            }
+        }, 120);
+    }
+    window.addEventListener("resize", _onViewportChange);
+    window.addEventListener("orientationchange", _onViewportChange);
+
+    function renderEnergyCard(devices) {
+        const el = document.getElementById("energy-detail");
+        if (!el) return;
+        if ((window.INDIGO_CONFIG || {}).sigenAvailable === false) {
+            el.style.display = "none";           // v3.13.0: the hub note says why
+            return;
+        }
+        const sigen = devices.find(d => d.id === ((window.INDIGO_CONFIG || {}).sigenDeviceId || 0));
+        if (!sigen || !sigen.states) {
+            el.innerHTML = `<h3>Energy</h3><div class="muted">Sigen device not found</div>`;
+            _energyFlow = null; _energyShell = false;
+            return;
+        }
+        _lastDevices = devices;
+        // Sigen state keys are strings — coerce via parseFloat/parseInt.
+        const s          = sigen.states;
+        const soc        = parseFloat(s.batterySoc        || 0);
+        const pv         = parseInt(  s.pvPowerWatts      || 0);
+        const grid       = parseInt(  s.gridPowerWatts    || 0);
+        const home       = parseInt(  s.homePowerWatts    || 0);
+        const battW      = parseInt(  s.batteryPowerWatts || 0);
+        const pvToday    = parseFloat(s.pvDailyKwh        || 0);
+        const homeToday  = parseFloat(s.homeDailyKwh      || 0);
+        const expToday   = parseFloat(s.gridDailyExportKwh|| 0);
+        const impToday   = parseFloat(s.gridDailyImportKwh|| 0);
+        // Sigen's gridPowerWatts is negative when exporting (kept consistent
+        // with the strip above), batteryPowerWatts positive when charging.
+        const gridLabel = grid >= 0 ? "Import" : "Export";
+        const gridCls   = grid <  0 ? "ok"     : (grid > 50 ? "warn" : "");
+        // Sigen economics/self-suff/optimiser (slow-changing, from the cached API)
+        const m = _sigenMoney();
+        const benefitStr = (m && m.benefit != null) ? "£" + Number(m.benefit).toFixed(2) : null;
+        const ssStr      = (m && m.selfSuff != null) ? Number(m.selfSuff).toFixed(0) + "%" : null;
+        let rateStr = (m && m.rateP != null) ? Number(m.rateP).toFixed(1) + "p" : null;
+        if (rateStr && m.tomorrowP != null) {
+            const diff = Number(m.tomorrowP) - Number(m.rateP);
+            if (Math.abs(diff) >= 0.05) rateStr += diff > 0 ? " · ▲ tmrw" : " · ▼ tmrw";
+        }
+        const actionStr  = (m && m.action) ? (HUB_ACTION_LABELS[m.action] || m.action) : null;
+        // The diagram is shown at EVERY width. It used to be desktop-only on
+        // the theory that a four-node diagram would not read at phone width —
+        // but the cards stack in portrait, so the card is FULL width there
+        // (~410px on a Pro Max) against ~430px when it shares a row on a
+        // desktop. It has as much room, not less, and the SVG scales, so the
+        // text comes out larger on the phone than on the desktop.
+        //
+        // The shell is built once and NEVER rebuilt on a resize. Rebuilding it
+        // per breakpoint tore the SVG down and built it again on every
+        // rotation, which showed as the diagram vanishing in portrait and
+        // flashing on the way back. Only the ROWS below it depend on width.
+        const isCompact = window.innerWidth <= 600;
+        if (!_energyShell || !document.getElementById("energy-rows")) {
+            el.innerHTML = `<h3>Energy · Now</h3><div id="hub-flow"></div><div id="energy-rows"></div>`;
+            _energyFlow = window.DashUI
+                ? DashUI.flowDiagram(document.getElementById("hub-flow"),
+                                     { compact: true, idPrefix: "hub" })
+                : null;
+            _energyShell = true;
+        }
+
+        if (_energyFlow) {
+            // Same sub-lines the energy page shows, so the two read alike.
+            const capKwh = (m && m.capacityKwh) || 0;
+            _energyFlow.update({
+                pv: pv, home: home, grid: grid, bat: battW, soc: soc,
+                subs: {
+                    pv:   `today ${pvToday.toFixed(1)} kWh`,
+                    home: `today ${homeToday.toFixed(1)} kWh`,
+                    bat:  capKwh ? `${soc.toFixed(1)}% · ${(soc * capKwh / 100).toFixed(1)} kWh`
+                                 : `${soc.toFixed(1)}%`,
+                },
+            });
+        }
+
+        const rows = document.getElementById("energy-rows");
+        if (!rows) return;
+        // VPP row (v2.66.0). Present ONLY while a window is announced or
+        // running, on both breakpoints — the phone card is deliberately short,
+        // but a paid grid event is exactly the thing worth a line on it. The
+        // times come from the API (SigenEnergyManager v5.55.1; before that
+        // event_str was a hardcoded empty string).
+        const vppNow      = (_sigen() && _sigen().vpp) || null;
+        const vppRow      = vppStatusRow(vppNow);
+        const vppMoneyRow = vppEarningsRow(vppNow);
+        if (isCompact) {
+            // Battery, solar, home and grid are in the diagram above, so the
+            // phone keeps only what it cannot show — and stays short.
+            // Solar today (v2.97.0): the diagram's sub-line carries it, but at
+            // a size meant for a glance at the shape rather than for reading
+            // the number, and it is the first thing anyone asks the hub.
+            rows.innerHTML = `
+                <div class="row"><span class="key">Solar today</span><span class="val ok">${pvToday.toFixed(1)} kWh</span></div>
+                ${actionStr ? `<div class="row"><span class="key">Now</span><span class="val">${escapeAttr(actionStr)}</span></div>` : ""}
+                ${vppRow}
+                ${benefitStr ? `<div class="row"><span class="key">Solar saved</span><span class="val ok">${benefitStr}</span></div>` : ""}
+                ${vppMoneyRow}
+                ${ssStr ? `<div class="row"><span class="key">Self-sufficient</span><span class="val">${ssStr}</span></div>` : ""}`;
+            return;
+        }
+        // Battery / Solar / Grid / Home are in the diagram above, so the rows
+        // start at what it cannot show.
+        rows.innerHTML = `
+            ${actionStr ? `<div class="row"><span class="key">Now</span><span class="val">${escapeAttr(actionStr)}</span></div>` : ""}
+            ${vppRow}
+            <h3 style="margin-top:10px">Today</h3>
+            <div class="row"><span class="key">Solar produced</span><span class="val">${pvToday.toFixed(1)} kWh</span></div>
+            <div class="row"><span class="key">Home used</span><span class="val">${homeToday.toFixed(1)} kWh</span></div>
+            <div class="row"><span class="key">Exported</span><span class="val ok">${expToday.toFixed(1)} kWh</span></div>
+            <div class="row"><span class="key">Imported</span><span class="val ${impToday > 1 ? 'warn' : ''}">${impToday.toFixed(2)} kWh</span></div>
+            ${(benefitStr || ssStr || rateStr || vppMoneyRow) ? `<h3 style="margin-top:10px">Today's money</h3>` : ""}
+            ${benefitStr ? `<div class="row"><span class="key">Solar saved</span><span class="val ok">${benefitStr}</span></div>` : ""}
+            ${vppMoneyRow}
+            ${ssStr ? `<div class="row"><span class="key">Self-sufficient</span><span class="val">${ssStr}</span></div>` : ""}
+            ${rateStr ? `<div class="row"><span class="key">Import rate</span><span class="val">${rateStr}</span></div>` : ""}`;
+    }
+
+    // Sigen economics / self-sufficiency / optimiser (v2.18.0). Slow-changing
+    // money + decision + power-cut data from the SigenEnergyManager API, via the
+    // same server-side proxy the energy page uses (works at home AND away).
+    // Cached and refreshed every 30s so the 3s device poll stays light. Optional
+    // — the hub works without it.
+    const SIGEN_PROXY = '/message/com.clives.indigoplugin.dashboards/sigenApi/';
+
+    /* ── VPP rows (v2.84.0) ──────────────────────────────────────────────
+       Pure, so the rules below can be tested rather than eyeballed on a
+       screen where the interesting states appear a few times a month.
+
+       The status row is PERMANENT. "None announced" is a real answer worth a
+       line — and paired with the feed-health check it is what stops a dead
+       Axle connection reading as a quiet fortnight, which is exactly how a
+       revoked token hid from 15-Jun to 30-Jul-2026. Feed health is tested
+       FIRST for that reason: a poll that cannot answer cannot announce, so
+       "none announced" would be a lie rather than an absence.
+
+       `api_status` and `earnings` arrive only from SigenEnergyManager v5.72.0
+       onwards. On an older plugin both are undefined, which correctly falls
+       through to the plain status row and no money row at all — an absent
+       figure must never be drawn as a number. */
+    function vppStatusRow(vpp) {
+        if (!vpp) return "";
+        let cls = "", txt;
+        if (vpp.api_status && vpp.api_status !== "OK") {
+            cls = "warn";
+            txt = "Feed failing · " + escapeAttr(String(vpp.api_status));
+        } else if (vpp.active) {
+            cls = "warn";
+            txt = "Running" + (vpp.event_str ? " · " + escapeAttr(vpp.event_str) : "");
+        } else if (vpp.state === "announced") {
+            cls = "ok";
+            txt = "Announced" + (vpp.event_str ? " · " + escapeAttr(vpp.event_str) : "");
+            const secs = vpp.next_event && vpp.next_event.seconds_until_start;
+            if (typeof secs === "number" && secs > 0) {
+                txt += secs < 3600 ? ` · in ${Math.round(secs / 60)} min`
+                                   : ` · in ${(secs / 3600).toFixed(1)} h`;
+            }
+        } else {
+            txt = "None announced";
+        }
+        return `<div class="row"><span class="key">VPP</span>`
+             + `<span class="val ${cls}">${txt}</span></div>`;
+    }
+
+    /* Money is shown only when a figure is genuinely known. A month with
+       nothing settled yet arrives as null — not 0 — and rendering it as
+       £0.00 would report a month of no earnings when the truth is that
+       settlement has not caught up. */
+    function vppEarningsRow(vpp) {
+        const e = (vpp && vpp.earnings) || null;
+        if (!e) return "";
+        const mtd = e.month_to_date_gbp, life = e.lifetime_gbp;
+        if (mtd == null && life == null) return "";
+        const main = "£" + Number(mtd != null ? mtd : life).toFixed(2);
+        const note = mtd != null
+            ? (life != null ? ` · £${Number(life).toFixed(2)} lifetime` : "")
+            : " lifetime";
+        const tail = e.events_pending ? ` · ${e.events_pending} pending` : "";
+        return `<div class="row"><span class="key">VPP earned</span>`
+             + `<span class="val ok">${main}${note}${tail}</span></div>`;
+    }
+    const HUB_ACTION_LABELS = {
+        self_consumption: "Self-consumption", solar_overflow: "Exporting surplus",
+        start_export: "Exporting to grid", stop_export: "Stopping export",
+        start_import: "Charging from grid", stop_import: "Stopping import",
+        schedule_import: "Import scheduled", unknown: "—",
+    };
+    window.__SIGEN_DATA = null;
+    window.__SIGEN_AT = 0;
+    // The cached Sigen payload, or null once it is older than three missed
+    // polls (v2.95.3). A red POWER CUT banner or a VPP chip painted from a
+    // payload the page could no longer refresh is a false alarm the reader
+    // will act on.
+    function _sigen() {
+        const d = window.__SIGEN_DATA;
+        if (!d) return null;
+        if (window.__SIGEN_AT && (Date.now() - window.__SIGEN_AT) > 120000) return null;
+        return d;
+    }
+    async function _refreshSigen() {
+        if (document.hidden) return;   // a background tab has nothing to draw
+        if ((window.INDIGO_CONFIG || {}).sigenAvailable === false) return;   // v3.13.0: nothing to ask
+        // v2.70.0: skip the poll while the plugin is stopping — a /message/
+        // request in flight when the host dies wedges all of IWS for ~5 min.
+        if (window.DashGate && await window.DashGate.check() === "down") return;
+        try {
+            const key = (window.INDIGO_CONFIG || {}).apiKey || "";
+            if (!key) return;   // guest-paired (no key): a bare Bearer is a 401, and three of those re-pair the browser (v2.95.1)
+            const r = await _msg(SIGEN_PROXY, JSON.stringify({ path: "status", query: {} }));
+            if (_authRefused(r)) return;
+            if (r.ok) {
+                window.__SIGEN_DATA = await r.json();
+                window.__SIGEN_AT = Date.now();
+                // Paint the solar block as soon as the payload lands rather
+                // than waiting for the next device poll.
+                try { renderWeatherSolar(); } catch (_) { /* optional */ }
+            }
+        } catch (_) { /* Sigen data is optional — never blocks the hub */ }
+    }
+    function _sigenMoney() {
+        const d = _sigen();
+        if (!d) return null;
+        const econ = (d.economics && d.economics.today) || {};
+        const ts = d.today_summary || {};
+        const tar = d.tariff || {};
+        const dec = d.decision || {};
+        return { benefit: econ.solar_benefit_gbp, selfSuff: ts.self_suff,
+                 rateP: tar.today_p, tomorrowP: tar.tomorrow_p, action: dec.action,
+                 // Pack size for the battery's "x kWh stored" line. The Sigen
+                 // DEVICE does not expose capacity, only the API does, so this
+                 // is the one honest source — and if it has not answered yet we
+                 // show the percentage alone rather than guessing a pack size.
+                 capacityKwh: (d.battery && d.battery.capacity_kwh) || null };
+    }
+
+    // Cached OWM payload (loaded once at page start, refreshed on a slow
+    // cadence by _refreshOwm). Plugin's weather thread writes weather.json
+    // hourly; we fetch it every 10 minutes which is plenty.
+    window.__OWM_DATA = null;
+    async function _refreshOwm() {
+        try {
+            const r = await fetch("weather.json?t=" + Date.now(), { cache: "no-store" });
+            if (r.ok) window.__OWM_DATA = await r.json();
+        } catch (_) { /* OWM is optional — never blocks the page */ }
+    }
+
+    // Pressure trend: stash last N samples in localStorage (timestamp → hPa)
+    // so we can compute a 3h delta arrow. Plugin doesn't store this server
+    // side; the page-side ring buffer is good enough for an arrow indicator.
+    function _trackPressure(currentHpa) {
+        if (!isFinite(currentHpa)) return null;
+        const KEY = "dashboards-pressure-history";
+        const now = Date.now();
+        let arr = [];
+        try { arr = JSON.parse(localStorage.getItem(KEY) || "[]"); } catch (_) {}
+        if (!Array.isArray(arr)) arr = [];
+        // Append at most once a minute (v2.95.3) — a 3 h delta needs nothing
+        // finer, and rewriting a 200 KB array on every 3 s poll was steady
+        // main-thread churn on every open tab.
+        const newest = arr.length ? arr[arr.length - 1].t : 0;
+        if (now - newest >= 60000) {
+            arr.push({ t: now, p: currentHpa });
+            arr = arr.filter(s => (now - s.t) <= 6 * 3600 * 1000);
+            try { localStorage.setItem(KEY, JSON.stringify(arr)); } catch (_) {}
+        }
+        // Find the oldest sample at least 2h old. < 2h apart and we don't
+        // have a reliable trend yet — return null so the arrow stays hidden.
+        const old = arr.find(s => (now - s.t) >= 2 * 3600 * 1000);
+        if (!old) return null;
+        const delta = currentHpa - old.p;
+        // ±0.6 hPa over 3h ≈ noise floor. Anything inside that band is "steady".
+        if (Math.abs(delta) < 0.6) return { arrow: "→", word: "steady",  delta };
+        if (delta > 0)             return { arrow: "↗", word: "rising",  delta };
+        return                            { arrow: "↘", word: "falling", delta };
+    }
+
+    // Format a unix-epoch seconds timestamp as HH:MM in the local tz offset
+    // we got back from OWM (server-tz != viewer-tz is possible on Tailscale).
+    function _fmtSunTime(epoch, tzOffsetSec) {
+        if (!epoch) return null;
+        // Compose a Date in UTC then shift by tz_offset so toUTCString
+        // formats give the local-to-the-station HH:MM.
+        const dt = new Date((epoch + (tzOffsetSec || 0)) * 1000);
+        const hh = String(dt.getUTCHours()).padStart(2, "0");
+        const mm = String(dt.getUTCMinutes()).padStart(2, "0");
+        return `${hh}:${mm}`;
+    }
+
+    // Wind chill (UK Met Office formula): only valid when T < 10°C and wind > 4.8 km/h.
+    // Outside that range "feels like" is essentially the actual temp, so we return null
+    // to suppress the line rather than print misleading data.
+    function _windChill(tempC, windMph) {
+        if (!isFinite(tempC) || !isFinite(windMph) || tempC >= 10 || windMph < 3) return null;
+        const v = windMph * 1.609344;                    // → km/h
+        const fl = 13.12 + 0.6215 * tempC - 11.37 * Math.pow(v, 0.16) + 0.3965 * tempC * Math.pow(v, 0.16);
+        return fl;
+    }
+
+    // Like the Energy card: this renderer fires on the 3s device poll, and the
+    // solar chart is an SVG, so the shell is built once and only the rows are
+    // rewritten. Rebuilding it twenty times a minute would be pointless work.
+    let _wxBuilt = false;
+    function _ensureWeatherShell(el) {
+        if (_wxBuilt && document.getElementById("weather-rows")) return;
+        _wxFcSig = null;   // fresh shell = fresh SVG — the old sig said "drawn"
+        el.innerHTML = `<div id="weather-rows"></div>`;
+        _wxBuilt = true;
+    }
+
+    // The solar card's own shell. Same markup as before, in a card of its own
+    // — including the trailing rule, which used to separate it from the
+    // weather rows underneath and now has nothing to separate.
+    let _solBuilt = false;
+    function _ensureSolarShell(el) {
+        if (_solBuilt && document.getElementById("wx-sol-actual")) return;
+        _wxFcSig = null;   // fresh shell = fresh SVG — the old sig said "drawn"
+        el.innerHTML =
+            `<div class="wx-solar" id="wx-solar" style="display:none">
+                 <h3>Solar · today</h3>
+                 <div class="wx-solar-head">
+                     <span class="wx-solar-big" id="wx-sol-actual">—</span>
+                     <span class="wx-solar-sub">kWh today · forecast <b id="wx-sol-fc">—</b> kWh</span>
+                 </div>
+                 <div class="wx-solar-bar"><div class="wx-solar-fill" id="wx-sol-bar" style="width:0%"></div></div>
+                 <!-- v2.80.0: the same chart the Energy page draws (shared
+                      DashUI.solarHoursChart), compact. Elapsed hours stack
+                      the four strings; each carries a dashed tick at the
+                      forecast height, so beating the hour is visible here
+                      too. Falls back to whole-system bars for hours with no
+                      per-string history, and to forecast-only if the
+                      endpoint is unavailable. -->
+                 <svg id="wx-fc" viewBox="0 0 380 180" xmlns="http://www.w3.org/2000/svg"
+                      role="img" aria-label="Solar by hour: actual against forecast"></svg>
+                 <div class="wx-sol-legend" id="wx-sol-legend" style="display:none"></div>
+                 <div class="wx-solar-meta">
+                     <span>Remaining <b id="wx-sol-rem">—</b></span>
+                     <span>Tomorrow <b id="wx-sol-tmrw">—</b></span>
+                     <span id="wx-sol-score"></span>
+                 </div>
+             </div>`;
+        _solBuilt = true;
+    }
+
+    // Per-string hours for the compact chart. Same endpoint the Energy page
+    // uses, same 5-minute cadence, same gate — an ungated /message poll into
+    // a restarting plugin is the 5-minute IWS wedge.
+    let _wxStringHours = null;
+    async function _refreshStringHours() {
+        if (document.hidden) return;   // a background tab has nothing to draw
+        if (window.DashGate && await window.DashGate.check() === "down") return;
+        try {
+            const key = (window.INDIGO_CONFIG || {}).apiKey || "";
+            if (!key) return;   // guest-paired (no key): a bare Bearer is a 401, and three of those re-pair the browser (v2.95.1)
+            const r = await _msg("/message/com.clives.indigoplugin.dashboards/solarStringHours/", "{}");
+            if (_authRefused(r) || !r.ok) return;
+            const d = await r.json();
+            if (d && d.ok) { _wxStringHours = d; renderWeatherSolar(); }
+        } catch (_) { /* chart degrades to forecast-only — never blocks the hub */ }
+    }
+
+    // Server-side "today" and minutes-of-day, from the payloads the server
+    // stamps, with the browser as the fallback for an older plugin.
+    function _serverClock() {
+        const now = new Date();
+        let todayStr = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0")
+                     + "-" + String(now.getDate()).padStart(2, "0");
+        let nowMin = now.getHours() * 60 + now.getMinutes();
+        if (_wxStringHours && /^\d{4}-\d{2}-\d{2}$/.test(_wxStringHours.date || "")) todayStr = _wxStringHours.date;
+        const ts = (_sigen() || {}).timestamp;
+        const m = /^(\d{2}):(\d{2})/.exec(String(ts || ""));
+        if (m) nowMin = parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+        return { todayStr, nowMin };
+    }
+
+    // Redraw only when something the chart shows has actually changed — this
+    // renderer fires on the 3s device poll and the chart is an SVG.
+    let _wxFcSig = null;
+    function renderWeatherSolar() {
+        const card = document.getElementById("solar-now");
+        const d = _sigen();
+        if (!card) return;
+        // No inverter, or nothing from it yet: the card is not drawn at all
+        // rather than left as an empty box on the landing page.
+        if (!d || !d.solar) { card.style.display = "none"; return; }
+        const sol = d.solar;
+        const actual = sol.actual_today_kwh, fc = sol.today_kwh;
+        if (actual == null && fc == null) { card.style.display = "none"; return; }
+        card.style.display = "";
+        _ensureSolarShell(card);
+        const wrap = document.getElementById("wx-solar");
+        if (!wrap) return;
+        wrap.style.display = "";
+        const setT = (id, v) => { const e = document.getElementById(id); if (e && e.textContent !== v) e.textContent = v; };
+        setT("wx-sol-actual", actual != null ? actual.toFixed(1) : "—");
+        setT("wx-sol-fc", fc != null ? String(Math.round(fc)) : "—");
+        const bar = document.getElementById("wx-sol-bar");
+        if (bar) bar.style.width = (fc ? Math.max(0, Math.min(100, Math.round((actual / fc) * 100))) : 0) + "%";
+        setT("wx-sol-rem", sol.remaining_kwh != null ? sol.remaining_kwh.toFixed(1) + " kWh" : "—");
+        setT("wx-sol-tmrw", sol.tomorrow_kwh != null ? Math.round(sol.tomorrow_kwh) + " kWh" : "—");
+        if (!window.DashUI || !window.DashCalc) return;
+
+        // The SERVER's day and clock (v2.95.3), not the viewer's: from Perth
+        // (UTC+8) at 17:00 the browser said most of the day's forecast was
+        // due while London was at 09:00. The string-hours payload carries the
+        // server's date, and the status payload its local time of day.
+        const clk = _serverClock();
+        const todayStr = clk.todayStr, nowMin = clk.nowMin;
+        const fresh = (_wxStringHours && _wxStringHours.date === todayStr) ? _wxStringHours : null;
+        // No slots on the hub — it never fetches history; the endpoint's own
+        // site series already covers every hour, so there is nothing to lose.
+        const model = DashCalc.buildSolarHours(fresh && fresh.hours, fresh && fresh.site,
+                                               null, d.hourly_forecast || {}, nowMin, todayStr);
+        const labels = ((sol.strings || []).length
+            ? sol.strings.map(s => s.label)
+            : ["West", "East", "South", "Garage"]);
+        const sig = JSON.stringify([model.rows.map(r => [r.mode, r.total, r.parts ? 1 : 0]),
+                                    model.won, model.played, labels,
+                                    document.documentElement.dataset.theme || ""]);
+        if (sig !== _wxFcSig) {
+            _wxFcSig = sig;
+            DashUI.solarHoursChart(document.getElementById("wx-fc"), model,
+                                   { stringLabels: labels, compact: true });
+            const leg = document.getElementById("wx-sol-legend");
+            if (leg) {
+                const anyStacked = model.rows.some(r => r.parts);
+                if (anyStacked) {
+                    leg.innerHTML = DashUI.STRING_STACK_ORDER.map(i =>
+                        `<span class="li"><i style="background:${DashUI.STRING_COLOURS[i]}"></i>${escapeAttr(labels[i] || "")}</span>`).join("");
+                    leg.style.display = "";
+                } else {
+                    leg.style.display = "none";
+                }
+            }
+        }
+        setT("wx-sol-score", model.played ? `Beat forecast ${model.won}/${model.played} h` : "");
+    }
+
+    // Ecowitt sensors found by STATE SIGNATURE, not hardcoded device ids —
+    // the ids that used to sit here were this author's house and nobody
+    // else's, so the card read "Ecowitt unavailable" on every other install.
+    // The signature is the Ecowitt plugin's own state vocabulary.
+    function _findBySignature(devices, required, preferName) {
+        const hits = devices.filter(d => {
+            const s = d.states || {};
+            return required.every(k => s[k] !== undefined);
+        });
+        if (hits.length > 1 && preferName) {
+            const named = hits.find(d => preferName.test(d.name || ""));
+            if (named) return named;
+        }
+        return hits[0] || null;
+    }
+
+    function renderWeatherCard(devices) {
+        const el = document.getElementById("weather-now");
+        if (!el) return;
+        const wind    = _findBySignature(devices, ["windSpeed", "windGust"]);
+        const rain    = _findBySignature(devices, ["rainDaily"]);
+        const indoor  = _findBySignature(devices, ["temperature", "pressureRelative"], /indoor/i);
+        const outdoor = _findBySignature(
+            devices.filter(d => d !== indoor),
+            ["temperature", "humidity", "dewPoint"], /outdoor/i);
+        if (!outdoor) {
+            // No Ecowitt station. OpenWeatherMap alone still has conditions,
+            // today's range, sun times and UV (v2.96.0) — and with neither
+            // source the card says what would fill it, in plain words.
+            const owm0 = window.__OWM_DATA || null;
+            _wxBuilt = false;
+            if (owm0) {
+                const hiLo = (Number.isFinite(owm0.today_max) && Number.isFinite(owm0.today_min))
+                    ? `${owm0.today_max.toFixed(0)}° / ${owm0.today_min.toFixed(0)}°` : "";
+                const cond = owm0.now_conditions || owm0.today_summary || "";
+                const sr = _fmtSunTime(owm0.sunrise, owm0.tz_offset), ss = _fmtSunTime(owm0.sunset, owm0.tz_offset);
+                el.innerHTML = `<h3>Weather</h3>
+                    <div class="row"><span>${escapeAttr([cond, hiLo].filter(Boolean).join(" · ") || "—")}</span></div>
+                    <div class="row"><span>${sr ? "Sunrise " + escapeAttr(sr) : ""}${sr && ss ? " · " : ""}${ss ? "Sunset " + escapeAttr(ss) : ""}</span></div>
+                    ${Number.isFinite(owm0.now_uvi) ? `<div class="row"><span>UV ${owm0.now_uvi.toFixed(0)}</span></div>` : ""}
+                    <div class="muted">OpenWeatherMap · no local station</div>`;
+            } else {
+                el.innerHTML = `<h3>Weather</h3><div class="muted">No weather source — add an Ecowitt station, or an OpenWeatherMap key and your coordinates under Plugins → Dashboards → Configure.</div>`;
+            }
+            return;
+        }
+        const o = outdoor.states || {};
+        const w = (wind || {}).states || {};
+        const r = (rain || {}).states || {};
+        const i = (indoor || {}).states || {};
+        const temp     = parseFloat(o.temperature);
+        const hum      = parseFloat(o.humidity);
+        // Ecowitt publishes m/s; old data may have used Mph keys. Detect unit
+        // so the displayed value matches what's in the device states.
+        const windUnit = (w.windSpeedUnit || "").toLowerCase();
+        const rawSpeed = parseFloat(w.windSpeed);
+        const rawGust  = parseFloat(w.windGust);
+        const rawMaxGust = parseFloat(w.maxDailyGust);
+        const toMph    = (v) => windUnit === "m/s" ? v * 2.23694 : v;
+        const speedMph = isFinite(rawSpeed) ? toMph(rawSpeed) : null;
+        const gustMph  = isFinite(rawGust)  ? toMph(rawGust)  : null;
+        const maxGustMph = isFinite(rawMaxGust) ? toMph(rawMaxGust) : null;
+        const dir      = w.windDirectionCardinal || w.windCardinal || w.windDir || "";
+        const rateMm   = parseFloat(r.rainRateMm || r.rainRateMmh || r.rainHourly) || 0;
+        // Ecowitt rainDaily comes in inches by default unless the user
+        // configured mm. Convert via rainUnit so the rendered figure is
+        // always in mm regardless of source config.
+        const rainUnit = (r.rainUnit || "").toLowerCase();
+        const rawRain  = parseFloat(r.rainDaily);
+        const rainDailyMm = isFinite(rawRain)
+            ? (rainUnit === "in" || rainUnit === "inch" ? rawRain * 25.4 : rawRain)
+            : null;
+        const inT      = parseFloat(i.temperature);
+        const inHum    = parseFloat(i.humidity);
+        const pressure = parseFloat(i.pressureRelative || i.pressureAbsolute);
+        const pTrend   = _trackPressure(pressure);
+        const feelsLike = _windChill(temp, speedMph);
+        const owm = window.__OWM_DATA || null;
+        const sunsetStr  = owm  ? _fmtSunTime(owm.sunset,  owm.tz_offset) : null;
+        const sunriseStr = owm  ? _fmtSunTime(owm.sunrise, owm.tz_offset) : null;
+        const todayHi    = owm && isFinite(owm.today_max) ? owm.today_max : null;
+        const todayLo    = owm && isFinite(owm.today_min) ? owm.today_min : null;
+        const conditions = owm && (owm.now_conditions || owm.today_summary) || "";
+        const uvi        = owm && isFinite(owm.now_uvi) ? owm.now_uvi : null;
+        // Compact mode for narrow phone viewports — 4–5 highlight rows
+        // only. Drops wind gust/max, rain rate, pressure trend, UV, indoor.
+        // Full detail behind the tap-through to ecowitt.html.
+        const isCompact = window.innerWidth <= 600;
+        if (isCompact) {
+            _ensureWeatherShell(el);
+            document.getElementById('weather-rows').innerHTML = `
+                <h3>Weather${conditions ? ` · ${escapeAttr(conditions)}` : ""}</h3>
+                <div class="row"><span class="key">Outdoor</span><span class="val big">${isFinite(temp) ? temp.toFixed(1) + "°" : "—"}</span></div>
+                ${isFinite(hum) ? `<div class="row"><span class="key">Humidity</span><span class="val">${hum.toFixed(0)}%</span></div>` : ""}
+                ${speedMph != null ? `<div class="row"><span class="key">Wind</span><span class="val">${speedMph.toFixed(0)} mph${dir ? " " + dir : ""}</span></div>` : ""}
+                ${rainDailyMm != null && rainDailyMm > 0 ? `<div class="row"><span class="key">Rain</span><span class="val warn">${rainDailyMm.toFixed(1)} mm</span></div>` : ""}
+                ${(sunriseStr || sunsetStr) ? `<div class="row"><span class="key">Sun</span><span class="val">${sunriseStr || "—"}↑ ${sunsetStr || "—"}↓</span></div>` : ""}`;
+            return;
+        }
+        _ensureWeatherShell(el);
+            document.getElementById('weather-rows').innerHTML = `
+            <h3>Weather${conditions ? ` · ${escapeAttr(conditions)}` : ""}</h3>
+            <div class="row"><span class="key">Outdoor</span><span class="val big">${isFinite(temp) ? temp.toFixed(1) + "°C" : "—"}</span></div>
+            ${feelsLike != null ? `<div class="row"><span class="key">Feels like</span><span class="val">${feelsLike.toFixed(1)}°C</span></div>` : ""}
+            ${(todayHi != null && todayLo != null) ? `<div class="row"><span class="key">Today</span><span class="val">${todayHi.toFixed(0)}° / ${todayLo.toFixed(0)}°</span></div>` : ""}
+            ${isFinite(hum) ? `<div class="row"><span class="key">Humidity</span><span class="val">${hum.toFixed(0)}%</span></div>` : ""}
+            ${speedMph != null ? `<div class="row"><span class="key">Wind</span><span class="val">${speedMph.toFixed(0)} mph${dir ? " " + dir : ""}${gustMph ? ` · gust ${gustMph.toFixed(0)}` : ""}${maxGustMph && (!gustMph || maxGustMph > gustMph + 1) ? ` · max ${maxGustMph.toFixed(0)}` : ""}</span></div>` : ""}
+            ${rateMm > 0 ? `<div class="row"><span class="key">Rain rate</span><span class="val warn">${rateMm.toFixed(1)} mm/h</span></div>` : ""}
+            ${rainDailyMm != null ? `<div class="row"><span class="key">Rain today</span><span class="val ${rainDailyMm > 0 ? "" : "muted"}">${rainDailyMm > 0 ? rainDailyMm.toFixed(1) + " mm" : "dry"}</span></div>` : ""}
+            ${isFinite(pressure) ? `<div class="row"><span class="key">Pressure</span><span class="val">${pressure.toFixed(0)} hPa${pTrend ? " " + pTrend.arrow + " " + pTrend.word : ""}</span></div>` : ""}
+            ${uvi != null ? `<div class="row"><span class="key">UV index</span><span class="val">${uvi.toFixed(1)}</span></div>` : ""}
+            ${(sunriseStr || sunsetStr) ? `<div class="row"><span class="key">Sun</span><span class="val">${sunriseStr || "—"} ↑ · ${sunsetStr || "—"} ↓</span></div>` : ""}
+            ${isFinite(inT) ? `<div class="row"><span class="key">Indoor</span><span class="val">${inT.toFixed(1)}°C${isFinite(inHum) ? " · " + inHum.toFixed(0) + "%" : ""}</span></div>` : ""}`;
+    }
+
+    // ── Live room tiles (v2.31.0) ─────────────────────────────
+    // Each Rooms-grid tile shows live state from the same 3s device poll:
+    // room temperature (average of its TRVs' temperatureInput1, colour-banded),
+    // occupancy (presence/motion → green ring on the icon + "Occupied"),
+    // lights-on count, calling-for-heat flame and open-window count. Keyed off
+    // the tile's room.html?room= link + rooms.json, so no per-tile markup.
+    // Build the Rooms tile wall from rooms.json — alphabetical, icon chosen by
+    // room-name keyword with a neutral fallback, description from which
+    // sections the room actually has. the live poll used to fill them with
+    // state afterwards exactly as before (it keys off the tiles' hrefs).
+
+
+    function renderAlertsCard(devices) {
+        const el = document.getElementById("alerts-strip");
+        if (!el) return;
+        if (!ROOMS) { el.innerHTML = `<h3>Alerts</h3><div class="muted">Loading…</div>`; return; }
+        const allWinIds = new Set();
+        for (const r of Object.values(ROOMS.rooms || {})) {
+            (r.windows || []).forEach(id => allWinIds.add(id));
+        }
+        const contacts = devices.filter(d => allWinIds.has(d.id));
+        // Readable = enabled, no errorState, a real boolean. Anything else is
+        // UNKNOWN, and "All 12 closed" must never be asserted over a sensor
+        // that cannot report (v2.95.3).
+        const readable = contacts.filter(d => d.enabled !== false && !(d.errorState || "").trim()
+                                           && typeof d.onState === "boolean");
+        const unreadable = contacts.length - readable.length;
+        const open = readable.filter(d => d.onState === true)
+                             .sort((a, b) => (Date.parse(b.lastChanged || 0) || 0) - (Date.parse(a.lastChanged || 0) || 0));
+        if (!open.length) {
+            el.innerHTML = `<h3>Doors & Windows</h3>
+                <div class="row"><span class="ok">${DashIcons.svg("check")} All ${readable.length} closed${unreadable ? ` · ${unreadable} unreadable` : ""}</span></div>`;
+            return;
+        }
+        const items = open.map(d => `
+            <div class="alert-open">
+                <span class="name">${escapeAttr(d.name)}</span>
+                <span class="when warn">${escapeAttr(relTime(d.lastChanged))}</span>
+            </div>`).join("");
+        el.innerHTML = `<h3>Doors & Windows · ${open.length} open</h3>${items}`;
+    }
+
+    // ── Favourites (v2.10.0): one-tap tiles at the top of the hub ─────
+    // Driven by window.INDIGO_CONFIG.favourites (published in config.js):
+    // [{type:"device"|"scene"|"door", id, label}]. Device tiles show live
+    // on/off and toggle on tap; scene tiles run the action group; door tiles
+    // (v2.76.0) are state-driven and pick open/close from the state shown.
+    // Re-rendered each poll; a single delegated click handler
+    // (setupFavourites) survives the re-render.
+
+    // Last settled end state ("open"/"closed") per door favourite, so a
+    // moving door can be named as Opening… or Closing…. Module-level on
+    // purpose: the card's DOM is torn down every 3 s poll.
+    const _doorLast = new Map();
+
+    function renderFavouritesCard(devices) {
+        const host = document.getElementById("favourites");
+        if (!host) return;
+        const allFavs = (window.INDIGO_CONFIG || {}).favourites || [];
+        if (!allFavs.length) { host.style.display = "none"; return; }
+        // Room shortcuts are navigation, not state, so they get their own row
+        // under the live tiles rather than being mixed in among them.
+        const roomFavs = allFavs.filter(f => f && f.type === "room");
+        const favs     = allFavs.filter(f => f && f.type !== "room");
+        const byId = new Map(devices.map(d => [d.id, d]));
+        const tiles = favs.map(f => {
+            if (f.type === "scene") {
+                const name = f.label || "Scene";
+                // data-dsh-act-key lets DashAction repaint an in-flight takeover
+                // back onto this tile after the 3s rebuild below wipes it.
+                // No "Run" sub-label: the takeover covers the whole tile the
+                // moment it is pressed, so the tile only needs to say what it is.
+                return `<button class="fav-tile fav-scene" data-fav-type="scene" data-fav-id="${escapeAttr(f.id)}" data-dsh-act-key="scene:${escapeAttr(f.id)}">
+                    <span class="fav-name">${escapeAttr(name)}</span></button>`;
+            }
+            // Door favourite (v2.76.0): ONE tile that paints itself from the
+            // door device's state and fires the direction-safe action for the
+            // state it is showing. White closed / blue moving / red open /
+            // amber stuck; presses are ignored mid-travel and when the state
+            // is unknown (an absent device must never read as "Closed").
+            // v2.77.0: a lockId makes it a LOCK-flavoured door (front door) —
+            // contact device + lock device, white Locked / blue Unlocked /
+            // red Open, press fires the unlock only from Locked.
+            if (f.type === "door") {
+                const did = Number(f.id);
+                const d = byId.get(did);
+                let t = { key: "unknown", label: "—", intent: null };
+                if (f.lockId) {
+                    const lk = byId.get(Number(f.lockId));
+                    const contactRaw = (d && d.states) ? d.states[f.state || "onOffState"] : undefined;
+                    const lockRaw = (lk && lk.states) ? lk.states.onOffState : undefined;
+                    if (window.DashAction && DashAction.lockTile) t = DashAction.lockTile(contactRaw, lockRaw);
+                } else {
+                    const raw = (d && d.states) ? d.states[f.state || "doorState"] : undefined;
+                    if (window.DashAction && DashAction.doorTile) t = DashAction.doorTile(raw, _doorLast.get(did));
+                    const s = (raw == null) ? "" : String(raw).trim().toLowerCase();
+                    if (s === "open" || s === "closed") _doorLast.set(did, s);
+                }
+                const dname = f.label || (d && d.name) || "Door";
+                return `<button class="fav-tile fav-door fav-door-${t.key}" data-fav-type="door" data-fav-id="${escapeAttr(f.id)}" data-door-intent="${t.intent || ""}" data-dsh-act-key="door:${escapeAttr(f.id)}">
+                    <span class="fav-name">${escapeAttr(dname)}</span>
+                    <span class="fav-state">${escapeAttr(t.label)}</span></button>`;
+            }
+            // Group favourite (v2.93.0): ONE tile standing for several devices.
+            // The living room's three lamps and the fire behind a single press,
+            // with the colour lamp asked for 100% rather than whatever
+            // brightness it was left on. State and direction come from the pure
+            // DashAction.groupTile — an unreadable member (the RF fire) is
+            // counted in the label but never decides which way a press goes.
+            if (f.type === "group") {
+                const t = (window.DashAction && DashAction.groupTile)
+                    ? DashAction.groupTile(f.devices, byId)
+                    : { key: "unknown", label: "—", intent: "on" };
+                const gname = f.label || "Group";
+                return `<button class="fav-tile fav-group fav-group-${t.key}${t.key === "on" ? " on" : ""}" data-fav-type="group" data-fav-idx="${escapeAttr(String(allFavs.indexOf(f)))}" data-group-intent="${escapeAttr(t.intent)}" data-dsh-act-key="group:${escapeAttr(gname)}">
+                    <span class="fav-name">${escapeAttr(gname)}</span>
+                    <span class="fav-state">${escapeAttr(t.label)}</span></button>`;
+            }
+            const d = byId.get(f.id);
+            // Reading favourite (v2.19.0): a read-only value tile for a chosen
+            // device state (e.g. voltage, temperature, SOC) — no on/off toggle.
+            if (f.state) {
+                const st = (d && d.states) || {};
+                const raw = (st[f.state + ".ui"] != null && st[f.state + ".ui"] !== "") ? st[f.state + ".ui"]
+                          : (st[f.state] != null ? st[f.state] : null);
+                const valTxt = (raw == null || raw === "") ? "—" : String(raw);
+                const rname = f.label || (d && d.name) || ("#" + f.id);
+                // v2.77.0: optional colour bands. Compared against the RAW
+                // numeric state, never the ".ui" string ("12.60 V" is not a
+                // number). An unreadable value gets no colour, not a guess.
+                let valCls = "";
+                const wb = Number(f.warnBelow), bb = Number(f.badBelow);
+                const num = Number(st[f.state]);
+                if (Number.isFinite(num) && (Number.isFinite(wb) || Number.isFinite(bb))) {
+                    if (Number.isFinite(bb) && num < bb) valCls = " fav-val-bad";
+                    else if (Number.isFinite(wb) && num < wb) valCls = " fav-val-warn";
+                    else valCls = " fav-val-good";
+                }
+                return `<button class="fav-tile fav-reading" data-fav-type="device" data-fav-id="${escapeAttr(f.id)}" data-fav-readonly="1">
+                    <span class="fav-name">${escapeAttr(rname)}</span>
+                    <span class="fav-state val${valCls}">${escapeAttr(valTxt)}</span></button>`;
+            }
+            // v2.92.1: a typed label WINS, as it already does on the door and
+            // reading tiles. The old order put the live device name first, so a
+            // label entered in Settings was stored and then silently ignored —
+            // the field looked broken. With no label the live name still shows,
+            // so an untouched favourite keeps following Indigo renames.
+            const name = f.label || (d && d.name) || ("#" + f.id);
+            const on = !!(d && d.onState === true);
+            // A disabled device's state is frozen and a tap would be swallowed;
+            // a device with no boolean state cannot be "Off" (v2.95.3).
+            const dead = !!(d && d.enabled === false);
+            const stateTxt = !d ? "—" : dead ? "Disabled"
+                           : (typeof d.onState !== "boolean" ? "—" : (on ? "On" : "Off"));
+            return `<button class="fav-tile${on ? " on" : ""}${dead ? " off-line" : ""}" data-fav-type="device" data-fav-id="${escapeAttr(f.id)}" data-fav-dead="${dead ? 1 : 0}" data-dsh-act-key="device:${escapeAttr(f.id)}">
+                <span class="fav-name">${escapeAttr(name)}</span>
+                <span class="fav-state">${stateTxt}</span></button>`;
+        }).join("");
+        // Rendered as ANCHORS, not buttons: a room shortcut is a link and
+        // should behave like one — long-press to open in a new tab, and it
+        // still works if the click handler ever stops being wired. The
+        // readonly flag makes that handler step aside so the browser
+        // navigates natively.
+        const roomTiles = roomFavs.map(f => {
+            const name = String(f.room || "");
+            if (!name) return "";
+            return `<a class="fav-tile fav-roomlink" data-fav-readonly="1"
+                       href="room.html?room=${encodeURIComponent(name)}">
+                <span class="fav-name">${escapeAttr(f.label || name)}</span>
+                <span class="fav-state">Open room</span></a>`;
+        }).join("");
+        const markup = `<div class="fav-h">Favourites</div><div class="fav-grid">${tiles}</div>`
+            + (roomTiles ? `<div class="fav-grid fav-grid-rooms">${roomTiles}</div>` : "");
+        // Keep unchanged controls mounted through the poll. When a reading
+        // changes, restore the focused favourite by identity, not its position.
+        if (host.innerHTML !== markup) {
+            const active = document.activeElement;
+            const focused = active && host.contains(active) && active.matches(".fav-tile") ? active : null;
+            const identity = el => [el.dataset.favType || "", el.dataset.favId || "", el.getAttribute("href") || ""].join("|");
+            const focusedKey = focused ? identity(focused) : null;
+            host.innerHTML = markup;
+            if (focusedKey !== null) {
+                const replacement = Array.from(host.querySelectorAll(".fav-tile")).find(el => identity(el) === focusedKey);
+                if (replacement) replacement.focus({ preventScroll: true });
+            }
+        }
+        host.style.display = "block";
+        // Repaint any in-flight action takeover onto the tiles just rebuilt.
+        // This card is torn down and recreated every 3 s poll, which is exactly
+        // what killed the old "Done ✓" tick before it could be read.
+        if (window.DashAction) DashAction.repaint();
+    }
+
+    let _favWired = false;
+    function setupFavourites() {
+        const host = document.getElementById("favourites");
+        if (!host || _favWired) return;
+        _favWired = true;
+        host.addEventListener("click", async (ev) => {
+            const tile = ev.target.closest(".fav-tile");
+            if (!tile) return;
+            if (tile.dataset.favReadonly) return;   // reading tiles don't toggle
+            const type = tile.dataset.favType;
+
+            // Group favourite (v2.93.0): several devices behind one press, so
+            // it is handled before the device-id parse below — a group has no
+            // id of its own. The direction was decided at RENDER time and is
+            // carried on the tile, so what happens is what the tile said it
+            // would do; the plan then commands EVERY member, including any the
+            // poll already believes is in that state.
+            if (type === "group") {
+                const gfavs = (window.INDIGO_CONFIG || {}).favourites || [];
+                const g = gfavs[parseInt(tile.dataset.favIdx, 10)];
+                if (!g || g.type !== "group") return;
+                const gkey = tile.dataset.dshActKey || ("group:" + (g.label || ""));
+                const plan = (window.DashAction && DashAction.groupPlan)
+                    ? DashAction.groupPlan(g.devices, tile.dataset.groupIntent || "on") : [];
+                if (!plan.length) return;
+                const gapi = new IndigoAPI();
+                gapi.onAuthFailure(_onAuthFail);
+                // One PIN prompt per press (v2.95.4): the members are commanded
+                // in parallel and each used to hit the gate before the first
+                // verify had stored the session flag, so N protected members
+                // meant N prompts.
+                const pinIds = (window.INDIGO_CONFIG || {}).pinRequired || [];
+                const guarded = plan.map(c => c.id).find(id => pinIds.includes(id));
+                if (guarded != null && gapi._gate) {
+                    try { await gapi._gate(guarded); } catch (e) { return; }
+                }
+                tile.classList.add("busy");
+                try {
+                    const results = await Promise.allSettled(plan.map(c =>
+                        c.fn === "setBrightness" ? gapi.setBrightness(c.id, c.level) : gapi[c.fn](c.id)));
+                    // Say so when a member did not take the command. The old
+                    // room-page pattern swallowed every rejection, so half a
+                    // group going through looked exactly like all of it.
+                    const bad = results.filter(r => r.status === "rejected").length;
+                    if (bad) DashAction.note(gkey, "error",
+                        bad === plan.length ? "Failed — no response"
+                                            : `${bad} of ${plan.length} failed`);
+                } finally {
+                    tile.classList.remove("busy");
+                }
+                return;
+            }
+
+            const id   = parseInt(tile.dataset.favId, 10);
+            if (isNaN(id)) return;
+            const key = tile.dataset.dshActKey || (type + ":" + id);
+            const indigo = new IndigoAPI();
+            indigo.onAuthFailure(_onAuthFail);
+
+            if (type === "scene") {
+                // A scene tile can be a door. The HTTP call returning only means
+                // Indigo accepted the action group — DashAction takes the tile
+                // over and holds it until the contact sensors say it happened,
+                // or until it gives up and says so.
+                await DashAction.run({ api: indigo, key, actionId: id,
+                                       title: tile.querySelector(".fav-name")?.textContent || "" });
+                return;
+            }
+
+            if (type === "door") {
+                // State-driven press: fire the action for the state the tile
+                // is SHOWING. No intent (moving / unknown) = display-only —
+                // pulsing an opener mid-travel stops or reverses it
+                // unpredictably, so the tile refuses rather than guesses.
+                // Direction safety does not rest on this tile being fresh:
+                // both plugin actions are idempotent, so a ≤3 s-stale read
+                // can only ever no-op, never reverse the door.
+                const intent = tile.dataset.doorIntent;
+                if (!intent) return;
+                const favs = (window.INDIGO_CONFIG || {}).favourites || [];
+                const f = favs.find(x => x.type === "door" && Number(x.id) === id);
+                const actionId = f ? Number(intent === "open" ? f.openAction : f.closeAction) : NaN;
+                if (!actionId || isNaN(actionId)) return;
+                // Door theme: blue in-flight veil, and holdDone 0 clears the
+                // veil the moment travel confirms — the tile itself turning
+                // red "Open" or white "Closed" IS the confirmation. Failure
+                // veils (timeout / stuck / error) keep their long holds.
+                const spec = DashAction.watchSpec(actionId);
+                await DashAction.run({ api: indigo, key, actionId,
+                                       spec: spec ? Object.assign({}, spec, { theme: "door", holdDone: 0 }) : null,
+                                       title: tile.querySelector(".fav-name")?.textContent || "" });
+                return;
+            }
+
+            if (tile.dataset.favDead === "1") {
+                try { DashAction.note(tile.dataset.dshActKey, "error", "Disabled in Indigo"); } catch (_) {}
+                return;
+            }
+            tile.classList.add("busy");
+            try {
+                await indigo.toggle(id);
+                // Optimistic flip for instant feedback; the next 3s poll re-syncs from the server.
+                tile.classList.toggle("on");
+                const st = tile.querySelector(".fav-state");
+                if (st) st.textContent = tile.classList.contains("on") ? "On" : "Off";
+            } catch (e) {
+                // Auth failure is handled by _onAuthFail. Everything else used to
+                // vanish here, so a dead network looked exactly like success.
+                if (e && e.name !== "AbortError") {
+                    DashAction.note(key, "error", "Failed — " + ((e && e.message) || "no response"));
+                }
+            } finally {
+                tile.classList.remove("busy");
+            }
+        });
+    }
+
+    function showConfigForm() {
+        // baseURL comes from config.js (merged by dashboards-auth.js) so the
+        // field is pre-filled; only the API key needs typing. The key is kept
+        // in this browser's localStorage and is never published by the server.
+        const defaultURL = (window.INDIGO_CONFIG || {}).baseURL || location.origin;
+        document.getElementById("content").innerHTML = `
+            <div id="config-form">
+                <h2>Connect to Indigo</h2>
+                <p>Enter your Indigo API key. It is saved in this browser only —
+                   the server never publishes it.</p>
+                <label>Server URL
+                    <input id="cfg-url" type="url" placeholder="${escapeAttr(defaultURL)}"
+                           value="${escapeAttr(defaultURL)}">
+                </label>
+                <label>API Key
+                    <input id="cfg-key" type="password" autocomplete="current-password"
+                           placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+                </label>
+                <button onclick="connect()">Connect</button>
+                <p>Already paired in an Indigo app? It'll inject credentials automatically — refresh this page.</p>
+            </div>`;
+    }
+
+    function connect() {
+        const baseURL = document.getElementById("cfg-url").value.replace(/\/+$/, "");
+        const apiKey  = document.getElementById("cfg-key").value.trim();
+        if (!baseURL || !apiKey) return;
+        IndigoAPI.saveConfig({ baseURL, apiKey });
+        location.reload();
+    }
+
+    function resetConfig() {
+        if (!confirm("Forget Indigo server credentials?")) return;
+        IndigoAPI.clearConfig();
+        location.reload();
+    }
+
+    // House pulse (v2.18.0, moved into the hero v2.30.0): a row of chips — who's
+    // home (UniFi presence), zones calling for heat (RAMSES hvacHeaterIsOn),
+    // low-battery / device-error counts, and the live grid-carbon reading. Each
+    // chip deep-links to its page. All device chips come from the 3s poll.
+    function renderHousePulse(devices) {
+        const el = document.getElementById("pulse-row");
+        if (!el) return;
+        // Per-person presence (v2.34.0): one chip each, Home OR Away — so an
+        // away person is visibly away rather than just missing from a list.
+        const people = devices
+            .filter(d => d.deviceTypeId === "unifiClient")
+            .map(d => ({
+                name: String(d.name || "").replace(/^Presence\s*[-–]\s*/, "")
+                        .replace(/\s+iPhone.*$/i, "").trim() || String(d.name || ""),
+                home: (d.states || {}).presence === "home",
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+        const heating = devices.filter(d => asBool((d.states || {}).hvacHeaterIsOn)).length;
+        let lowBatt = 0, errors = 0;
+        for (const d of devices) {
+            if (d.enabled === false) continue;
+            const s = d.states || {};
+            let pct = null;
+            if (typeof d.batteryLevel === "number") pct = d.batteryLevel;
+            else if (s.battery != null && !isNaN(parseFloat(s.battery))) pct = parseFloat(s.battery);
+            if (pct != null && pct > 0 && pct < 20) lowBatt++;
+            else if (asBool(s.batteryLow)) lowBatt++;
+            if (d.errorState && d.errorState !== "") errors++;
+        }
+        const chip = (href, cls, inner) =>
+            `<a class="pulse-chip ${cls}" href="${href}">${inner}</a>`;
+        const chips = [];
+        if (people.length) {
+            for (const p of people.slice(0, 6)) {
+                chips.push(chip("presence.html", p.home ? "good" : "",
+                    `${DashIcons.svg("person")} ${escapeAttr(p.name)} · ${p.home ? "Home" : "Away"}`));
+            }
+        } else {
+            chips.push(chip("presence.html", "", DashIcons.svg("person") + " No presence devices"));
+        }
+        chips.push(chip("heating.html", heating ? "warn" : "",
+            `${DashIcons.svg("flame")} <span class="pc-num">${heating}</span> zone${heating === 1 ? "" : "s"} heating`));
+        if (lowBatt) chips.push(chip("system-health.html", "warn",
+            `${DashIcons.svg("battery")} <span class="pc-num">${lowBatt}</span> low battery`));
+        if (errors)  chips.push(chip("system-health.html", "bad",
+            `${DashIcons.svg("warn")} <span class="pc-num">${errors}</span> in error`));
+        // VPP chip (v2.66.0) — replaced the grid-carbon chip, which CliveS does
+        // not use. Shown ONLY while an Axle window is announced or running, so
+        // the row stays short on the days nothing is happening: an always-on
+        // "VPP idle" chip would be noise 364 days a year. The Carbon page is
+        // untouched and still linked from the tile wall.
+        const vpp = (_sigen() && _sigen().vpp) || null;
+        if (vpp && vpp.active) {
+            chips.push(chip("energy.html", "warn",
+                `${DashIcons.svg("bolt")} VPP running${vpp.event_str ? " · " + escapeAttr(vpp.event_str) : ""}`));
+        } else if (vpp && vpp.state === "announced") {
+            chips.push(chip("energy.html", "good",
+                `${DashIcons.svg("bolt")} VPP announced${vpp.event_str ? " · " + escapeAttr(vpp.event_str) : ""}`));
+        }
+        el.innerHTML = chips.join("");
+    }
+
+    // Power-cut / storm banner (v2.18.0): shown only when the cached Sigen data
+    // reports an ongoing grid outage or an active storm export-hold.
+    function renderBanner() {
+        const el = document.getElementById("house-banner");
+        if (!el) return;
+        const d = _sigen();
+        const pc = (d && d.power_cut) || {};
+        const st = (d && d.storm) || {};
+        // "export held" only when export is ACTUALLY suppressed — the lockout
+        // window alone doesn't stop export above the SOC floor (same lesson as
+        // the energy page's v2.15.1 chip fix).
+        let msg = "", cls = "";
+        if (pc.ongoing)                 { msg = DashIcons.svg("bolt") + " GRID POWER CUT — running on battery"; cls = "bad"; }
+        else if (pc.export_suppressed)  { msg = DashIcons.svg("bolt") + " Recent power cut — battery reserved, export held"; cls = "warn"; }
+        else if (pc.lockout_active)     { msg = DashIcons.svg("bolt") + " Recent power cut — battery reserve raised"; cls = "warn"; }
+        else if (st.export_suppressed)  { msg = DashIcons.svg("storm") + " Storm watch — export held to keep the battery charged"; cls = "warn"; }
+        if (msg) { el.innerHTML = msg; el.className = cls; el.style.display = "block"; }
+        else     { el.style.display = "none"; }
+    }
+
+    // A SINGLE transient 401/403 (an IWS restart, a proxy hiccup) used to
+    // wipe the stored key and bounce the tab to the pairing form. Three
+    // consecutive failures is a real credential problem; anything less rides
+    // it out. Reset on every successful fetch.
+    // The four side pollers (sigen, string hours, insights, log watch) fetch
+    // directly rather than through IndigoAPI, so they never reached the
+    // auth-failure counter below. A browser holding a stale key therefore
+    // asked again every 30 s for ever, and every refusal wrote a Web Server
+    // warning — 120 lines an hour, per open tab, for a key that was never
+    // going to start working. They now report a refusal like everything else,
+    // so three of them trip the same re-pair flow.
+    function _authRefused(r) {
+        if (!r || (r.status !== 401 && r.status !== 403)) return false;
+        try { _onAuthFail(); } catch (_) { /* never let this break a poller */ }
+        return true;
+    }
+
+    // Every raw /message/ poll on this page goes through here (v2.95.3): a
+    // 12 s timeout so an IWS slowdown cannot leave a request hanging for the
+    // browser's default minutes, and one request in flight per path so a slow
+    // reply is never stacked behind by the next interval. A poll refused for
+    // being in flight returns a not-ok stand-in, which every caller already
+    // treats as "nothing this time".
+    const _msgInflight = new Set();
+    async function _msg(path, body, timeoutMs = 12000) {
+        if (_msgInflight.has(path)) return { ok: false, status: 0, inflight: true };
+        const key = (window.INDIGO_CONFIG || {}).apiKey || "";
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+        _msgInflight.add(path);
+        try {
+            return await fetch(path, {
+                method: "POST",
+                headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
+                body: body, signal: ctrl.signal,
+            });
+        } finally {
+            clearTimeout(timer);
+            _msgInflight.delete(path);
+        }
+    }
+
+    let _authFails = 0;
+    function _onAuthFail() {
+        _authFails += 1;
+        if (_authFails < 3) return;
+        IndigoAPI.clearConfig();
+        setTimeout(() => location.reload(), 1500);
+    }
+
+    let _summaryBusy = false;
+    // Say so when the page is reached through the Indigo reflector, and
+    // offer the LAN address (v2.96.1). A reflector-origin phone at home is
+    // invisible from the phone's side — the page looks identical.
+    function _reflectorNote() {
+        const el = document.getElementById("reflector-note");
+        if (!el || el.hidden === false || !window.DashUI || DashUI.linkClass() !== "reflector") return;
+        const lan = DashUI.lanUrl ? DashUI.lanUrl("index.html") : "";
+        el.innerHTML = "Reached through the Indigo reflector, which Indigo's own servers carry — "
+            + "pictures refresh every 15 s here and pause when nobody touches the page."
+            + (lan ? ` At home, use <a href="${escapeAttr(lan)}">${escapeAttr(lan)}</a> instead.` : "");
+        el.hidden = false;
+    }
+    async function loadSummary() {
+        _reflectorNote();
+        if (document.hidden || _summaryBusy) return;
+        _summaryBusy = true;
+        const indigo = new IndigoAPI();
+        indigo.onAuthFailure(_onAuthFail);
+        try {
+            const devices = await indigo.getDevices();
+            _authFails = 0;
+            // Served from cache while the plugin is down: the one outage
+            // signal this page has is the clock going stale — keep it stale.
+            if (!devices.fromCache) markRefreshed();
+            // Feed any in-flight action watch from the poll we already ran, so
+            // confirming a door costs no extra network traffic.
+            try { DashAction.tick(devices); } catch (e) { console.warn("action watch", e); }
+            // Drive the command-centre cards from the same device fetch.
+            try { renderFavouritesCard(devices); } catch (e) { console.warn("favourites card", e); }
+            try { renderEnergyCard(devices);  } catch (e) { console.warn("energy card", e); }
+            // _leanHub has been a constant false since the light hub was
+            // removed in v2.97.0. The guard is kept because it is the one
+            // place that says these two are the expensive renders, and it
+            // costs nothing while it is always true.
+            if (!_leanHub) {
+                try { renderWeatherCard(devices); } catch (e) { console.warn("weather card", e); }
+                // Its own card now, so it no longer depends on the weather
+                // shell existing first — but it is still rendered on the same
+                // poll, from the same Sigen payload.
+                try { renderWeatherSolar(); } catch (e) { console.warn("solar card", e); }
+            }
+            try { renderHousePulse(devices);  } catch (e) { console.warn("house pulse", e); }
+            try { renderBanner();             } catch (e) { console.warn("banner", e); }
+            if (!_leanHub) {
+                try { renderAlertsCard(devices);  } catch (e) { console.warn("alerts card", e); }
+            }
+        } catch (e) {
+            // Errors surface via stale topbar timestamp + auth-failure handler above.
+        } finally {
+            _summaryBusy = false;
+        }
+    }
+    </script>
+
+    <footer class="bottombar">
+        <div class="bottombar-inner">
+            Updated <span id="ts-bot">—</span> · live every 3s
+        </div>
+    </footer>
+
+
+
+    <button class="back-to-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Back to top">↑</button>
+    <script>
+        (function() {
+            const btn = document.querySelector(".back-to-top");
+            if (!btn) return;
+            const onScroll = () => {
+                if (window.scrollY > 200) btn.classList.add("visible");
+                else btn.classList.remove("visible");
+            };
+            window.addEventListener("scroll", onScroll, { passive: true });
+            onScroll();
+        })();
+    </script>
+
+<script src="a11y.js"></script>
+
+<script src="standalone-nav.js"></script>
+</body>
+</html>

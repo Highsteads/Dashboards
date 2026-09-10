@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<!--
+  Filename:    carbon.html
+  Description: Carbon-aware advisor — combines UK grid carbon intensity (free
+               api.carbonintensity.org.uk, regional) with the live solar surplus
+               and tariff into a "good time to run a load" recommendation, a 24h
+               intensity forecast (Chart.js) and the current generation mix. All
+               data via the Dashboards plugin's server-side carbonAdvisor endpoint.
+  Author:      CliveS & Claude Opus 4.8
+  Date:        01-07-2026
+  Version:     1.0
+-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta name="indigo-page-name" content="Carbon">
+    <meta name="indigo-page-icon" content="leaf.medium">
+    <meta name="indigo-page-description" content="Grid carbon, solar surplus and the best time to run a load">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Dashboards">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#34c759">
+    <link rel="apple-touch-icon" sizes="180x180" href="/public/dashboards/apple-touch-icon.png">
+    <title>Carbon</title>
+    <link rel="stylesheet" href="dashboards-theme.css">
+    <style>
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: var(--font-ui);
+            background: var(--bg); color: var(--text);
+            padding: max(80px, calc(72px + env(safe-area-inset-top))) 0 max(32px, env(safe-area-inset-bottom));
+            min-height: 100vh; -webkit-overflow-scrolling: touch; }
+        .topbar { position: fixed; top: 0; left: 0; right: 0; z-index: 10;
+            background: var(--card-bg); border-bottom: 1px solid var(--border); box-shadow: var(--shadow);
+            padding: 10px max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left));
+            padding-top: max(10px, env(safe-area-inset-top)); }
+        .topbar-3col { display: grid; grid-template-columns: 1fr 2fr 1fr; align-items: center; gap: 8px;
+            max-width: 900px; margin: 0 auto; }
+        .hdr-left { justify-self: start; } .hdr-right { justify-self: end; }
+        .hdr-center { justify-self: stretch; text-align: center; min-width: 0;
+            display: flex; flex-direction: column; align-items: center; gap: 1px; line-height: 1.15; }
+        .hdr-center h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
+        .topbar-status { font-size: 11px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+        .nav-btn { background: var(--card-bg); border: 1px solid var(--border); color: var(--accent);
+            padding: 8px 14px; border-radius: var(--r-md); font-size: 14px; font-weight: 600; cursor: pointer;
+            font-family: inherit; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;
+            min-height: 36px; box-shadow: 0 1px 2px rgba(0,0,0,0.08); white-space: nowrap; }
+        .container { max-width: 900px; margin: 0 auto;
+            padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left)); }
+
+        .hero { background: var(--card-bg); border-radius: var(--r-lg); padding: 18px 16px; box-shadow: var(--shadow);
+            margin-bottom: 14px; border-left: 4px solid var(--good); }
+        .hero.wait { border-left-color: var(--warn); } .hero.neutral { border-left-color: var(--off-color); }
+        .hero-tag { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--good); }
+        .hero.wait .hero-tag { color: var(--warn); } .hero.neutral .hero-tag { color: var(--text-secondary); }
+        .hero-big { font-size: 22px; font-weight: 800; line-height: 1.15; margin-top: 4px; }
+        .hero-sub { font-size: 13px; color: var(--text-secondary); margin-top: 6px; line-height: 1.45; }
+
+        .strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+        @media (max-width: 520px) { .strip { grid-template-columns: 1fr; } }
+        .gauge { background: var(--card-bg); border-radius: var(--r-lg); padding: 14px 16px; box-shadow: var(--shadow); }
+        .gauge-lab { font-size: 12px; color: var(--text-secondary); }
+        .gauge-big { font-size: 26px; font-weight: 800; line-height: 1.05; font-variant-numeric: tabular-nums; margin-top: 2px; }
+        .gauge-sub { font-size: 12px; color: var(--text-secondary); margin-top: 3px; }
+        .idxbadge { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: var(--r-sm); margin-top: 4px; }
+
+        .card { background: var(--card-bg); border-radius: var(--r-lg); padding: 14px 16px; box-shadow: var(--shadow); margin-bottom: 14px; }
+        .card-title { font-size: 13px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
+        .card-title .pill { font-size: 11px; font-weight: 600; color: var(--text-secondary); }
+        .chart-wrap { position: relative; height: 200px; }
+        .mixrow { display: flex; align-items: center; gap: 10px; font-size: 12.5px; padding: 4px 0; }
+        .mixrow .ml { width: 74px; color: var(--text-secondary); text-transform: capitalize; }
+        .mixrow .mt { flex: 1; height: 8px; background: var(--track); border-radius: 5px; overflow: hidden; }
+        .mixrow .mf { height: 100%; border-radius: 5px; }
+        .mixrow .mv { width: 44px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+        .note { font-size: 11px; color: var(--text-secondary); margin-top: 10px; line-height: 1.5; }
+        .loading { text-align: center; padding: 60px 20px; color: var(--text-secondary); }
+        .spinner { width: 24px; height: 24px; border: 3px solid var(--off-color); border-top-color: var(--accent);
+            border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .bottombar { position: sticky; bottom: 0; z-index: 10; background: var(--card-bg);
+            border-top: 1px solid var(--border); box-shadow: 0 -1px 3px rgba(0,0,0,0.08);
+            padding: 8px 16px; padding-bottom: max(8px, env(safe-area-inset-bottom)); margin-top: 16px; }
+        .bottombar-inner { text-align: center; max-width: 900px; margin: 0 auto; font-size: 13px;
+            color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+    
+        /* ═══ Shared Apple/Safari polish (v2.25.0) ═════════════════
+           Appended uniformly across pages: frosted translucent bars, laptop
+           hover states, keyboard focus rings, reduced-motion support, and
+           Safari/iOS fixes (dynamic viewport height, text-size-adjust, tap
+           highlight). Selectors a page lacks simply never match. */
+        html { -webkit-text-size-adjust: 100%; }
+        body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+        @supports (min-height: 100dvh) { body { min-height: 100dvh; } }
+        a, button, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+        :focus-visible { outline: 2px solid var(--accent, #5856d6); outline-offset: 2px; }
+        .topbar, .bottombar {
+            background: rgba(249, 249, 251, 0.82);
+            -webkit-backdrop-filter: saturate(180%) blur(20px);
+            backdrop-filter: saturate(180%) blur(20px);
+            box-shadow: none;
+        }
+        @media (prefers-color-scheme: dark) {
+            .topbar, .bottombar { background: rgba(22, 22, 24, 0.80); }
+        }
+        @media (hover: hover) and (pointer: fine) {
+            a.card:hover, a.dash-card:hover, .fav-tile:not(.fav-reading):hover, a.home-cam:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+            }
+            .nav-btn:hover { transform: translateY(-1px); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                transition-duration: 0.01ms !important;
+                animation-duration: 0.01ms !important;
+                scroll-behavior: auto !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <div class="topbar-3col">
+            <div class="hdr-left"><a class="nav-btn" href="index.html">&larr; Home</a></div>
+            <div class="hdr-center">
+                <h1>Carbon</h1>
+                <span class="topbar-status">Updated <span id="ts">—</span> · Next <span id="cdwn">—</span>s</span>
+            </div>
+            <div class="hdr-right"><a class="nav-btn" href="energy.html">Energy →</a></div>
+        </div>
+    </header>
+    <div class="container">
+        <div id="content"><div class="loading"><div class="spinner"></div><p>Connecting…</p></div></div>
+    </div>
+
+    <script src="config.js" onerror="window.INDIGO_CONFIG_MISSING=true"></script>
+    <script src="dashboards-auth.js"></script>
+    <script src="dashboards-ui.js"></script>
+    <script src="dashboards-gate.js"></script>
+    <script src="chart.umd.min.js"></script>
+    <script>
+    const POLL_INTERVAL_MS = 60000;
+    let _lastUpdate = 0;
+    function _pad(n) { return String(n).padStart(2, "0"); }
+    function tickStatus() {
+        let ts = "—";
+        if (_lastUpdate) { const d = new Date(_lastUpdate); ts = _pad(d.getHours())+":"+_pad(d.getMinutes())+":"+_pad(d.getSeconds()); }
+        const elapsed = _lastUpdate ? (Date.now()-_lastUpdate)/1000 : 0;
+        const cd = Math.max(0, Math.round(POLL_INTERVAL_MS/1000 - elapsed));
+        for (const id of ["ts","ts-bot"]) { const e=document.getElementById(id); if(e) e.textContent=ts; }
+        for (const id of ["cdwn","cdwn-bot"]) { const e=document.getElementById(id); if(e) e.textContent=String(cd); }
+    }
+    setInterval(tickStatus, 1000);
+
+    const CARBON_EP = "/message/com.clives.indigoplugin.dashboards/carbonAdvisor/";
+    async function carbonFetch() {
+        // v2.70.0: never call /message/ while the plugin is stopping — a
+        // request in flight when the host dies wedges all of IWS for ~5 min.
+        if (window.DashGate && await window.DashGate.check() === "down")
+            throw new Error("Dashboards plugin restarting");
+        const key = (window.INDIGO_CONFIG || {}).apiKey || "";
+        return fetch(CARBON_EP, { method: "POST",
+            headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
+            body: "{}" });
+    }
+
+    function esc(t) { const d = document.createElement("div"); d.textContent = String(t==null?"":t); return d.innerHTML; }
+    function num(v, dp) { return (v===null||v===undefined||isNaN(Number(v))) ? "—" : Number(v).toFixed(dp==null?0:dp); }
+
+    // carbon-intensity index → colour + label
+    const IDX_COLOUR = { "very low":"#34c759", "low":"#8ccf3f", "moderate":"#ff9500", "high":"#ff6b35", "very high":"#ff453a" };
+    function idxColour(idx) { return IDX_COLOUR[String(idx||"").toLowerCase()] || "#86868b"; }
+    function idxBg(idx) {
+        const c = idxColour(idx);
+        return c.replace("#","").length===6 ? `${c}28` : c;   // 28 = ~16% alpha hex
+    }
+    function localHM(iso) {
+        const d = new Date(iso);
+        if (isNaN(d)) return iso;
+        const tomorrow = d.getDate() !== new Date().getDate() ? " tomorrow" : "";
+        return _pad(d.getHours())+":"+_pad(d.getMinutes()) + tomorrow;
+    }
+
+    if (!window.INDIGO_CONFIG || !window.INDIGO_CONFIG.apiKey) { location.href = "index.html"; }
+    else if (window.INDIGO_CONFIG.carbon === false) {
+        document.getElementById("content").innerHTML =
+            `<div class="loading"><p>Carbon data is switched off under Plugins → Dashboards → Configure.<br><small>The Carbon Intensity API covers Great Britain only; pick a region there to turn this page on.</small></p></div>`;
+    }
+    else { start(); }
+    function start() { load(); setInterval(load, POLL_INTERVAL_MS); }
+
+    async function load() {
+        try {
+            const r = await carbonFetch();
+            if (!r.ok) throw new Error("HTTP " + r.status);
+            const d = await r.json();
+            _lastUpdate = Date.now(); tickStatus();
+            render(d);
+            // A warming cache answers in seconds, not the 60 s poll (bounded).
+            if (d && d.carbon && d.carbon.warming && (window._carbonWarmRetries = (window._carbonWarmRetries || 0) + 1) <= 3) {
+                setTimeout(load, 5000);
+            }
+        } catch (e) {
+            document.getElementById("content").innerHTML =
+                `<div class="loading"><p>Couldn't reach the carbon data.<br><small>${esc(e.message)}</small></p></div>`;
+        }
+    }
+
+    let _chart = null, _chartSig = "";
+
+    function render(d) {
+        const carbon = d.carbon || {}, solar = d.solar || {}, tariff = d.tariff || {}, adv = d.advice || {};
+        const cur = carbon.current || {};
+        const warming = !!carbon.warming;          // first fetch after a restart, on its way
+        const carbonDown = (!!carbon.error || cur.intensity == null) && !warming;
+        let html = "";
+
+        // ── Advice hero ───────────────────────────────────────────────────
+        const lvl = adv.level === "wait" ? "wait" : adv.level === "neutral" ? "neutral" : "good";
+        const tag = adv.action === "run_now" ? "Run now" : adv.action === "wait_carbon" ? "Wait" :
+                    adv.action === "anytime" ? "Anytime" : "Advice";
+        html += `<div class="hero ${lvl}">
+            <div class="hero-tag">${esc(tag)}</div>
+            <div class="hero-big">${esc(adv.headline || "—")}</div>
+            <div class="hero-sub">${esc(adv.detail || "")}</div>
+        </div>`;
+
+        // ── Right-now strip: grid carbon · solar · rate ───────────────────
+        const gridTxt = carbonDown ? "—" : `${num(cur.intensity)}`;
+        const exportW = solar.export_w || 0, pvW = solar.pv_w || 0;
+        const solBig = exportW >= 100 ? `${num(exportW/1000,1)} kW` : (pvW >= 100 ? `${num(pvW/1000,1)} kW` : "—");
+        const solLab = exportW >= 100 ? "exporting now" : (pvW >= 100 ? "solar now" : (solar.soc!=null?`battery ${num(solar.soc)}%`:"no solar data"));
+        html += `<div class="strip">
+            <div class="gauge">
+                <div class="gauge-lab">Grid carbon${carbon.region?` · ${esc(carbon.region)}`:""}</div>
+                <div class="gauge-big">${gridTxt}<span style="font-size:13px;font-weight:600;color:var(--text-secondary)"> gCO₂</span></div>
+                ${warming ? `<div class="gauge-sub">fetching grid data…</div>` : carbonDown ? `<div class="gauge-sub">API unavailable</div>` :
+                  `<div class="idxbadge" style="background:${idxBg(cur.index)};color:${idxColour(cur.index)}">${esc(cur.index||"")}</div>`}
+            </div>
+            <div class="gauge">
+                <div class="gauge-lab">Solar</div>
+                <div class="gauge-big">${solBig}</div>
+                <div class="gauge-sub">${esc(solLab)}${solar.soc!=null&&(exportW>=100||pvW>=100)?` · battery ${num(solar.soc)}%`:""}</div>
+            </div>
+            <div class="gauge">
+                <div class="gauge-lab">Import rate</div>
+                <div class="gauge-big">${tariff.import_p!=null?num(tariff.import_p,2):"—"}<span style="font-size:13px;font-weight:600;color:var(--text-secondary)"> p</span></div>
+                <div class="gauge-sub">${/agile|go\b|cosy|flux|intelligent/i.test(String(tariff.name || "")) ? "time-of-use — price matters" : "broadly flat all day"}</div>
+            </div>
+        </div>`;
+
+        // ── Forecast chart (next 24h) ─────────────────────────────────────
+        const fc = (carbon.forecast || []).slice(0, 48);
+        if (fc.length) {
+            html += `<div class="card"><div class="card-title"><span>Grid carbon — next 24 hours</span>
+                ${carbon.best ? `<span class="pill">cleanest ~${esc(localHM(carbon.best.from))}</span>` : ""}</div>
+                <div class="chart-wrap"><canvas id="fchart"></canvas></div>
+                <div class="note">Half-hourly forecast for your region. Greener bars are cleaner grid electricity.</div></div>`;
+        }
+
+        // ── Generation mix ────────────────────────────────────────────────
+        const mix = (carbon.mix || []).filter(m => Number(m.perc) > 0).sort((a,b) => b.perc - a.perc);
+        if (mix.length) {
+            const FUEL_COLOUR = { solar:"#ff9f0a", wind:"#34c759", hydro:"#5ac8fa", nuclear:"#5856d6",
+                biomass:"#a3d900", gas:"#ff6b35", coal:"#8e8e93", imports:"#64d2ff", other:"#86868b" };
+            html += `<div class="card"><div class="card-title"><span>Where the grid's power is coming from</span><span class="pill">now</span></div>`;
+            for (const m of mix) {
+                const c = FUEL_COLOUR[m.fuel] || "#86868b";
+                html += `<div class="mixrow"><span class="ml">${esc(m.fuel)}</span>
+                    <span class="mt"><span class="mf" style="width:${Math.min(100,Number(m.perc))}%;background:${c}"></span></span>
+                    <span class="mv">${num(m.perc,1)}%</span></div>`;
+            }
+            html += `</div>`;
+        }
+
+        // ── How it decides ────────────────────────────────────────────────
+        html += `<div class="card"><div class="card-title"><span>How this is worked out</span></div>
+            <div class="note" style="margin-top:0">
+            The advice ranks what matters for keeping energy in the house: <b>spare solar first</b> (free and
+            zero-carbon — running a load soaks up what you'd otherwise export), then a <b>genuinely clean grid</b>,
+            then it suggests <b>waiting for the cleanest window</b> in the next 16 hours. On a flat tariff the
+            cost is much the same whenever you run, so carbon and solar drive the timing; on a time-of-use tariff
+            (Agile, Go, Cosy) the cheapest slots usually line up with the cleanest ones, but check the price too.
+            Grid data: the free <a href="https://carbonintensity.org.uk" style="color:var(--accent)">UK Carbon Intensity API</a>.</div></div>`;
+
+        document.getElementById("content").innerHTML = html;
+
+        // Draw the chart after the canvas is in the DOM.
+        if (fc.length) drawChart(fc, carbon.best);
+    }
+
+    function drawChart(fc, best) {
+        const cv = document.getElementById("fchart");
+        if (!cv || typeof Chart === "undefined") return;
+        const sig = fc.length + ":" + (fc[0] && fc[0].from) + ":" + fc.map(e => e.intensity).join(",");
+        // Skip the redraw only when the data is unchanged AND the chart is still
+        // attached to the CURRENT canvas. render() rebuilds content.innerHTML
+        // every poll, which replaces this canvas with a fresh blank one — so a
+        // plain sig-guard left the new canvas blank whenever the forecast
+        // hadn't changed (v2.37.0 fix). Chart.getChart(cv) is undefined after
+        // the canvas is replaced, forcing a redraw.
+        if (_chart && sig === _chartSig && Chart.getChart(cv)) return;
+        _chartSig = sig;
+
+        const bestFrom = best && best.from;
+        const labels = fc.map(e => localHM(e.from));
+        const values = fc.map(e => e.intensity);
+        const colours = fc.map(e => idxColour(e.index));
+        const borders = fc.map(e => (e.from === bestFrom) ? "#1d1d1f" : "transparent");
+        const bw = fc.map(e => (e.from === bestFrom) ? 2 : 0);
+
+        const existing = Chart.getChart(cv);
+        if (existing) existing.destroy();
+        _chart = new Chart(cv.getContext("2d"), {
+            type: "bar",
+            data: { labels, datasets: [{ data: values, backgroundColor: colours,
+                borderColor: borders, borderWidth: bw, borderRadius: 3,
+                categoryPercentage: 1.0, barPercentage: 0.92 }] },
+            options: {
+                animation: false, resizeDelay: 200, responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false },
+                    tooltip: { callbacks: { title: (it) => it[0].label,
+                        label: (it) => `${it.raw} gCO₂/kWh (${fc[it.dataIndex].index})` } } },
+                scales: {
+                    x: { grid: { display: false },
+                         ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 8,
+                                  color: getComputedStyle(cv).getPropertyValue("color") || "#86868b",
+                                  font: { size: 10 } } },
+                    y: { beginAtZero: true, grid: { color: "rgba(128,128,128,0.15)" },
+                         ticks: { color: "#86868b", font: { size: 10 }, maxTicksLimit: 5 } }
+                }
+            }
+        });
+    }
+    </script>
+
+    <footer class="bottombar">
+        <div class="bottombar-inner">Updated <span id="ts-bot">—</span> · Next refresh <span id="cdwn-bot">—</span>s</div>
+    </footer>
+    <script src="a11y.js"></script>
+    <script src="standalone-nav.js"></script>
+</body>
+</html>

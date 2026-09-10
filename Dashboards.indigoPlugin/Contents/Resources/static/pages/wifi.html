@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta name="indigo-page-name" content="WiFi">
+    <meta name="indigo-page-icon" content="wifi.medium">
+    <meta name="indigo-page-description" content="UniFi access point health and config audit">
+
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Dashboards">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#5856d6">
+    <link rel="apple-touch-icon" sizes="180x180" href="/public/dashboards/apple-touch-icon.png">
+    <title>WiFi</title>
+    <link rel="stylesheet" href="dashboards-theme.css">
+    <style>
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: var(--font-ui);
+            background: var(--bg); color: var(--text);
+            padding: max(80px, calc(72px + env(safe-area-inset-top))) 0 max(32px, env(safe-area-inset-bottom));
+            min-height: 100vh; -webkit-overflow-scrolling: touch;
+        }
+        .topbar {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 10;
+            background: var(--card-bg); border-bottom: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            padding: 10px max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left));
+            padding-top: max(10px, env(safe-area-inset-top));
+        }
+        .topbar-inner { max-width: 900px; margin: 0 auto; }
+        .topbar-3col { display: grid; grid-template-columns: 1fr 2fr 1fr; align-items: center; gap: 8px; }
+        .topbar-3col .hdr-left { justify-self: start; display: flex; }
+        .topbar-3col .hdr-right { justify-self: end; display: flex; }
+        .topbar-3col .hdr-center { justify-self: stretch; text-align: center; min-width: 0;
+            display: flex; flex-direction: column; align-items: center; gap: 1px; line-height: 1.15; }
+        .topbar-3col h1 { font-size: 20px; font-weight: 700; margin: 0; letter-spacing: -0.02em;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+        .topbar-status { font-size: 11px; color: var(--text-secondary); font-variant-numeric: tabular-nums;
+            white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+        .nav-btn {
+            background: var(--card-bg); border: 1px solid var(--border); color: var(--accent);
+            padding: 8px 14px; border-radius: var(--r-md); font-size: 14px; font-weight: 600; cursor: pointer;
+            font-family: inherit; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;
+            min-height: 36px; box-shadow: 0 1px 2px rgba(0,0,0,0.08); white-space: nowrap;
+            transition: transform 0.08s ease-out, background 0.15s, border-color 0.15s;
+        }
+        .nav-btn:hover { background: var(--bg); border-color: var(--accent); }
+        .nav-btn:active { transform: translateY(2px) scale(0.96); background: var(--accent); color: #fff; }
+        .container { max-width: 900px; margin: 0 auto;
+            padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left)); }
+        .bottombar { position: sticky; bottom: 0; z-index: 10; background: var(--card-bg);
+            border-top: 1px solid var(--border); box-shadow: 0 -1px 3px rgba(0,0,0,0.08);
+            padding: 8px 16px; padding-bottom: max(8px, env(safe-area-inset-bottom)); margin-top: 16px; }
+        .bottombar-inner { text-align: center; max-width: 900px; margin: 0 auto; font-size: 13px;
+            color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+
+        /* ── Controller summary banner ── */
+        .summary { background: var(--card-bg); border-radius: var(--r-lg); padding: 14px 16px;
+            box-shadow: var(--shadow); margin-bottom: 14px; border-left: 3px solid var(--good); }
+        .summary.bad { border-left-color: var(--bad); }
+        .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 10px; }
+        .metric { text-align: center; }
+        .m-val { font-size: 22px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+        .m-lab { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+
+        /* ── AP cards ── */
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+        .ap { background: var(--card-bg); border-radius: var(--r-lg); padding: 14px 16px; box-shadow: var(--shadow);
+            display: flex; flex-direction: column; gap: 10px; border-left: 3px solid var(--good);
+            text-decoration: none; color: inherit; cursor: pointer;
+            transition: transform 0.08s ease-out, box-shadow 0.15s; }
+        .ap:hover { box-shadow: 0 3px 10px rgba(0,0,0,0.12); }
+        .ap:active { transform: scale(0.985); }
+        .ap.has-issues { border-left-color: var(--warn); }
+        .ap.offline { border-left-color: var(--bad); opacity: 0.7; }
+        .ap-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        .ap-name { font-size: 16px; font-weight: 600; }
+        .ap-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+        .ap-dot { font-size: 12px; }
+        .ap-dot.on { color: var(--good); } .ap-dot.off { color: var(--bad); }
+        .ap-chevron { color: var(--text-secondary); font-size: 18px; line-height: 1; font-weight: 600; }
+        .reboot { font-size: 11px; color: var(--warn); font-weight: 600; margin-left: 6px; }
+        .ap-meta { font-size: 12px; color: var(--text-secondary); }
+        .band { display: grid; grid-template-columns: 38px 1fr 46px 38px; align-items: center; gap: 8px; }
+        .band-label { font-size: 12px; font-weight: 700; color: var(--text-secondary); }
+        .band-info { font-size: 11px; color: var(--text-secondary); white-space: nowrap;
+            overflow: hidden; text-overflow: ellipsis; }
+        .util-wrap { grid-column: 2 / 3; }
+        .util-bar { height: 8px; background: var(--track); border-radius: 5px; overflow: hidden; }
+        .util-fill { height: 100%; border-radius: 5px; transition: width 0.4s; }
+        .util-pct { font-size: 12px; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+        .sat { font-size: 12px; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+        .flags { display: flex; flex-wrap: wrap; gap: 5px; }
+        .flag { font-size: 11px; background: rgba(255,149,0,0.16); color: var(--warn);
+            padding: 3px 8px; border-radius: var(--r-sm); font-weight: 500; }
+        .ok { font-size: 12px; color: var(--good); font-weight: 600; }
+
+        /* ── v0.5.0 cards (Internet / clients / RF) ── */
+        .card { background: var(--card-bg); border-radius: var(--r-lg); padding: 14px 16px;
+            box-shadow: var(--shadow); margin-bottom: 14px; }
+        .card-title { font-size: 13px; font-weight: 700; margin-bottom: 8px;
+            display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+        .card-title .sub { font-size: 12px; font-weight: 500; color: var(--text-secondary);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .detail-group-title { font-size: 11px; color: var(--text-secondary); text-transform: uppercase;
+            letter-spacing: 0.5px; margin: 12px 0 6px; }
+        .badges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+        .badge { font-size: 11px; padding: 3px 8px; border-radius: var(--r-sm); font-weight: 600;
+            background: var(--track); color: var(--text-secondary); }
+        .badge.warn { background: rgba(255,149,0,0.16); color: var(--warn); }
+        .badge.bad  { background: rgba(255,69,58,0.16); color: var(--bad); }
+        .badge.good { background: rgba(52,199,89,0.16); color: var(--good); }
+        /* Wi-Fi generation bar */
+        .genbar { display: flex; height: 14px; border-radius: var(--r-sm); overflow: hidden;
+            background: var(--track); margin: 6px 0 8px; }
+        .genseg { height: 100%; }
+        .genlegend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--text-secondary); }
+        .genlegend b { color: var(--text); }
+        .dot-sq { display: inline-block; width: 9px; height: 9px; border-radius: 2px;
+            margin-right: 4px; vertical-align: middle; }
+        .worst-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
+            font-size: 12px; padding: 6px 0; border-bottom: 1px solid var(--border);
+            font-variant-numeric: tabular-nums; }
+        .worst-row:last-child { border-bottom: none; }
+        .worst-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .worst-name .where { color: var(--text-secondary); }
+        /* RF channel rows */
+        .chrow { display: grid; grid-template-columns: 46px 1fr 34px; align-items: center; gap: 8px;
+            font-size: 12px; margin: 4px 0; font-variant-numeric: tabular-nums; }
+        .chrow .chn { text-align: right; }
+        .chbar { height: 8px; background: var(--track); border-radius: 5px; overflow: hidden; }
+        .chfill { height: 100%; border-radius: 5px; transition: width 0.4s; }
+        .ap-meta.hw { font-size: 11px; margin-top: -4px; }
+
+        .good { color: var(--good); } .warn { color: var(--warn); } .bad { color: var(--bad); }
+        .fill-good { background: var(--good); } .fill-warn { background: var(--warn); } .fill-bad { background: var(--bad); }
+        .loading { text-align: center; padding: 60px 20px; color: var(--text-secondary); }
+        .spinner { width: 24px; height: 24px; border: 3px solid var(--off-color); border-top-color: var(--accent);
+            border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    
+        /* ═══ Shared Apple/Safari polish (v2.25.0) ═════════════════
+           Appended uniformly across pages: frosted translucent bars, laptop
+           hover states, keyboard focus rings, reduced-motion support, and
+           Safari/iOS fixes (dynamic viewport height, text-size-adjust, tap
+           highlight). Selectors a page lacks simply never match. */
+        html { -webkit-text-size-adjust: 100%; }
+        body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+        @supports (min-height: 100dvh) { body { min-height: 100dvh; } }
+        a, button, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+        :focus-visible { outline: 2px solid var(--accent, #5856d6); outline-offset: 2px; }
+        .topbar, .bottombar {
+            background: rgba(249, 249, 251, 0.82);
+            -webkit-backdrop-filter: saturate(180%) blur(20px);
+            backdrop-filter: saturate(180%) blur(20px);
+            box-shadow: none;
+        }
+        @media (prefers-color-scheme: dark) {
+            .topbar, .bottombar { background: rgba(22, 22, 24, 0.80); }
+        }
+        @media (hover: hover) and (pointer: fine) {
+            a.card:hover, a.dash-card:hover, .fav-tile:not(.fav-reading):hover, a.home-cam:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+            }
+            .nav-btn:hover { transform: translateY(-1px); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                transition-duration: 0.01ms !important;
+                animation-duration: 0.01ms !important;
+                scroll-behavior: auto !important;
+            }
+        }
+        .ap.stale { opacity: .6; }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <div class="topbar-inner topbar-3col">
+            <div class="hdr-left"><a class="nav-btn" href="index.html">&larr; Home</a></div>
+            <div class="hdr-center">
+                <h1>WiFi</h1>
+                <span class="topbar-status">Updated <span id="ts">—</span> · Next <span id="cdwn">—</span>s</span>
+            </div>
+            <div class="hdr-right">
+                <button class="nav-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Top">↑ Top</button>
+            </div>
+        </div>
+    </header>
+    <div class="container">
+        <div id="content"><div class="loading"><div class="spinner"></div><p>Connecting…</p></div></div>
+    </div>
+
+    <script src="config.js" onerror="window.INDIGO_CONFIG_MISSING=true"></script>
+    <script src="dashboards-auth.js"></script>
+    <script src="dashboards-ui.js"></script>
+    <script src="dashboards-gate.js"></script>
+    <script src="dashboard.js"></script>
+    <script>
+const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
+
+    const POLL_INTERVAL_MS = 3000;
+    let _lastUpdate = 0;
+    function _pad(n) { return String(n).padStart(2, "0"); }
+    function markRefreshed() { _lastUpdate = Date.now(); tickRefreshStatus(); }
+    function tickRefreshStatus() {
+        let tsStr = "—";
+        if (_lastUpdate) { const d = new Date(_lastUpdate);
+            tsStr = _pad(d.getHours()) + ":" + _pad(d.getMinutes()) + ":" + _pad(d.getSeconds()); }
+        const elapsedS = _lastUpdate ? (Date.now() - _lastUpdate) / 1000 : 0;
+        const cdwn = Math.max(0, Math.round((POLL_INTERVAL_MS / 1000) - elapsedS));
+        for (const id of ["ts", "ts-bot"]) { const el = document.getElementById(id); if (el) el.textContent = tsStr; }
+        for (const id of ["cdwn", "cdwn-bot"]) { const el = document.getElementById(id); if (el) el.textContent = String(cdwn); }
+    }
+    // markRefreshed fires from observeAll's onOk (every successful poll),
+    // never a blind timer that ticks through an outage.
+    setInterval(tickRefreshStatus, 1000);
+
+    let indigo = null;
+    if (!IndigoAPI.isConfigured()) { location.href = "index.html"; } else { start(); }
+    function start() {
+        indigo = new IndigoAPI();
+        indigo.onAuthFailure(() => { IndigoAPI.clearConfig(); location.href = "index.html"; });
+        indigo.observeAll(d => render(d), POLL_INTERVAL_MS, undefined, markRefreshed);
+    }
+
+    // ── helpers ──────────────────────────────────────────────────────────
+    function num(v) { const n = parseInt(v); return isNaN(n) ? null : n; }
+    function utilClass(v) { const n = num(v); if (n === null) return ""; if (n >= 70) return "bad"; if (n >= 50) return "warn"; return "good"; }
+    function fillClass(v) { const n = num(v); if (n === null) return "fill-good"; if (n >= 70) return "fill-bad"; if (n >= 50) return "fill-warn"; return "fill-good"; }
+    function satClass(v) { const n = num(v); if (n === null || n < 0) return ""; if (n < 70) return "bad"; if (n < 90) return "warn"; return "good"; }
+    function fmtSat(v) { const n = num(v); return (n === null || n < 0) ? "—" : String(n); }
+    function uptimeUi(s) { const n = num(s); if (n === null) return "—"; const d = Math.floor(n/86400), h = Math.floor((n%86400)/3600); return d + "d " + h + "h"; }
+    function formatWhen(iso) { const t = Date.parse(iso || ""); if (isNaN(t)) return ""; const m = Math.round((Date.now() - t) / 60000); return m < 1 ? "just now" : m < 60 ? m + "m ago" : Math.round(m / 60) + "h ago"; }
+    function escapeAttr(t) { return escapeHtml(t).replace(/"/g, "&quot;"); }
+    let _staleAll = false;    // controller unreachable: every AP's states are frozen
+    function fmtWidth(w) { const n = num(w); return [20, 40, 80, 160, 240, 320].includes(n) ? n + "MHz" : (n === null ? "" : n + "MHz"); }   // same as wifi-ap.html: a 240 MHz 6 GHz radio showed blank here
+    function escapeHtml(t) { const d = document.createElement("div"); d.textContent = String(t == null ? "" : t); return d.innerHTML; }
+    function fmtNum(v) { const n = Number(v); return (v === null || v === undefined || v === "" || isNaN(n)) ? "—" : (Math.round(n * 10) / 10); }
+    function latClass(v) { const n = num(v); if (n === null) return ""; if (n >= 60) return "bad"; if (n >= 25) return "warn"; return "good"; }
+    function loadClass(v) { const n = Number(v); if (isNaN(n)) return ""; if (n >= 90) return "bad"; if (n >= 75) return "warn"; return "good"; }
+    function parseJson(s, fallback) { try { const v = JSON.parse(s || ""); return v == null ? fallback : v; } catch (e) { return fallback; } }
+
+    // ── Internet / WAN card (v0.5.0) ─────────────────────────────────────────
+    function renderInternet(d) {
+        const s = d.states || {};
+        if (s.wanStatus === undefined && s.speedtestDown === undefined) return "";  // pre-0.5.0 plugin
+        const ok = s.wanStatus === "ok";
+        const lat = num(s.internetLatencyMs);
+        const age = num(s.speedtestAgeHours);
+        const ageStr = (age === null || age < 0) ? "—" : (age < 1 ? "<1h" : age + "h");
+        const gwMem = num(s.gatewayMem);
+        return `
+            <div class="summary ${ok ? '' : 'bad'}">
+                <div class="card-title">Internet${s.wanIp ? ' <span class="sub">' + escapeHtml(s.wanIp) + '</span>' : ''}</div>
+                <div class="summary-grid">
+                    <div class="metric"><div class="m-val ${ok ? 'good' : 'bad'}">${escapeHtml(ok ? 'Online' : (s.wanStatus || '—'))}</div><div class="m-lab">Status</div></div>
+                    <div class="metric"><div class="m-val">${fmtNum(s.speedtestDown)}</div><div class="m-lab">↓ Mbps</div></div>
+                    <div class="metric"><div class="m-val">${fmtNum(s.speedtestUp)}</div><div class="m-lab">↑ Mbps</div></div>
+                    <div class="metric"><div class="m-val ${latClass(lat)}">${lat === null ? '—' : lat}</div><div class="m-lab">Latency ms</div></div>
+                    <div class="metric"><div class="m-val">${ageStr}</div><div class="m-lab">Tested</div></div>
+                    <div class="metric"><div class="m-val ${loadClass(gwMem)}">${fmtNum(s.gatewayCpu)}/${fmtNum(s.gatewayMem)}%</div><div class="m-lab">Gateway cpu/mem</div></div>
+                </div>
+            </div>`;
+    }
+
+    // ── Client mix + worst clients card (v0.5.0) ─────────────────────────────
+    const GENS = [["7", "Wi-Fi 7", "#30d158"], ["6", "Wi-Fi 6", "#34c759"], ["5", "Wi-Fi 5", "#5856d6"],
+                  ["4", "Wi-Fi 4", "#ff9500"], ["legacy", "Legacy a/b/g", "#ff453a"]];
+    function renderClientMix(d) {
+        const s = d.states || {};
+        const gen = parseJson(s.wifiGenJson, {});
+        const worst = parseJson(s.worstClientsJson, []);
+        const hasMix = gen && Object.keys(gen).length;
+        if (!hasMix && !(Array.isArray(worst) && worst.length)) return "";
+        const wired = num(s.numWired), wireless = num(s.numWireless), legacy = num(s.numLegacyClients);
+        const total = GENS.reduce((a, g) => a + (gen[g[0]] || 0), 0) || 1;
+        let html = `<div class="card"><div class="card-title">Clients <span class="sub">${wireless ?? 0} wireless · ${wired ?? 0} wired</span></div>`;
+        if (hasMix) {
+            const segs = GENS.filter(g => gen[g[0]]).map(g =>
+                `<div class="genseg" style="width:${(gen[g[0]] / total * 100).toFixed(1)}%;background:${g[2]}"></div>`).join("");
+            const legend = GENS.filter(g => gen[g[0]]).map(g =>
+                `<span><span class="dot-sq" style="background:${g[2]}"></span><b>${gen[g[0]]}</b> ${g[1]}</span>`).join("");
+            html += `<div class="genbar">${segs}</div><div class="genlegend">${legend}</div>`;
+        }
+        if (legacy) html += `<div class="badges"><span class="badge bad">${legacy} legacy a/b/g client${legacy > 1 ? 's' : ''} — slows 2.4 GHz</span></div>`;
+        if (Array.isArray(worst) && worst.length) {
+            html += `<div class="detail-group-title">Least happy</div>`;
+            html += worst.slice(0, 5).map(c =>
+                `<div class="worst-row"><span class="worst-name">${escapeHtml(c.n || '—')}${c.ap ? ' <span class="where">· ' + escapeHtml(c.ap) + '</span>' : ''}</span>` +
+                `<span class="${satClass(c.sat)}">${fmtSat(c.sat)}${(c.sig !== null && c.sig !== undefined) ? ' · ' + escapeHtml(c.sig) + 'dBm' : ''}</span></div>`).join("");
+        }
+        html += `</div>`;
+        return html;
+    }
+
+    // ── RF neighbourhood card (v0.5.0) ───────────────────────────────────────
+    function renderRF(d) {
+        const s = d.states || {};
+        const rf = parseJson(s.rfJson, {});
+        const ch24 = (rf && rf.ch24) || {};
+        const order = ["1","2","3","4","5","6","7","8","9","10","11","12","13","14"].filter(c => ch24[c] != null);
+        if (!order.length) return "";
+        const total = num(s.neighbourApCount) ?? rf.total ?? 0;
+        const maxN = Math.max(...order.map(c => ch24[c]), 1);
+        const rows = order.map(c => {
+            const n = ch24[c];
+            const pct = Math.min(100, n / maxN * 100);
+            const cls = n >= 40 ? "fill-bad" : (n >= 20 ? "fill-warn" : "fill-good");
+            return `<div class="chrow"><span>ch ${escapeHtml(c)}</span><div class="chbar"><div class="chfill ${cls}" style="width:${pct}%"></div></div><span class="chn">${n}</span></div>`;
+        }).join("");
+        return `<div class="card"><div class="card-title">RF neighbourhood · 2.4 GHz <span class="sub">${total} networks nearby</span></div>${rows}` +
+               `<div class="genlegend" style="margin-top:8px">More neighbours on a channel means more congestion — your APs do best on the quietest of 1 / 6 / 11.</div></div>`;
+    }
+
+    function render(devices) {
+        const controller = devices.find(d => d.deviceTypeId === "unifiController");
+        const aps = devices.filter(d => d.deviceTypeId === "unifiAP").sort((a, b) => a.name.localeCompare(b.name));
+        if (!controller && aps.length === 0) {
+            document.getElementById("content").innerHTML = '<p class="loading">No UniFi Health devices found.</p>';
+            return;
+        }
+        let html = "";
+        // With the controller unreachable the plugin leaves every AP's states
+        // as they were, so "● online · 66 clients" is a photograph, not a
+        // reading (v2.95.3).
+        _staleAll = !!(controller && String((controller.states || {}).status || "") !== "Connected");
+        if (controller) {
+            html += renderController(controller);
+            html += renderInternet(controller);
+            html += renderClientMix(controller);
+            html += renderRF(controller);
+        }
+        html += '<div class="grid">' + aps.map(renderAP).join("") + '</div>';
+        document.getElementById("content").innerHTML = html;
+    }
+
+    function renderController(d) {
+        const s = d.states || {};
+        const connected = (s.status === "Connected");
+        const audit = num(s.auditIssues) || 0;
+        return `
+            <div class="summary ${connected ? '' : 'bad'}">
+                <div class="summary-grid">
+                    <div class="metric"><div class="m-val ${connected ? 'good' : 'bad'}">${escapeHtml(s.status || '—')}</div><div class="m-lab">Controller</div></div>
+                    <div class="metric"><div class="m-val">${s.numAPs ?? '—'}</div><div class="m-lab">APs</div></div>
+                    <div class="metric"><div class="m-val">${s.numClients ?? '—'}</div><div class="m-lab">Clients</div></div>
+                    <div class="metric"><div class="m-val ${utilClass(s.worstApUtilisation)}">${num(s.worstApUtilisation) === null ? '—' : num(s.worstApUtilisation) + '%'}</div><div class="m-lab">Worst util</div></div>
+                    <div class="metric"><div class="m-val ${satClass(s.worstClientSatisfaction)}">${fmtSat(s.worstClientSatisfaction)}</div><div class="m-lab">Worst sat</div></div>
+                    <div class="metric"><div class="m-val ${audit > 0 ? 'warn' : 'good'}">${audit}</div><div class="m-lab">Audit issues</div></div>
+                    ${s.apsNeedingUpdate !== undefined ? `<div class="metric"><div class="m-val ${num(s.apsNeedingUpdate) ? 'warn' : 'good'}">${s.apsNeedingUpdate}</div><div class="m-lab">FW updates</div></div>` : ''}
+                </div>
+            </div>`;
+    }
+
+    function bandRow(label, ch, width, util, sat, clients) {
+        if (!ch && ch !== 0) return "";
+        const u = num(util);
+        const pct = u === null ? 0 : Math.min(100, u);
+        const satCell = (sat === undefined) ? "" : `<div class="sat ${satClass(sat)}">${fmtSat(sat)}</div>`;
+        return `
+            <div class="band">
+                <div class="band-label">${label}</div>
+                <div class="util-wrap">
+                    <div class="band-info">ch ${escapeHtml(ch)}${fmtWidth(width) ? ' · ' + fmtWidth(width) : ''} · ${clients ?? 0} cl</div>
+                    <div class="util-bar"><div class="util-fill ${fillClass(util)}" style="width:${pct}%"></div></div>
+                </div>
+                <div class="util-pct ${utilClass(util)}">${u === null ? '—' : u + '%'}</div>
+                ${satCell || '<div></div>'}
+            </div>`;
+    }
+
+    function renderAP(d) {
+        const s = d.states || {};
+        const stale = _staleAll || d.enabled === false || !!(d.errorState || "").trim();
+        const online = d.onState === true && !stale;
+        const rebooted = s.rebooted === true;
+        const flags = String(s.auditFlags || "").split(",").map(x => x.trim()).filter(Boolean);
+        const name = String(d.name || "").replace(/^UniFi AP /, "");
+        let bands = "";
+        bands += bandRow("2.4", s.band24Channel, s.band24Width, s.band24Utilisation, s.band24Satisfaction, s.band24Clients);
+        bands += bandRow("5", s.band5Channel, s.band5Width, s.band5Utilisation, s.band5Satisfaction, s.band5Clients);
+        bands += bandRow("6", s.band6Channel, s.band6Width, s.band6Utilisation, undefined, s.band6Clients);
+        const cls = stale ? "stale" : (!online ? "offline" : (flags.length ? "has-issues" : ""));
+        const staleNote = stale ? ` · <span class="warn">${d.enabled === false ? "disabled" : (_staleAll ? "controller unreachable" : "in error")} — last update ${escapeHtml(formatWhen(d.lastChanged))}</span>` : "";
+
+        // v0.5.0 — hardware meta line + condition badges (online APs only)
+        const cpu = num(s.cpuPct), mem = num(s.memPct), usp = num(s.uplinkSpeedMbps), nb = num(s.neighbourCount);
+        const hwBits = [];
+        if (s.firmwareVersion) hwBits.push("fw " + escapeHtml(s.firmwareVersion));
+        if (cpu !== null || mem !== null) hwBits.push(`cpu ${cpu ?? '—'}% · mem ${mem ?? '—'}%`);
+        if (usp) hwBits.push(usp + "M uplink");
+        const hwLine = (online && hwBits.length) ? `<div class="ap-meta hw">${hwBits.join(' · ')}</div>` : '';
+        const badges = [];
+        if (s.firmwareUpgradable === true) badges.push('<span class="badge warn">⬆ firmware</span>');
+        if (s.uplinkUnderspeed === true) badges.push(`<span class="badge warn">uplink ${usp ?? '?'}/${num(s.uplinkMaxMbps) ?? '?'}M</span>`);
+        if (mem !== null && mem >= 85) badges.push(`<span class="badge bad">mem ${mem}%</span>`);
+        if (nb !== null && nb >= 20) badges.push(`<span class="badge ${nb >= 40 ? 'bad' : 'warn'}">${nb} co-ch APs</span>`);
+        const badgeRow = (online && badges.length) ? `<div class="badges">${badges.join('')}</div>` : '';
+
+        return `
+            <a class="ap ${cls}" href="wifi-ap.html?id=${d.id}" aria-label="${escapeAttr(name)} details">
+                <div class="ap-head">
+                    <div class="ap-name">${escapeHtml(name)}${rebooted ? '<span class="reboot">⟳ rebooted</span>' : ''}</div>
+                    <div class="ap-right">
+                        <span class="ap-dot ${online ? 'on' : 'off'}">${stale ? '○ stale' : (online ? '● online' : '○ offline')}</span>
+                        <span class="ap-chevron" aria-hidden="true">›</span>
+                    </div>
+                </div>
+                <div class="ap-meta">${escapeHtml(s.apModel || '')} · ${escapeHtml(s.uplinkType || '')} uplink · ${s.numClients ?? '—'} clients · up ${uptimeUi(s.uptimeSeconds)}${staleNote}</div>
+                ${hwLine}
+                ${bands}
+                ${flags.length ? '<div class="flags">' + flags.map(f => `<span class="flag">${escapeHtml(f)}</span>`).join('') + '</div>' : '<div class="ok">' + I("check") + ' Config OK</div>'}
+                ${badgeRow}
+            </a>`;
+    }
+    </script>
+
+    <footer class="bottombar">
+        <div class="bottombar-inner">Updated <span id="ts-bot">—</span> · Next refresh <span id="cdwn-bot">—</span>s</div>
+    </footer>
+    <script src="dashboards-icons.js"></script>
+<script src="a11y.js"></script>
+    <script src="standalone-nav.js"></script>
+</body>
+</html>

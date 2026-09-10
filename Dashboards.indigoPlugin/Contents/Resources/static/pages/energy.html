@@ -1,0 +1,2120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+    <meta name="indigo-page-name" content="Energy">
+    <meta name="indigo-page-icon" content="bolt.fill">
+    <meta name="indigo-page-description" content="Sigenergy — live flow, Sankey, power metrics, battery, economics, environment">
+
+    <!-- iOS / macOS Web App -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Dashboards">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#5856d6">
+    <link rel="apple-touch-icon" sizes="180x180" href="/public/dashboards/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="/public/dashboards/apple-touch-icon-167.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="/public/dashboards/apple-touch-icon-152.png">
+    <link rel="apple-touch-icon-precomposed" href="/public/dashboards/apple-touch-icon.png">
+
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+<title>Energy · Dashboards</title>
+<link rel="stylesheet" href="dashboards-theme.css">
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   Energy — redesigned Sigenergy dashboard. Built as energy2.html in
+   v2.27.0, promoted to THE energy page in v2.28.0 (old page removed).
+   Gradient hero flow card, Sankey daily energy flow, power metrics,
+   environment card. Apple-native: SF stack, frosted bars, light+dark.
+   ═══════════════════════════════════════════════════════════════ */
+:root {
+    --hero-grad: linear-gradient(160deg, rgba(88,86,214,0.05), rgba(10,132,255,0.04) 45%, rgba(52,199,89,0.05));
+    --money-grad: linear-gradient(160deg, rgba(52,199,89,0.06), rgba(255,255,255,0) 60%);
+}
+@media (prefers-color-scheme: dark){
+  :root {
+    --hero-grad: linear-gradient(160deg, rgba(125,122,255,0.10), rgba(10,132,255,0.06) 45%, rgba(48,209,88,0.08));
+    --money-grad: linear-gradient(160deg, rgba(48,209,88,0.10), rgba(0,0,0,0) 60%);
+}
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{overflow-x:hidden;width:100%;max-width:100vw}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--font-ui);
+  font-size:14px;
+  min-height:100vh;
+  -webkit-overflow-scrolling:touch;
+  padding-top:max(80px, calc(72px + env(safe-area-inset-top)));
+}
+.main > *, .grid2 > * { min-width:0; }
+svg{max-width:100%}
+
+/* ── header ── */
+header{
+  display:grid;
+  grid-template-columns:1fr 2fr 1fr;
+  align-items:center;gap:8px;
+  padding:10px max(16px,env(safe-area-inset-right)) 10px max(16px,env(safe-area-inset-left));
+  padding-top:max(10px,env(safe-area-inset-top));
+  position:fixed;top:0;left:0;right:0;z-index:10;
+  background:rgba(249,249,251,0.82);
+  -webkit-backdrop-filter:saturate(180%) blur(20px);
+  backdrop-filter:saturate(180%) blur(20px);
+  border-bottom:1px solid var(--border-soft);
+}
+@media (prefers-color-scheme: dark){
+  header{background:rgba(22,22,24,0.80)}
+}
+.hdr-left {justify-self:start;display:flex;align-items:center;min-width:0}
+.hdr-right{justify-self:end;display:flex;align-items:center;gap:6px}
+.hdr-center{
+  justify-self:stretch;text-align:center;min-width:0;
+  display:flex;flex-direction:column;align-items:center;gap:1px;line-height:1.15;
+}
+header h1{
+  font-size:20px;font-weight:700;margin:0;letter-spacing:-.02em;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;
+}
+.topbar-status{
+  font-size:11px;color:var(--text-secondary);
+  font-variant-numeric:tabular-nums;white-space:nowrap;max-width:100%;
+  overflow:hidden;text-overflow:ellipsis;
+}
+.topbar-status .ts::before{
+  content:'●';color:var(--on-color);margin-right:4px;
+  animation:live-pulse 2.4s ease-in-out infinite;
+}
+@keyframes live-pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.nav-btn{
+  background:var(--card-bg);border:1px solid var(--border-soft);color:var(--accent);
+  padding:8px 14px;border-radius: var(--r-md);font-size:14px;font-weight:600;cursor:pointer;
+  font-family:inherit;text-decoration:none;display:inline-flex;align-items:center;gap:4px;
+  min-height:36px;transition:transform .08s ease-out, background .15s, border-color .15s;
+  user-select:none;-webkit-tap-highlight-color:transparent;white-space:nowrap;
+}
+.nav-btn:hover{background:var(--card-bg-alt);border-color:var(--accent)}
+.nav-btn:active{transform:translateY(2px) scale(.96);background:var(--accent);color:#fff}
+
+#alert-bar{
+  display:none;padding:10px 16px;font-size:13px;font-weight:500;
+  background:rgba(255,69,58,0.12);border-bottom:1px solid rgba(255,69,58,0.30);color:var(--bad);
+}
+#alert-bar.warn{background:rgba(255,149,0,0.12);border-color:rgba(255,149,0,0.30);color:var(--warn)}
+
+/* ── layout ── */
+.main{padding:16px;display:flex;flex-direction:column;gap:12px;max-width:1140px;margin:0 auto}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+@media(max-width:760px){.grid2{grid-template-columns:1fr}}
+.sec-label{
+  font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;
+  color:var(--text-secondary);margin:14px 4px 0;
+}
+.sec-label:first-child{margin-top:0}
+
+.card{
+  background:var(--card-bg);border:1px solid var(--border-soft);
+  border-radius: var(--r-xl);padding:18px;box-shadow:var(--shadow);
+  transition:box-shadow .25s ease;
+}
+.card h2{
+  font-size:11px;font-weight:600;color:var(--text-secondary);
+  text-transform:uppercase;letter-spacing:.7px;margin-bottom:12px;
+}
+.card h2 .h2sub{font-weight:500;text-transform:none;letter-spacing:0;color:var(--text-muted)}
+.muted{color:var(--text-muted)}
+
+/* ── hero flow card ── */
+.hero{background:var(--card-bg);background-image:var(--hero-grad);position:relative;overflow:hidden}
+/* Title and chips share one wrapping flex row. They used to be a static h2 with
+   the chips ABSOLUTELY positioned over it, which fitted only while there were
+   two chips: a third (the VPP one, which had never been seen because the Axle
+   feed was dead) grew the row leftwards until it sat on top of the title on a
+   phone. Absolute positioning cannot push anything out of its way, so the
+   collision was inevitable the moment the row got wider than the gap. */
+.hero-head{
+  display:flex;align-items:flex-start;justify-content:space-between;
+  gap:8px;flex-wrap:wrap;margin-bottom:12px;
+}
+.hero-head h2{margin-bottom:0}
+.hero-chips{
+  display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;
+  font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;
+}
+.flow-chip{
+  padding:4px 11px;border-radius: var(--r-pill);background:var(--card-bg-alt);
+  border:1px solid var(--border-soft);color:var(--text-secondary);
+}
+.flow-chip.ok   {color:var(--on-color);border-color:rgba(52,199,89,.30);background:rgba(52,199,89,.10)}
+.flow-chip.warn {color:var(--warn);border-color:rgba(255,149,0,.30);background:rgba(255,149,0,.10)}
+.flow-chip.alert{color:var(--bad);border-color:rgba(255,69,58,.30);background:rgba(255,69,58,.10)}
+/* The diagram itself lives in dashboards-ui.js, which injects its own
+   stylesheet — the hub's Energy card draws the same thing and the two must not
+   drift apart. All that is left here is the box it sits in. */
+#flow-mount{margin:4px auto 0;max-width:720px}
+
+/* hero stat strip */
+.hero-stats{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px;
+}
+@media(max-width:560px){.hero-stats{grid-template-columns:repeat(2,1fr)}}
+.hs-tile{
+  background:var(--card-bg);border:1px solid var(--border-soft);
+  border-radius: var(--r-lg);padding:12px 14px;
+}
+.hs-lab{font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.6px}
+.hs-val{font-size:24px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.hs-sub{font-size:11px;color:var(--text-muted);margin-top:2px}
+.hs-bar{height:5px;background:var(--off-color);border-radius:3px;margin-top:8px;overflow:hidden}
+.hs-fill{height:100%;border-radius:3px;background:var(--on-color);transition:width .5s}
+
+/* ── sankey ── */
+#sankey-svg{width:100%;height:auto;display:block}
+.sk-lab{font-size:11px;font-weight:700;fill:var(--text)}
+.sk-kwh{font-size:10.5px;font-weight:600;fill:var(--text-secondary);font-variant-numeric:tabular-nums}
+.sk-pct{font-size:9.5px;fill:var(--text-muted);font-variant-numeric:tabular-nums}
+.sk-note{font-size:11px;color:var(--text-muted);margin-top:8px;line-height:1.4}
+
+/* ── metric tiles (shared) ── */
+.mtiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:10px}
+.mtile{background:var(--card-bg-alt);border:1px solid var(--border-soft);border-radius: var(--r-md);padding:10px 12px}
+.mt-lab{font-size:10.5px;color:var(--text-secondary);margin-bottom:3px}
+.mt-val{font-size:17px;font-weight:700;font-variant-numeric:tabular-nums}
+.mt-sub{font-size:10.5px;color:var(--text-muted);margin-top:1px}
+.mt-val.good{color:var(--on-color)}
+.mt-val.warn{color:var(--warn)}
+.mt-val.bad{color:var(--bad)}
+
+/* ── battery card ── */
+.bat-wrap{display:flex;align-items:center;gap:18px;margin-bottom:14px;flex-wrap:wrap}
+.soc-ring-wrap{flex-shrink:0;width:110px;height:110px;position:relative}
+.soc-ring-wrap svg{width:100%;height:100%}
+#soc-ring{transition:stroke-dashoffset .8s cubic-bezier(.2,.7,.3,1), stroke .4s ease}
+.soc-centre{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.soc-pct{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.soc-kwh{font-size:10px;color:var(--text-muted);font-variant-numeric:tabular-nums}
+.bat-side{flex:1 1 180px;min-width:0}
+.bat-state{font-size:16px;font-weight:700}
+.bat-state.charging{color:var(--grid-exp)}
+.bat-state.discharging{color:var(--grid-imp)}
+.bat-state.idle{color:var(--text-muted)}
+.bat-line{font-size:12px;color:var(--text-secondary);margin-top:3px}
+.spark-wrap{margin-top:10px;height:40px}
+.spark-wrap svg{width:100%;height:100%;display:block}
+.spark-cap{font-size:10px;color:var(--text-secondary);margin-top:4px;text-align:right;letter-spacing:.4px;font-variant-numeric:tabular-nums}
+
+
+/* ── money ── */
+.money-card{background-image:var(--money-grad)}
+.eco-rate{font-size:26px;font-weight:700;color:var(--on-color);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.eco-rate.eco-neg{color:var(--bad)}
+.eco-sub{font-size:11px;color:var(--text-secondary);margin-top:2px}
+.eco-divider{height:1px;background:var(--border-soft);margin:12px 0}
+/* label/value rows — used by the Manager decision and System cards */
+.dl{display:flex;flex-direction:column;gap:8px}
+.dl-item{display:flex;justify-content:space-between;align-items:baseline;font-size:13px}
+.dl-item .dk{color:var(--text-secondary)}
+.dl-item .dv{font-weight:600;font-variant-numeric:tabular-nums}
+.money-hero{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.money-hero .eco-rate{font-size:34px}
+.money-link{
+  font-size:12.5px;font-weight:600;color:var(--accent);text-decoration:none;
+  border:1px solid var(--border-soft);border-radius: var(--r-md);padding:7px 12px;
+  background:var(--card-bg-alt);white-space:nowrap;
+  transition:border-color .15s, transform .08s ease-out;
+}
+.money-link:hover{border-color:var(--accent)}
+.money-link:active{transform:translateY(1px)}
+.grid-import{color:var(--grid-imp)}
+.grid-export{color:var(--grid-exp)}
+.solar-c{color:var(--solar)}
+.home-c{color:var(--home-load)}
+
+.chart-wrap{position:relative;height:220px}
+.chart-wrap.h160{height:160px}
+
+/* ── solar forecast bars ── */
+.fc-meta{display:flex;gap:20px;margin:2px 0 10px;font-size:12px;color:var(--text-secondary);flex-wrap:wrap}
+.fc-meta strong{color:var(--text)}
+/* v2.79.0 — stacked hourly solar chart */
+#sol-hours-svg{width:100%;height:auto;margin-top:6px}
+.sol-legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--text-secondary)}
+.sol-leg-item{display:inline-flex;align-items:center;gap:5px}
+.sol-leg-dot{width:9px;height:9px;border-radius:3px;display:inline-block}
+.sol-leg-tick{display:inline-block;width:16px;border-top:2px dashed var(--text-secondary)}
+.sol-score{font-size:12px;font-weight:600;color:var(--text-secondary);margin-top:2px}
+.sol-hour-detail{font-size:12px;color:var(--text);margin-top:4px;padding:6px 10px;
+  background:var(--card-bg-alt);border:1px solid var(--border-soft);border-radius:8px;
+  font-variant-numeric:tabular-nums}
+/* v2.78.0 — solar progress chart (cumulative actual vs expected) + strings */
+#sol-prog-svg{width:100%;height:auto;margin-top:4px}
+.sol-prog-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-top:14px}
+.sol-prog-head .h2sub{font-size:12px;color:var(--text-secondary)}
+.sol-delta{font-size:12px;font-weight:700;padding:2px 8px;border-radius:999px;
+  background:var(--card-bg-alt);border:1px solid var(--border-soft)}
+.sol-delta.ahead{color:var(--on-color)}
+.sol-delta.behind{color:var(--warn)}
+.sol-range-note{font-size:11px;color:var(--text-secondary);margin-top:3px}
+#sol-strings{margin-top:14px;display:grid;gap:6px}
+.pvs-row{display:grid;grid-template-columns:64px 1fr 74px 110px;gap:10px;align-items:center}
+.pvs-name{font-size:12px;font-weight:600}
+.pvs-bar{height:8px;border-radius:4px;background:var(--card-bg-alt);
+  border:1px solid var(--border-soft);overflow:hidden}
+.pvs-bar span{display:block;height:100%;border-radius:4px;background:var(--solar,#f5a623)}
+.pvs-w{font-size:12px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums}
+.pvs-sub{font-size:11px;color:var(--text-secondary);text-align:right;font-variant-numeric:tabular-nums}
+.pvs-fingerprint{font-size:11px;color:var(--text-secondary);margin:8px 0 0;line-height:1.4}
+@media(max-width:600px){.pvs-row{grid-template-columns:52px 1fr 64px 90px;gap:6px}}
+.solar-big{font-size:30px;font-weight:700;color:var(--solar);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.self-suff-bar{height:6px;background:var(--off-color);border-radius:3px;margin-top:8px;overflow:hidden}
+.self-suff-fill{height:100%;background:var(--solar);border-radius:3px;transition:width .5s}
+
+/* ── decision / system ── */
+.action-badge{display:inline-block;padding:5px 13px;border-radius: var(--r-pill);font-size:12px;font-weight:600;margin-bottom:10px;text-transform:capitalize}
+.action-self    {background:rgba(52,199,89,.15);color:var(--on-color);border:1px solid rgba(52,199,89,.30)}
+.action-overflow{background:rgba(163,230,53,.18);color:#7fad14;border:1px solid rgba(163,230,53,.40)}
+.action-export  {background:rgba(0,122,255,.15);color:var(--grid-exp);border:1px solid rgba(0,122,255,.30)}
+.action-import  {background:rgba(255,69,58,.15);color:var(--bad);border:1px solid rgba(255,69,58,.30)}
+.action-schedule{background:rgba(255,149,0,.15);color:var(--warn);border:1px solid rgba(255,149,0,.30)}
+.action-unknown {background:var(--card-bg-alt);color:var(--text-secondary);border:1px solid var(--border-soft)}
+@media (prefers-color-scheme: dark){.action-overflow{color:#a3e635}}
+.reason{font-size:11.5px;color:var(--text-secondary);line-height:1.5;margin-top:8px;word-break:break-word;white-space:pre-line}
+.decision-trace{font-size:12px;line-height:1.45;margin-top:10px;padding:8px 10px;border-left:3px solid var(--solar);background:var(--card-bg-alt);border-radius:0 8px 8px 0}
+.replay-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px}
+.replay-controls input{flex:1;min-width:150px;accent-color:var(--solar)}
+.replay-readout{font-size:12px;color:var(--text-secondary);font-variant-numeric:tabular-nums;margin-top:8px}
+.replay-flow{display:inline-block;color:var(--solar);font-weight:700;margin-right:5px}
+.replay-flow.playing{animation:replay-pulse .8s ease-in-out infinite}
+@keyframes replay-pulse{50%{transform:translateX(4px);opacity:.45}}
+@media(prefers-reduced-motion:reduce){.replay-flow.playing{animation:none}}
+.dawn-ok{color:var(--on-color)}
+.dawn-warn{color:var(--bad)}
+.tariff-rate{font-size:28px;font-weight:700;color:var(--warn);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.tariff-sub{font-size:11px;color:var(--text-secondary);margin-top:2px}
+.tariff-tmrw{margin-top:10px;font-size:13px;color:var(--text-secondary)}
+.tariff-tmrw span{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums}
+.tmrw-up{color:var(--bad);font-weight:700}
+.tmrw-down{color:var(--on-color);font-weight:700}
+.evt-list{font-size:12px;color:var(--text-secondary);line-height:1.7;font-variant-numeric:tabular-nums}
+
+/* ── environment ── */
+.env-card{position:relative;overflow:hidden}
+.env-big{font-size:30px;font-weight:700;color:var(--on-color);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+
+/* ── tables ── */
+.period-table{width:100%;border-collapse:collapse;font-size:12px}
+.period-table th{
+  text-align:right;color:var(--text-secondary);font-weight:600;padding:8px;
+  border-bottom:1px solid var(--border-soft);font-size:11px;text-transform:uppercase;letter-spacing:.4px;
+}
+.period-table th:first-child{text-align:left}
+.period-table td{text-align:right;padding:10px 8px;border-bottom:1px solid var(--border-soft);font-variant-numeric:tabular-nums}
+.period-table td:first-child{text-align:left;font-weight:600}
+/* week-on-week compare (v2.43.0) */
+.note{font-size:11px;color:var(--text-muted);margin-top:10px;line-height:1.45}
+.wow-delta{font-size:11px;font-weight:700;margin-left:4px;white-space:nowrap}
+.wow-delta.good{color:var(--ok,#34c759)}
+.wow-delta.bad{color:#ff453a}
+.wow-delta.flat{color:var(--text-muted)}
+.period-table td.tdays{color:var(--text-secondary);font-size:11px}
+.period-table tr:last-child td{border-bottom:none}
+.period-pos{color:var(--on-color)}
+.period-neg{color:var(--bad)}
+.period-table .avg{color:var(--text-muted);font-size:11px;display:block}
+.table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+/* ── chart tabs ── */
+.chart-tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.chart-tab{
+  background:var(--card-bg-alt);color:var(--text-secondary);
+  border:1px solid var(--border-soft);border-radius: var(--r-sm);
+  padding:6px 14px;font-size:12px;cursor:pointer;font-family:inherit;min-height:32px;
+  transition:background .15s, color .15s, border-color .15s;
+}
+.chart-tab:hover{color:var(--text)}
+.chart-tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+/* card entrance */
+.card{animation:card-in .4s ease-out both}
+@keyframes card-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.skel{
+  display:inline-block;min-width:3em;border-radius:4px;color:transparent;
+  background:linear-gradient(90deg,var(--border-soft) 0%,var(--card-bg-alt) 50%,var(--border-soft) 100%);
+  background-size:200% 100%;animation:skel-shim 1.4s linear infinite;
+}
+@keyframes skel-shim{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+/* help tips */
+.help-tip{
+  position:fixed;pointer-events:none;z-index:60;max-width:300px;
+  background:var(--card-bg);border:1px solid var(--border);border-radius: var(--r-md);
+  padding:10px 14px;box-shadow:0 12px 32px rgba(0,0,0,.15);
+  opacity:0;transform:translateY(4px);transition:opacity .18s ease, transform .18s ease;
+  font-size:12px;line-height:1.45;
+}
+.help-tip.help-tip-show{opacity:1;transform:translateY(0)}
+.help-tip .help-tip-title{color:var(--accent);font-weight:600;font-size:11px;letter-spacing:.4px;text-transform:uppercase;margin-bottom:6px}
+
+/* back to top */
+.back-to-top{
+  position:fixed;bottom:max(80px,calc(72px + env(safe-area-inset-bottom)));
+  right:max(16px,env(safe-area-inset-right));width:44px;height:44px;border-radius:50%;
+  background:var(--accent);color:#fff;border:none;cursor:pointer;font-size:22px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(0,0,0,.25);
+  opacity:0;pointer-events:none;transition:opacity .25s, transform .15s;z-index:9;font-family:inherit;
+}
+.back-to-top.visible{opacity:.9;pointer-events:auto}
+.back-to-top:hover{opacity:1;transform:translateY(-2px)}
+
+/* Safari / a11y polish (matches v2.25.0 sweep) */
+html{-webkit-text-size-adjust:100%}
+body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+@supports (min-height:100dvh){body{min-height:100dvh}}
+a,button,input,select,textarea{-webkit-tap-highlight-color:transparent}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{
+    transition-duration:.01ms !important;
+    animation-duration:.01ms !important;
+    scroll-behavior:auto !important;
+  }
+}
+@media(max-width:480px){
+  header{padding:8px 12px;padding-top:max(8px,env(safe-area-inset-top))}
+  header h1{font-size:15px}
+  .main{padding:10px;gap:10px}
+  .card{padding:14px}
+  .hs-val{font-size:20px}
+  .eco-rate{font-size:22px}
+  .tariff-rate{font-size:24px}
+}
+
+.topbar h1 .dsh-icon,h1 .dsh-icon{width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;opacity:.85}
+</style>
+<link rel="stylesheet" href="dashboard-refresh.css">
+<link rel="stylesheet" href="energy-refresh.css">
+</head>
+<body class="energy-page">
+<header>
+  <div class="hdr-left">
+    <a class="nav-btn" href="index.html">&larr; Home</a>
+  </div>
+  <div class="hdr-center">
+    <h1><span data-icon="bolt"></span> Energy</h1>
+    <span class="topbar-status"><span class="ts">Updated <span id="ts">&#8212;</span></span> &middot; live</span>
+  </div>
+  <div class="hdr-right">
+    <button class="nav-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Back to top">&uarr;</button>
+  </div>
+</header>
+
+<div id="alert-bar"></div>
+
+<main class="main">
+
+  <!-- ═══ HERO: live power flow ═══ -->
+  <section class="card hero">
+    <div class="hero-head">
+      <h2 data-help-title="Live Power Flow" data-help="Real-time animated view of where energy is moving right now: solar, battery, home and grid around the inverter. Dot streams show direction; values update every 5 seconds.">Live power flow</h2>
+      <div class="hero-chips">
+        <span id="chip-grid" class="flow-chip ok" data-help-title="Grid status" data-help="On Grid = AC line healthy. Grid Down = power cut (inverter islanding the house). Lockout = export held off after an event.">&#8212;</span>
+        <span id="chip-backup" class="flow-chip" style="display:none" data-help-title="Backup runtime" data-help="How long the battery could power the house in a power cut, at the current house draw: stored energy above a 5% reserve floor divided by what the house is using right now. Daytime solar would stretch it further, and heavier usage would shorten it — it's a live estimate, not a promise.">&#8212;</span>
+        <span id="chip-mode" class="flow-chip" data-help-title="System mode" data-help="What the battery manager is doing right now — same source as the Manager Decision card.">&#8212;</span>
+      </div>
+    </div>
+
+    <!-- Built by DashUI.flowDiagram (dashboards-ui.js) so the hub card can
+         draw the same diagram. Skeleton once, then attributes only. -->
+    <div id="flow-mount"></div>
+
+    <div class="hero-stats">
+      <div class="hs-tile" data-help-title="Self-sufficiency today" data-help="Percentage of today's home consumption met without grid import: (home − import) ÷ home.">
+        <div class="hs-lab">Self-sufficiency</div>
+        <div class="hs-val" id="hs-ss" style="color:var(--on-color)">&#8212;</div>
+        <div class="hs-sub" id="hs-ss-sub">today</div>
+        <div class="hs-bar"><div class="hs-fill" id="hs-ss-bar" style="width:0%"></div></div>
+      </div>
+      <div class="hs-tile" data-help-title="Solar today" data-help="Total generated since midnight, with the bias-corrected forecast for the whole day.">
+        <div class="hs-lab">Solar today</div>
+        <div class="hs-val" id="hs-pv" style="color:var(--solar)">&#8212;</div>
+        <div class="hs-sub" id="hs-pv-sub">forecast &#8212;</div>
+        <div class="hs-bar"><div class="hs-fill" id="hs-pv-bar" style="width:0%;background:var(--solar)"></div></div>
+      </div>
+      <div class="hs-tile" data-help-title="Solar benefit today" data-help="What today would have cost without solar, minus what it actually netted — avoided import plus export revenue.">
+        <div class="hs-lab">Benefit today</div>
+        <div class="hs-val" id="hs-benefit" style="color:var(--on-color)">&#8212;</div>
+        <div class="hs-sub" id="hs-benefit-sub">from solar</div>
+      </div>
+      <div class="hs-tile" data-help-title="Battery" data-help="State of charge of the battery pack, and what it is doing right now.">
+        <div class="hs-lab">Battery</div>
+        <div class="hs-val" id="hs-soc">&#8212;</div>
+        <div class="hs-sub" id="hs-soc-sub">&#8212;</div>
+        <div class="hs-bar"><div class="hs-fill" id="hs-soc-bar" style="width:0%"></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ TODAY ═══ -->
+  <div class="sec-label">Today</div>
+  <div class="grid2 energy-today-grid">
+      <!-- v2.97.0: Generation & forecast moved above Today's energy flow —
+           what the roof did today is the question this page is opened for,
+           and it was four cards down. The Battery fleet card was removed in
+           the same pass: the car's 12 V reading lives on the hub as a
+           favourite, and the house battery has a card of its own above. -->
+  <section class="card">
+    <h2 data-help-title="Solar" data-help="Today's generation against the bias-corrected Open-Meteo forecast, plus the hour-by-hour forecast, yield, forecast accuracy and lifetime total.">Generation &amp; forecast</h2>
+    <div style="margin-bottom:12px">
+      <span class="solar-big" id="sol-actual">&#8212;</span>
+      <span class="eco-sub" style="display:inline">kWh today &nbsp;&middot;&nbsp; forecast <span id="sol-forecast">&#8212;</span> kWh</span>
+      <div class="self-suff-bar"><div class="self-suff-fill" id="sol-bar" style="width:0%"></div></div>
+    </div>
+    <div class="fc-meta">
+      <span data-help-title="Remaining today" data-help="Bias-corrected forecast production from now until dusk, with the current hour counted only for the time still to run.">Remaining: <strong id="fc-rem">&#8212;</strong> kWh</span>
+      <span data-help-title="Expected total" data-help="Generated so far plus the forecast still to come. Compare against the forecast above — higher means today is running ahead of prediction.">Expected total: <strong id="fc-exp">&#8212;</strong> kWh</span>
+      <span data-help-title="Tomorrow" data-help="Bias-corrected forecast for tomorrow — drives tonight's flood-prevention / import decisions.">Tomorrow: <strong id="fc-tmrw">&#8212;</strong> kWh</span>
+      <span data-help-title="Bias factor" data-help="Self-learned multiplier applied to the raw forecast. 1.00 = spot-on; above 1 = forecast under-predicts.">Bias: <strong id="fc-bias">&#8212;</strong></span>
+    </div>
+    <!-- v2.79.0: the hourly chart. Elapsed hours are STACKED per-string
+         actuals (falling back to a plain site-total bar for hours with no
+         string history) with a dashed forecast tick per hour — the stack
+         topping or missing its tick IS the beat/miss verdict. Future hours
+         are the forecast, pale. Tap any hour for its breakdown. -->
+    <div class="sol-legend" id="sol-legend" style="display:none"></div>
+    <svg id="sol-hours-svg" viewBox="0 0 600 240" xmlns="http://www.w3.org/2000/svg">
+      <text x="378" y="95" text-anchor="middle" fill="#86868b" font-size="13">Loading hours&#8230;</text>
+    </svg>
+    <div class="sol-score" id="sol-score" style="display:none"></div>
+    <div class="sol-hour-detail" id="sol-hour-detail" style="display:none"></div>
+    <div class="sol-prog-head">
+      <h2 style="margin:0" data-help-title="Today so far vs forecast" data-help="The solid line is the solar banked so far today, climbing as the day progresses. The dashed line is where the bias-corrected forecast said you would be, running on to dusk — so the gap between the lines is how far today is ahead of or behind prediction.">Today so far <span class="h2sub">vs forecast</span></h2>
+      <span class="sol-delta" id="sol-delta" style="display:none">&#8212;</span>
+    </div>
+    <svg id="sol-prog-svg" viewBox="0 0 600 190" xmlns="http://www.w3.org/2000/svg">
+      <text x="378" y="75" text-anchor="middle" fill="#86868b" font-size="13">Waiting for today&#8217;s history&#8230;</text>
+    </svg>
+    <div class="sol-range-note" id="sol-range-note" style="display:none"></div>
+    <div class="eco-divider"></div>
+    <div class="mtiles">
+      <div class="mtile"><div class="mt-lab">Now</div><div class="mt-val" id="sol-now">&#8212;</div><div class="mt-sub">peak <span id="sol-peak">&#8212;</span></div></div>
+      <div class="mtile"><div class="mt-lab">Tomorrow surplus</div><div class="mt-val" id="sol-surplus">&#8212;</div><div class="mt-sub">exportable &middot; ~&pound;<span id="sol-surplus-gbp">&#8212;</span></div></div>
+      <div class="mtile"><div class="mt-lab">Yield today</div><div class="mt-val" id="sol-yield">&#8212;</div><div class="mt-sub" id="sol-kwp">&#8212;</div></div>
+      <div class="mtile"><div class="mt-lab">Forecast accuracy</div><div class="mt-val" id="sol-accuracy">&#8212;</div><div class="mt-sub" id="sol-bias">7-day</div></div>
+      <div class="mtile"><div class="mt-lab">Lifetime</div><div class="mt-val" id="sol-lifetime">&#8212;</div><div class="mt-sub">total generated</div></div>
+    </div>
+    <!-- v2.78.0: live per-string strip. Hidden until the status payload
+         carries solar.strings (SigenEnergyManager v5.67.0+); bars scale to
+         each string's own kWp when the labels carry one, else to the
+         strongest string right now. -->
+    <div id="sol-strings" style="display:none" data-help-title="Per-string output" data-help="Live power from each string of panels, read from the inverter. Each bar is scaled to that string's own capacity when known (percentage shown), so a small string pulling its weight reads as full even though a big string makes more watts. The daily yield fingerprint is descriptive, not a fault verdict: roof direction and shading legitimately differ."></div>
+  </section>
+    <section class="card">
+      <h2 data-help-title="Today's energy flow" data-help="Where every kWh went since midnight, Sankey style: solar, battery discharge and grid import on the left; home load, battery charge and grid export on the right. Ribbon width is proportional to energy. Battery split uses the pack's daily charge/discharge counters; the ribbon allocation is a best-fit estimate.">Today&#8217;s energy flow <span class="h2sub">&#8212; since midnight</span></h2>
+      <svg id="sankey-svg" viewBox="0 0 700 320" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Sankey diagram of today's energy flows"></svg>
+      <div class="sk-note" id="sk-note"></div>
+    </section>
+
+    <section class="card">
+      <h2 data-help-title="Power metrics" data-help="Average power in each half-hour slot over the selected window: solar (amber), home load (purple), grid (blue below zero = exporting, red above = importing) and battery SOC (green line, right axis).">Power metrics <span class="h2sub">&#8212; kW &amp; SOC</span></h2>
+      <div class="chart-tabs" id="pm-tabs">
+        <button class="chart-tab active" data-range="24">24h</button>
+        <button class="chart-tab" data-range="48">48h</button>
+        <button class="chart-tab" data-range="168">7d</button>
+      </div>
+      <div class="chart-wrap"><canvas id="chart-power"></canvas></div>
+    </section>
+  </div>
+
+  <!-- Today summary tiles -->
+  <section class="card">
+    <h2 data-help-title="Today's summary" data-help="Running totals since local midnight, from the inverter's lifetime delta registers. Resets at 00:00 UK time.">Today&#8217;s summary</h2>
+    <div class="mtiles">
+      <div class="mtile"><div class="mt-lab">PV generated</div><div class="mt-val solar-c" id="sum-pv">&#8212;</div><div class="mt-sub">kWh</div></div>
+      <div class="mtile"><div class="mt-lab">Home used</div><div class="mt-val home-c" id="sum-home">&#8212;</div><div class="mt-sub">kWh</div></div>
+      <div class="mtile"><div class="mt-lab">Grid import</div><div class="mt-val grid-import" id="sum-imp">&#8212;</div><div class="mt-sub">kWh</div></div>
+      <div class="mtile"><div class="mt-lab">Grid export</div><div class="mt-val grid-export" id="sum-exp">&#8212;</div><div class="mt-sub">kWh</div></div>
+      <div class="mtile"><div class="mt-lab">Peak SOC</div><div class="mt-val" id="sum-peak">&#8212;</div><div class="mt-sub">today</div></div>
+      <div class="mtile"><div class="mt-lab">Min SOC</div><div class="mt-val" id="sum-min">&#8212;</div><div class="mt-sub">today</div></div>
+      <div class="mtile"><div class="mt-lab">Charged</div><div class="mt-val" id="sum-chg">&#8212;</div><div class="mt-sub">into battery</div></div>
+      <div class="mtile"><div class="mt-lab">Discharged</div><div class="mt-val" id="sum-dis">&#8212;</div><div class="mt-sub">from battery</div></div>
+    </div>
+  </section>
+
+  <!-- ═══ BATTERY ═══ -->
+  <div class="sec-label">Battery</div>
+  <div class="grid2">
+    <section class="card">
+      <h2 data-help-title="Battery" data-help="State of charge of the battery pack (ring), 24-hour SOC trend, and the pack's physical health telemetry from the inverter.">State &amp; health</h2>
+      <div class="bat-wrap">
+        <div class="soc-ring-wrap">
+          <svg viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(128,128,128,.18)" stroke-width="5"/>
+            <circle id="soc-ring" cx="50" cy="50" r="42" fill="none" stroke="#34c759" stroke-width="5"
+              stroke-dasharray="263.9" stroke-dashoffset="263.9" stroke-linecap="round" transform="rotate(-90 50 50)"/>
+          </svg>
+          <div class="soc-centre">
+            <div class="soc-pct" id="soc-pct">&#8212;</div>
+            <div class="soc-kwh" id="soc-kwh">&#8212;</div>
+          </div>
+        </div>
+        <div class="bat-side">
+          <div class="bat-state idle" id="bat-state">&#8212;</div>
+          <div class="bat-line" id="bat-dawn">&#8212;</div>
+          <div class="spark-wrap"><svg id="spark-soc" viewBox="0 0 200 40" preserveAspectRatio="none"></svg></div>
+          <div class="spark-cap" id="spark-soc-cap">&#8212;</div>
+        </div>
+      </div>
+      <div class="mtiles" id="batt-health"><div class="muted">Loading&#8230;</div></div>
+    </section>
+
+  </div>
+
+  <!-- ═══ MONEY ═══ -->
+  <div class="sec-label">Money</div>
+  <section class="card money-card">
+    <h2 data-help-title="Today's saving" data-help="What today would have cost on grid alone, minus what it actually netted: avoided import plus export revenue, at today's rates. The Cost page carries the full bill — electric and gas, unit and standing charges — plus the month position and the roll-ups.">Saved today <span class="h2sub">solar &amp; battery</span></h2>
+    <div class="money-hero">
+      <div>
+        <div class="eco-rate" id="eco-benefit">&#8212;</div>
+        <div class="eco-sub">saved against a grid-only day</div>
+      </div>
+      <a class="money-link" href="cost.html">Full breakdown on the Cost page &rarr;</a>
+    </div>
+    <div class="mtiles" style="margin-top:14px">
+      <div class="mtile" data-help-title="Import paid" data-help="Units drawn from the grid today at today's unit rate. The standing charge is not in this figure — the Cost page's bill includes it.">
+        <div class="mt-lab">Import paid</div><div class="mt-val" id="eco-import">&#8212;</div><div class="mt-sub">units only</div>
+      </div>
+      <div class="mtile" data-help-title="Export earned" data-help="Units sent to the grid today at the export rate.">
+        <div class="mt-lab">Export earned</div><div class="mt-val good" id="eco-export">&#8212;</div><div class="mt-sub">at the export rate</div>
+      </div>
+      <div class="mtile" data-help-title="Net grid" data-help="Export earnings minus import cost — energy only, before the standing charge and gas. The Cost page's &ldquo;Net after bill&rdquo; is the same day measured against the whole bill, so the two figures differ.">
+        <div class="mt-lab">Net grid</div><div class="mt-val" id="eco-net">&#8212;</div><div class="mt-sub">energy only</div>
+      </div>
+      <div class="mtile" data-help-title="Grid-only" data-help="What today's usage would have cost drawn entirely from the grid, at today's unit rate.">
+        <div class="mt-lab">Grid-only would&#8217;ve cost</div><div class="mt-val" id="eco-nosolar">&#8212;</div><div class="mt-sub">same usage, no solar</div>
+      </div>
+    </div>
+    <div class="eco-sub muted" id="eco-rates" style="margin-top:12px">&#8212;</div>
+  </section>
+
+  <!-- ═══ SOLAR ═══ -->
+  <div class="sec-label">Solar</div>
+
+  <!-- ═══ MANAGER ═══ -->
+  <div class="sec-label">Manager</div>
+  <div class="grid3">
+    <section class="card">
+      <h2 data-help-title="Manager decision" data-help="What the battery manager is doing right now and why. Re-evaluated every 60 seconds from SOC, time of day, tariff and tomorrow's forecast.">Manager decision</h2>
+      <div id="action-badge" class="action-badge action-unknown">&#8212;</div>
+      <div class="dl">
+        <div class="dl-item"><span class="dk" data-help-title="Dawn viable" data-help="Will the battery still be above the resilience floor at sunrise without grid help?">Dawn viable</span><span class="dv" id="dec-dawn">&#8212;</span></div>
+        <div class="dl-item"><span class="dk" data-help-title="SOC at dawn" data-help="Projected battery energy at next sunrise, stepped through tonight's hourly consumption profile.">SOC at dawn</span><span class="dv" id="dec-soc-dawn">&#8212;</span></div>
+      </div>
+      <div class="reason" id="dec-reason">&#8212;</div>
+      <div class="decision-trace" id="decision-trace">Waiting for live energy flow&#8230;</div>
+    </section>
+
+    <section class="card">
+      <h2 data-help-title="Tariff" data-help="Octopus Tracker import rate — changes daily at midnight, published the day before. Export is Octopus Outgoing flat.">Tariff</h2>
+      <div class="tariff-rate"><span id="tar-rate">&#8212;</span>p</div>
+      <div class="tariff-sub" id="tar-name">&#8212;</div>
+      <div class="tariff-sub muted" id="tar-code">&#8212;</div>
+      <div class="tariff-tmrw">Tomorrow: <span id="tar-tmrw">&#8212;</span>p <span id="tar-delta"></span></div>
+      <div class="tariff-tmrw" style="margin-top:4px">Export: <span id="tar-exp">&#8212;</span>p flat</div>
+    </section>
+
+    <section class="card">
+      <h2 data-help-title="System" data-help="Inverter and connection health, plus the recent power-cut event log.">System</h2>
+      <div class="dl">
+        <div class="dl-item"><span class="dk">Modbus</span><span class="dv" id="sys-modbus">&#8212;</span></div>
+        <div class="dl-item"><span class="dk">VPP</span><span class="dv" id="sys-vpp">&#8212;</span></div>
+        <div class="dl-item"><span class="dk">Storm watch</span><span class="dv" id="sys-storm">&#8212;</span></div>
+        <div class="dl-item"><span class="dk">Export lockout</span><span class="dv" id="sys-lockout">&#8212;</span></div>
+      </div>
+      <div class="eco-divider"></div>
+      <div class="mt-lab" style="font-size:10.5px;color:var(--text-secondary);margin-bottom:4px">Recent grid events</div>
+      <div class="evt-list" id="sys-events">&#8212;</div>
+    </section>
+  </div>
+
+  <!-- ═══ ENVIRONMENT ═══ -->
+  <div class="sec-label">Environment</div>
+  <section class="card env-card">
+    <h2 data-help-title="Environmental benefits" data-help="Lifetime impact of the solar generated so far. CO₂ uses the UK grid average factor (0.207 kg CO₂e per kWh, DEFRA 2024) — a fair like-for-like against buying the same energy from the grid.">Environmental benefits <span class="h2sub">&#8212; lifetime</span></h2>
+    <div style="margin-bottom:12px">
+      <span class="env-big" id="env-co2">&#8212;</span>
+      <span class="eco-sub" style="display:inline">CO&#8322; avoided vs grid electricity</span>
+    </div>
+    <div class="mtiles">
+      <div class="mtile"><div class="mt-lab">Generated</div><div class="mt-val solar-c" id="env-kwh">&#8212;</div><div class="mt-sub">lifetime</div></div>
+      <div class="mtile"><div class="mt-lab">Tree-years</div><div class="mt-val good" id="env-trees">&#8212;</div><div class="mt-sub">of CO&#8322; absorption</div></div>
+      <div class="mtile"><div class="mt-lab">Coal avoided</div><div class="mt-val" id="env-coal">&#8212;</div><div class="mt-sub">standard coal equiv.</div></div>
+      <div class="mtile"><div class="mt-lab">EV range equiv.</div><div class="mt-val" id="env-miles">&#8212;</div><div class="mt-sub">at 3.5 mi/kWh</div></div>
+    </div>
+  </section>
+
+  <!-- ═══ HISTORY ═══ -->
+  <div class="sec-label">History</div>
+  <section class="card">
+    <h2 data-help-title="Energy history" data-help="Half-hourly energy per slot over the selected window: solar and export above the line, import and home use below (as inflow/consumption).">Energy per half-hour</h2>
+    <div class="chart-wrap"><canvas id="chart-energy"></canvas></div>
+  </section>
+  <section class="card" id="energy-replay-card" style="display:none">
+    <h2 data-help-title="Energy replay" data-help="Step through the same half-hour slots shown in the history chart. Playback is manual and stops when this tab is hidden; it is an explainer, not a prediction.">Energy replay</h2>
+    <div class="replay-controls">
+      <button type="button" class="chart-tab" id="replay-play">Play</button>
+      <input id="replay-slider" type="range" min="0" max="0" value="0" aria-label="Energy history slot">
+    </div>
+    <div class="replay-readout" id="replay-readout">Waiting for history&#8230;</div>
+  </section>
+  <section class="card">
+    <h2 data-help-title="Daily totals" data-help="Per-day totals for the last 30 days: solar, export, import, home. Spot cloudy stretches at a glance.">Daily totals <span class="h2sub">&#8212; last 30 days</span></h2>
+    <div class="chart-wrap"><canvas id="chart-daily"></canvas></div>
+  </section>
+  <section class="card" id="wow-card" style="display:none">
+    <h2 data-help-title="Week on week" data-help="The last 7 recorded days against the 7 before, and against the same week last year (364-day offset so weekdays line up). Self-sufficiency is the share of home use not imported. The year column unlocks once a full year of history has been collected.">Week on week <span class="h2sub">&#8212; and the same week last year</span></h2>
+    <div class="table-scroll">
+      <table class="period-table" id="wow-table"></table>
+    </div>
+    <div class="note" id="wow-note"></div>
+  </section>
+
+  <!-- ═══ RECORDS ═══ -->
+  <div class="sec-label">Records</div>
+  <section class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">
+      <h2 style="margin-bottom:0" data-help-title="Export sync" data-help="Inverter-measured daily export vs the half-hourly readings Octopus settled, for the last 7 fully-settled days. Drift beyond ±5% usually means missing slots on the Octopus side.">Export sync <span class="h2sub">Sigenergy vs Octopus</span></h2>
+      <div class="muted" style="font-size:11px" id="exp-sync-meta">&#8212;</div>
+    </div>
+    <div class="table-scroll">
+    <table class="period-table">
+      <thead><tr>
+        <th>Date</th><th>Sigenergy</th><th>Octopus</th><th>Diff (kWh)</th><th>Diff %</th><th>Slots</th><th>Status</th>
+      </tr></thead>
+      <tbody id="exp-sync-tbody"><tr><td colspan="7" class="muted">&#8212;</td></tr></tbody>
+    </table>
+    </div>
+  </section>
+
+</main>
+
+<script src="chart.umd.min.js"></script>
+<script src="energy-calc.js"></script>
+<script src="dashboards-ui.js"></script>
+<script src="config.js" onerror="window.INDIGO_CONFIG_MISSING=true"></script>
+<script src="dashboards-auth.js"></script>
+<script src="dashboards-gate.js"></script>
+<script src="dashboard.js"></script>
+
+<script>
+/* ════════════════════════════════════════════════════════════════
+   Energy 2 — data layer. Same sources as energy.html:
+   • Sigen manager API via the reflector-friendly sigenApi proxy
+   • Indigo /v2/api device poll for pack telemetry + fleet
+   ════════════════════════════════════════════════════════════════ */
+const SIGEN_PROXY = '/message/com.clives.indigoplugin.dashboards/sigenApi/';
+async function sigenFetch(path, query) {
+  // v2.70.0: never call /message/ while the plugin is stopping — a
+  // request in flight when the host dies wedges all of IWS for ~5 min.
+  if (window.DashGate && await window.DashGate.check() === "down")
+    throw new Error("Dashboards plugin restarting");
+  const key = (window.INDIGO_CONFIG || {}).apiKey || '';
+  return fetch(SIGEN_PROXY, {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: path, query: query || {} }),
+  });
+}
+
+/* Pack size arrives as battery.capacity_kwh from SigenEnergyManager v5.52.0.
+   This page used to hardcode 35.04, which is this house's pack and nobody
+   else's — every SOC-to-kWh figure and the backup estimate were wrong for any
+   other install. The constant is now only the fallback. */
+let BATTERY_KWH = DashCalc.DEFAULT_CAPACITY_KWH;
+const ACTION_LABELS = {
+  self_consumption: 'Self Consumption',
+  start_import:     'Starting Import',
+  stop_import:      'Stopping Import',
+  schedule_import:  'Import Scheduled',
+  start_export:     'Night Export',
+  stop_export:      'Stopping Export',
+  solar_overflow:   'Solar Overflow Export',
+  unknown:          'Unknown'
+};
+const ACTION_CLASS = {
+  self_consumption: 'action-self',
+  solar_overflow:   'action-overflow',
+  start_export:     'action-export',
+  stop_export:      'action-export',
+  start_import:     'action-import',
+  stop_import:      'action-import',
+  schedule_import:  'action-schedule',
+  unknown:          'action-unknown'
+};
+
+/* Formatters live in energy-calc.js so this page and cost.html agree, and so
+   they can be tested. fmtKw is adaptive now — it used to print 30 W as
+   "0.03 kW". */
+const fmtKw  = DashCalc.fmtKw;
+const fmtGbp = DashCalc.gbp;
+const num    = DashCalc.num;
+/* DOM helpers moved to dashboards-ui.js so the hub page shares them. Aliased
+   here rather than renaming several hundred call sites. */
+const setText = DashUI.setText;
+function esc(t) { return String(t == null ? '' : t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+const cssVar = DashUI.cssVar;
+const tweenNumber = DashUI.tweenNumber;
+
+/* ── hero flow diagram ──
+   Built once here; updateFlow() below feeds it each poll. The colours it uses
+   come from the CSS variables, so a light/dark switch now reaches the legs —
+   they used to be frozen hex and stayed on the light palette in dark mode. */
+const heroFlow = DashUI.flowDiagram(document.getElementById('flow-mount'), { idPrefix: 'hero', compact: true });
+
+/* ── Sankey ──
+   Allocation lives in energy-calc.js, where it can be tested. It now returns
+   the residual (`loss`) instead of dropping it, so the SOLAR node is never
+   drawn taller than the ribbons leaving it. */
+let _skSig = null;
+function renderSankey(summary, chg, dis) {
+  const svg = document.getElementById('sankey-svg');
+  if (!svg || !summary) return;
+  const f = DashCalc.computeFlows(summary, chg, dis);
+  const sig = JSON.stringify(f);
+  if (sig === _skSig) return;
+  _skSig = sig;
+
+  const haveBat = (f.chg > 0.05 || f.dis > 0.05);
+  // Sources (left): Solar, Battery discharge, Grid import.
+  // Sinks (right): Battery charge, Home load, Grid export.
+  const sources = [
+    { key: 'solar', name: 'SOLAR',   val: f.pv,  col: cssVar('--solar', '#f5a623') },
+    { key: 'bat',   name: 'BATTERY', val: haveBat ? f.dis : 0, col: cssVar('--bat', '#34c759') },
+    { key: 'grid',  name: 'GRID',    val: f.imp, col: cssVar('--grid-imp', '#ff3b30') },
+  ].filter(n => n.val > 0.01);
+  /* Whatever a source cannot be matched to a sink is drawn as its own node
+     rather than quietly shortening the ribbons. On a typical day it is the
+     battery's round-trip loss plus inverter conversion — about 1.9 kWh on
+     35 kWh generated. Without it the SOLAR node stood taller than everything
+     leaving it and nothing on the page explained why. */
+  const lossVal = haveBat ? f.loss : 0;
+  const sinks = [
+    { key: 'batc',  name: 'BATTERY', val: haveBat ? f.chg : 0, col: cssVar('--bat', '#34c759') },
+    { key: 'load',  name: 'LOAD',    val: f.home, col: cssVar('--home-load', '#af52de') },
+    { key: 'gride', name: 'GRID',    val: f.exp,  col: cssVar('--grid-exp', '#0a84ff') },
+    { key: 'loss',  name: 'LOSSES',  val: lossVal, col: cssVar('--text-muted', '#98989d') },
+  ].filter(n => n.val > 0.01);
+
+  const flows = [
+    { from: 'solar', to: 'load',  val: f.s2l },
+    { from: 'solar', to: 'batc',  val: f.s2b },
+    { from: 'solar', to: 'gride', val: f.s2g },
+    { from: 'bat',   to: 'load',  val: haveBat ? f.b2l : 0 },
+    { from: 'bat',   to: 'gride', val: haveBat ? f.b2g : 0 },
+    { from: 'grid',  to: 'load',  val: f.g2l },
+    { from: 'grid',  to: 'batc',  val: f.g2b },
+    /* The residual is attributed to whichever sources were left unspent —
+       recomputed here so each ribbon leaves the node it actually came from. */
+    { from: 'solar', to: 'loss',  val: haveBat ? Math.max(0, f.pv  - f.s2l - f.s2b - f.s2g) : 0 },
+    { from: 'bat',   to: 'loss',  val: haveBat ? Math.max(0, f.dis - f.b2l - f.b2g) : 0 },
+    { from: 'grid',  to: 'loss',  val: haveBat ? Math.max(0, f.imp - f.g2l - f.g2b) : 0 },
+  ].filter(fl => fl.val > 0.01);
+
+  if (!sources.length || !flows.length) {
+    svg.innerHTML = '<text x="350" y="160" text-anchor="middle" fill="#86868b" font-size="13">No flow data yet today</text>';
+    return;
+  }
+
+  const W = 700, H = 320, top = 14, bot = 14, gap = 16;
+  const nodeW = 12, lx = 118, rx = W - 118 - nodeW;
+  const totIn  = sources.reduce((a, n) => a + n.val, 0);
+  const totOut = sinks.reduce((a, n) => a + n.val, 0);
+  const scale = (H - top - bot - gap * (Math.max(sources.length, sinks.length) - 1)) / Math.max(totIn, totOut, 0.01);
+
+  function layout(nodes) {
+    let y = top;
+    nodes.forEach(n => {
+      n.h = Math.max(4, n.val * scale);
+      n.y = y;
+      n.used = 0;         // running offset for ribbon attachment
+      y += n.h + gap;
+    });
+  }
+  layout(sources); layout(sinks);
+  const srcBy = {}, snkBy = {};
+  sources.forEach(n => srcBy[n.key] = n);
+  sinks.forEach(n => snkBy[n.key] = n);
+
+  let defs = '', ribbons = '', nodes = '', labels = '';
+  let gi = 0;
+  flows.forEach(fl => {
+    const s = srcBy[fl.from], t = snkBy[fl.to];
+    if (!s || !t) return;
+    const th = Math.max(2.5, fl.val * scale);
+    const sy = s.y + s.used; s.used += th;
+    const ty = t.y + t.used; t.used += th;
+    const x1 = lx + nodeW, x2 = rx;
+    const cx = (x1 + x2) / 2;
+    const gid = 'skg' + (gi++);
+    defs += '<linearGradient id="' + gid + '" x1="0" y1="0" x2="1" y2="0">'
+          + '<stop offset="0%" stop-color="' + s.col + '"/>'
+          + '<stop offset="100%" stop-color="' + t.col + '"/></linearGradient>';
+    ribbons += '<path d="M' + x1 + ',' + sy
+             + ' C' + cx + ',' + sy + ' ' + cx + ',' + ty + ' ' + x2 + ',' + ty
+             + ' L' + x2 + ',' + (ty + th)
+             + ' C' + cx + ',' + (ty + th) + ' ' + cx + ',' + (sy + th) + ' ' + x1 + ',' + (sy + th)
+             + ' Z" fill="url(#' + gid + ')" fill-opacity="0.45">'
+             + '<title>' + esc(fl.val.toFixed(2)) + ' kWh</title></path>';
+  });
+  sources.forEach(n => {
+    nodes += '<rect x="' + lx + '" y="' + n.y + '" width="' + nodeW + '" height="' + n.h + '" rx="4" fill="' + n.col + '"/>';
+    const cy = n.y + n.h / 2;
+    labels += '<text class="sk-lab" x="' + (lx - 8) + '" y="' + (cy - 4) + '" text-anchor="end">' + n.name + '</text>'
+            + '<text class="sk-kwh" x="' + (lx - 8) + '" y="' + (cy + 9) + '" text-anchor="end">' + n.val.toFixed(1) + ' kWh</text>'
+            + '<text class="sk-pct" x="' + (lx - 8) + '" y="' + (cy + 21) + '" text-anchor="end">' + (totIn ? (n.val / totIn * 100).toFixed(1) : 0) + '%</text>';
+  });
+  sinks.forEach(n => {
+    nodes += '<rect x="' + rx + '" y="' + n.y + '" width="' + nodeW + '" height="' + n.h + '" rx="4" fill="' + n.col + '"/>';
+    const cy = n.y + n.h / 2;
+    labels += '<text class="sk-lab" x="' + (rx + nodeW + 8) + '" y="' + (cy - 4) + '">' + n.name + '</text>'
+            + '<text class="sk-kwh" x="' + (rx + nodeW + 8) + '" y="' + (cy + 9) + '">' + n.val.toFixed(1) + ' kWh</text>'
+            + '<text class="sk-pct" x="' + (rx + nodeW + 8) + '" y="' + (cy + 21) + '">' + (totOut ? (n.val / totOut * 100).toFixed(1) : 0) + '%</text>';
+  });
+  svg.innerHTML = '<defs>' + defs + '</defs>' + ribbons + nodes + labels;
+
+  const note = document.getElementById('sk-note');
+  if (note) {
+    if (!haveBat) {
+      note.textContent = 'Battery charge/discharge counters not available yet — showing solar, grid and load only.';
+    } else {
+      let t = 'Battery cycled ' + f.chg.toFixed(1) + ' kWh in / ' + f.dis.toFixed(1)
+            + ' kWh out today. Both sides total ' + f.totalIn.toFixed(1) + ' kWh.';
+      if (f.loss > 0.05) {
+        t += ' Losses ' + f.loss.toFixed(1) + ' kWh ('
+           + (f.loss / f.totalIn * 100).toFixed(1) + '%) — battery round-trip and inverter conversion.';
+      }
+      if (f.unmet > 0.05) {
+        t += ' ' + f.unmet.toFixed(1) + ' kWh of use could not be traced to a source, which means the counters disagree.';
+      }
+      t += ' The split between ribbons is a best fit from the daily totals, not a metered figure.';
+      note.textContent = t;
+    }
+  }
+}
+
+/* ── help tooltips (hover, desktop) ── */
+function _wireHelpTips() {
+  let tip = document.getElementById('help-tip');
+  if (!tip) {
+    tip = document.createElement('div');
+    tip.id = 'help-tip';
+    tip.className = 'help-tip';
+    document.body.appendChild(tip);
+  }
+  const showTip = (e) => {
+    const el = e.currentTarget;
+    const title = el.dataset.helpTitle || '';
+    const body = el.dataset.help || '';
+    tip.innerHTML = (title ? '<div class="help-tip-title">' + esc(title) + '</div>' : '') + esc(body);
+    tip.classList.add('help-tip-show');
+    moveTip(e);
+  };
+  const moveTip = (e) => {
+    const r = tip.getBoundingClientRect();
+    const margin = 12;
+    let x = e.clientX + 14, y = e.clientY + 14;
+    if (x + r.width > window.innerWidth - margin) x = window.innerWidth - r.width - margin;
+    if (y + r.height > window.innerHeight - margin) y = e.clientY - r.height - 14;
+    tip.style.left = Math.max(margin, x) + 'px';
+    tip.style.top = Math.max(margin, y) + 'px';
+  };
+  const hideTip = () => tip.classList.remove('help-tip-show');
+  document.querySelectorAll('[data-help]').forEach(el => {
+    if (el.dataset._helpWired) return;
+    el.dataset._helpWired = '1';
+    el.addEventListener('mouseenter', showTip);
+    el.addEventListener('mousemove', moveTip);
+    el.addEventListener('mouseleave', hideTip);
+  });
+}
+
+/* ── alerts bar ── */
+function updateAlerts(d) {
+  const bar = document.getElementById('alert-bar');
+  /* Each entry is {icon, text} and the two MUST stay apart. I() returns SVG
+     MARKUP, and this bar was written with textContent, which escapes it — so
+     the moment any of these branches fired the user saw the raw
+     "<svg class=..." source printed across the page instead of an icon.
+     It went unnoticed because every branch here is an exception state: the VPP
+     one could not fire at all while the Axle feed was dead, and no storm has
+     hit since the icons landed in v2.51.0.
+     The split is what lets the icon through innerHTML while the text — which
+     carries API values like the event window and the storm level — is escaped.
+     Never concatenate them into one string: you would have to choose between an
+     escaped icon and unescaped API text, and both are wrong. */
+  const msgs = [];
+  if (d.vpp && d.vpp.active) {
+    msgs.push({icon: I('bolt'), text: ' VPP EVENT ACTIVE — Axle controlling battery'
+                                      + (d.vpp.event_str ? ' · ' + d.vpp.event_str : '')});
+  } else if (d.vpp && d.vpp.state === 'announced') {
+    msgs.push({icon: I('bolt'), text: ' VPP event announced: ' + (d.vpp.event_str || '')});
+  }
+  if (d.storm && d.storm.level !== 'none') {
+    msgs.push({icon: I('storm'), text: ' Storm watch: ' + d.storm.level + ' — dawn SOC target raised'});
+  }
+  if (d.flags && d.flags.import_active) msgs.push({icon: '', text: '↓ Charging from grid'});
+  if (!d.flags || !d.flags.modbus_connected) msgs.push({icon: I('cross'), text: ' Modbus disconnected'});
+  if (msgs.length) {
+    bar.style.display = 'block';
+    bar.className = msgs.some(m => m.text.includes('Storm') || m.text.includes('Modbus')) ? 'warn' : '';
+    bar.innerHTML = msgs.map(m => m.icon + esc(m.text)).join(' • ');
+  } else {
+    bar.style.display = 'none';
+    bar.innerHTML = '';
+  }
+}
+
+/* ── forecast bars ── */
+/* ── v2.79.0: stacked hourly solar chart (replaces the forecast-only bars;
+   the hub's Weather card keeps DashUI.forecastBars untouched). Row model is
+   the pure DashCalc.buildSolarHours; this only draws. ── */
+
+/* The drawing lives in dashboards-ui.js so this card and the hub's Solar ·
+   today block render the IDENTICAL chart at two sizes. Colours and stack
+   order live there too (STRING_COLOURS / STRING_STACK_ORDER, PV-input order
+   [West, East, South, Garage], mySigen's own palette). */
+const STRING_FALLBACK_NAMES = ['West', 'East', 'South', 'Garage'];
+function _stringLabels() {
+  const list = (_solStatus && _solStatus.solar && _solStatus.solar.strings) || [];
+  return STRING_FALLBACK_NAMES.map((fb, i) => {
+    const hit = list.find(x => x.n === i + 1);
+    return (hit && hit.label) ? hit.label : fb;
+  });
+}
+
+let _solStringHours = null;      // solarStringHours payload {date, hours, site}
+let _solHoursModel = null;       // last built row model (for the tap detail)
+let _solHoursSig = '';
+
+function renderSolarHours() {
+  const svg = document.getElementById('sol-hours-svg');
+  if (!svg || !_solStatus) return;
+  const clk = _serverClock();
+  const todayStr = clk.todayStr, nowMin = clk.nowMin;
+  const fresh = (_solStringHours && _solStringHours.date === todayStr) ? _solStringHours : null;
+  const model = DashCalc.buildSolarHours(fresh && fresh.hours, fresh && fresh.site,
+                                         _solSlots, _solStatus.hourly_forecast,
+                                         nowMin, todayStr);
+  _solHoursModel = model;
+  const labels = _stringLabels();
+  const sig = JSON.stringify([model.rows.map(r => [r.mode, r.total, r.parts ? 1 : 0, r.forecast]),
+                              model.won, model.played, labels,
+                              document.documentElement.dataset.theme || '']);
+  if (sig === _solHoursSig) return;
+  _solHoursSig = sig;
+
+  DashUI.solarHoursChart(svg, model, { stringLabels: labels, hitTargets: true });
+
+  const legend = document.getElementById('sol-legend');
+  if (legend) {
+    legend.innerHTML = DashUI.STRING_STACK_ORDER.map(idx =>
+      `<span class="sol-leg-item"><span class="sol-leg-dot" style="background:${DashUI.STRING_COLOURS[idx]}"></span>${esc(labels[idx])}</span>`
+    ).join('') + '<span class="sol-leg-item"><span class="sol-leg-tick"></span>forecast</span>';
+    legend.style.display = '';
+  }
+  const score = document.getElementById('sol-score');
+  if (score) {
+    if (model.played > 0) {
+      score.textContent = `Beat the forecast ${model.won} of ${model.played} daylight hours so far`;
+      score.style.display = '';
+    } else {
+      score.style.display = 'none';
+    }
+  }
+}
+
+/* Tap an hour for its breakdown — delegated once; the SVG's innards are
+   rebuilt on every redraw, so state lives on the handler not the nodes. */
+let _solHoursWired = false;
+function _wireSolarHoursTap() {
+  if (_solHoursWired) return;
+  const svg = document.getElementById('sol-hours-svg');
+  const detail = document.getElementById('sol-hour-detail');
+  if (!svg || !detail) return;
+  _solHoursWired = true;
+  svg.addEventListener('click', ev => {
+    const h = ev.target && ev.target.getAttribute && ev.target.getAttribute('data-h');
+    if (h == null || !_solHoursModel) return;
+    const r = _solHoursModel.rows[Number(h)];
+    if (!r) return;
+    const hh = String(r.h).padStart(2, '0') + ':00';
+    let txt;
+    if (r.mode === 'future') {
+      txt = `${hh} — forecast ${r.forecast.toFixed(2)} kWh`;
+    } else if (r.parts) {
+      const labels = _stringLabels();
+      const bits = DashUI.STRING_STACK_ORDER.map(idx =>
+        `${labels[idx]} ${(r.parts[idx] || 0).toFixed(2)}`).join(' · ');
+      const d = r.total - r.forecast;
+      txt = `${hh} — ${bits} = ${r.total.toFixed(2)} kWh · forecast ${r.forecast.toFixed(2)} (${d >= 0 ? '+' : '−'}${Math.abs(d).toFixed(2)})`;
+    } else if (r.total != null) {
+      const d = r.total - r.forecast;
+      txt = `${hh} — ${r.total.toFixed(2)} kWh (whole system, before per-string logging) · forecast ${r.forecast.toFixed(2)} (${d >= 0 ? '+' : '−'}${Math.abs(d).toFixed(2)})`;
+    } else {
+      txt = `${hh} — no data recorded · forecast ${r.forecast.toFixed(2)} kWh`;
+    }
+    detail.textContent = txt;
+    detail.style.display = '';
+  });
+}
+
+/* Fetch today's per-string hours. Gated like every /message caller — an
+   ungated poll into a restarting plugin is the 5-minute IWS wedge. */
+async function refreshStringHours() {
+  if (document.hidden) return;
+  try {
+    if (window.DashGate && await window.DashGate.check() === 'down') return;
+    const key = (window.INDIGO_CONFIG || {}).apiKey || '';
+    const r = await fetch('/message/com.clives.indigoplugin.dashboards/solarStringHours/', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    if (!r.ok) return;
+    const d = await r.json();
+    if (d && d.ok) {
+      _solStringHours = d;
+      renderSolarHours();
+    }
+  } catch (e) { /* chart degrades to site-total bars */ }
+}
+
+/* ── SOC sparkline ── */
+function renderSocSparkline(slots) {
+  const svg = document.getElementById('spark-soc');
+  if (!svg) return;
+  const recent = slots.slice(-48);
+  if (!recent.length) { svg.innerHTML = ''; setText('spark-soc-cap', '—'); return; }
+  const W = 200, H = 40, P = 1;
+  /* A null slot used to be read as 0, which dropped the trace to the floor and
+     put a false "low 0%" in the caption. Nulls now break the line instead. */
+  const s = DashCalc.socSeries(recent);
+  if (!s.count) { svg.innerHTML = ''; setText('spark-soc-cap', 'no readings'); return; }
+  const xStep = (W - 2 * P) / Math.max(1, recent.length - 1);
+  const yMap = v => H - P - (v / 100) * (H - 2 * P);
+
+  /* Build one path segment per unbroken run of readings. */
+  const segs = [];
+  let cur = null;
+  s.points.forEach((v, i) => {
+    if (v === null) { cur = null; return; }
+    const x = (P + i * xStep).toFixed(1), y = yMap(v).toFixed(1);
+    if (cur === null) { cur = { d: 'M' + x + ' ' + y, x0: x, x1: x }; segs.push(cur); }
+    else { cur.d += ' L' + x + ' ' + y; cur.x1 = x; }
+  });
+  const line = segs.map(g => '<path d="' + g.d + '" fill="none" stroke="var(--on-color)" stroke-width="1.5"/>').join('');
+  const fill = segs.map(g =>
+    '<path d="' + g.d + ' L' + g.x1 + ' ' + (H - P) + ' L' + g.x0 + ' ' + (H - P)
+    + ' Z" fill="url(#spark-grad)"/>').join('');
+  svg.innerHTML =
+    '<defs><linearGradient id="spark-grad" x1="0" y1="0" x2="0" y2="1">'
+    + '<stop offset="0%" stop-color="rgba(52,199,89,.45)"/>'
+    + '<stop offset="100%" stop-color="rgba(52,199,89,0)"/></linearGradient></defs>'
+    + fill + line;
+  const gaps = s.points.length - s.count;
+  setText('spark-soc-cap', 'last 24h  low ' + s.min.toFixed(0) + '%   high ' + s.max.toFixed(0) + '%'
+    + (gaps ? '   (' + gaps + ' slot' + (gaps === 1 ? '' : 's') + ' missing)' : ''));
+}
+
+/* ════════ main update ════════ */
+let _lastStatus = null;
+
+function update(d) {
+  if (d.error) { setText('ts', 'Error: ' + d.error); return; }
+  _lastStatus = d;
+  setText('ts', d.timestamp || '—');
+
+  /* Pack size from the plugin (v5.52.0+); the constant is only the fallback. */
+  if (d.battery && d.battery.capacity_kwh > 0 && BATTERY_KWH !== d.battery.capacity_kwh) {
+    // The balance chart was drawn with the default capacity before the first
+    // status reply landed, and nothing redrew it (v2.95.4).
+    BATTERY_KWH = d.battery.capacity_kwh;
+    try { refreshCharts(); } catch (_) {}
+  }
+  /* SOC stays NULL when the inverter has not reported one — never 0. A
+     partial Modbus read drops the key, and a fabricated 0% would paint a red
+     ring and an empty battery on a pack that is actually full. That is the
+     phantom-zero-SOC fault SigenEnergyManager v5.26.0 had to remove at
+     source; it must not reappear here in the display layer. The power
+     readings DO coerce to 0 — for a flow diagram "no reading" and "no flow"
+     draw the same, and it keeps the deadband arithmetic honest. */
+  const soc = (d.battery && d.battery.soc_pct != null) ? d.battery.soc_pct : null;
+  const socKnown = soc != null;
+  const batW = (d.battery && d.battery.power_w != null) ? d.battery.power_w : 0;
+  const pvW = (d.solar && d.solar.power_w != null) ? d.solar.power_w : 0;
+  const gridW = (d.grid && d.grid.power_w != null) ? d.grid.power_w : 0;
+  const homeW = (d.home && d.home.load_w != null) ? d.home.load_w : 0;
+  const s = d.today_summary || {};
+
+  /* Battery state and SOC colour — used by the hero stat strip and the
+     battery card lower down. Read from the palette, not frozen hex, so they
+     follow a light/dark switch like everything else. */
+  let batState = 'Idle';
+  if (batW > 30) batState = 'Charging';
+  if (batW < -30) batState = 'Discharging';
+  const socCol = !socKnown ? cssVar('--muted', '#8e8e93')
+               : soc >= 60 ? cssVar('--on-color', '#34c759')
+               : soc >= 30 ? cssVar('--solar', '#f5a623')
+                           : cssVar('--bad', '#ff3b30');
+
+  /* hero flow diagram — one call now; the module owns the drawing, the
+     directions, and the deadband. */
+  if (heroFlow) {
+    heroFlow.update({
+      pv: pvW, home: homeW, grid: gridW, bat: batW, soc: soc,
+      subs: {
+        pv:   'today ' + (s.pv_kwh   != null ? s.pv_kwh.toFixed(1)   + ' kWh' : '—'),
+        home: 'today ' + (s.home_kwh != null ? s.home_kwh.toFixed(1) + ' kWh' : '—'),
+        bat:  socKnown
+                ? soc.toFixed(1) + '% · ' + (soc * BATTERY_KWH / 100).toFixed(1) + ' kWh stored'
+                : 'level unknown',
+      },
+    });
+  }
+
+  /* chips */
+  const chipGrid = document.getElementById('chip-grid');
+  if (chipGrid) {
+    const pcOngoing = d.power_cut && d.power_cut.ongoing;
+    const pcSuppressed = d.power_cut && d.power_cut.export_suppressed;
+    if (pcOngoing) { chipGrid.textContent = 'Grid Down'; chipGrid.className = 'flow-chip alert'; }
+    else if (pcSuppressed) { chipGrid.textContent = 'Lockout'; chipGrid.className = 'flow-chip warn'; }
+    else { chipGrid.textContent = 'On Grid'; chipGrid.className = 'flow-chip ok'; }
+  }
+  /* Backup runtime (v2.44.0): stored energy above a 5% reserve floor divided
+     by the CURRENT house draw. Live estimate — daytime solar stretches it,
+     heavier usage shortens it (the chip's help text says so). */
+  const chipBackup = document.getElementById('chip-backup');
+  if (chipBackup) {
+    const r = DashCalc.backupRuntime(soc, homeW, BATTERY_KWH, DashCalc.BACKUP_RESERVE_PCT);
+    if (r) {
+      chipBackup.innerHTML = I('bolt') + ' Backup ' + r.label;
+      chipBackup.className = 'flow-chip ' + r.state;
+      chipBackup.style.display = '';
+    } else {
+      chipBackup.style.display = 'none';
+    }
+  }
+  const chipMode = document.getElementById('chip-mode');
+  if (chipMode) {
+    const vppState = d.vpp && d.vpp.state;
+    const action = (d.decision && d.decision.action) || 'unknown';
+    let modeLabel, modeClass;
+    if (vppState && vppState.toLowerCase() !== 'idle') {
+      modeLabel = 'VPP ' + vppState.toLowerCase().replace(/_/g, ' ');
+      modeClass = vppState.toLowerCase() === 'vpp_active' ? 'warn' : '';
+    } else {
+      modeLabel = ACTION_LABELS[action] || action;
+      modeClass = (action === 'self_consumption' || action === 'solar_overflow' || action === 'start_export')
+        ? 'ok' : (action.indexOf('import') !== -1 ? 'warn' : '');
+    }
+    chipMode.textContent = modeLabel;
+    chipMode.className = 'flow-chip ' + modeClass;
+  }
+
+  /* hero stat strip */
+  if (s.self_suff != null) {
+    tweenNumber(document.getElementById('hs-ss'), s.self_suff, { decimals: 1, suffix: '%', duration: 700 });
+    const bar = document.getElementById('hs-ss-bar');
+    if (bar) bar.style.width = Math.min(100, s.self_suff) + '%';
+  }
+  if (s.pv_kwh != null) {
+    tweenNumber(document.getElementById('hs-pv'), s.pv_kwh, { decimals: 1, duration: 700 });
+    const fc = d.solar ? d.solar.today_kwh : null;
+    setText('hs-pv-sub', fc ? 'kWh · forecast ' + Math.round(fc) : 'kWh');
+    const bar = document.getElementById('hs-pv-bar');
+    if (bar && fc) bar.style.width = Math.max(0, Math.min(100, (s.pv_kwh / fc) * 100)) + '%';
+  }
+  if (d.economics && d.economics.today && d.economics.today.solar_benefit_gbp != null) {
+    const v = d.economics.today.solar_benefit_gbp;
+    const el = document.getElementById('hs-benefit');
+    tweenNumber(el, Math.abs(v), { decimals: 2, prefix: v < 0 ? '−£' : '£', duration: 700 });
+    el.style.color = v < 0 ? 'var(--bad)' : 'var(--on-color)';
+  }
+  /* An unknown SOC reads as "—" everywhere, and the ring and bar empty to a
+     neutral grey rather than a red near-flat. tweenNumber coerces null to 0,
+     so it has to be stepped round rather than fed a null. */
+  const hsSoc = document.getElementById('hs-soc');
+  if (socKnown) tweenNumber(hsSoc, soc, { decimals: 1, suffix: '%', duration: 700 });
+  else { hsSoc.textContent = '—'; delete hsSoc.dataset._val; }
+  hsSoc.style.color = socCol;
+  setText('hs-soc-sub', batState + (batState !== 'Idle' ? ' ' + fmtKw(Math.abs(batW)) : ''));
+  const hb = document.getElementById('hs-soc-bar');
+  if (hb) { hb.style.width = (socKnown ? soc : 0) + '%'; hb.style.background = socCol; }
+
+  /* battery card */
+  const ring = document.getElementById('soc-ring');
+  const circ = 263.9;
+  ring.style.strokeDashoffset = circ - ((socKnown ? soc : 0) / 100) * circ;
+  ring.style.stroke = socCol;
+  const socPct = document.getElementById('soc-pct');
+  if (socKnown) tweenNumber(socPct, soc, { decimals: 1, suffix: '%', duration: 700 });
+  else { socPct.textContent = '—'; delete socPct.dataset._val; }
+  socPct.style.color = socCol;
+  setText('soc-kwh', socKnown ? (soc * BATTERY_KWH / 100).toFixed(1) + ' kWh' : '—');
+  const bs = document.getElementById('bat-state');
+  bs.textContent = batState + (batState !== 'Idle' ? ' · ' + fmtKw(Math.abs(batW)) : '');
+  bs.className = 'bat-state ' + batState.toLowerCase();
+  if (d.decision) {
+    const dv = d.decision.dawn_viable;
+    const el = document.getElementById('bat-dawn');
+    el.textContent = 'Dawn: ' + (d.decision.soc_at_dawn_kwh != null ? d.decision.soc_at_dawn_kwh.toFixed(1) + ' kWh projected' : '—')
+      + (dv ? ' · viable' : ' · needs import');
+    el.style.color = dv ? '' : 'var(--warn)';
+  }
+
+  /* today summary tiles */
+  setText('sum-pv', s.pv_kwh != null ? s.pv_kwh.toFixed(1) : '—');
+  setText('sum-home', s.home_kwh != null ? s.home_kwh.toFixed(1) : '—');
+  setText('sum-imp', s.import_kwh != null ? s.import_kwh.toFixed(2) : '—');
+  setText('sum-exp', s.export_kwh != null ? s.export_kwh.toFixed(1) : '—');
+  // Peak 0 / min 100 is the rollover reset before the day's first sample —
+  // an impossible ordering, so no sample yet, so no number.
+  const _socOk = s.peak_soc != null && s.min_soc != null && s.peak_soc >= s.min_soc;
+  setText('sum-peak', _socOk ? s.peak_soc + '%' : '—');
+  setText('sum-min', _socOk ? s.min_soc + '%' : '—');
+
+  /* sankey — uses charge/discharge from the device poll when available */
+  const inv = _findInverter();
+  const chg = inv ? num(inv.states.batteryDailyChargeKwh) : null;
+  const dis = inv ? num(inv.states.batteryDailyDischargeKwh) : null;
+  renderSankey(s, chg, dis);
+  setText('sum-chg', chg != null ? chg.toFixed(1) + ' kWh' : '—');
+  setText('sum-dis', dis != null ? dis.toFixed(1) + ' kWh' : '—');
+
+  /* decision */
+  const action = (d.decision && d.decision.action) || 'unknown';
+  const badge = document.getElementById('action-badge');
+  badge.textContent = ACTION_LABELS[action] || action;
+  badge.className = 'action-badge ' + (ACTION_CLASS[action] || 'action-unknown');
+  if (d.decision) {
+    const dawnEl = document.getElementById('dec-dawn');
+    dawnEl.textContent = d.decision.dawn_viable ? 'Yes' : 'No';
+    dawnEl.className = 'dv ' + (d.decision.dawn_viable ? 'dawn-ok' : 'dawn-warn');
+    setText('dec-soc-dawn', d.decision.soc_at_dawn_kwh != null ? d.decision.soc_at_dawn_kwh.toFixed(1) + ' kWh' : '—');
+    setText('dec-reason', d.decision.reason || '—');
+  }
+  renderDecisionTrace(d);
+
+  /* tariff */
+  if (d.tariff) {
+    setText('tar-rate', d.tariff.today_p != null ? d.tariff.today_p.toFixed(2) : '—');
+    setText('tar-name', d.tariff.name || '—');
+    setText('tar-code', d.tariff.product_code || '');
+    setText('tar-tmrw', d.tariff.tomorrow_p != null ? d.tariff.tomorrow_p.toFixed(2) : 'TBD');
+    const delta = document.getElementById('tar-delta');
+    if (delta && d.tariff.today_p != null && d.tariff.tomorrow_p != null) {
+      const diff = d.tariff.tomorrow_p - d.tariff.today_p;
+      if (Math.abs(diff) < 0.05) delta.textContent = '';
+      else if (diff > 0) { delta.textContent = '▲ +' + diff.toFixed(1) + 'p'; delta.className = 'tmrw-up'; }
+      else { delta.textContent = '▼ ' + diff.toFixed(1) + 'p'; delta.className = 'tmrw-down'; }
+    }
+    if (d.solar && d.solar.export_rate_p != null) setText('tar-exp', DashCalc.fmtPence(d.solar.export_rate_p));
+  }
+
+  /* system card */
+  const okBad = (ok, okTxt, badTxt) => '<span style="color:var(--' + (ok ? 'on-color' : 'bad') + ')">' + (ok ? okTxt : badTxt) + '</span>';
+  const sysModbus = document.getElementById('sys-modbus');
+  if (sysModbus) sysModbus.innerHTML = okBad(d.flags && d.flags.modbus_connected, 'Connected', 'Disconnected');
+  const sysVpp = document.getElementById('sys-vpp');
+  if (sysVpp) {
+    const st = (d.vpp && d.vpp.state) || 'idle';
+    sysVpp.textContent = st === 'idle' ? 'Standby' : st;
+    sysVpp.style.color = (d.vpp && d.vpp.active) ? 'var(--warn)' : '';
+  }
+  const sysStorm = document.getElementById('sys-storm');
+  if (sysStorm) {
+    const lvl = (d.storm && d.storm.level) || 'none';
+    sysStorm.textContent = lvl === 'none' ? 'Clear' : lvl;
+    sysStorm.style.color = lvl === 'none' ? '' : 'var(--warn)';
+  }
+  const sysLock = document.getElementById('sys-lockout');
+  if (sysLock) {
+    const supp = d.power_cut && d.power_cut.export_suppressed;
+    sysLock.textContent = supp ? 'Active — floor ' + (d.power_cut.lockout_soc_floor || '?') + '%' : 'None';
+    sysLock.style.color = supp ? 'var(--warn)' : '';
+  }
+  const evEl = document.getElementById('sys-events');
+  if (evEl && d.power_cut && Array.isArray(d.power_cut.events)) {
+    const evts = d.power_cut.events.slice(-4).reverse();
+    evEl.innerHTML = evts.length ? evts.map(e => esc(e)).join('<br>') : 'None recorded';
+  }
+
+  /* solar card */
+  renderSolarCard(d);
+  _solStatus = d;
+  renderSolarHours();
+  _wireSolarHoursTap();
+  renderSolarProgress();
+
+  /* environment */
+  renderEnvironment(d);
+
+  /* economics */
+  if (d.economics) {
+    renderEconomics('eco-', d.economics.today);
+  }
+
+  updateAlerts(d);
+  _wireHelpTips();
+}
+
+/* ── v2.78.0: cumulative actual-vs-expected solar progress ──
+   Data is married from two feeds the page already runs: today's half-hour
+   slots from /api/history (refreshCharts' 5-min cycle) and the status
+   payload's bias-corrected hourly_forecast + actual_today_kwh (5-s poll).
+   The maths lives in DashCalc.buildSolarProgress (energy-calc.js) so the
+   tests drive it; this function only draws. */
+let _solSlots = null;
+let _solStatus = null;
+let _solProgSig = '';
+
+function renderSolarProgress() {
+  const svg = document.getElementById('sol-prog-svg');
+  if (!svg || !_solStatus) return;
+  const s = _solStatus.solar || {};
+  const clk = _serverClock();
+  const todayStr = clk.todayStr, nowMin = clk.nowMin;
+  const p = DashCalc.buildSolarProgress(_solSlots, _solStatus.hourly_forecast,
+                                        s.actual_today_kwh, nowMin, todayStr);
+  if (p.expected.length < 2 && p.actual.length < 2) return;   // nothing to say yet
+  const _fa = _solStatus.forecast_accuracy || {};
+  const typical = DashCalc.solarTypicalRange(p.expectedTotal, _fa.days > 0 ? _fa.mape_pct : null);
+  const sig = JSON.stringify([p.actual.length, p.actual[p.actual.length - 1],
+                              p.expectedTotal, p.deltaKwh, typical,
+                              document.documentElement.dataset.theme || '']);
+  if (sig === _solProgSig) return;
+  _solProgSig = sig;
+
+  const W = 756, H = 150, padL = 8, padR = 8, padT = 12, padB = 18;
+  const maxY = Math.max(p.expectedTotal, typical ? typical.high : 0,
+                        p.actual[p.actual.length - 1].kwh, 1) * 1.06;
+  const x = m => padL + (m / 1440) * (W - padL - padR);
+  const y = k => H - padB - (k / maxY) * (H - padT - padB);
+  const line = pts => pts.map(pt => x(pt.m).toFixed(1) + ',' + y(pt.kwh).toFixed(1)).join(' ');
+
+  let out = '';
+  [360, 720, 1080].forEach(m => {
+    out += `<line x1="${x(m).toFixed(1)}" y1="${padT}" x2="${x(m).toFixed(1)}" y2="${H - padB}" stroke="var(--border-soft,#e5e5ea)" stroke-width="1"/>`
+         + `<text x="${x(m).toFixed(1)}" y="${H - 5}" text-anchor="middle" font-size="10" fill="var(--text-secondary,#86868b)">${String(m / 60).padStart(2, '0')}:00</text>`;
+  });
+  if (p.expected.length > 1) {
+    if (typical) {
+      const upper = p.expected.map(pt => ({ m: pt.m, kwh: pt.kwh * (1 + typical.fraction) }));
+      const lower = p.expected.slice().reverse().map(pt => ({ m: pt.m, kwh: Math.max(0, pt.kwh * (1 - typical.fraction)) }));
+      out += `<polygon points="${line(upper.concat(lower))}" fill="var(--solar,#f5a623)" fill-opacity=".12"/>`;
+    }
+    out += `<polyline points="${line(p.expected)}" fill="none" stroke="var(--text-muted,#98989d)" stroke-width="1.6" stroke-dasharray="5,4"/>`;
+    const end = p.expected[p.expected.length - 1];
+    out += `<text x="${Math.min(x(end.m), W - 4).toFixed(1)}" y="${Math.max(y(end.kwh) - 6, 10).toFixed(1)}" text-anchor="end" font-size="10" fill="var(--text-secondary,#86868b)">${Math.round(end.kwh)} kWh expected</text>`;
+  }
+  const rangeNote = document.getElementById('sol-range-note');
+  if (rangeNote) {
+    if (typical) {
+      rangeNote.textContent = `Shaded band: typical forecast range ${typical.low.toFixed(1)}–${typical.high.toFixed(1)} kWh (based on ${Math.round(typical.fraction * 100)}% recent average error; not a guarantee).`;
+      rangeNote.style.display = '';
+    } else rangeNote.style.display = 'none';
+  }
+  if (p.actual.length > 1) {
+    out += `<polyline points="${line(p.actual)}" fill="none" stroke="var(--solar,#f5a623)" stroke-width="2.6" stroke-linejoin="round"/>`;
+    const tip = p.actual[p.actual.length - 1];
+    out += `<circle cx="${x(tip.m).toFixed(1)}" cy="${y(tip.kwh).toFixed(1)}" r="3.4" fill="var(--solar,#f5a623)"/>`;
+  }
+  svg.innerHTML = out;
+
+  const chip = document.getElementById('sol-delta');
+  if (chip) {
+    if (p.deltaKwh == null) {
+      chip.style.display = 'none';
+    } else {
+      const dv = p.deltaKwh;
+      chip.style.display = '';
+      chip.className = 'sol-delta' + (dv > 0.3 ? ' ahead' : (dv < -0.3 ? ' behind' : ''));
+      chip.textContent = Math.abs(dv) <= 0.3 ? 'on forecast'
+        : Math.abs(dv).toFixed(1) + ' kWh ' + (dv > 0 ? 'ahead' : 'behind');
+    }
+  }
+}
+
+function renderSolarCard(d) {
+  const s = d.solar || {}, ts = d.today_summary || {}, fa = d.forecast_accuracy || {};
+  const actual = s.actual_today_kwh, fc = s.today_kwh;
+  setText('sol-actual', actual != null ? actual.toFixed(1) : '—');
+  setText('sol-forecast', fc != null ? Math.round(fc) : '—');
+  const bar = document.getElementById('sol-bar');
+  if (bar) bar.style.width = (fc ? Math.max(0, Math.min(100, Math.round((actual / fc) * 100))) : 0) + '%';
+  setText('fc-rem', s.remaining_kwh != null ? s.remaining_kwh.toFixed(1) : '—');
+  /* Expected end of day = generated so far + forecast still to come. Both are on
+     the bias-corrected scale, so this is directly comparable to the forecast. */
+  setText('fc-exp', (actual != null && s.remaining_kwh != null)
+    ? (actual + s.remaining_kwh).toFixed(1) : '—');
+  setText('fc-tmrw', s.tomorrow_kwh != null ? Math.round(s.tomorrow_kwh) : '—');
+  setText('fc-bias', s.bias_factor != null ? s.bias_factor : '—');
+  setText('sol-now', fmtKw(s.power_w));
+  setText('sol-peak', s.peak_w ? fmtKw(s.peak_w) + (s.peak_time ? ' @ ' + s.peak_time : '') : '—');
+  setText('sol-surplus', s.tomorrow_surplus_kwh != null ? Math.round(s.tomorrow_surplus_kwh) + ' kWh' : '—');
+  setText('sol-surplus-gbp', s.tomorrow_revenue_gbp != null ? s.tomorrow_revenue_gbp.toFixed(2) : '—');
+  setText('sol-yield', (actual != null && s.total_kwp) ? (actual / s.total_kwp).toFixed(2) + ' kWh/kWp' : '—');
+  const _nStr = Array.isArray(s.strings) ? s.strings.length : 0;
+  setText('sol-kwp', s.total_kwp ? s.total_kwp + ' kWp' + (_nStr ? ' · ' + _nStr + (_nStr === 1 ? ' string' : ' strings') : '') : '—');
+  // SEM publishes mape_pct 0.0 with days 0 before any accuracy history exists;
+  // "100%" off that is a number that means nothing (v2.95.3).
+  const haveAcc = !!(fa.days > 0);
+  setText('sol-accuracy', (haveAcc && fa.mape_pct != null) ? Math.max(0, Math.round(100 - fa.mape_pct)) + '%' : '—');
+  setText('sol-bias', haveAcc ? 'bias ' + (fa.mean_factor != null ? fa.mean_factor.toFixed(2) : '1.00') + ' · ' + fa.days + 'd' : 'no history yet');
+  setText('sol-lifetime', s.lifetime_kwh != null ? Math.round(s.lifetime_kwh).toLocaleString() + ' kWh' : '—');
+
+  /* v2.78.0: per-string strip (SigenEnergyManager v5.67.0+). Bars scale to
+     each string's own kWp when the label carries one — a 2.85 kW string
+     pulling its weight reads full beside a 4.275 kW one — else to the
+     strongest string right now. Hidden entirely when the feed has none. */
+  const strip = document.getElementById('sol-strings');
+  if (strip) {
+    const list = Array.isArray(s.strings) ? s.strings : [];
+    if (!list.length) {
+      strip.style.display = 'none';
+    } else {
+      const maxW = Math.max(...list.map(x => x.w || 0), 1);
+      // v2.79.0: today's kWh per string, summed from the same endpoint that
+      // feeds the hourly chart. Absent (no history yet) = simply not shown.
+      const todayK = [0, 0, 0, 0];
+      let haveK = false;
+      if (_solStringHours && Array.isArray(_solStringHours.hours)
+          && _solStringHours.date === _serverClock().todayStr) {   // yesterday's kWh is not "today"
+        _solStringHours.hours.forEach(hh => {
+          if (Array.isArray(hh)) { haveK = true; hh.forEach((v, i) => { todayK[i] += v || 0; }); }
+        });
+      }
+      strip.innerHTML = list.map(x => {
+        const w = x.w || 0;
+        const pct = x.kwp ? Math.max(0, Math.min(100, Math.round(w / (x.kwp * 1000) * 100)))
+                          : Math.round(w / maxW * 100);
+        let sub = x.kwp ? pct + '% of ' + x.kwp + ' kWp'
+                        : (x.v != null ? x.v.toFixed(0) + ' V' : '—');
+        if (haveK && todayK[x.n - 1] > 0.005) {
+          sub += ' · ' + todayK[x.n - 1].toFixed(1) + ' kWh today';
+        }
+        return '<div class="pvs-row"><span class="pvs-name">' + esc(x.label || ('PV' + x.n)) + '</span>'
+          + '<span class="pvs-bar"><span style="width:' + pct + '%"></span></span>'
+          + '<span class="pvs-w">' + fmtKw(w) + '</span>'
+          + '<span class="pvs-sub">' + esc(sub) + '</span></div>';
+      }).join('') + (haveK ? '<div class="pvs-fingerprint">Daily yield fingerprint: '
+        + list.map(x => {
+          const k = todayK[x.n - 1];
+          return esc(x.label || ('PV' + x.n)) + ' ' + (x.kwp && k > 0.005
+            ? (k / x.kwp).toFixed(2) + ' kWh/kWp' : '—');
+        }).join(' · ') + '. Descriptive only; roof direction and shading differ.</div>' : '');
+      strip.style.display = '';
+    }
+  }
+}
+
+/* The SERVER's day and minutes-of-day (v2.95.3), not the viewer's clock — from
+   Perth at 17:00 the browser had most of the day's forecast already due while
+   London was at 09:00, and every solar verdict was wrong. The status payload
+   carries the server's local time; the string-hours payload its date. */
+function _serverClock() {
+  const now = new Date();
+  let todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0')
+               + '-' + String(now.getDate()).padStart(2, '0');
+  let nowMin = now.getHours() * 60 + now.getMinutes();
+  if (_solStringHours && /^\d{4}-\d{2}-\d{2}$/.test(_solStringHours.date || '')) todayStr = _solStringHours.date;
+  else if (Array.isArray(_solSlots) && _solSlots.length) {
+    const t = String(_solSlots[_solSlots.length - 1].t || '');
+    if (/^\d{4}-\d{2}-\d{2}/.test(t)) todayStr = t.slice(0, 10);
+  }
+  const m = /^(\d{2}):(\d{2})/.exec(String((_solStatus || {}).timestamp || ''));
+  if (m) nowMin = parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+  return { todayStr, nowMin };
+}
+
+function renderDecisionTrace(d) {
+  const el = document.getElementById('decision-trace');
+  if (!el) return;
+  // The real payload shape (v2.95.3): solar.power_w, home.load_w,
+  // battery.power_w (+ charging), grid.power_w (+ import). The old
+  // `live.home_w` keys never existed, so the trace only ever said "Solar".
+  const solar = num((d.solar || {}).power_w);
+  const home = num((d.home || {}).load_w);
+  const battery = num((d.battery || {}).power_w);
+  const grid = num((d.grid || {}).power_w);
+  const parts = [];
+  if (solar != null) parts.push('Solar ' + fmtKw(solar));
+  if (home != null) parts.push('home ' + fmtKw(home));
+  if (battery != null) parts.push('battery ' + (battery >= 0 ? 'charging ' : 'discharging ') + fmtKw(Math.abs(battery)));
+  if (grid != null) parts.push(grid >= 0 ? 'grid import ' + fmtKw(grid) : 'grid export ' + fmtKw(Math.abs(grid)));
+  const action = d.decision && d.decision.action;
+  const prefix = action ? (ACTION_LABELS[action] || action) + ': ' : 'Live flow: ';
+  el.textContent = parts.length ? prefix + parts.join(' · ') + '.' : 'Live flow is not available yet.';
+}
+
+/* CO₂ factor: UK grid average 0.207 kg CO₂e/kWh (DEFRA 2024 electricity factor). */
+const CO2_KG_PER_KWH = 0.207;
+const COAL_KG_PER_KWH = 0.4;       // standard-coal equivalent per kWh (industry convention)
+const TREE_KG_PER_YEAR = 21;       // one mature tree absorbs ~21 kg CO₂/yr
+const EV_MILES_PER_KWH = 3.5;
+function renderEnvironment(d) {
+  const life = d.solar ? d.solar.lifetime_kwh : null;
+  if (life == null) return;
+  const co2kg = life * CO2_KG_PER_KWH;
+  setText('env-co2', co2kg >= 1000 ? (co2kg / 1000).toFixed(2) + ' t' : Math.round(co2kg) + ' kg');
+  setText('env-kwh', life >= 1000 ? (life / 1000).toFixed(2) + ' MWh' : Math.round(life) + ' kWh');
+  setText('env-trees', Math.round(co2kg / TREE_KG_PER_YEAR).toLocaleString());
+  const coalkg = life * COAL_KG_PER_KWH;
+  setText('env-coal', coalkg >= 1000 ? (coalkg / 1000).toFixed(2) + ' t' : Math.round(coalkg) + ' kg');
+  setText('env-miles', Math.round(life * EV_MILES_PER_KWH).toLocaleString() + ' mi');
+}
+
+/* ── economics renderers (ported from energy.html) ── */
+function renderEconomics(prefix, econ) {
+  if (!econ) return;
+  const benefitEl = document.getElementById(prefix + 'benefit');
+  if (econ.solar_benefit_gbp === null) {
+    benefitEl.textContent = '—';
+    benefitEl.classList.remove('eco-neg');
+  } else {
+    const v = econ.solar_benefit_gbp;
+    tweenNumber(benefitEl, Math.abs(v), { decimals: 2, prefix: v < 0 ? '−£' : '£', duration: 700 });
+    benefitEl.classList.toggle('eco-neg', v < 0);
+  }
+  setText(prefix + 'import', fmtGbp(econ.import_cost_gbp));
+  setText(prefix + 'export', fmtGbp(econ.export_revenue_gbp));
+  const netEl = document.getElementById(prefix + 'net');
+  if (netEl) {
+    netEl.textContent = fmtGbp(econ.net_today_gbp);
+    /* An unknown figure stays neutral — it used to be painted green. */
+    netEl.className = 'mt-val' + (econ.net_today_gbp == null ? ''
+      : (econ.net_today_gbp < 0 ? ' bad' : ' good'));
+  }
+  setText(prefix + 'nosolar', fmtGbp(econ.no_solar_cost_gbp));
+  const ratesParts = [];
+  if (econ.import_rate_p != null) ratesParts.push('Import ' + DashCalc.fmtPence(econ.import_rate_p) + 'p');
+  if (econ.export_rate_p != null) ratesParts.push('Export ' + DashCalc.fmtPence(econ.export_rate_p) + 'p');
+  ratesParts.push('standing charge and gas are on the Cost page');
+  setText(prefix + 'rates', ratesParts.join('  ·  '));
+}
+
+/* The whole-house bill cards, the month tiles and the 30-day chart moved to
+   cost.html in v2.46.0. They were a near-exact duplicate of that page, and the
+   two showed different figures under the same word "Net" — energy-only here,
+   after the full bill there. */
+
+/* Period totals and the calendar-month table moved to cost.html in v2.46.0.
+   They are money, the Cost page owns money, and keeping a second copy here
+   meant two tables with different columns claiming to show the same thing. */
+
+/* ════════ charts ════════ */
+let powerChart = null, energyChart = null, dailyChart = null;
+let currentRange = 24;
+let _replaySlots = [], _replayIndex = 0, _replayTimer = null;
+function renderEnergyReplay(slots) {
+  const card = document.getElementById('energy-replay-card');
+  const slider = document.getElementById('replay-slider');
+  const readout = document.getElementById('replay-readout');
+  if (!card || !slider || !readout) return;
+  _replaySlots = Array.isArray(slots) ? slots.filter(s => s && s.t) : [];
+  if (!_replaySlots.length) { card.style.display = 'none'; return; }
+  card.style.display = '';
+  _replayIndex = Math.min(_replayIndex, _replaySlots.length - 1);
+  slider.max = String(_replaySlots.length - 1);
+  slider.value = String(_replayIndex);
+  const s = _replaySlots[_replayIndex];
+  readout.innerHTML = '<span class="replay-flow' + (_replayTimer ? ' playing' : '') + '">→</span>'
+    + esc(fmtT(s.t)) + ' · solar ' + Number(s.pv_kwh || 0).toFixed(2) + ' kWh · home '
+    + Number(s.home_kwh || 0).toFixed(2) + ' kWh · grid '
+    + (Number(s.import_kwh || 0) - Number(s.export_kwh || 0)).toFixed(2) + ' kWh'
+    + (s.soc_end != null ? ' · SOC ' + Number(s.soc_end).toFixed(1) + '%' : '');
+}
+function stopEnergyReplay() {
+  if (_replayTimer) clearInterval(_replayTimer);
+  _replayTimer = null;
+  renderEnergyReplay(_replaySlots);
+}
+function wireEnergyReplay() {
+  const slider = document.getElementById('replay-slider');
+  const play = document.getElementById('replay-play');
+  if (!slider || !play || slider.dataset.wired) return;
+  slider.dataset.wired = '1';
+  slider.addEventListener('input', () => { _replayIndex = Number(slider.value); renderEnergyReplay(_replaySlots); });
+  play.addEventListener('click', () => {
+    if (_replayTimer) { stopEnergyReplay(); play.textContent = 'Play'; return; }
+    play.textContent = 'Pause';
+    _replayTimer = setInterval(() => {
+      _replayIndex = (_replayIndex + 1) % _replaySlots.length;
+      renderEnergyReplay(_replaySlots);
+    }, 850);
+    renderEnergyReplay(_replaySlots);
+  });
+}
+/* Read from the tokens so the charts follow light/dark with everything else —
+   these were hardcoded hex, so the charts kept their light-mode colours while
+   the page around them switched. Re-read on each draw rather than cached,
+   because the OS theme can change while the page is open. */
+function chartColours() {
+  return {
+    soc:   cssVar('--bat',       '#34c759'),
+    pv:    cssVar('--solar',     '#f5a623'),
+    imp:   cssVar('--grid-imp',  '#ff3b30'),
+    exp:   cssVar('--grid-exp',  '#0a84ff'),
+    home:  cssVar('--home-load', '#af52de'),
+    bat:   cssVar('--bat',       '#34c759'),
+    /* Battery charge is a sink; tint it so it reads apart from discharge. */
+    batIn: cssVar('--bat-in',    '#1a8f3c'),
+  };
+}
+
+const CHART_BASE = {
+  responsive: true, maintainAspectRatio: false,
+  animation: { duration: matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 200 },
+  interaction: { mode: 'index', intersect: false },
+  scales: {
+    x: { ticks: { color: cssVar('--text-secondary', '#586574'), maxRotation: 0, autoSkipPadding: 20 }, grid: { color: 'rgba(100,116,139,.08)' } },
+    y: { ticks: { color: cssVar('--text-secondary', '#586574') }, grid: { color: 'rgba(100,116,139,.12)' } },
+  },
+  plugins: {
+    legend: { labels: { color: cssVar('--text-secondary', '#586574'), font: { size: 12 }, usePointStyle: true, pointStyle: 'rectRounded', boxWidth: 10, padding: 16 } },
+    tooltip: { backgroundColor: 'rgba(28,28,30,.92)', borderColor: 'rgba(128,128,128,.2)',
+               borderWidth: 1, titleColor: '#a5a2ff', bodyColor: '#f5f5f7', padding: 12, cornerRadius: 10 },
+  },
+};
+function fmtT(iso) {
+  const d = new Date(iso.replace(' ', 'T'));
+  if (isNaN(d)) return iso.slice(11, 16);
+  const today = new Date();
+  if (d.toDateString() === today.toDateString()) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleDateString([], { weekday: 'short' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+async function refreshCharts() {
+  if (document.hidden) return;
+  try {
+    const r = await sigenFetch('history', { hours: currentRange });
+    if (!r.ok) return;
+    const d = await r.json();
+    const slots = d.slots || [];
+    renderEnergyReplay(slots);
+    wireEnergyReplay();
+    _solSlots = slots;
+    renderSolarProgress();
+    renderSolarHours();
+    renderSocSparkline(slots);
+    const labels = slots.map(s => fmtT(s.t));
+    const socEnd = slots.map(s => s.soc_end);
+    // average kW per half-hour slot = kWh × 2
+    const pvKw = slots.map(s => (s.pv_kwh || 0) * 2);
+    const homeKw = slots.map(s => (s.home_kwh || 0) * 2);
+    const gridKw = slots.map(s => ((s.import_kwh || 0) - (s.export_kwh || 0)) * 2);   // +import / −export
+
+    /* power metrics chart — skip the full destroy/recreate when nothing
+       changed (the 5-min poll mostly re-sees identical slots; rebuilding
+       re-ran the entry animation and dropped a frame every refresh). */
+    const _sig = JSON.stringify([BATTERY_KWH, labels[0], labels[labels.length - 1], socEnd[socEnd.length - 1],
+                                 pvKw.length, currentRange, document.documentElement.dataset.theme || ""]);
+    if (window._powerSig === _sig && powerChart) return;
+    window._powerSig = _sig;
+    const C = chartColours();
+    if (powerChart) powerChart.destroy();
+    powerChart = new Chart(document.getElementById('chart-power'), {
+      type: 'line',
+      data: { labels, datasets: [
+        { label: 'Solar kW', data: pvKw, borderColor: C.pv, backgroundColor: 'rgba(245,166,35,.14)',
+          fill: false, tension: 0.2, pointRadius: 0, borderWidth: 1.8, yAxisID: 'y' },
+        { label: 'Home kW', data: homeKw, borderColor: C.home, backgroundColor: 'rgba(175,82,222,.10)',
+          fill: false, tension: 0.2, pointRadius: 0, borderWidth: 1.8, yAxisID: 'y' },
+        { label: 'Grid kW (+imp/−exp)', data: gridKw, borderColor: C.exp, backgroundColor: 'rgba(10,132,255,.08)',
+          fill: false, tension: 0.2, pointRadius: 0, borderWidth: 1.5, yAxisID: 'y' },
+        { label: 'SOC %', data: socEnd, borderColor: C.soc, borderDash: [5, 4],
+          fill: false, tension: 0.3, pointRadius: 0, borderWidth: 1.6, yAxisID: 'y1' },
+      ] },
+      options: { ...CHART_BASE,
+        scales: {
+          x: CHART_BASE.scales.x,
+          y: { ...CHART_BASE.scales.y, title: { display: true, text: 'kW', color: cssVar('--text-secondary', '#586574') } },
+          y1: { position: 'right', min: 0, max: 100, grid: { display: false },
+                ticks: { color: C.soc }, title: { display: true, text: 'SOC %', color: C.soc } },
+        } }
+    });
+
+    /* Half-hourly supply against sinks.
+       This used to stack Solar and Export upwards and Home and Import
+       downwards, which double-counted both sides: export is a SUBSET of solar
+       (and of battery discharge), and import is a subset of what feeds the
+       house. On a live day — 34.4 kWh generated, 12.5 exported — the positive
+       stack read nearly 47 kWh.
+
+       Sources go up, sinks go down, and the two now cancel to roughly zero per
+       slot. Battery flow comes from the SOC delta, which the slots already
+       carry. */
+    const bal = DashCalc.buildBalanceSeries(slots, BATTERY_KWH);
+    if (energyChart) energyChart.destroy();
+    energyChart = new Chart(document.getElementById('chart-energy'), {
+      type: 'bar',
+      data: { labels, datasets: [
+        { label: 'Solar',            data: bal.solar,      backgroundColor: C.pv,   stack: 'in' },
+        { label: 'Battery out',      data: bal.batteryOut, backgroundColor: C.bat,  stack: 'in' },
+        { label: 'Grid import',      data: bal.gridIn,     backgroundColor: C.imp,  stack: 'in' },
+        { label: 'Home use',         data: bal.home,       backgroundColor: C.home, stack: 'out' },
+        { label: 'Battery in',       data: bal.batteryIn,  backgroundColor: C.batIn, stack: 'out' },
+        { label: 'Grid export',      data: bal.gridOut,    backgroundColor: C.exp,  stack: 'out' },
+      ] },
+      options: { ...CHART_BASE,
+        plugins: { ...CHART_BASE.plugins,
+          tooltip: { ...CHART_BASE.plugins.tooltip,
+            callbacks: { label: (c) => c.dataset.label + ': '
+              + Math.abs(c.parsed.y).toFixed(2) + ' kWh' } } },
+        scales: { ...CHART_BASE.scales,
+          x: { ...CHART_BASE.scales.x, stacked: true },
+          y: { ...CHART_BASE.scales.y, stacked: true,
+               ticks: { ...CHART_BASE.scales.y.ticks, callback: v => Math.abs(v) },
+               title: { display: true, text: 'kWh per slot — supplied above, used below', color: cssVar('--text-secondary', '#586574') } },
+        } }
+    });
+  } catch (e) { /* charts reappear next refresh */ }
+}
+
+async function refreshDailyChart() {
+  if (document.hidden) return;
+  try {
+    const r = await sigenFetch('daily', { days: 30 });
+    if (!r.ok) return;
+    const d = await r.json();
+    const records = d.records || [];
+    const labels = records.map(r2 => r2.date.slice(5));
+    const C = chartColours();
+    if (dailyChart) dailyChart.destroy();
+    dailyChart = new Chart(document.getElementById('chart-daily'), {
+      type: 'bar',
+      data: { labels, datasets: [
+        { label: 'Solar', data: records.map(r2 => r2.pv_kwh), backgroundColor: C.pv },
+        { label: 'Export', data: records.map(r2 => r2.grid_export_kwh), backgroundColor: C.exp },
+        { label: 'Import', data: records.map(r2 => r2.grid_import_kwh), backgroundColor: C.imp },
+        { label: 'Home', data: records.map(r2 => r2.home_kwh), backgroundColor: C.home },
+      ] },
+      options: { ...CHART_BASE,
+        scales: { ...CHART_BASE.scales,
+          y: { ...CHART_BASE.scales.y, title: { display: true, text: 'kWh per day', color: cssVar('--text-secondary', '#586574') } },
+        } }
+    });
+  } catch (e) { /* silent */ }
+}
+
+/* ── week-on-week compare (v2.43.0) ──
+   Last 7 recorded days vs the 7 before, plus the same week last year
+   (364-day offset keeps weekdays aligned). Computed page-side from the
+   daily endpoint; the year column stays "—" until the history is deep
+   enough (Sigen recording started 26-Mar-2026). */
+/* Week-on-week arithmetic comes from the shared, TESTED energy-calc.js —
+   this page carried private copies of isoOffset/winSum until v2.72.0, which
+   is exactly the drift the shared module exists to prevent. Only the chip
+   RENDERING lives here; the percentage itself is DashCalc.pctDelta. */
+const _winSum = (byDate, anchorMs, startBack, field) =>
+  DashCalc.winSum(byDate, anchorMs, startBack, field);
+function _deltaChip(cur, prev, higherIsGood) {
+  const pct = DashCalc.pctDelta(cur, prev);
+  if (pct == null) return '';
+  if (Math.abs(pct) < 0.5) return '<span class="wow-delta flat">&#8212;</span>';
+  const up = pct > 0;
+  const good = (up === higherIsGood);
+  const arrow = up ? '&#9650;' : '&#9660;';
+  return `<span class="wow-delta ${good ? 'good' : 'bad'}">${arrow} ${Math.abs(pct).toFixed(0)}%</span>`;
+}
+async function refreshWeekCompare() {
+  if (document.hidden) return;
+  try {
+    const r = await sigenFetch('daily', { days: 400 });
+    if (!r.ok) return;
+    const records = (await r.json()).records || [];
+    if (records.length < 14) return;          // not enough for even week-on-week
+    const byDate = new Map(records.map(x => [x.date, x]));
+    const anchorMs = Date.parse(records[records.length - 1].date) + 43200000; // noon, DST-safe
+    const METRICS = [
+      { label: 'Solar',            field: 'pv_kwh',          unit: ' kWh', good: true  },
+      { label: 'Home use',         field: 'home_kwh',        unit: ' kWh', good: null  },
+      { label: 'Grid import',      field: 'grid_import_kwh', unit: ' kWh', good: false },
+      { label: 'Grid export',      field: 'grid_export_kwh', unit: ' kWh', good: true  },
+    ];
+    const yearProbe = _winSum(byDate, anchorMs, 364, 'pv_kwh');
+    const haveYear = yearProbe.found >= 5;
+    const days = w => (w.found && w.found < 7) ? ` (${w.found} recorded)` : '';
+    const curProbe = _winSum(byDate, anchorMs, 0, 'pv_kwh'), prevProbe = _winSum(byDate, anchorMs, 7, 'pv_kwh');
+    let rows = `<tr><th scope="col">Measure</th><th>Last 7 days${days(curProbe)}</th><th>Previous 7${days(prevProbe)}</th><th>Same week last year</th></tr>`;
+    const fmt = v => v == null ? '&#8212;' : v.toFixed(1);
+    for (const m of METRICS) {
+      const cur  = _winSum(byDate, anchorMs, 0, m.field);
+      const prev = _winSum(byDate, anchorMs, 7, m.field);
+      const yr   = haveYear ? _winSum(byDate, anchorMs, 364, m.field) : null;
+      // No delta between windows of different length: a short window reads as a drop.
+      const chip = (m.good === null || cur.found !== prev.found) ? '' : _deltaChip(cur.sum, prev.found ? prev.sum : null, m.good);
+      rows += `<tr><td>${m.label}</td>
+        <td><strong>${fmt(cur.found ? cur.sum : null)}${m.unit}</strong> ${chip}</td>
+        <td>${fmt(prev.found ? prev.sum : null)}${m.unit}</td>
+        <td>${yr ? fmt(yr.sum) + m.unit : '&#8212;'}</td></tr>`;
+    }
+    // Self-sufficiency % — share of home use NOT imported.
+    const ss = (h, i) => (h && h.found && i) ? Math.max(0, (1 - i.sum / h.sum) * 100) : null;
+    const hCur = _winSum(byDate, anchorMs, 0, 'home_kwh'), iCur = _winSum(byDate, anchorMs, 0, 'grid_import_kwh');
+    const hPrev = _winSum(byDate, anchorMs, 7, 'home_kwh'), iPrev = _winSum(byDate, anchorMs, 7, 'grid_import_kwh');
+    const hYr = haveYear ? _winSum(byDate, anchorMs, 364, 'home_kwh') : null;
+    const iYr = haveYear ? _winSum(byDate, anchorMs, 364, 'grid_import_kwh') : null;
+    const ssCur = ss(hCur, iCur), ssPrev = ss(hPrev, iPrev), ssYr = hYr ? ss(hYr, iYr) : null;
+    const ssFmt = v => v == null ? '&#8212;' : v.toFixed(1) + '%';
+    rows += `<tr><td>Self-sufficiency</td>
+      <td><strong>${ssFmt(ssCur)}</strong> ${_deltaChip(ssCur, ssPrev, true)}</td>
+      <td>${ssFmt(ssPrev)}</td><td>${ssFmt(ssYr)}</td></tr>`;
+    document.getElementById('wow-table').innerHTML = rows;
+    const note = document.getElementById('wow-note');
+    if (!haveYear) {
+      const first = records[0].date;
+      note.textContent = 'Year-on-year unlocks once a full year of history exists — recording started '
+        + new Date(first + 'T12:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) + '.';
+    } else {
+      note.textContent = 'Same week last year uses a 364-day offset so weekdays line up.';
+    }
+    document.getElementById('wow-card').style.display = '';
+  } catch (e) { /* optional card — never breaks the page */ }
+}
+
+document.querySelectorAll('#pm-tabs .chart-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#pm-tabs .chart-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentRange = parseInt(btn.dataset.range, 10);
+    refreshCharts();
+  });
+});
+
+/* ── export sync ── */
+async function refreshExportSync() {
+  if (document.hidden) return;
+  const tbody = document.getElementById('exp-sync-tbody');
+  const meta = document.getElementById('exp-sync-meta');
+  if (!tbody) return;
+  try {
+    const r = await sigenFetch('export-sync');
+    if (!r.ok) { tbody.innerHTML = '<tr><td colspan="7" class="muted">Could not load</td></tr>'; meta.textContent = ''; return; }
+    const d = await r.json();
+    if (!d.available) {
+      tbody.innerHTML = '<tr><td colspan="7" class="muted">' + esc(d.reason || 'Disabled') + '</td></tr>';
+      meta.textContent = '';
+      return;
+    }
+    const rows = d.rows || [];
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="muted">No settled days available yet</td></tr>';
+    } else {
+      tbody.innerHTML = rows.map(row => {
+        const f2 = v => (v != null) ? v.toFixed(2) : '—';
+        const dkwh = (row.diff_kwh != null) ? (row.diff_kwh >= 0 ? '+' : '') + row.diff_kwh.toFixed(2) : '—';
+        const dpct = (row.diff_pct != null) ? (row.diff_pct >= 0 ? '+' : '') + row.diff_pct.toFixed(1) + '%' : '—';
+        let badge = '<span class="muted">' + esc(row.status) + '</span>';
+        if (row.status === 'ok') badge = '<span style="color:var(--on-color)">' + I('check') + ' in sync</span>';
+        if (row.status === 'drift') badge = '<span style="color:var(--bad)">' + I('warn') + ' drift</span>';
+        if (row.status === 'unsettled') badge = '<span class="muted">unsettled</span>';
+        if (row.status === 'fetch_error') badge = '<span style="color:var(--warn)">fetch error</span>';
+        if (row.status === 'no_sigen_record') badge = '<span class="muted">no record</span>';
+        return '<tr><td>' + esc(row.date) + '</td><td>' + f2(row.sigen_kwh) + ' kWh</td><td>' + f2(row.octopus_kwh)
+          + ' kWh</td><td>' + dkwh + '</td><td>' + dpct + '</td><td class="tdays">' + (row.slots || 0) + '</td><td>' + badge + '</td></tr>';
+      }).join('');
+    }
+    const su = d.summary || {};
+    const parts = [];
+    if (su.days_compared) parts.push(su.days_compared + 'd compared');
+    if (su.days_unsettled) parts.push(su.days_unsettled + ' unsettled');
+    if (su.avg_diff_pct != null) parts.push('avg ' + (su.avg_diff_pct >= 0 ? '+' : '') + su.avg_diff_pct.toFixed(2) + '%');
+    if (su.worst) parts.push('worst ' + su.worst.date + ' ' + (su.worst.diff_pct >= 0 ? '+' : '') + su.worst.diff_pct.toFixed(1) + '%');
+    meta.textContent = parts.length ? parts.join(' · ') : 'no data';
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="7" class="muted">Error: ' + esc(e) + '</td></tr>';
+  }
+}
+
+/* ════════ device poll: pack telemetry + fleet (v2.18.0 pattern) ════════ */
+window.__DEVICES = null;
+function _findInverter() {
+  const ds = window.__DEVICES || [];
+  return ds.find(d => d.states && d.states.pvPowerWatts !== undefined && d.states.batterySoc !== undefined) || null;
+}
+function _bw(w) { const n = Math.round(w); return Math.abs(n) >= 1000 ? (w / 1000).toFixed(2) + ' kW' : n + ' W'; }
+async function refreshDevices() {
+  if (document.hidden) return;
+  try {
+    // Through the shared delta-aware client (dashboard.js), NOT a raw
+    // /v2/api/indigo.devices fetch — the full collection is ~685 KB here and
+    // this poll was re-downloading it every 20 s per open tab. The shared
+    // client's changedSince cache makes the steady-state cost a few hundred
+    // bytes, and the DashGate hook inside it covers plugin restarts too.
+    if (!window._energyIndigo) window._energyIndigo = new IndigoAPI();
+    const data = await window._energyIndigo.getDevices();
+    window.__DEVICES = Array.isArray(data) ? data : (data.devices || []);
+    renderBattHealth();
+    if (_lastStatus) {
+      const inv = _findInverter();
+      if (inv) {
+        renderSankey(_lastStatus.today_summary,
+                     num(inv.states.batteryDailyChargeKwh),
+                     num(inv.states.batteryDailyDischargeKwh));
+        const _c = num(inv.states.batteryDailyChargeKwh), _d = num(inv.states.batteryDailyDischargeKwh);
+        setText('sum-chg', _c != null ? _c.toFixed(1) + ' kWh' : '—');   // absent is not 0.0
+        setText('sum-dis', _d != null ? _d.toFixed(1) + ' kWh' : '—');
+      }
+    }
+  } catch (_) { /* optional */ }
+}
+function _bhTile(lab, val, sub, cls) {
+  return '<div class="mtile"><div class="mt-lab">' + lab + '</div>'
+    + '<div class="mt-val' + (cls ? ' ' + cls : '') + '">' + val + '</div><div class="mt-sub">' + (sub || '') + '</div></div>';
+}
+function renderBattHealth() {
+  const el = document.getElementById('batt-health'); if (!el) return;
+  const inv = _findInverter();
+  if (!inv) { el.innerHTML = '<div class="muted">Sigen inverter not found</div>'; return; }
+  const st = inv.states;
+  const ds = window.__DEVICES || [];
+  const mgr = ds.find(d => d.states && (d.states.dawnViable !== undefined || d.states.socAtDawn !== undefined));
+  const soh = num(st.batterySoh), t = num(st.batteryTempC), tmax = num(st.batteryMaxTempC), tmin = num(st.batteryMinTempC);
+  const cell = num(st.batteryCellVoltage), chg = num(st.batteryDailyChargeKwh), dis = num(st.batteryDailyDischargeKwh);
+  const dawnSoc = mgr ? num(mgr.states.socAtDawn) : null;
+  const dawnViable = mgr && String(mgr.states.dawnViable).toLowerCase() === 'true';
+  let h = '';
+  h += _bhTile('State of health', soh == null ? '—' : soh.toFixed(0) + '%', 'battery SoH', (soh != null && soh < 90) ? 'warn' : 'good');
+  h += _bhTile('Pack temp', t == null ? '—' : t.toFixed(1) + '°C',
+    (tmin != null && tmax != null) ? tmin.toFixed(0) + '–' + tmax.toFixed(0) + '°C spread' : '',
+    (t != null && (t > 45 || t < 2)) ? 'warn' : '');
+  /* v2.81.0 — the packs, as far as the inverter allows. It publishes no
+     per-pack registers, so the plugin infers the shape from the hottest,
+     coldest and average across the four; this tile words the verdict.
+     Absent when the figures can't support one — never a reassuring
+     "healthy" off a reading that could not be taken. */
+  /* _solStatus is this page's copy of the status payload — __SIGEN_DATA is
+     the HUB's global and does not exist here. */
+  const bal = (_solStatus && _solStatus.battery) ? _solStatus.battery.pack_balance : null;
+  const balTxt = DashCalc.packBalanceText(bal);
+  if (balTxt) {
+    const _spread = num(bal.spread_c);
+    h += _bhTile('Pack balance', _spread != null ? _spread.toFixed(1) + '°C' : '—',
+                 balTxt.text, balTxt.tone);
+  }
+  const gq = (_solStatus && _solStatus.grid_quality)
+    ? DashCalc.gridFrequencyState(_solStatus.grid_quality.frequency_hz) : null;
+  if (gq) {
+    h += _bhTile('Grid frequency', gq.text,
+                 (gq.offset === 0 ? 'on 50 Hz' :
+                  (gq.offset > 0 ? '+' : '−') + Math.abs(gq.offset).toFixed(2) + ' Hz vs 50'),
+                 gq.tone);
+  }
+  /* v2.82.0 — the inverter's own diagnostics, named from the official
+     protocol. Insulation resistance is deliberately shown WITHOUT a verdict:
+     the manufacturer's fault threshold isn't in the public spec, so the
+     honest use is to watch it trend (the SQL Logger charts it) rather than
+     judge it against a number we'd be making up. The inverter's own alarm
+     covers the pass/fail question. */
+  /* v2.83.0 — the MEASURED grid voltage. Sitting near 253 V is why an
+     inverter curtails export, and the cause is the network, not the house. */
+  const gv = (_solStatus && _solStatus.grid_quality)
+    ? DashCalc.gridVoltageState(_solStatus.grid_quality.voltage_v,
+                                _solStatus.grid_quality.statutory_max_v,
+                                _solStatus.grid_quality.statutory_min_v) : null;
+  if (gv) {
+    h += _bhTile('Grid voltage', gv.volts.toFixed(1) + ' V', gv.note, gv.tone);
+  }
+  const ih = (_solStatus && _solStatus.inverter_health) || null;
+  if (ih) {
+    if (ih.pcs_temp_c != null) {
+      h += _bhTile('Inverter temp', ih.pcs_temp_c.toFixed(1) + '°C', 'power electronics',
+                   ih.pcs_temp_c >= 80 ? 'warn' : '');
+    }
+    if (ih.insulation_mohm != null) {
+      h += _bhTile('PV insulation', ih.insulation_mohm.toFixed(2) + ' MΩ', 'watch the trend');
+    }
+    if (ih.alarm) {
+      h += _bhTile('Inverter alarm', ih.alarm === 'clear' ? 'None' : 'Raised',
+                   ih.alarm === 'clear' ? 'no faults' : 'check the app',
+                   ih.alarm === 'clear' ? 'good' : 'warn');
+    }
+  }
+  h += _bhTile('Cell voltage', cell == null ? '—' : cell.toFixed(3) + ' V', 'per cell');
+  h += _bhTile('Charged today', chg == null ? '—' : chg.toFixed(1) + ' kWh', 'into battery');
+  h += _bhTile('Discharged today', dis == null ? '—' : dis.toFixed(1) + ' kWh', 'from battery');
+  if (dawnSoc != null) h += _bhTile('Dawn reserve', dawnSoc.toFixed(1) + ' kWh', dawnViable ? 'reaches dawn' : 'short of dawn', dawnViable ? 'good' : 'warn');
+  el.innerHTML = h;
+}
+
+/* ════════ boot ════════ */
+let _statusBusy = false;
+async function fetchStatus() {
+  // In-flight guard: the proxy's upstream timeout is deliberately 12 s, so a
+  // 5 s beat could stack three identical requests behind one slow fetch.
+  if (document.hidden || _statusBusy) return;
+  _statusBusy = true;
+  try {
+    const r = await sigenFetch('status');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    update(await r.json());
+  } catch (e) {
+    setText('ts', 'Fetch error: ' + e.message);
+  } finally {
+    _statusBusy = false;
+  }
+}
+if (window.DashFeatures && DashFeatures.sigenAbsent('Energy')) {
+  /* v3.13.0: no SigenEnergyManager — the notice is on screen in place of the
+     page and there is nothing to poll. */
+} else {
+  fetchStatus();
+  refreshStringHours();
+  setInterval(fetchStatus, 5 * 1000);
+  refreshDevices();
+  setInterval(refreshDevices, 20 * 1000);
+  refreshCharts();
+  refreshDailyChart();
+  refreshWeekCompare();
+  refreshExportSync();
+  setInterval(refreshCharts, 5 * 60 * 1000);
+  setInterval(refreshStringHours, 5 * 60 * 1000);
+  setInterval(refreshDailyChart, 30 * 60 * 1000);
+  setInterval(refreshWeekCompare, 60 * 60 * 1000);
+  setInterval(refreshExportSync, 60 * 60 * 1000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { stopEnergyReplay(); return; }
+    fetchStatus(); refreshDevices(); refreshCharts(); refreshStringHours();
+  });
+}
+_wireHelpTips();
+</script>
+
+<button class="back-to-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Back to top">&uarr;</button>
+<script>
+const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
+
+(function () {
+  const btn = document.querySelector('.back-to-top');
+  if (!btn) return;
+  const onScroll = () => {
+    if (window.scrollY > 200) btn.classList.add('visible');
+    else btn.classList.remove('visible');
+  };
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+})();
+</script>
+<script src="dashboards-icons.js"></script>
+<script src="a11y.js"></script>
+<script src="standalone-nav.js"></script>
+</body>
+</html>

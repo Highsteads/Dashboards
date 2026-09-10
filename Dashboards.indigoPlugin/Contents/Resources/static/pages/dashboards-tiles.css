@@ -1,0 +1,76 @@
+/* Filename:    dashboards-tiles.css
+   Description: The tile wall — shared by the hub (index.html) and the section
+                menus (menu.html). Extracted from index.html on 28-08-2026 when
+                House / Rooms / Tools moved onto their own pages: two copies of
+                these rules would have drifted the moment either page was
+                touched, and the tiles are the one thing both must agree on.
+   Author:      CliveS & Claude Opus 5
+   Version:     1.0 */
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+    gap: 12px;
+    max-width: 900px;
+    margin: 0 auto;
+}
+/* Full-width section label inside the tile grid (House / Rooms / Tools). */
+.grid-label {
+    grid-column: 1 / -1;
+    font-size: 12px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1.2px; color: var(--text-secondary);
+    margin: 12px 4px -4px;
+}
+.grid-label:first-child { margin-top: 0; }
+.card {
+    position: relative;
+    background: var(--card-bg); border-radius: var(--r-lg); padding: 14px 10px;
+    border: 1px solid var(--border-soft);
+    box-shadow: var(--shadow); cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; text-align: center;
+    text-decoration: none; color: inherit;
+    min-height: 104px; justify-content: center;
+    transition: transform 0.15s, box-shadow 0.15s;
+}
+.card:active { transform: scale(0.97); }
+.card-icon {
+    font-size: 26px; margin-bottom: 7px;
+    width: 44px; height: 44px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: var(--r-md);
+}
+.card-title { font-size: 14px; font-weight: 600; margin-bottom: 2px; line-height: 1.2; letter-spacing: -0.01em; }
+.card-desc { font-size: 11px; color: var(--text-secondary); line-height: 1.3; }
+.card-energy .card-icon { background: rgba(52, 199, 89, 0.18); color: #34c759; }
+.card-heating .card-icon { background: rgba(255, 149, 0, 0.18); color: #ff9500; }
+.card-active .card-icon { background: rgba(0, 122, 255, 0.18); color: #007aff; }
+.card-room .card-icon { background: rgba(175, 82, 222, 0.18); color: #af52de; }
+.card-cameras .card-icon { background: rgba(255, 69, 58, 0.18); color: #ff453a; }
+.card-wifi .card-icon { background: rgba(90, 200, 250, 0.18); color: #5ac8fa; }
+.card-link .card-icon { background: rgba(100, 210, 255, 0.18); color: #64d2ff; }
+.card-presence .card-icon { background: rgba(48, 160, 214, 0.18); color: #34a0d6; }
+.card-system .card-icon { background: rgba(142, 142, 147, 0.18); color: #8e8e93; }
+.card-carbon .card-icon { background: rgba(120, 190, 60, 0.20); color: #6ab42f; }
+.card-activity .card-icon { background: rgba(125, 122, 255, 0.20); color: #7d7aff; }
+.card-scenes .card-icon { background: rgba(255, 214, 10, 0.20); color: #d6a500; }
+.card-settings .card-icon { background: rgba(142, 142, 147, 0.18); color: #8e8e93; }
+
+/* ── Live room tiles (v2.31.0): temp pill, occupancy ring, status line.
+   Rendered by renderRoomTiles() from the 3s poll + rooms.json — the
+   static card-desc is only shown until live data arrives (or when a
+   room isn't in rooms.json). ── */
+.room-temp {
+    position: absolute; top: 8px; right: 8px;
+    font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums;
+    padding: 3px 7px; border-radius: var(--r-sm); line-height: 1.2;
+    background: var(--card-bg-alt); border: 1px solid var(--border-soft);
+    color: var(--text-secondary);
+}
+.room-temp.cold { color: #0a84ff; }
+.room-temp.warm { color: var(--warn); }
+.card-icon { transition: box-shadow 0.3s; }
+.card-icon.occ { box-shadow: 0 0 0 2px var(--on-color); }
+.card-desc .rl-occ   { color: var(--on-color); font-weight: 600; }
+.card-desc .rl-on    { color: var(--text); font-weight: 600; }
+.card-desc .rl-open  { color: var(--warn); font-weight: 600; }
+.card-desc .rl-quiet { color: var(--text-muted); }

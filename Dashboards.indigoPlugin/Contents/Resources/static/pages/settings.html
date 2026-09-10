@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<!--
+  Filename:    settings.html
+  Description: Dashboards settings editor (v2.0.0). Forms-based editor for
+               cameras, per-room extras (doors / appliances / TV / hide /
+               include / sort), the scenes hide-list, plus a raw-JSON escape
+               hatch. Loads the effective config from the plugin's
+               getDashboardsConfig endpoint and saves via
+               saveDashboardsConfig — after the first save,
+               dashboards_config.json is the single source of truth and the
+               IndigoSecrets dicts are no longer consulted.
+  Author:      CliveS & Claude Fable 5; Claude Opus 5 (1.1)
+  Date:        30-08-2026
+  Version:     1.1
+
+  v1.1 (30-08-2026): a favourite this page's picker cannot represent — a room
+  shortcut, a group, anything a newer hub understands — now rides through a
+  save untouched instead of being silently deleted.
+-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta name="indigo-page-name" content="Settings">
+    <meta name="indigo-page-icon" content="gearshape.fill">
+    <meta name="indigo-page-description" content="Dashboards configuration editor">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Dashboards">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#5856d6">
+    <link rel="apple-touch-icon" sizes="180x180" href="/public/dashboards/apple-touch-icon.png">
+    <title>Dashboards Settings</title>
+    <link rel="stylesheet" href="dashboards-theme.css">
+    <style>
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: var(--font-ui);
+            background: var(--bg); color: var(--text);
+            padding: max(80px, calc(72px + env(safe-area-inset-top))) 0 110px;
+            min-height: 100vh;
+        }
+        .topbar {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 10;
+            background: var(--card-bg); border-bottom: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            padding: 10px 16px; padding-top: max(10px, env(safe-area-inset-top));
+        }
+        .topbar-3col {
+            display: grid; grid-template-columns: 1fr 2fr 1fr; align-items: center;
+            gap: 8px; max-width: 980px; margin: 0 auto;
+        }
+        .topbar-3col h1 { font-size: 20px; font-weight: 700; text-align: center; }
+        .topbar-status { font-size: 11px; color: var(--text-secondary); text-align: center; }
+        .nav-btn {
+            background: var(--card-bg); border: 1px solid var(--border);
+            color: var(--accent); padding: 8px 14px; border-radius: var(--r-md);
+            font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none;
+            display: inline-flex; font-family: inherit;
+        }
+        main { max-width: 980px; margin: 0 auto; padding: 0 16px; }
+        .card {
+            background: var(--card-bg); border: 1px solid var(--border);
+            border-radius: var(--r-lg); box-shadow: var(--shadow);
+            padding: 16px; margin-bottom: 18px;
+        }
+        .card > h2 { font-size: 17px; margin-bottom: 4px; }
+        .card > .hint { font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.4; }
+        .banner {
+            border-radius: var(--r-md); padding: 10px 14px; font-size: 13px;
+            margin-bottom: 18px; line-height: 1.45;
+            background: color-mix(in srgb, var(--accent) 12%, var(--card-bg));
+            border: 1px solid var(--accent);
+        }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { text-align: left; color: var(--text-secondary); font-weight: 600; padding: 4px 6px; }
+        td { padding: 4px 6px; vertical-align: middle; }
+        input[type=text], input[type=number], select, textarea {
+            width: 100%; padding: 7px 9px; border-radius: var(--r-sm);
+            border: 1px solid var(--border); background: var(--bg);
+            color: var(--text); font-family: inherit; font-size: 13px;
+        }
+        input[type=checkbox] { width: 17px; height: 17px; accent-color: var(--accent); }
+        textarea { font-family: ui-monospace, Menlo, monospace; font-size: 12px; min-height: 260px; }
+        .btn {
+            background: var(--card-bg); border: 1px solid var(--border);
+            color: var(--accent); padding: 7px 13px; border-radius: var(--r-sm);
+            font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
+        }
+        .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+        .btn.danger  { color: var(--err); }
+        .btn:active  { transform: scale(.97); }
+        .row-del { width: 34px; text-align: center; }
+        details.room { border: 1px solid var(--border); border-radius: var(--r-md); margin-bottom: 8px; }
+        details.room > summary {
+            padding: 10px 12px; font-weight: 600; cursor: pointer; font-size: 14px;
+            list-style: none; display: flex; justify-content: space-between;
+        }
+        details.room > summary .meta { color: var(--text-secondary); font-weight: 400; font-size: 12px; }
+        details.room > .body { padding: 4px 12px 12px; border-top: 1px solid var(--border); }
+        .field { margin: 10px 0; }
+        .field label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+        .field .names { font-size: 11px; color: var(--text-secondary); margin-top: 3px; min-height: 13px; }
+        .subhead { font-size: 13px; font-weight: 700; margin: 14px 0 6px; }
+        .scene-folder { margin: 10px 0; }
+        .scene-folder > label { font-weight: 700; font-size: 13px; display: flex; gap: 8px; align-items: center; }
+        .scene-items { margin: 6px 0 0 26px; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 4px; }
+        .scene-items label { font-size: 13px; display: flex; gap: 7px; align-items: center; }
+        .savebar {
+            position: fixed; bottom: 0; left: 0; right: 0; z-index: 20;
+            background: var(--card-bg); border-top: 1px solid var(--border);
+            padding: 12px 16px; padding-bottom: max(12px, env(safe-area-inset-bottom));
+        }
+        .savebar-inner {
+            max-width: 980px; margin: 0 auto;
+            display: flex; gap: 12px; align-items: center;
+        }
+        #save-msg { font-size: 13px; flex: 1; }
+        #save-msg.ok  { color: var(--on-color); }
+        #save-msg.err { color: var(--err); }
+        .loading { color: var(--text-secondary); text-align: center; padding: 48px; }
+    
+        /* ═══ Shared Apple/Safari polish (v2.25.0) ═════════════════
+           Appended uniformly across pages: frosted translucent bars, laptop
+           hover states, keyboard focus rings, reduced-motion support, and
+           Safari/iOS fixes (dynamic viewport height, text-size-adjust, tap
+           highlight). Selectors a page lacks simply never match. */
+        html { -webkit-text-size-adjust: 100%; }
+        body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+        @supports (min-height: 100dvh) { body { min-height: 100dvh; } }
+        a, button, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+        :focus-visible { outline: 2px solid var(--accent, #5856d6); outline-offset: 2px; }
+        .topbar, .bottombar {
+            background: rgba(249, 249, 251, 0.82);
+            -webkit-backdrop-filter: saturate(180%) blur(20px);
+            backdrop-filter: saturate(180%) blur(20px);
+            box-shadow: none;
+        }
+        @media (prefers-color-scheme: dark) {
+            .topbar, .bottombar { background: rgba(22, 22, 24, 0.80); }
+        }
+        @media (hover: hover) and (pointer: fine) {
+            a.card:hover, a.dash-card:hover, .fav-tile:not(.fav-reading):hover, a.home-cam:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+            }
+            .nav-btn:hover { transform: translateY(-1px); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                transition-duration: 0.01ms !important;
+                animation-duration: 0.01ms !important;
+                scroll-behavior: auto !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <div class="topbar-3col">
+            <div><a class="nav-btn" href="index.html">&larr; Home</a></div>
+            <div>
+                <h1>Settings</h1>
+                <div class="topbar-status" id="source">Loading&hellip;</div>
+            </div>
+            <div></div>
+        </div>
+    </header>
+
+    <main id="content"><div class="loading">Loading configuration&hellip;</div></main>
+
+    <div class="savebar">
+        <div class="savebar-inner">
+            <div id="save-msg"></div>
+            <button class="btn" id="reload-btn">Reload</button>
+            <button class="btn primary" id="save-btn">Save</button>
+        </div>
+    </div>
+
+    <datalist id="devlist"></datalist>
+
+    <script src="config.js" onerror="window.INDIGO_CONFIG_MISSING=true"></script>
+    <script src="dashboards-auth.js"></script>
+    <script src="dashboards-ui.js"></script>
+    <script src="dashboards-gate.js"></script>
+    <script>
+const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
+
+    "use strict";
+    (function () {
+        const ICFG = window.INDIGO_CONFIG || {};
+        if (!ICFG.baseURL || !ICFG.apiKey) { location.href = "index.html"; return; }
+        const EP = "/message/com.clives.indigoplugin.dashboards/";
+
+        let cfg = null;          // working config (store shape)
+        let DEVICES = [];        // [{id,name,folder}]
+        let DEVNAMES = {};       // id -> name
+        let GROUPS = [];         // [{id,name,folder}] — all action groups
+
+        const esc = s => String(s == null ? "" : s)
+            .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+
+        async function api(path, body) {
+            // The liveness gate (v2.95.3): this is the page most likely to be
+            // used right after a restart, and a /message/ call landing on a
+            // restarting plugin wedges IWS for ~5 minutes.
+            if (window.DashGate && await window.DashGate.check() === "down") {
+                throw new Error("the plugin is restarting — try again in a moment");
+            }
+            const res = await fetch(EP + path + "/", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": "Bearer " + ICFG.apiKey
+                },
+                body: JSON.stringify(body || {})
+            });
+            const json = await res.json().catch(() => null);
+            if (!res.ok || !json || json.ok === false) {
+                throw new Error((json && json.error) || ("HTTP " + res.status));
+            }
+            return json;
+        }
+
+        // ── id-list helpers (comma-separated ids in text inputs) ─────────
+        const idsToStr  = ids => (ids || []).join(", ");
+        const strToIds  = s => String(s || "").split(",").map(x => parseInt(x.trim(), 10)).filter(n => !isNaN(n));
+        const idsToNames = ids => (ids || []).map(i => DEVNAMES[i] || ("?" + i)).join(" · ");
+
+        function bindNames(input, namesEl) {
+            const update = () => { namesEl.textContent = idsToNames(strToIds(input.value)); };
+            input.addEventListener("input", update);
+            update();
+        }
+
+        // ── render ───────────────────────────────────────────────────────
+        function render() {
+            const main = document.getElementById("content");
+            main.innerHTML = "";
+            main.appendChild(renderBanner());
+            main.appendChild(renderFavourites());
+            main.appendChild(renderCustomLinks());
+            main.appendChild(renderCameras());
+            main.appendChild(renderRooms());
+            main.appendChild(renderScenes());
+            main.appendChild(renderSecurity());
+            main.appendChild(renderRawJson());
+            // device datalist for manual id lookup
+            document.getElementById("devlist").innerHTML =
+                DEVICES.map(d => `<option value="${d.id}">${esc(d.name)}</option>`).join("");
+        }
+
+        function el(html) {
+            const t = document.createElement("template");
+            t.innerHTML = html.trim();
+            return t.content.firstElementChild;
+        }
+
+        function renderBanner() {
+            const isStore = (window._cfgSource === "store");
+            return el(`<div class="banner">${isStore
+                ? "Config source: <b>dashboards_config.json</b> (this editor). IndigoSecrets dashboard dicts are no longer consulted."
+                : "Config source: <b>legacy IndigoSecrets / PluginConfig</b>. The current values are pre-loaded below — your first Save writes <b>dashboards_config.json</b>, which then becomes the single source of truth."}</div>`);
+        }
+
+        // ── favourites (v2.10.0) ──────────────────────────────────────────
+        // One-tap device/scene tiles pinned to the top of the hub. Each row is
+        // a single picker (devices + scenes in one select, value "type:id"),
+        // an optional label override, and up/down/remove. DOM order = display
+        // order on the hub.
+        function favOptionsHtml(selType, selId) {
+            const devOpts = DEVICES.map(d =>
+                `<option value="device:${d.id}"${selType === "device" && selId === d.id ? " selected" : ""}>${esc(d.name)}</option>`).join("");
+            const scOpts = GROUPS.map(g =>
+                `<option value="scene:${g.id}"${selType === "scene" && selId === g.id ? " selected" : ""}>${esc(g.name)}</option>`).join("");
+            // Door tiles (v2.76.0): the same device list again, but the pick
+            // means "render this device as a state-driven door tile" — the row
+            // then asks for the open and close action groups instead of a
+            // reading. Built for devices exposing a doorState-style state
+            // (e.g. the GarageDoor plugin's closed/open/moving/stuck/unknown).
+            const doorOpts = DEVICES.map(d =>
+                `<option value="door:${d.id}"${selType === "door" && selId === d.id ? " selected" : ""}>${esc(d.name)}</option>`).join("");
+            // An id the picker cannot show any more (device deleted, scene
+            // renumbered) used to fall to the blank option and be DROPPED on
+            // Save without a word (v2.95.4). Name it and keep it selected, so
+            // removing it is the user who decides.
+            const known = (selType === "device" || selType === "door") ? DEVICES.some(d => d.id === selId)
+                        : selType === "scene" ? GROUPS.some(g => g.id === selId) : true;
+            const missing = (selType && selId && !known)
+                ? `<option value="${esc(selType)}:${esc(String(selId))}" selected>(not found: ${esc(selType)} #${esc(String(selId))} — pick another, or it stays as is)</option>` : "";
+            return `<option value="">&mdash; pick a device or scene &mdash;</option>${missing}
+                <optgroup label="Devices">${devOpts}</optgroup>
+                <optgroup label="Scenes">${scOpts}</optgroup>
+                <optgroup label="Door tiles (state-driven)">${doorOpts}</optgroup>`;
+        }
+        // Door rows: the action-group pickers for each direction.
+        function doorActionOptions(selId) {
+            const opts = GROUPS.map(g =>
+                `<option value="${g.id}"${Number(selId) === g.id ? " selected" : ""}>${esc(g.name)}</option>`).join("");
+            return `<option value="">&mdash; action &mdash;</option>${opts}`;
+        }
+        // Optional lock device (v2.77.0): choosing one makes the row a
+        // LOCK-flavoured door (Locked / Unlocked / Open from lock + contact,
+        // press unlocks) — the close action may then be left unset.
+        function doorLockOptions(selId) {
+            const opts = DEVICES.map(d =>
+                `<option value="${d.id}"${Number(selId) === d.id ? " selected" : ""}>${esc(d.name)}</option>`).join("");
+            return `<option value="">&mdash; no lock (open/close door) &mdash;</option>${opts}`;
+        }
+        // Reading favourites (v2.19.0): fetch a device's live states so the row
+        // can offer a "reading" dropdown (voltage / temperature / SOC / …).
+        async function _fetchDevice(id) {
+            const r = await fetch("/v2/api/indigo.devices/" + id, {
+                headers: { "Authorization": "Bearer " + ICFG.apiKey, "Accept": "application/json" } });
+            if (!r.ok) throw new Error("HTTP " + r.status);
+            return r.json();
+        }
+        async function _favPopulateReadings(pickVal, sel, selectedState) {
+            sel.innerHTML = '<option value="">On/off (switch)</option>';
+            // The original saved state rides on the select so a Save during
+            // the fetch window — or after a failed fetch — carries it through
+            // instead of silently downgrading a reading tile to a switch.
+            sel.dataset.orig = selectedState || "";
+            sel.dataset.loaded = "";
+            if (!pickVal || pickVal.slice(0, 7) !== "device:") { sel.disabled = true; return; }
+            sel.disabled = false;
+            const id = parseInt(pickVal.slice(7), 10);
+            if (isNaN(id)) return;
+            try {
+                const dev = await _fetchDevice(id);
+                const states = (dev && dev.states) || {};
+                // base state names only — the hub auto-prefers the ".ui" variant
+                const keys = Object.keys(states).filter(k => k.slice(-3) !== ".ui").sort();
+                keys.forEach(k => {
+                    const o = document.createElement("option");
+                    o.value = k; o.textContent = k;
+                    if (k === selectedState) o.selected = true;
+                    sel.appendChild(o);
+                });
+                if (selectedState && keys.indexOf(selectedState) === -1) {
+                    const o = document.createElement("option");
+                    o.value = selectedState; o.textContent = selectedState; o.selected = true;
+                    sel.appendChild(o);
+                }
+                sel.dataset.loaded = "1";
+            } catch (e) { /* leave the switch default if the device can't be fetched */ }
+        }
+
+        function renderFavourites() {
+            const card = el(`<section class="card"><h2>Favourites</h2>
+                <div class="hint">One-tap tiles pinned to the top of the hub &mdash; your most-used devices and scenes. The order here is the order they appear. Tapping a device toggles it; tapping a scene runs it. Leave the label blank to use the device/scene's own name. Pick a <b>reading</b> (e.g. voltage, temperature) to show that value as a read-only tile instead of an on/off switch. A <b>door tile</b> is one state-driven button for a door device: it shows the door's live state (closed / opening / open / closing) and a tap opens or closes depending on the state shown &mdash; give it the two action groups that open and close the door.</div>
+                <div id="fav-list"></div>
+                <div style="margin-top:8px"><button class="btn" id="fav-add">+ Add favourite</button></div>
+            </section>`);
+            const list = card.querySelector("#fav-list");
+            // The third column depends on the pick: a reading dropdown for a
+            // device, the open/close action pair for a door tile.
+            function favExtraRender(r, f) {
+                const cell = r.querySelector(".fav-extra");
+                const pickVal = r.querySelector(".fav-pick").value;
+                const type = pickVal ? pickVal.slice(0, pickVal.indexOf(":")) : (f.type || "");
+                if (type === "door") {
+                    cell.innerHTML = `<select class="fav-open" title="Action group that OPENS (or unlocks) this door">${doorActionOptions(f.openAction)}</select>
+                        <select class="fav-close" title="Action group that CLOSES this door — leave unset for a lock-style door">${doorActionOptions(f.closeAction)}</select>
+                        <select class="fav-lock" title="Optional lock device — makes this a lock-style door (Locked / Unlocked / Open; press unlocks)">${doorLockOptions(f.lockId)}</select>`;
+                } else {
+                    cell.innerHTML = `<select class="fav-reading" title="Show a device reading as a value tile instead of an on/off switch"><option value="">On/off (switch)</option></select>
+                        <span style="display:flex; gap:4px;">
+                            <input type="number" step="any" class="fav-warnbelow" placeholder="amber &lt;" title="Reading colour: amber below this value (optional; green at or above)" value="${f.warnBelow != null ? esc(String(f.warnBelow)) : ""}" style="width:50%; min-width:0;">
+                            <input type="number" step="any" class="fav-badbelow" placeholder="red &lt;" title="Reading colour: red below this value (optional)" value="${f.badBelow != null ? esc(String(f.badBelow)) : ""}" style="width:50%; min-width:0;">
+                        </span>`;
+                    _favPopulateReadings(pickVal, cell.querySelector(".fav-reading"), f.state || "");
+                }
+            }
+            // A favourite this editor's picker cannot represent — a room
+            // shortcut (v2.89.0), a group (v2.93.0), or anything a NEWER build
+            // of the hub understands and this page does not. Every one of them
+            // used to be DELETED by a save: favRow rendered a picker with no
+            // matching option, so the select fell back to its blank first entry
+            // and collectFavourites dropped the row on `if (!v) return`. Three
+            // room shortcuts would have vanished the first time Settings was
+            // opened and saved, silently, with no way to tell what had gone.
+            // They now ride through untouched on the row, with the label still
+            // editable and up / down / remove still working. This is the same
+            // whitelist trap the LOAD side had to be taught (_effective_config)
+            // and that favourites themselves hit in v2.10.0 — a form must carry
+            // what it cannot draw, never eat it.
+            function favIsPassThrough(f) {
+                return !!f && (f.type === "room" || f.type === "group"
+                               || (f.type && f.type !== "device" && f.type !== "scene" && f.type !== "door"));
+            }
+            function favPassThroughText(f) {
+                if (f.type === "room") return "Room shortcut &mdash; " + esc(f.room || "?");
+                if (f.type === "group") {
+                    const n = (f.devices || []).length;
+                    return "Group &mdash; " + n + " device" + (n === 1 ? "" : "s");
+                }
+                return "Passed through &mdash; type &ldquo;" + esc(String(f.type)) + "&rdquo;";
+            }
+            function favRow(f) {
+                if (favIsPassThrough(f)) {
+                    const r = el(`<div class="field fav-row" style="display:grid; grid-template-columns: 1fr 140px 150px auto auto auto; gap:8px; align-items:center;">
+                        <span class="fav-fixed" style="color: var(--text-secondary); font-size: 13px;">${favPassThroughText(f)}</span>
+                        <input type="text" class="fav-label" placeholder="label (optional)" value="${esc(f.label || "")}">
+                        <span class="fav-extra"></span>
+                        <button class="btn fav-up" title="Move up">&uarr;</button>
+                        <button class="btn fav-down" title="Move down">&darr;</button>
+                        <button class="btn danger fav-del" title="Remove"><span data-icon="cross"></span></button>
+                    </div>`);
+                    r.dataset.raw = JSON.stringify(f);
+                    r.querySelector(".fav-del").addEventListener("click", () => r.remove());
+                    r.querySelector(".fav-up").addEventListener("click", () => {
+                        const p = r.previousElementSibling; if (p) r.parentNode.insertBefore(r, p);
+                    });
+                    r.querySelector(".fav-down").addEventListener("click", () => {
+                        const n = r.nextElementSibling; if (n) r.parentNode.insertBefore(n, r);
+                    });
+                    return r;
+                }
+                const r = el(`<div class="field fav-row" style="display:grid; grid-template-columns: 1fr 140px 150px auto auto auto; gap:8px; align-items:center;">
+                    <select class="fav-pick">${favOptionsHtml(f.type, f.id)}</select>
+                    <input type="text" class="fav-label" placeholder="label (optional)" value="${esc(f.label || "")}">
+                    <span class="fav-extra" style="display:flex; flex-direction:column; gap:4px; min-width:0;"></span>
+                    <button class="btn fav-up" title="Move up">&uarr;</button>
+                    <button class="btn fav-down" title="Move down">&darr;</button>
+                    <button class="btn danger fav-del" title="Remove"><span data-icon="cross"></span></button>
+                </div>`);
+                // A door row keeps any hand-set state override (raw-JSON
+                // hatch) riding on the row so a save carries it through.
+                r.dataset.state = (f.type === "door" && f.state) ? f.state : "";
+                const pick = r.querySelector(".fav-pick");
+                favExtraRender(r, f);
+                pick.addEventListener("change", () => favExtraRender(r, {}));
+                r.querySelector(".fav-del").addEventListener("click", () => r.remove());
+                r.querySelector(".fav-up").addEventListener("click", () => {
+                    const p = r.previousElementSibling; if (p) r.parentNode.insertBefore(r, p);
+                });
+                r.querySelector(".fav-down").addEventListener("click", () => {
+                    const n = r.nextElementSibling; if (n) r.parentNode.insertBefore(n, r);
+                });
+                return r;
+            }
+            (cfg.favourites || []).forEach(f => list.appendChild(favRow(f)));
+            card.querySelector("#fav-add").addEventListener("click", () => list.appendChild(favRow({})));
+            return card;
+        }
+
+        function collectFavourites(root) {
+            const out = [];
+            root.querySelectorAll("#fav-list .fav-row").forEach(r => {
+                // Pass-through row: re-emit exactly what came in, with only the
+                // label taken from the form. Order is DOM order, so up/down
+                // still reposition it among the tiles it sits with.
+                if (r.dataset.raw) {
+                    let kept = null;
+                    try { kept = JSON.parse(r.dataset.raw); } catch (e) { kept = null; }
+                    if (!kept) return;
+                    const lbl = (r.querySelector(".fav-label")?.value || "").trim();
+                    if (lbl) kept.label = lbl; else delete kept.label;
+                    out.push(kept);
+                    return;
+                }
+                const v = r.querySelector(".fav-pick").value;
+                if (!v) return;
+                const idx = v.indexOf(":");
+                const type = v.slice(0, idx);
+                const id = parseInt(v.slice(idx + 1), 10);
+                if ((type !== "device" && type !== "scene" && type !== "door") || isNaN(id)) return;
+                const item = { type, id };
+                if (type === "door") {
+                    // An open action always, then a close action, a lock
+                    // device, or both — never neither. A lock-style door has
+                    // only one pressable state, which is fine, but a tile
+                    // with nothing to fire at all is a trap, not a tile.
+                    const so = r.querySelector(".fav-open");
+                    const sc = r.querySelector(".fav-close");
+                    const sl = r.querySelector(".fav-lock");
+                    const oa = so ? parseInt(so.value, 10) : NaN;
+                    const ca = sc ? parseInt(sc.value, 10) : NaN;
+                    const lk = sl ? parseInt(sl.value, 10) : NaN;
+                    if (isNaN(oa) || (isNaN(ca) && isNaN(lk))) return;
+                    item.openAction = oa;
+                    if (!isNaN(ca)) item.closeAction = ca;
+                    if (!isNaN(lk)) item.lockId = lk;
+                    if (r.dataset.state) item.state = r.dataset.state;
+                }
+                let label = r.querySelector(".fav-label").value.trim();
+                if (!label && type === "scene") {
+                    // No override typed — capture a SCENE's own name (scenes
+                    // have no live-name fallback on the hub). A DEVICE keeps
+                    // no baked-in label: the hub shows its live name, so it
+                    // follows renames instead of freezing today's.
+                    const opt = r.querySelector(".fav-pick").selectedOptions[0];
+                    label = opt ? opt.text.trim() : "";
+                }
+                if (label) item.label = label;
+                const reading = r.querySelector(".fav-reading");
+                if (type === "device" && reading) {
+                    if (reading.dataset.loaded === "1") {
+                        // Populated list: the selection (or its explicit
+                        // absence) is the user's actual choice.
+                        if (reading.value) item.state = reading.value;
+                    } else if (reading.dataset.orig) {
+                        // List never loaded (fetch failed or still in flight):
+                        // keep the saved state rather than dropping it.
+                        item.state = reading.dataset.orig;
+                    }
+                    // Colour bands (v2.77.0) only mean anything on a reading.
+                    if (item.state) {
+                        const wb = parseFloat(r.querySelector(".fav-warnbelow")?.value);
+                        const bb = parseFloat(r.querySelector(".fav-badbelow")?.value);
+                        if (!isNaN(wb)) item.warnBelow = wb;
+                        if (!isNaN(bb)) item.badBelow = bb;
+                    }
+                }
+                out.push(item);
+            });
+            return out;
+        }
+
+        // ── custom links (full-size hub tiles to any URL) ─────────────────
+        // Each row: title, URL, optional description, optional icon (a name from
+        // the shared icon set, e.g. 'bolt' or 'wifi'; anything else shows as-is).
+        // DOM order = display order on the hub. The URL is published in the
+        // public config.js — do NOT put a token/secret in it.
+        function renderCustomLinks() {
+            const card = el(`<section class="card"><h2>Custom links</h2>
+                <div class="hint">Full-size tiles on the hub that open any URL in a new tab &mdash; e.g. the MQTT Explorer page, a Grafana board, a router admin page. <b>Title</b> and <b>URL</b> are required; description and icon are optional &mdash; for the icon, name one from the dashboard's own set (<code>bolt</code>, <code>wifi</code>, <code>camera</code>, <code>gear</code>&hellip;). The order here is the order they appear. <b>Don't put a token or password in the URL</b> &mdash; this config is served without authentication, so the target page should handle its own login.</div>
+                <div id="link-list"></div>
+                <div style="margin-top:8px"><button class="btn" id="link-add">+ Add link</button></div>
+            </section>`);
+            const list = card.querySelector("#link-list");
+            function linkRow(l) {
+                const r = el(`<div class="field link-row" style="display:grid; grid-template-columns: 1fr 1.6fr 1fr 64px auto auto auto; gap:8px; align-items:center;">
+                    <input type="text" class="link-title" placeholder="title" value="${esc(l.title || "")}">
+                    <input type="text" class="link-url" placeholder="https://… or http://server:8176/…" value="${esc(l.url || "")}">
+                    <input type="text" class="link-desc" placeholder="description (optional)" value="${esc(l.desc || "")}">
+                    <input type="text" class="link-icon" placeholder="link" value="${esc(l.icon || "")}">
+                    <button class="btn link-up" title="Move up">&uarr;</button>
+                    <button class="btn link-down" title="Move down">&darr;</button>
+                    <button class="btn danger link-del" title="Remove"><span data-icon="cross"></span></button>
+                </div>`);
+                r.querySelector(".link-del").addEventListener("click", () => r.remove());
+                r.querySelector(".link-up").addEventListener("click", () => {
+                    const p = r.previousElementSibling; if (p) r.parentNode.insertBefore(r, p);
+                });
+                r.querySelector(".link-down").addEventListener("click", () => {
+                    const n = r.nextElementSibling; if (n) r.parentNode.insertBefore(n, r);
+                });
+                return r;
+            }
+            (cfg.customLinks || []).forEach(l => list.appendChild(linkRow(l)));
+            card.querySelector("#link-add").addEventListener("click", () => list.appendChild(linkRow({})));
+            return card;
+        }
+
+        function collectCustomLinks(root) {
+            const out = [];
+            root.querySelectorAll("#link-list .link-row").forEach(r => {
+                const title = r.querySelector(".link-title").value.trim();
+                const url   = r.querySelector(".link-url").value.trim();
+                if (!title || !url) return;
+                const item = { title, url };
+                const desc = r.querySelector(".link-desc").value.trim();
+                const icon = r.querySelector(".link-icon").value.trim();
+                if (desc) item.desc = desc;
+                if (icon) item.icon = icon;
+                out.push(item);
+            });
+            return out;
+        }
+
+        // ── cameras ──────────────────────────────────────────────────────
+        function renderCameras() {
+            const card = el(`<section class="card"><h2>Cameras</h2>
+                <div class="hint">Host is IP[:port]. Vendor decides the RTSP URL template. Stream sub2 is the low-bandwidth default. Rooms is a comma list of room names whose page should show this camera. Main = include in the hub's camera mosaic. Camera changes need a plugin restart.</div>
+                <div class="hint"><b>Six live pictures is the ceiling, whatever the connection.</b> A moving picture is one long-lived connection that never closes, and browsers allow about six connections per address — so a seventh never connects at all, rather than merely running slowly. The cameras page therefore shows six moving and the rest as pictures that refresh, and the <code>livePoolSize</code> key (raw JSON, default 6) can only sensibly go down. Away from home it drops lower still, from a measurement of what the connection can carry, and the picture you tap on switches to a different method that does not use up a connection.</div>
+                <table><thead><tr>
+                    <th>Name</th><th>Host</th><th>Vendor</th><th>Stream</th><th>Rooms</th><th>Main</th><th class="row-del"></th>
+                </tr></thead><tbody id="cam-rows"></tbody></table>
+                <div style="margin-top:10px; display:flex; gap:10px; align-items:center;">
+                    <button class="btn" id="cam-add">+ Add camera</button>
+                    <label style="font-size:13px;">Swap-out host:
+                        <select id="swap-out" style="width:auto; margin-left:6px;"></select>
+                    </label>
+                </div></section>`);
+            const tbody = card.querySelector("#cam-rows");
+
+            function roomsToStr(r) { return Array.isArray(r) ? r.join(", ") : (r || ""); }
+            function camRow(c) {
+                const tr = el(`<tr>
+                    <td><input type="text" class="c-name" value="${esc(c.name || "")}"></td>
+                    <td><input type="text" class="c-host" value="${esc(c.host || "")}"></td>
+                    <td><select class="c-vendor">
+                        <option value="dahua"${c.vendor === "dahua" ? " selected" : ""}>dahua</option>
+                        <option value="hikvision"${c.vendor === "hikvision" ? " selected" : ""}>hikvision</option>
+                    </select></td>
+                    <td><select class="c-stream">
+                        <option value=""${!c.stream || c.stream === "sub2" ? " selected" : ""}>sub2</option>
+                        <option value="main"${c.stream === "main" ? " selected" : ""}>main</option>
+                    </select></td>
+                    <td><input type="text" class="c-rooms" value="${esc(roomsToStr(c.room))}"></td>
+                    <td style="text-align:center"><input type="checkbox" class="c-main"
+                        ${(cfg.mainCameras || []).includes(c.host) ? "checked" : ""}></td>
+                    <td class="row-del"><button class="btn danger c-del">${I("cross")}</button></td>
+                </tr>`);
+                tr.querySelector(".c-del").addEventListener("click", () => tr.remove());
+                return tr;
+            }
+            (cfg.cameras || []).forEach(c => tbody.appendChild(camRow(c)));
+            card.querySelector("#cam-add").addEventListener("click", () =>
+                tbody.appendChild(camRow({ vendor: "dahua" })));
+
+            const swap = card.querySelector("#swap-out");
+            const opts = ['<option value="">(last in list)</option>']
+                .concat((cfg.cameras || []).map(c =>
+                    `<option value="${esc(c.host)}"${cfg.swapOutHost === c.host ? " selected" : ""}>${esc(c.name)} (${esc(c.host)})</option>`));
+            swap.innerHTML = opts.join("");
+            return card;
+        }
+
+        function collectCameras(root) {
+            const cams = [];
+            root.querySelectorAll("#cam-rows tr").forEach(tr => {
+                const host = tr.querySelector(".c-host").value.trim();
+                const name = tr.querySelector(".c-name").value.trim();
+                if (!host && !name) return;            // blank row — skip
+                const cam = {
+                    host, name,
+                    vendor: tr.querySelector(".c-vendor").value
+                };
+                const stream = tr.querySelector(".c-stream").value;
+                if (stream) cam.stream = stream;
+                const rooms = tr.querySelector(".c-rooms").value
+                    .split(",").map(s => s.trim()).filter(Boolean);
+                if (rooms.length === 1) cam.room = rooms[0];
+                else if (rooms.length > 1) cam.room = rooms;
+                cams.push(cam);
+            });
+            const main = [];
+            root.querySelectorAll("#cam-rows tr").forEach(tr => {
+                if (tr.querySelector(".c-main").checked) {
+                    const h = tr.querySelector(".c-host").value.trim();
+                    if (h) main.push(h);
+                }
+            });
+            const swapSel = root.querySelector("#swap-out");
+            return { cams, main, swap: swapSel ? swapSel.value : "" };
+        }
+
+        // ── rooms ────────────────────────────────────────────────────────
+        function idField(label, value, cls, hint) {
+            const f = el(`<div class="field">
+                <label>${esc(label)}</label>
+                <input type="text" class="${cls}" list="devlist"
+                       placeholder="device ids, comma-separated" value="${esc(idsToStr(value))}">
+                <div class="names"></div>
+                ${hint ? `<div class="names" style="opacity:.7">${esc(hint)}</div>` : ""}
+            </div>`);
+            bindNames(f.querySelector("input"), f.querySelector(".names"));
+            return f;
+        }
+
+        function renderRooms() {
+            // Room folders (v2.96.0). Rooms are Indigo device folders, and the
+            // plugin's built-in list is one house's folder names — on any
+            // other install that meant an empty rooms.json and a hub with no
+            // rooms, with the override reachable only through the raw-JSON
+            // box. Tick the folders that are rooms; nothing ticked keeps the
+            // effective list the server reports.
+            const folders = (window._cfgFolders || []);
+            const eff = new Set(Array.isArray(cfg.roomFolders) && cfg.roomFolders.length ? cfg.roomFolders : (window._cfgRoomFoldersEffective || []));
+            const boxes = folders.map(f => `<label class="chk"><input type="checkbox" class="rf" value="${esc(f)}"${eff.has(f) ? " checked" : ""}> ${esc(f)}</label>`).join("");
+            const card = el(`<section class="card"><h2>Rooms</h2>
+                <div class="field"><label>Site name (page titles, the hub heading and the home-screen icon)</label>
+                    <input type="text" id="site-name-in" maxlength="40" value="${esc(cfg.siteName || "")}" placeholder="Dashboards"></div>
+                <div class="hint"><b>Room folders</b> — every Indigo device folder ticked here becomes a room page. Devices inside are classified into lights, motion, windows and radiators by their type and name; the overrides below adjust that per room.</div>
+                <div id="room-folders" style="display:flex;flex-wrap:wrap;gap:6px 14px;margin:6px 0 10px">${boxes || '<span class="muted">No device folders found in Indigo</span>'}</div>
+                <div class="hint">Enter device IDs in the per-room overrides — start typing in any field to search the device list, and the line underneath shows which devices the IDs resolve to.</div>
+                <div id="room-list"></div>
+                <div style="margin-top:8px"><button class="btn" id="room-add">+ Add room override</button></div>
+            </section>`);
+            const list = card.querySelector("#room-list");
+            const roomNames = Object.keys(cfg.roomExtras || {}).sort();
+            roomNames.forEach(name => list.appendChild(roomPanel(name, cfg.roomExtras[name] || {})));
+            card.querySelector("#room-add").addEventListener("click", () => {
+                const name = prompt("Room name (must match the room page name exactly, e.g. Living Room):");
+                if (!name) return;
+                list.appendChild(roomPanel(name.trim(), {}));
+            });
+            return card;
+        }
+
+        function roomPanel(name, ex) {
+            const d = el(`<details class="room" data-room="${esc(name)}">
+                <summary><span>${esc(name)}</span>
+                    <span class="meta">${(ex.doors || []).length} doors · ${(ex.appliances || []).length} appliances</span>
+                </summary>
+                <div class="body"></div>
+            </details>`);
+            const body = d.querySelector(".body");
+
+            // Doors
+            body.appendChild(el(`<div class="subhead">Doors (pulse control)</div>`));
+            const doorsWrap = el(`<div class="doors"></div>`);
+            function doorRow(door) {
+                const r = el(`<div class="field" style="border:1px solid var(--border); border-radius:8px; padding:8px;">
+                    <div style="display:grid; grid-template-columns: 1fr 1fr 90px; gap:8px;">
+                        <div><label>Label</label><input type="text" class="d-label" value="${esc(door.label || "")}"></div>
+                        <div><label>Status contact ID</label><input type="text" class="d-contact" list="devlist" value="${esc(String(door.statusContactId || ""))}"></div>
+                        <div><label>Pulse ms</label><input type="number" class="d-pulse" value="${esc(String(door.pulseMs || 2000))}"></div>
+                    </div>
+                    <label style="margin-top:8px">Relay IDs (pulsed on tap)</label>
+                    <input type="text" class="d-relays" list="devlist" value="${esc(idsToStr(door.relayIds))}">
+                    <div class="names"></div>
+                    <label style="margin-top:8px; display:flex; gap:8px; align-items:center; font-weight:400;">
+                        <input type="checkbox" class="d-openon" ${door.openWhenContactOnState !== false ? "checked" : ""}>
+                        Contact ON means door OPEN
+                    </label>
+                    <div style="margin-top:8px"><button class="btn danger d-del">Remove door</button></div>
+                </div>`);
+                bindNames(r.querySelector(".d-relays"), r.querySelector(".names"));
+                r.querySelector(".d-del").addEventListener("click", () => r.remove());
+                return r;
+            }
+            (ex.doors || []).forEach(door => doorsWrap.appendChild(doorRow(door)));
+            body.appendChild(doorsWrap);
+            const addDoor = el(`<button class="btn">+ Add door</button>`);
+            addDoor.addEventListener("click", () => doorsWrap.appendChild(doorRow({})));
+            body.appendChild(addDoor);
+
+            // Appliances
+            body.appendChild(el(`<div class="subhead">Appliances (power + cycle monitor)</div>`));
+            const appWrap = el(`<div class="apps"></div>`);
+            function appRow(a) {
+                const r = el(`<div class="field" style="display:grid; grid-template-columns: 1fr 1fr 1fr 40px; gap:8px; align-items:end;">
+                    <div><label>Label</label><input type="text" class="a-label" value="${esc(a.label || "")}"></div>
+                    <div><label>Power monitor ID</label><input type="text" class="a-monitor" list="devlist" value="${esc(String(a.monitorId || ""))}"></div>
+                    <div><label>Cycle monitor ID (optional)</label><input type="text" class="a-cycle" list="devlist" value="${esc(String(a.cycleId || ""))}"></div>
+                    <button class="btn danger a-del">${I("cross")}</button>
+                </div>`);
+                r.querySelector(".a-del").addEventListener("click", () => r.remove());
+                return r;
+            }
+            (ex.appliances || []).forEach(a => appWrap.appendChild(appRow(a)));
+            body.appendChild(appWrap);
+            const addApp = el(`<button class="btn">+ Add appliance</button>`);
+            addApp.addEventListener("click", () => appWrap.appendChild(appRow({})));
+            body.appendChild(addApp);
+
+            // Simple id-list fields
+            body.appendChild(el(`<div class="subhead">Device lists</div>`));
+            body.appendChild(idField("TV group (toggleable relays)", ex.tv, "f-tv"));
+            body.appendChild(idField("Plugs & sockets (toggleable)", ex.plugs, "f-plugs",
+                "Mains sockets / smart plugs — own section on the room page, counted as a socket, not a light, on the hub tile"));
+            body.appendChild(idField("Hide devices on this page", ex.hideDeviceIds, "f-hide"));
+            const inc = ex.include || {};
+            body.appendChild(idField("Force into Lights", inc.lights, "f-inc-lights"));
+            body.appendChild(idField("Force into Windows & Doors", inc.windows, "f-inc-windows"));
+            body.appendChild(idField("Force into Sensors", inc.sensors, "f-inc-sensors",
+                "Pin a reading-style device (e.g. a battery voltage monitor) into the room's Sensors section"));
+            const sort = ex.sortOrder || {};
+            body.appendChild(idField("Sort first — Lights", sort.lights, "f-sort-lights",
+                "Listed ids render first (in order); everything else follows alphabetically"));
+            body.appendChild(idField("Sort first — Windows & Doors", sort.windows, "f-sort-windows"));
+
+            const delBtn = el(`<div style="margin-top:10px"><button class="btn danger">Remove this room override</button></div>`);
+            delBtn.querySelector("button").addEventListener("click", () => {
+                if (confirm(`Remove all overrides for ${name}? (The room page itself stays — it is auto-classified.)`)) d.remove();
+            });
+            body.appendChild(delBtn);
+            return d;
+        }
+
+        function collectRooms(root) {
+            // ROUND-TRIP SAFETY (v2.32.0): start each room from its ORIGINAL
+            // stored config and only overwrite the fields this form edits.
+            // The old rebuild-from-form-only approach silently DROPPED any key
+            // the form didn't know about on every save — that's how the
+            // Garage's hand-set include.sensors (Qashqai battery, v2.16.1)
+            // was lost. Unknown keys now survive untouched.
+            const extras = {};
+            root.querySelectorAll("details.room").forEach(d => {
+                const name = d.dataset.room;
+                const orig = (cfg.roomExtras || {})[name] || {};
+                const ex = JSON.parse(JSON.stringify(orig));
+                const setOrDelete = (obj, key, val, keep) => {
+                    if (keep) obj[key] = val; else delete obj[key];
+                };
+                const doors = [];
+                d.querySelectorAll(".doors > .field").forEach(r => {
+                    const label = r.querySelector(".d-label").value.trim();
+                    const relays = strToIds(r.querySelector(".d-relays").value);
+                    if (!label && !relays.length) return;
+                    const door = { label, relayIds: relays,
+                                   pulseMs: parseInt(r.querySelector(".d-pulse").value, 10) || 2000 };
+                    const contact = parseInt(r.querySelector(".d-contact").value, 10);
+                    if (!isNaN(contact)) door.statusContactId = contact;
+                    door.openWhenContactOnState = r.querySelector(".d-openon").checked;
+                    doors.push(door);
+                });
+                setOrDelete(ex, "doors", doors, doors.length);
+                const apps = [];
+                d.querySelectorAll(".apps > .field").forEach(r => {
+                    const label = r.querySelector(".a-label").value.trim();
+                    const mon   = parseInt(r.querySelector(".a-monitor").value, 10);
+                    if (!label && isNaN(mon)) return;
+                    const a = { label };
+                    if (!isNaN(mon)) a.monitorId = mon;
+                    const cyc = parseInt(r.querySelector(".a-cycle").value, 10);
+                    if (!isNaN(cyc)) a.cycleId = cyc;
+                    apps.push(a);
+                });
+                setOrDelete(ex, "appliances", apps, apps.length);
+                const tv = strToIds(d.querySelector(".f-tv").value);
+                setOrDelete(ex, "tv", tv, tv.length);
+                const plugs = strToIds(d.querySelector(".f-plugs").value);
+                setOrDelete(ex, "plugs", plugs, plugs.length);
+                const hide = strToIds(d.querySelector(".f-hide").value);
+                setOrDelete(ex, "hideDeviceIds", hide, hide.length);
+                const inc = Object.assign({}, ex.include || {});
+                const incL = strToIds(d.querySelector(".f-inc-lights").value);
+                const incW = strToIds(d.querySelector(".f-inc-windows").value);
+                const incS = strToIds(d.querySelector(".f-inc-sensors").value);
+                setOrDelete(inc, "lights", incL, incL.length);
+                setOrDelete(inc, "windows", incW, incW.length);
+                setOrDelete(inc, "sensors", incS, incS.length);
+                setOrDelete(ex, "include", inc, Object.keys(inc).length);
+                const sort = Object.assign({}, ex.sortOrder || {});
+                const sortL = strToIds(d.querySelector(".f-sort-lights").value);
+                const sortW = strToIds(d.querySelector(".f-sort-windows").value);
+                setOrDelete(sort, "lights", sortL, sortL.length);
+                setOrDelete(sort, "windows", sortW, sortW.length);
+                setOrDelete(ex, "sortOrder", sort, Object.keys(sort).length);
+                if (Object.keys(ex).length) extras[name] = ex;
+            });
+            return extras;
+        }
+
+        // ── scenes hide-list ─────────────────────────────────────────────
+        function renderScenes() {
+            const hidden = new Set((cfg.hiddenScenes || []).map(String));
+            const card = el(`<section class="card"><h2>Scenes</h2>
+                <div class="hint">Tick anything you want HIDDEN from the Scenes page. Ticking a folder hides the whole folder.</div>
+                <div id="scene-list"></div></section>`);
+            const list = card.querySelector("#scene-list");
+            const byFolder = {};
+            GROUPS.forEach(g => (byFolder[g.folder] = byFolder[g.folder] || []).push(g));
+            Object.keys(byFolder).sort((a, b) => a.localeCompare(b)).forEach(folder => {
+                const fEl = el(`<div class="scene-folder">
+                    <label><input type="checkbox" class="s-folder" data-folder="${esc(folder)}"
+                        ${hidden.has("folder:" + folder) ? "checked" : ""}> ${esc(folder)} <span style="color:var(--text-secondary); font-weight:400">(hide whole folder)</span></label>
+                    <div class="scene-items"></div></div>`);
+                const items = fEl.querySelector(".scene-items");
+                byFolder[folder].forEach(g => {
+                    items.appendChild(el(`<label><input type="checkbox" class="s-item"
+                        data-id="${g.id}" data-name="${esc(g.name)}"
+                        ${hidden.has(g.name) || hidden.has(String(g.id)) ? "checked" : ""}> ${esc(g.name)}</label>`));
+                });
+                list.appendChild(fEl);
+            });
+            return card;
+        }
+
+        function collectScenes(root) {
+            const out = [];
+            root.querySelectorAll(".s-folder:checked").forEach(cb =>
+                out.push("folder:" + cb.dataset.folder));
+            root.querySelectorAll(".s-item:checked").forEach(cb =>
+                out.push(String(cb.dataset.id)));
+            return out;
+        }
+
+        // ── security: guest access + control PIN ─────────────────────────
+        function renderSecurity() {
+            const card = el(`<section class="card"><h2>Security</h2>
+                <div class="hint"><b>Guest access</b> — open the pairing URL below ON the guest device
+                (wall tablet, visitor's phone on home WiFi). Guest devices are read-only and hold no API
+                key. Works on the home network and Tailscale only.${/indigodomo\.net$/i.test(location.hostname)
+                    ? "<br><b>You are viewing this over the reflector: open the pairing URL on the home network, not this address.</b>" : ""}<br><br>
+                <b>Control PIN</b> — devices listed below ask for this PIN once per session before any
+                command (a speed bump for shared/family devices, not a security boundary).</div>
+                <div class="field"><label>Guest pairing URL</label>
+                    <input type="text" readonly value="${esc(location.origin + "/public/dashboards/guest.html")}">
+                </div>
+                <div class="field"><label>Guest token (managed automatically)</label>
+                    <input type="text" readonly value="${esc(window._guestToken || "")}">
+                </div>
+                <div class="field"><label>Control PIN (blank keeps the current one; type "clear" to remove it)</label>
+                    <input type="text" id="sec-pin" inputmode="numeric" value=""
+                           placeholder="${cfg.controlPinSet ? "PIN is set — blank keeps it, type clear to remove" : "no PIN set"}">
+                </div>
+                <div id="sec-pin-ids"></div>
+            </section>`);
+            card.querySelector("#sec-pin-ids").appendChild(
+                idField("PIN-protected devices", cfg.pinRequired, "f-pin-ids",
+                    "e.g. front door lock, garage door relays"));
+            return card;
+        }
+
+        // ── raw JSON escape hatch ────────────────────────────────────────
+        function renderRawJson() {
+            const card = el(`<section class="card"><h2>Raw JSON</h2>
+                <div class="hint">The full config as it will be saved. "From form" refreshes this view from the editors above; "Apply to form" parses the JSON and rebuilds the editors from it (for anything the forms don't cover).</div>
+                <textarea id="raw-json" spellcheck="false"></textarea>
+                <div style="margin-top:8px; display:flex; gap:10px;">
+                    <button class="btn" id="raw-from">From form</button>
+                    <button class="btn" id="raw-apply">Apply to form</button>
+                </div></section>`);
+            const ta = card.querySelector("#raw-json");
+            ta.value = JSON.stringify(cfg, null, 2);
+            card.querySelector("#raw-from").addEventListener("click", () => {
+                ta.value = JSON.stringify(collectAll(), null, 2);
+            });
+            card.querySelector("#raw-apply").addEventListener("click", () => {
+                // Parse and render into a candidate FIRST (v2.95.3). Assigning
+                // cfg before render() succeeded left a half-built form behind
+                // a parseable-but-wrong edit, and the next Save wrote that
+                // half-built form over every camera, favourite and room.
+                const previous = cfg;
+                try {
+                    cfg = applyDefaults(JSON.parse(ta.value));
+                    render();
+                    msg("JSON applied to form.", true);
+                } catch (e) {
+                    cfg = previous;
+                    try { render(); } catch (_) { window._loadedOk = false; }
+                    msg("Not applied: " + e.message, false);
+                }
+            });
+            return card;
+        }
+
+        // ── collect + save ───────────────────────────────────────────────
+        function collectAll() {
+            const main = document.getElementById("content");
+            const { cams, main: mainCams, swap } = collectCameras(main);
+            // Spread the loaded store first so any key the forms DON'T model —
+            // e.g. one added via the raw-JSON escape hatch above — survives the
+            // save instead of being silently dropped (v2.37.0 round-trip fix,
+            // same class as the v2.32.0 collectRooms fix). The modelled keys
+            // below then overwrite their own entries.
+            const rfBoxes = Array.from(main.querySelectorAll("#room-folders input.rf"));
+            const siteIn = main.querySelector("#site-name-in");
+            return {
+                // controlPinSet is derived on load, never a stored key
+                ...Object.fromEntries(Object.entries(cfg || {}).filter(([k]) => k !== "controlPinSet")),
+                ...(rfBoxes.length ? { roomFolders: rfBoxes.filter(b => b.checked).map(b => b.value) } : {}),
+                ...(siteIn ? { siteName: siteIn.value.trim() } : {}),
+                cameras:      cams,
+                mainCameras:  mainCams,
+                swapOutHost:  swap,
+                favourites:   collectFavourites(main),
+                customLinks:  collectCustomLinks(main),
+                roomExtras:   collectRooms(main),
+                hiddenScenes: collectScenes(main),
+                controlPin:   (main.querySelector("#sec-pin") || { value: "" }).value.trim(),
+                pinRequired:  strToIds((main.querySelector(".f-pin-ids") || { value: "" }).value)
+            };
+        }
+
+        function msg(text, ok) {
+            const m = document.getElementById("save-msg");
+            m.textContent = text;
+            m.className = ok ? "ok" : "err";
+        }
+
+        document.getElementById("save-btn").addEventListener("click", async () => {
+            // Guard against wiping the store: if the initial load() never
+            // succeeded the form is empty (an error message replaced it), so
+            // collectAll() would harvest empty lists and Save would overwrite
+            // dashboards_config.json with nothing. Refuse until a good load.
+            if (!window._loadedOk) {
+                msg("Not saving — settings never loaded. Tap Reload first.", false);
+                return;
+            }
+            try {
+                cfg = collectAll();
+                msg("Saving…", true);
+                const res = await api("saveDashboardsConfig", { config: cfg });
+                window._cfgSource = "store";
+                // Re-read what the server KEPT (v2.95.3): it drops malformed
+                // favourites, rejects bad links and truncates labels, and the
+                // form used to keep showing the un-cleaned values as saved.
+                await load();
+                msg(res.cameraRestartNeeded
+                    ? "Saved. Camera changes need a plugin restart to take effect."
+                    : "Saved — live on the pages now.", true);
+            } catch (e) { msg("Save failed: " + e.message, false); }
+        });
+        document.getElementById("reload-btn").addEventListener("click", load);
+
+        // ── load ─────────────────────────────────────────────────────────
+        // Every optional key the renderers dereference. Applied on load AND
+        // on the raw-JSON hatch — a hand-crafted config omitting one of these
+        // used to crash render() with a misleading "Invalid JSON" error.
+        function applyDefaults(c) {
+            c.cameras      = c.cameras || [];
+            c.mainCameras  = c.mainCameras || [];
+            c.roomExtras   = c.roomExtras || {};
+            c.hiddenScenes = c.hiddenScenes || [];
+            c.favourites   = c.favourites || [];
+            return c;
+        }
+
+        async function load() {
+            if (sessionStorage.getItem("dash_demo")) {
+                document.getElementById("content").innerHTML =
+                    '<div class="loading">Settings are not available in demo mode.</div>';
+                return;
+            }
+            window._loadedOk = false;   // becomes true only on a clean load
+            try {
+                const res = await api("getDashboardsConfig", {});
+                cfg = applyDefaults(res.config || {});
+                DEVICES  = res.devices || [];
+                window._cfgFolders = res.folders || Array.from(new Set(DEVICES.map(d => d.folder).filter(Boolean))).sort();
+                window._cfgRoomFoldersEffective = res.roomFoldersEffective || [];
+                DEVNAMES = {};
+                DEVICES.forEach(d => { DEVNAMES[d.id] = d.name; });
+                GROUPS = res.actionGroups || [];
+                window._guestToken = res.guestToken || "";
+                window._cfgSource = res.source;
+                document.getElementById("source").textContent =
+                    res.source === "store" ? "dashboards_config.json" : "legacy (IndigoSecrets)";
+                render();
+                window._loadedOk = true;
+                msg("", true);
+            } catch (e) {
+                document.getElementById("content").innerHTML =
+                    `<div class="loading">Could not load config: ${esc(e.message)}</div>`;
+            }
+        }
+        load();
+    })();
+    </script>
+    <script src="dashboards-icons.js"></script>
+<script src="a11y.js"></script>
+    <script src="standalone-nav.js"></script>
+</body>
+</html>

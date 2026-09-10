@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<MenuItems>
+
+    <MenuItem id="menuOpenDashboards">
+        <Name>Open Dashboards in Browser</Name>
+        <CallbackMethod>menuOpenDashboards</CallbackMethod>
+    </MenuItem>
+
+    <MenuItem id="menuOpenSigenLegacy">
+        <Name>Open Sigenergy Battery Dashboard (legacy)</Name>
+        <CallbackMethod>menuOpenSigenLegacy</CallbackMethod>
+    </MenuItem>
+
+    <MenuItem id="menuRegenerateConfig">
+        <Name>Regenerate Config + Resync Pages</Name>
+        <CallbackMethod>menuRegenerateConfig</CallbackMethod>
+    </MenuItem>
+
+    <MenuItem id="menuGenerateSetupLink">
+        <Name>Generate One-Time Setup Link (+QR)</Name>
+        <CallbackMethod>menuGenerateSetupLink</CallbackMethod>
+    </MenuItem>
+
+    <MenuItem id="menuShowGuestInfo">
+        <Name>Show Guest Access Info</Name>
+        <CallbackMethod>menuShowGuestInfo</CallbackMethod>
+    </MenuItem>
+
+    <MenuItem id="toggleTimestamps">
+        <Name>Toggle Timestamps in Log (on/off)</Name>
+        <CallbackMethod>menuToggleTimestamps</CallbackMethod>
+    </MenuItem>
+
+    <MenuItem id="menuTestHistory">
+        <Name>Test History Connection</Name>
+        <CallbackMethod>menuTestHistory</CallbackMethod>
+    </MenuItem>
+
+    <MenuItem id="menuTestSetup">
+        <Name>Test Dashboards Setup</Name>
+        <CallbackMethod>menuTestSetup</CallbackMethod>
+    </MenuItem>
+
+    <MenuItem id="sep1" isSeparator="true"/>
+
+    <MenuItem id="showPluginInfo">
+        <Name>Show Plugin Info</Name>
+        <CallbackMethod>showPluginInfo</CallbackMethod>
+    </MenuItem>
+
+</MenuItems>

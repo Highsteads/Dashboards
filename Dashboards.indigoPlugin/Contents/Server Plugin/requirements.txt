@@ -1,0 +1,8 @@
+qrcode>=7.4
+# Used only to shrink each camera snapshot to a second, thumbnail-sized copy for
+# the grid. Doing it here rather than asking go2rtc for a second frame is
+# deliberate: two frame requests per camera per pass made go2rtc return HTTP 500
+# under load, whereas resizing a frame we already hold costs about a millisecond
+# and leaves the camera load exactly as it was. The plugin degrades cleanly if
+# this is missing — the grid simply uses the full-size picture, as it always did.
+Pillow>=10.0

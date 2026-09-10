@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<!--
+  Filename:    history.html
+  Description: Graphs page (v2.4.0) — time-series charts of any recorded
+               device state, drawn from the SQL Logger history database via
+               the plugin's historyQuery endpoint. Pick a device, pick a
+               state, pick a range; the chart shows the average line with a
+               min/max band. Works for full, guest and demo modes.
+  Author:      CliveS & Claude Fable 5
+  Date:        11-06-2026
+  Version:     1.0
+-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta name="indigo-page-name" content="Graphs">
+    <meta name="indigo-page-icon" content="chart.xyaxis.line">
+    <meta name="indigo-page-description" content="History graphs for any recorded device state">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Dashboards">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#5856d6">
+    <link rel="apple-touch-icon" sizes="180x180" href="/public/dashboards/apple-touch-icon.png">
+    <title>Graphs</title>
+    <link rel="stylesheet" href="dashboards-theme.css">
+    <style>
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: var(--font-ui);
+            background: var(--bg); color: var(--text);
+            padding: max(80px, calc(72px + env(safe-area-inset-top))) 0 max(32px, env(safe-area-inset-bottom));
+            min-height: 100vh;
+        }
+        .topbar {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 10;
+            background: var(--card-bg); border-bottom: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            padding: 10px 16px; padding-top: max(10px, env(safe-area-inset-top));
+        }
+        .topbar-3col {
+            display: grid; grid-template-columns: 1fr 2fr 1fr; align-items: center;
+            gap: 8px; max-width: 980px; margin: 0 auto;
+        }
+        .topbar-3col h1 { font-size: 20px; font-weight: 700; text-align: center; margin: 0; }
+        .topbar-status { font-size: 11px; color: var(--text-secondary); text-align: center; }
+        .nav-btn {
+            background: var(--card-bg); border: 1px solid var(--border);
+            color: var(--accent); padding: 8px 14px; border-radius: var(--r-md);
+            font-size: 14px; font-weight: 600; cursor: pointer;
+            text-decoration: none; display: inline-flex; font-family: inherit;
+        }
+        main { max-width: 980px; margin: 0 auto; padding: 0 16px; }
+        .card {
+            background: var(--card-bg); border: 1px solid var(--border);
+            border-radius: var(--r-lg); box-shadow: var(--shadow);
+            padding: 16px; margin-bottom: 16px;
+        }
+        .pickers { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; }
+        @media (max-width: 600px) { .pickers { grid-template-columns: 1fr; } }
+        label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+        input[type=text], select {
+            width: 100%; padding: 9px 11px; border-radius: var(--r-sm);
+            border: 1px solid var(--border); background: var(--bg);
+            color: var(--text); font-family: inherit; font-size: 14px;
+        }
+        .ranges { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+        .range-chip {
+            background: var(--bg); border: 1px solid var(--border);
+            color: var(--text); padding: 7px 14px; border-radius: var(--r-xl);
+            font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
+        }
+        .range-chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+        #chart-wrap { position: relative; height: 46vh; min-height: 280px; }
+        .stats {
+            display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px;
+            font-size: 13px; color: var(--text-secondary);
+            font-variant-numeric: tabular-nums;
+        }
+        .stats b { color: var(--text); }
+        .empty { color: var(--text-secondary); text-align: center; padding: 40px 12px; }
+    
+        /* ═══ Shared Apple/Safari polish (v2.25.0) ═════════════════
+           Appended uniformly across pages: frosted translucent bars, laptop
+           hover states, keyboard focus rings, reduced-motion support, and
+           Safari/iOS fixes (dynamic viewport height, text-size-adjust, tap
+           highlight). Selectors a page lacks simply never match. */
+        html { -webkit-text-size-adjust: 100%; }
+        body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+        @supports (min-height: 100dvh) { body { min-height: 100dvh; } }
+        a, button, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+        :focus-visible { outline: 2px solid var(--accent, #5856d6); outline-offset: 2px; }
+        .topbar, .bottombar {
+            background: rgba(249, 249, 251, 0.82);
+            -webkit-backdrop-filter: saturate(180%) blur(20px);
+            backdrop-filter: saturate(180%) blur(20px);
+            box-shadow: none;
+        }
+        @media (prefers-color-scheme: dark) {
+            .topbar, .bottombar { background: rgba(22, 22, 24, 0.80); }
+        }
+        @media (hover: hover) and (pointer: fine) {
+            a.card:hover, a.dash-card:hover, .fav-tile:not(.fav-reading):hover, a.home-cam:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+            }
+            .nav-btn:hover { transform: translateY(-1px); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                transition-duration: 0.01ms !important;
+                animation-duration: 0.01ms !important;
+                scroll-behavior: auto !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <div class="topbar-3col">
+            <div><a class="nav-btn" href="index.html">&larr; Home</a></div>
+            <div>
+                <h1>Graphs</h1>
+                <div class="topbar-status" id="status">Pick a device</div>
+            </div>
+            <div></div>
+        </div>
+    </header>
+
+    <main>
+        <section class="card">
+            <div class="pickers">
+                <div>
+                    <label>Device</label>
+                    <input type="text" id="dev-pick" list="devlist" placeholder="Start typing a device name…">
+                    <datalist id="devlist"></datalist>
+                </div>
+                <div>
+                    <label>Recorded state</label>
+                    <select id="state-pick" disabled><option>—</option></select>
+                </div>
+            </div>
+            <div class="ranges" id="ranges">
+                <button class="range-chip" data-h="6">6 h</button>
+                <button class="range-chip on" data-h="24">24 h</button>
+                <button class="range-chip" data-h="168">7 days</button>
+                <button class="range-chip" data-h="720">30 days</button>
+            </div>
+        </section>
+        <section class="card">
+            <div id="chart-wrap"><canvas id="chart"></canvas></div>
+            <div class="stats" id="stats"></div>
+            <div class="empty" id="empty">Choose a device above — anything the SQL&nbsp;Logger
+                has been recording can be graphed, going back months.</div>
+        </section>
+    </main>
+
+    <script src="chart.umd.min.js"></script><!-- Chart.js 4.4.0, MIT — bundled locally so charts work offline -->
+    <script src="config.js" onerror="window.INDIGO_CONFIG_MISSING=true"></script>
+    <script src="dashboards-auth.js"></script>
+    <script src="dashboards-ui.js"></script>
+    <script src="dashboards-gate.js"></script>
+    <script src="dashboard.js"></script>
+    <script>
+    "use strict";
+    (function () {
+        if (!IndigoAPI.isConfigured()) { location.href = "index.html"; return; }
+        const api = new IndigoAPI();
+        api.onAuthFailure(() => { location.href = "index.html"; });
+
+        let DEVICES = [], byName = {}, current = { id: 0, state: "", hours: 24 }, chart = null;
+        const $ = id => document.getElementById(id);
+
+        // Escape for safe HTML interpolation (v2.38.0 hardening — recorded
+        // state names / device names are semi-trusted).
+        function escHtml(s) {
+            return String(s == null ? "" : s)
+                .replace(/&/g, "&amp;").replace(/"/g, "&quot;")
+                .replace(/'/g, "&#39;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+        function prettyState(s) {
+            // batterysoc → Batterysoc is ugly; try to match the live device's
+            // camelCase state names for a friendlier label.
+            const dev = DEVICES.find(d => d.id === current.id);
+            if (dev && dev.states) {
+                const m = Object.keys(dev.states).find(k => k.toLowerCase().replace(/[^a-z0-9_]/g, "") === s);
+                if (m) return m;
+            }
+            return s;
+        }
+
+        async function loadDevices() {
+            DEVICES = await api.getDevices();
+            DEVICES.sort((a, b) => a.name.localeCompare(b.name));
+            byName = {};
+            $("devlist").innerHTML = DEVICES.map(d => {
+                byName[d.name] = d.id;
+                return `<option value="${escHtml(d.name)}">`;
+            }).join("");
+        }
+
+        async function pickDevice(id) {
+            current.id = id;
+            const sel = $("state-pick");
+            sel.disabled = true;
+            sel.innerHTML = "<option>Loading…</option>";
+            try {
+                const res = await api.getHistoryStates(id);
+                const states = res.states || [];
+                /* Per-state types (v2.47.0) let a boolean be drawn as a step
+                   rather than sloped between 0 and 1. Older plugin versions
+                   send no types, hence the default. */
+                current.types = res.types || {};
+                if (!states.length) throw new Error("nothing recorded");
+                sel.innerHTML = states.map(s =>
+                    `<option value="${escHtml(s)}">${escHtml(prettyState(s))}</option>`).join("");
+                sel.disabled = false;
+                $("status").textContent = res.rows
+                    ? `${res.rows.toLocaleString()} rows recorded` : "";
+                // Prefer an interesting default state if present.
+                // A ?state= deep link wins over the "interesting default" guess.
+                const want = window._histWantState;
+                const fav = (want && states.includes(want)) ? want
+                          : states.find(s => /temperature|batterysoc|power|humidity|lux/.test(s));
+                sel.value = fav || states[0];
+                current.state = sel.value;
+                draw();
+            } catch (e) {
+                sel.innerHTML = "<option>—</option>";
+                const noDb = String((e && e.message) || "").indexOf("SQL Logger") !== -1;
+                $("status").textContent = noDb ? "SQL Logger not running" : "No history recorded for that device";
+                $("empty").style.display = "block";
+                $("empty").textContent = noDb
+                    ? "Graphs need Indigo's SQL Logger plugin (it ships with Indigo — enable it from the Plugins menu). Everything else works without it."
+                    : "No history recorded for that device — the SQL Logger may exclude it.";
+                if (chart) { chart.destroy(); chart = null; }
+            }
+        }
+
+        async function draw() {
+            if (!current.id || !current.state) return;
+            $("status").textContent = "Loading…";
+            let res;
+            try {
+                res = await api.getHistory(current.id, current.state, current.hours);
+            } catch (e) {
+                $("status").textContent = "Query failed: " + e.message;
+                return;
+            }
+            const pts = res.points || [];
+            $("empty").style.display = pts.length ? "none" : "block";
+            if (!pts.length) {
+                $("empty").textContent = "No data in this range.";
+                $("status").textContent = "";
+                if (chart) { chart.destroy(); chart = null; }
+                return;
+            }
+            const labels = pts.map(p => new Date(p.t * 1000));
+            const avg = pts.map(p => p.avg), mins = pts.map(p => p.min), maxs = pts.map(p => p.max);
+            const css = getComputedStyle(document.documentElement);
+            const accent = css.getPropertyValue("--accent").trim();
+            /* An on/off state has no meaningful value between its two levels,
+               so it is drawn as a step with no min/max band — a sloping line
+               between 0 and 1 implied readings that never existed. */
+            const isBool = (res.type || (current.types || {})[current.state]) === "bool";
+            const series = isBool
+                ? [{ label: prettyState(current.state), data: avg, borderColor: accent,
+                     borderWidth: 2, pointRadius: 0, stepped: "before",
+                     fill: true, backgroundColor: accent + "22" }]
+                : [{ label: "max", data: maxs, borderWidth: 0, pointRadius: 0,
+                     fill: "+1", backgroundColor: accent + "22" },
+                   { label: "min", data: mins, borderWidth: 0, pointRadius: 0, fill: false },
+                   { label: prettyState(current.state), data: avg, borderColor: accent,
+                     borderWidth: 2, pointRadius: 0, tension: 0.25, fill: false }];
+            if (chart) chart.destroy();
+            chart = new Chart($("chart"), {
+                type: "line",
+                data: { labels, datasets: series },
+                options: {
+                    responsive: true, maintainAspectRatio: false, animation: false,
+                    interaction: { mode: "index", intersect: false },
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { ticks: { maxTicksLimit: 8, color: css.getPropertyValue("--text-secondary"),
+                                      callback: function (v, i) {
+                                          const d = labels[i];
+                                          if (!d) return "";
+                                          return current.hours <= 48
+                                              ? d.getHours().toString().padStart(2, "0") + ":" +
+                                                d.getMinutes().toString().padStart(2, "0")
+                                              : (d.getDate() + "/" + (d.getMonth() + 1));
+                                      } },
+                             grid: { display: false } },
+                        y: isBool
+                            ? { min: 0, max: 1,
+                                ticks: { stepSize: 1, color: css.getPropertyValue("--text-secondary"),
+                                         callback: v => (v ? "on" : "off") },
+                                grid: { color: css.getPropertyValue("--border") } }
+                            : { ticks: { color: css.getPropertyValue("--text-secondary") },
+                                grid: { color: css.getPropertyValue("--border") } }
+                    }
+                }
+            });
+            // Null buckets (gaps in the recording) used to poison min/max:
+            // Math.min(...[null,…]) coerces null to 0, reporting a false floor.
+            const minsK = mins.filter(v => v != null && isFinite(v));
+            const maxsK = maxs.filter(v => v != null && isFinite(v));
+            const lo = minsK.length ? Math.min(...minsK) : null;
+            const hi = maxsK.length ? Math.max(...maxsK) : null;
+            const last = avg[avg.length - 1];
+            if (isBool) {
+                /* Min and Max of an on/off state are always 0 and 1 — useless.
+                   Share of time on is the figure worth having. */
+                const on = avg.filter(v => v != null && v > 0.5).length;
+                const known = avg.filter(v => v != null).length;
+                $("stats").innerHTML =
+                    `<span>Now <b>${last == null ? "—" : (last > 0.5 ? "on" : "off")}</b></span>` +
+                    `<span>On for <b>${known ? Math.round(on / known * 100) : 0}%</b> of the range</span>` +
+                    `<span>${pts.length} buckets</span>`;
+            } else {
+                $("stats").innerHTML =
+                    `<span>Latest <b>${last == null ? "—" : last.toFixed(1)}</b></span>` +
+                    `<span>Min <b>${lo == null ? "—" : lo.toFixed(1)}</b></span>` +
+                    `<span>Max <b>${hi == null ? "—" : hi.toFixed(1)}</b></span>` +
+                    `<span>${pts.length} buckets</span>`;
+            }
+            $("status").textContent = (DEVICES.find(d => d.id === current.id) || {}).name || "";
+        }
+
+        $("dev-pick").addEventListener("change", () => {
+            const id = byName[$("dev-pick").value];
+            if (id) pickDevice(id);
+        });
+        $("state-pick").addEventListener("change", () => {
+            current.state = $("state-pick").value;
+            draw();
+        });
+        $("ranges").addEventListener("click", e => {
+            const chip = e.target.closest(".range-chip");
+            if (!chip) return;
+            document.querySelectorAll(".range-chip").forEach(c => c.classList.remove("on"));
+            chip.classList.add("on");
+            current.hours = parseFloat(chip.dataset.h);
+            draw();
+        });
+
+        loadDevices().catch(e => {
+            $("status").textContent = "Couldn't load the device list — " + (e && e.message || e);
+            console.error("history loadDevices", e);
+        }).then(() => {
+            // Deep-link support: history.html?device=123&state=batterysoc
+            const qp = new URLSearchParams(location.search);
+            const id = parseInt(qp.get("device"), 10);
+            window._histWantState = String(qp.get("state") || "").toLowerCase().replace(/[^a-z0-9_]/g, "") || null;
+            if (id) {
+                const d = DEVICES.find(x => x.id === id);
+                if (d) { $("dev-pick").value = d.name; pickDevice(id); }
+            }
+        });
+    })();
+    </script>
+    <script src="a11y.js"></script>
+    <script src="standalone-nav.js"></script>
+</body>
+</html>

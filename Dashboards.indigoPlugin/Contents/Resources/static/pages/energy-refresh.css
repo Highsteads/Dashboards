@@ -1,0 +1,60 @@
+/* Energy page uses the home dashboard's graphic and surface system. */
+.energy-page .main { max-width:1180px; gap:22px; padding:16px; }
+.energy-page header { background:var(--card-bg); min-height:74px; }
+.energy-page .card { padding:24px; border-radius:20px; }
+.energy-page .grid2,.energy-page .grid3 { gap:22px; }
+.energy-page .card h2,.energy-page .sec-label { font-size:13px; letter-spacing:1px; font-weight:650; }
+.energy-page .hero { background:linear-gradient(135deg,var(--card-bg),var(--card-bg-alt)); }
+.energy-page #flow-mount { max-width:620px; margin:12px auto 24px; }
+.energy-page .hero-head { gap:16px; flex-wrap:wrap; }
+.energy-page .hero-stats { gap:14px; }
+.energy-page .hs-tile,.energy-page .mtile { background:var(--card-bg); border:1px solid var(--border-soft); border-radius:12px; padding:16px; }
+.energy-page .hs-lab,.energy-page .mt-lab { font-size:11px; color:var(--text-secondary); letter-spacing:.7px; }
+.energy-page .hs-val { font-size:28px; letter-spacing:-.7px; }
+.energy-page .hs-sub,.energy-page .mt-sub,.energy-page .eco-sub,.energy-page .spark-cap,.energy-page .fc-meta { font-size:13px; color:var(--text-secondary); line-height:1.5; }
+.energy-page .mt-val { font-size:22px; letter-spacing:-.4px; }
+.energy-page .hs-bar,.energy-page .self-suff-bar { height:4px; }
+.energy-page .chart-wrap { height:280px; margin-top:16px; }
+.energy-page .chart-wrap.h160 { height:210px; }
+.energy-page .chart-tab { min-height:40px; padding:9px 16px; border-radius:10px; font-size:13px; }
+.energy-page .chart-tab.active { background:var(--card-bg-alt); color:var(--accent); border-color:var(--accent); }
+.energy-page .sol-legend { font-size:12px; gap:14px; }
+.energy-page .solar-big { font-size:36px; letter-spacing:-1px; }
+.energy-page #sankey-svg { margin:20px auto; }
+.energy-page .sk-lab { font-size:13px; font-weight:600; letter-spacing:.7px; }
+.energy-page .sk-kwh { font-size:13px; font-weight:650; }
+.energy-page .sk-pct { font-size:11px; fill:var(--text-secondary); }
+.energy-page .soc-ring-wrap { width:150px; height:150px; flex-shrink:0; }
+.energy-page .soc-pct { font-size:30px; letter-spacing:-1px; }
+.energy-page .soc-kwh { font-size:13px; }
+.energy-page .bat-wrap { gap:24px; margin:20px 0; }
+.energy-page .bat-state { border-radius:8px; font-size:13px; }
+.energy-page .spark-wrap { height:56px; margin-top:16px; }
+.energy-page .mtiles { gap:12px; }
+.energy-page .eco-divider { margin:22px 0; }
+.energy-page #flow-mount .fdg-val { fill:var(--text); }
+@media(max-width:760px){
+ .energy-page .card { padding:18px; }
+ .energy-page .main { gap:16px; }
+ .energy-page .hero-stats { grid-template-columns:repeat(2,minmax(0,1fr)); }
+ .energy-page .hs-tile,.energy-page .mtile { padding:12px; }
+ .energy-page .chart-wrap { height:240px; }
+ .energy-page .bat-wrap { gap:14px; }
+ .energy-page .soc-ring-wrap { width:120px; height:120px; }
+ .energy-page .soc-pct { font-size:24px; }
+}
+.energy-page .grid2 { align-items:start; }
+@media(min-width:761px){ .energy-page .energy-today-grid > :first-child { grid-row:span 2; } }
+.energy-page .grid2:has(> :only-child) { grid-template-columns:1fr; }
+.energy-page .sk-note,.energy-page .sol-score,.energy-page .sol-range-note { font-size:12px; line-height:1.6; }
+.energy-page .soc-ring-wrap svg { overflow:visible; }
+.energy-page .soc-ring-wrap { padding:4px; }
+.energy-page .chart-wrap canvas { border-radius:8px; }
+.energy-page #sol-prog-svg { margin-top:12px; }
+/* Measured contrast for small status text and numeric summaries. */
+.energy-page { --on-color:#267347; --good:#267347; --ok:#267347; --solar:#956000; --warn:#995900; --bad:#bb3029; }
+.energy-page #bat-state,.energy-page #action-badge { color:var(--text)!important; }
+.energy-page .wow-delta.bad { color:var(--bad); }
+@media(prefers-color-scheme:dark){ .energy-page { --on-color:#81d5a5; --good:#81d5a5; --ok:#81d5a5; --solar:#ffca70; --warn:#ffc378; --bad:#ff9a92; } }
+.energy-page #hs-soc { color:var(--text)!important; }
+@media(prefers-color-scheme:dark){ .energy-page { --accent:#b0acff; } }

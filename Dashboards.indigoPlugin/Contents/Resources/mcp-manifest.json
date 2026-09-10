@@ -1,0 +1,102 @@
+{
+  "manifest_version": 1,
+  "provider": {
+    "plugin_id": "com.clives.indigoplugin.dashboards",
+    "display_name": "Dashboards"
+  },
+  "tool_prefix": "dashboards",
+  "invoke_action_id": "mcp_tool_invoke",
+  "tools": [
+    {
+      "name": "get_status",
+      "description": "What the Dashboards plugin is running right now: version, the hub URL, where its configuration comes from, which room folders it is using and how many of them exist in Indigo, the camera pipeline state, the history backend and which optional companion scripts are present. Read-only. Call this first when asked anything about the dashboards.",
+      "write": false,
+      "timeout_seconds": 15,
+      "inputSchema": {"type": "object", "properties": {}, "required": []}
+    },
+    {
+      "name": "run_setup_check",
+      "description": "Run the same PASS/FAIL sweep as the Plugins > Dashboards > Test Dashboards Setup menu item and return every check as data: label, whether it passed, a detail string, and whether the item is optional (optional failures are reported as SKIP and do not count). Read-only. Use it to diagnose a fresh or stuck install before changing anything.",
+      "write": false,
+      "timeout_seconds": 30,
+      "inputSchema": {"type": "object", "properties": {}, "required": []}
+    },
+    {
+      "name": "list_room_folders",
+      "description": "The Indigo device folders the dashboards treat as rooms (each becomes a room page), whether that list came from the settings store or the plugin's built-in defaults, every device folder Indigo actually has, and any configured name that does not exist in Indigo. Read-only. A fresh install shows no rooms until this list names real folders.",
+      "write": false,
+      "timeout_seconds": 15,
+      "inputSchema": {"type": "object", "properties": {}, "required": []}
+    },
+    {
+      "name": "set_room_folders",
+      "description": "Replace the list of Indigo device folders that become room pages. Every name must be an existing Indigo device folder, spelt exactly; unknown names are refused and the available folders are listed in the error. Saves dashboards_config.json through the same validation as the Settings page and rebuilds rooms.json immediately, so the change is live without a restart.",
+      "write": true,
+      "timeout_seconds": 30,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "folders": {
+            "type": "array",
+            "items": {"type": "string"},
+            "minItems": 1,
+            "description": "Indigo device folder names, in the order the rooms should appear. Call list_room_folders first for the exact names."
+          }
+        },
+        "required": ["folders"]
+      }
+    },
+    {
+      "name": "list_cameras",
+      "description": "The cameras the dashboards are configured with (host, name, vendor, stream, rooms), which of them make up the hub mosaic, the swap-out host, whether camera credentials are set, and whether go2rtc and the MJPEG proxy are running. Also says whether the saved camera list differs from the one currently streaming, which means a plugin restart is pending. Read-only. Never returns credentials.",
+      "write": false,
+      "timeout_seconds": 15,
+      "inputSchema": {"type": "object", "properties": {}, "required": []}
+    },
+    {
+      "name": "set_camera",
+      "description": "Add a camera, or update the one with the same host. A new camera needs host, name and vendor; an update needs only host plus the fields to change. Saves dashboards_config.json through the same validation as the Settings page. Camera changes only reach the streaming pipeline after the Dashboards plugin is restarted (Plugins > Dashboards > Reload); the reply says whether a restart is needed.",
+      "write": true,
+      "timeout_seconds": 30,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "host": {"type": "string", "description": "IP address or plain hostname of the camera on the LAN. Identifies the camera; changing it means removing and re-adding."},
+          "name": {"type": "string", "description": "Display name, e.g. Front Door. Required when adding. It becomes the go2rtc stream name, so two cameras cannot share one."},
+          "vendor": {"type": "string", "enum": ["dahua", "hikvision"], "description": "Picks the RTSP URL template. Required when adding."},
+          "stream": {"type": "string", "enum": ["sub2", "main"], "description": "Which RTSP stream to use. Default sub2 (the low-bandwidth substream)."},
+          "rooms": {"type": "array", "items": {"type": "string"}, "description": "Room folder names whose room pages should show this camera. An empty list keeps the camera off every room page."},
+          "main": {"type": "boolean", "description": "true puts the camera in the hub's mosaic, false takes it out. Omit to leave that as it is."}
+        },
+        "required": ["host"]
+      }
+    },
+    {
+      "name": "remove_camera",
+      "description": "Remove the camera with the given host from the configuration, and from the hub mosaic if it was in it. Saves dashboards_config.json through the same validation as the Settings page. The streaming pipeline drops it after the Dashboards plugin is restarted; the reply says whether a restart is needed.",
+      "write": true,
+      "timeout_seconds": 30,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "host": {"type": "string", "description": "The camera's host exactly as list_cameras reports it."}
+        },
+        "required": ["host"]
+      }
+    },
+    {
+      "name": "read_log",
+      "description": "The last lines of the Dashboards plugin's own log file (plugin.log under Indigo's Logs folder), newest last, optionally only the lines containing a phrase. Read-only. Use it to see why a page is empty, a camera is not streaming or a companion script is complaining, without opening the Indigo event log.",
+      "write": false,
+      "timeout_seconds": 15,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "lines": {"type": "integer", "minimum": 1, "maximum": 400, "description": "How many lines from the end to return. Default 60."},
+          "contains": {"type": "string", "description": "Only return lines containing this text (case-insensitive), e.g. WARNING or [Camera]."}
+        },
+        "required": []
+      }
+    }
+  ]
+}

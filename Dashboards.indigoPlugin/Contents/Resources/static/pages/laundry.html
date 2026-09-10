@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<!--
+  Filename:    laundry.html
+  Description: When to run the washing machine so it costs the least grid import.
+               Reads the plan Appliance_Scheduler.py works out from the solar
+               forecast, the house's own measured load profile, the battery and
+               the live half-hourly prices. Deadline chips replan on the spot.
+               Advisory only - nothing here switches the machine on, and the
+               plan is served Bearer-authed rather than from anonymous /public
+               because when a household does its washing is behavioural.
+  Author:      CliveS & Claude Opus 5
+  Date:        09-09-2026
+  Version:     1.0
+-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta name="indigo-page-name" content="Laundry">
+    <meta name="indigo-page-icon" content="laundry">
+    <meta name="indigo-page-description" content="When to run the washing machine for least grid import">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Dashboards">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#5856d6">
+    <link rel="apple-touch-icon" sizes="180x180" href="/public/dashboards/apple-touch-icon.png">
+    <title>Laundry &middot; Dashboards</title>
+<link rel="stylesheet" href="dashboards-theme.css">
+<style>
+:root {
+    --hero-grad: linear-gradient(160deg, rgba(88,86,214,0.08), rgba(255,255,255,0) 60%);
+}
+@media (prefers-color-scheme: dark){
+  :root {
+    --hero-grad: linear-gradient(160deg, rgba(88,86,214,0.14), rgba(0,0,0,0) 60%);
+  }
+}
+}
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{overflow-x:hidden;width:100%;max-width:100vw}
+body{
+  background:var(--bg);color:var(--text);
+  font-family:var(--font-ui);
+  font-size:14px;min-height:100vh;-webkit-overflow-scrolling:touch;
+  padding-top:max(80px, calc(72px + env(safe-area-inset-top)));
+}
+header{
+  display:grid;grid-template-columns:1fr 2fr 1fr;align-items:center;gap:8px;
+  padding:10px max(16px,env(safe-area-inset-right)) 10px max(16px,env(safe-area-inset-left));
+  padding-top:max(10px,env(safe-area-inset-top));
+  position:fixed;top:0;left:0;right:0;z-index:10;
+  background:rgba(249,249,251,0.82);
+  -webkit-backdrop-filter:saturate(180%) blur(20px);
+  backdrop-filter:saturate(180%) blur(20px);
+  border-bottom:1px solid var(--border-soft);
+}
+@media (prefers-color-scheme: dark){header{background:rgba(22,22,24,0.80)}}
+.hdr-left{justify-self:start}.hdr-right{justify-self:end}
+.hdr-center{justify-self:stretch;text-align:center;min-width:0;display:flex;flex-direction:column;align-items:center;gap:1px;line-height:1.15}
+header h1{font-size:20px;font-weight:700;letter-spacing:-.02em;white-space:nowrap}
+.topbar-status{font-size:11px;color:var(--text-secondary);font-variant-numeric:tabular-nums;white-space:nowrap}
+.topbar-status .ts::before{content:'●';color:var(--on-color);margin-right:4px;animation:live-pulse 2.4s ease-in-out infinite}
+@keyframes live-pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.nav-btn{
+  background:var(--card-bg);border:1px solid var(--border-soft);color:var(--accent);
+  padding:8px 14px;border-radius: var(--r-md);font-size:14px;font-weight:600;cursor:pointer;
+  font-family:inherit;text-decoration:none;display:inline-flex;align-items:center;gap:4px;
+  min-height:36px;transition:transform .08s ease-out, background .15s, border-color .15s;
+  user-select:none;-webkit-tap-highlight-color:transparent;white-space:nowrap;
+}
+.nav-btn:hover{background:var(--card-bg-alt);border-color:var(--accent)}
+.nav-btn:active{transform:translateY(2px) scale(.96);background:var(--accent);color:#fff}
+
+.main{padding:16px;display:flex;flex-direction:column;gap:12px;max-width:940px;margin:0 auto}
+.main > *{min-width:0}
+.sec-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--text-secondary);margin:14px 4px 0}
+.card{
+  background:var(--card-bg);border:1px solid var(--border-soft);
+  border-radius: var(--r-xl);padding:18px;box-shadow:var(--shadow);
+  animation:card-in .4s ease-out both;
+}
+@keyframes card-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.card h2{font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.7px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.card h2 .pill{font-weight:500;text-transform:none;letter-spacing:0;color:var(--text-muted);font-variant-numeric:tabular-nums}
+.muted{color:var(--text-muted)}
+.good{color:var(--on-color)}.warn{color:var(--warn)}.bad{color:var(--bad)}
+
+/* verdict hero */
+.hero{background:var(--card-bg);background-image:var(--hero-grad)}
+.hero-top{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.hero-icon{font-size:34px;line-height:1}
+.hero-verdict{font-size:24px;font-weight:800;letter-spacing:-.02em}
+.hero-sub{font-size:12.5px;color:var(--text-secondary);margin-top:2px}
+.hero-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;padding:6px 11px;border-radius: var(--r-md);
+  background:var(--card-bg-alt);border:1px solid var(--border-soft);color:var(--text);font-variant-numeric:tabular-nums}
+.chip.good{background:rgba(52,199,89,.14);border-color:rgba(52,199,89,.25);color:var(--on-color)}
+.chip.warn{background:rgba(255,149,0,.14);border-color:rgba(255,149,0,.25);color:var(--warn)}
+.chip.bad{background:rgba(255,69,58,.14);border-color:rgba(255,69,58,.25);color:var(--bad)}
+
+/* gauges */
+.strip{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+@media(max-width:720px){.strip{grid-template-columns:repeat(2,1fr)}}
+.gauge{background:var(--card-bg);border:1px solid var(--border-soft);border-radius: var(--r-lg);padding:14px 16px;box-shadow:var(--shadow)}
+.gauge-lab{font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.6px}
+.gauge-big{font-size:26px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums;margin-top:4px;letter-spacing:-.02em}
+.gauge-sub{font-size:11.5px;color:var(--text-muted);margin-top:2px}
+.gauge .bar{margin-top:8px}
+.gauge.warn .gauge-big{color:var(--warn)}
+.gauge.bad .gauge-big{color:var(--bad)}
+
+/* meters / kv */
+.meter{margin-bottom:14px}
+.meter:last-child{margin-bottom:0}
+.meter-head{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;margin-bottom:6px}
+.meter-head b{font-variant-numeric:tabular-nums}
+.bar{height:8px;border-radius:5px;background:var(--track);overflow:hidden}
+.bar-fill{height:100%;border-radius:5px;transition:width .4s ease}
+.meter-note{font-size:11px;color:var(--text-muted);margin-top:5px;line-height:1.45}
+.kv{display:flex;justify-content:space-between;font-size:12.5px;padding:5px 0;color:var(--text-secondary);border-top:1px solid var(--border-soft)}
+.kv:first-child{border-top:0}
+.kv b{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
+.badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius: var(--r-sm)}
+.badge.good{background:rgba(52,199,89,.16);color:var(--on-color)}
+.badge.warn{background:rgba(255,149,0,.16);color:var(--warn)}
+.badge.bad{background:rgba(255,69,58,.16);color:var(--bad)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:720px){.grid2{grid-template-columns:1fr}}
+
+.ditem{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--border-soft);font-size:13px}
+.ditem:first-child{border-top:0}
+.ditem .dn{flex:1;min-width:0}
+.ditem .dn b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ditem .dn span{font-size:11.5px;color:var(--text-secondary)}
+.ditem .dv{font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:600}
+.empty{font-size:12.5px;color:var(--text-muted);padding:4px 0}
+
+table.ptable{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums}
+table.ptable th,table.ptable td{text-align:right;padding:7px 6px;border-bottom:1px solid var(--border-soft)}
+table.ptable th:first-child,table.ptable td:first-child{text-align:left}
+table.ptable th{font-size:11px;color:var(--text-secondary);font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+table.ptable tr:last-child td{border-bottom:none}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--off-color);margin-right:6px;vertical-align:middle}
+.dot.on{background:var(--on-color)}.dot.off{background:var(--bad)}
+
+details{margin-top:8px}
+summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--accent)}
+.note{font-size:11px;color:var(--text-muted);margin-top:10px;line-height:1.5}
+.loading{text-align:center;padding:60px 20px;color:var(--text-secondary)}
+.spinner{width:24px;height:24px;border:3px solid var(--off-color);border-top-color:var(--accent);
+  border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Safari / a11y polish */
+html{-webkit-text-size-adjust:100%}
+body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+@supports (min-height:100dvh){body{min-height:100dvh}}
+a,button,input,select,textarea{-webkit-tap-highlight-color:transparent}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{transition-duration:.01ms !important;animation-duration:.01ms !important;scroll-behavior:auto !important}
+}
+@media(max-width:480px){
+  header{padding:8px 12px;padding-top:max(8px,env(safe-area-inset-top))}
+  header h1{font-size:15px}
+  .main{padding:10px;gap:10px}
+  .card{padding:14px}
+  .gauge-big{font-size:22px}
+  .hero-verdict{font-size:20px}
+}
+
+.topbar h1 .dsh-icon,h1 .dsh-icon{width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;opacity:.85}
+
+/* ── this page's own additions ─────────────────────────────────────────── */
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.chips button{font:inherit;font-size:13px;padding:7px 13px;border-radius:999px;cursor:pointer;
+    border:1px solid var(--border);background:var(--card-bg);color:var(--text-primary);
+    transition:background .15s,border-color .15s}
+.chips button:hover:not(:disabled){border-color:var(--accent)}
+.chips button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.chips button:disabled{opacity:.5;cursor:default}
+.slot{display:grid;grid-template-columns:52px 1fr auto;gap:10px;align-items:center;
+    padding:3px 0;font-size:12px;font-variant-numeric:tabular-nums}
+.slot .t{color:var(--text-secondary)}
+.slot .track{height:9px;border-radius:5px;background:var(--border);overflow:hidden;opacity:.55}
+.slot .fill{height:100%;border-radius:5px;background:var(--warn-color,#ff9f0a)}
+.slot.free .fill{background:var(--on-color)}
+.slot.pick{font-weight:600}
+.slot.pick .t{color:var(--accent)}
+.slot .p{color:var(--text-secondary);min-width:52px;text-align:right}
+.split{display:flex;gap:2px;height:14px;border-radius:7px;overflow:hidden;margin:10px 0 6px}
+.split span{display:block}
+.split .s{background:var(--on-color)}
+.split .b{background:var(--accent)}
+.split .g{background:var(--warn-color,#ff9f0a)}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--text-secondary)}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px}
+.stale .ts::before{color:var(--warn-color,#ff9f0a);animation:none}
+</style>
+</head>
+<body>
+<header>
+  <div class="hdr-left"><a class="nav-btn" href="index.html">&larr; Home</a></div>
+  <div class="hdr-center">
+    <h1><span data-icon="laundry"></span> Laundry</h1>
+    <span class="topbar-status" id="freshness"><span class="ts">Updated <span id="ts">&#8212;</span></span> <span id="cadence">&middot; every 60s</span></span>
+  </div>
+  <div class="hdr-right"><a class="nav-btn" href="energy.html">Energy &rarr;</a></div>
+</header>
+
+<main class="main">
+  <div id="content"><div class="loading"><div class="spinner"></div><p>Working out the best time&#8230;</p></div></div>
+</main>
+
+<script src="config.js" onerror="window.INDIGO_CONFIG_MISSING=true"></script>
+<script src="dashboards-auth.js"></script>
+<script src="dashboards-ui.js"></script>
+<script src="dashboards-gate.js"></script>
+<script>
+"use strict";
+const EP = "/message/com.clives.indigoplugin.dashboards/";
+const POLL_MS = 60000;
+const DEADLINES = [["12:00","by noon"],["14:00","by 2pm"],["16:00","by 4pm"],
+                   ["19:00","by 7pm"],["22:00","by 10pm"],["","no deadline"]];
+let PLAN = null, BUSY = false;
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g,
+    (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+/* ── how fresh is what you are looking at ───────────────────────────────────
+   Its OWN timer, not the poll's: a poll that has died cannot be trusted to
+   report that it has died. Pure, so a test can drive it. */
+const STALE_AFTER_MS = 195000;         // three missed sixty-second polls, plus slack
+let _lastGood = 0;
+
+function agoWords(ms) {
+    const s = Math.round(ms / 1000);
+    if (s < 90) return s + (s === 1 ? " second" : " seconds");
+    const m = Math.round(s / 60);
+    if (s < 3600) return m + (m === 1 ? " minute" : " minutes");
+    const h = Math.round(s / 3600);
+    return h + (h === 1 ? " hour" : " hours");
+}
+
+function freshness(ageMs) {
+    // Before anything has arrived there is nothing to be stale about - the
+    // loading card already says so, and amber over a page that has never
+    // loaded is its own wrong answer.
+    if (!(ageMs >= 0)) return { stale: false, text: "&middot; every 60s" };
+    if (ageMs <= STALE_AFTER_MS) return { stale: false, text: "&middot; every 60s" };
+    return { stale: true, text: "&middot; not updating for " + agoWords(ageMs) };
+}
+
+function markFreshness() {
+    const bar = $("freshness"), cad = $("cadence");
+    if (!bar || !cad || !_lastGood) return;
+    const f = freshness(Date.now() - _lastGood);
+    bar.classList.toggle("stale", f.stale);
+    cad.innerHTML = f.text;
+}
+setInterval(markFreshness, 5000);
+
+/* ── talking to the plugin ──────────────────────────────────────────────── */
+async function call(route, body) {
+    const key = (window.INDIGO_CONFIG || {}).apiKey || "";
+    const r = await fetch(EP + route + "/", {
+        method: "POST",
+        headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
+        body: JSON.stringify(body || {})
+    });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    return await r.json();
+}
+
+async function load() {
+    // The gate: back off while the plugin is restarting rather than wedging the
+    // whole IWS event loop for five minutes (v2.70.0).
+    if (window.DashGate && await window.DashGate.check() === "down") return;
+    try {
+        const d = await call("laundryPlan");
+        PLAN = d;
+        _lastGood = Date.now();            // ONE writer, and only on data actually arriving
+        render();
+    } catch (e) {
+        // Caught and SAID, not swallowed: a stall that reports nothing is
+        // indistinguishable from a page that is simply quiet.
+        console.warn("laundry: " + e.message);
+        if (!$("content").querySelector(".card")) {
+            $("content").innerHTML = '<div class="card"><p class="note">Could not reach the '
+                + 'plugin. ' + esc(e.message) + '</p></div>';
+        }
+    }
+}
+
+async function setDeadline(key, hhmm, btn) {
+    if (BUSY) return;
+    BUSY = true;
+    document.querySelectorAll(".chips button").forEach(b => b.disabled = true);
+    if (btn) btn.textContent = "Working...";
+    try {
+        const d = await call("laundryDeadline", { appliance: key, deadline: hhmm });
+        if (d && d.ok && d.plan) { PLAN = d.plan; PLAN.ok = true; _lastGood = Date.now(); }
+        else if (d && d.error) { throw new Error(d.error); }
+    } catch (e) {
+        console.warn("laundry deadline: " + e.message);
+    } finally {
+        BUSY = false;
+        render();
+    }
+}
+
+/* ── rendering ──────────────────────────────────────────────────────────── */
+function clock(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    const h = d.getHours() % 12 || 12, m = d.getMinutes();
+    return h + (m ? ":" + String(m).padStart(2, "0") : "") + (d.getHours() < 12 ? "am" : "pm");
+}
+
+function currentDeadline(a) {
+    if (!a || !a.deadline) return null;
+    const d = new Date(a.deadline);
+    return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+}
+
+function chipsFor(a) {
+    const cur = currentDeadline(a);
+    const b = DEADLINES.map(([v, label]) =>
+        '<button type="button" data-key="' + esc(a.key) + '" data-v="' + esc(v)
+        + '" aria-pressed="' + (v === cur ? "true" : "false") + '">' + esc(label)
+        + "</button>").join("");
+    return '<div class="sec-label">Finish by</div><div class="chips">' + b + "</div>";
+}
+
+function splitFor(a) {
+    const total = (a.appliance && a.appliance.kwh) || 0;
+    if (!total || a.state !== "planned") return "";
+    const s = a.solar_kwh || 0, b = a.battery_kwh || 0, g = a.grid_kwh || 0;
+    const pc = (v) => Math.max(0, Math.round(v / total * 1000) / 10);
+    return '<div class="sec-label">Where its ' + total.toFixed(2) + ' kWh would come from</div>'
+        + '<div class="split">'
+        + '<span class="s" style="width:' + pc(s) + '%"></span>'
+        + '<span class="b" style="width:' + pc(b) + '%"></span>'
+        + '<span class="g" style="width:' + pc(g) + '%"></span></div>'
+        + '<div class="legend">'
+        + '<span><i style="background:var(--on-color)"></i>Sun ' + pc(s) + '%</span>'
+        + '<span><i style="background:var(--accent)"></i>Battery ' + pc(b) + '%</span>'
+        + '<span><i style="background:var(--warn-color,#ff9f0a)"></i>Grid ' + pc(g)
+        + '%</span></div>';
+}
+
+function shapeCard(a) {
+    const opts = (a && a.options) || [];
+    if (opts.length < 2) return "";
+    const worst = Math.max.apply(null, opts.map(o => o.grid_kwh || 0));
+    // When nothing would be bought whenever you run it, forty-five identical rows
+    // saying "free" is a value dump that tells the reader nothing. Say it once.
+    if (worst <= 0.01) {
+        return '<div class="sec-label">Every half hour between now and the deadline</div>'
+            + '<p class="note">All ' + opts.length + ' of them come out the same: nothing off '
+            + 'the grid whenever you run it. The battery has enough to cover a run right '
+            + 'through to the deadline, so there is nothing to choose between them.</p>';
+    }
+    const rows = opts.map(function (o) {
+        const g = o.grid_kwh || 0;
+        const w = worst > 0 ? Math.round(g / worst * 100) : 0;
+        const cls = "slot" + (g <= 0.01 ? " free" : "") + (o.start === a.start ? " pick" : "");
+        return '<div class="' + cls + '"><span class="t">' + esc(clock(o.start))
+             + '</span><span class="track"><span class="fill" style="width:' + w
+             + '%"></span></span><span class="p">'
+             + (g <= 0.01 ? "free" : (o.cost_p || 0).toFixed(0) + "p") + "</span></div>";
+    }).join("");
+    return '<div class="sec-label">Every half hour between now and the deadline</div>' + rows
+        + '<p class="note">The bar is how much would come off the grid. Green means none of '
+        + 'it would.</p>';
+}
+
+function applianceCard(a) {
+    const msg = a.message || "";
+    const title = esc((a.label || "the appliance").replace(/^the /, ""));
+    let html = '<div class="card"><div class="hero-top">'
+        + '<div class="hero-icon" data-icon="laundry"></div>'
+        + '<div><div class="hero-verdict">' + esc(msg.split(". ")[0]) + '.</div>'
+        + '<div class="hero-sub">' + esc(msg.split(". ").slice(1).join(". ")) + "</div>"
+        + "</div></div>";
+    // Chips only where a deadline means anything. A machine that is mid-cycle, or that has
+    // not run enough times to be measured, has nothing to schedule.
+    if (a.state === "planned" || a.state === "no_plan") html += chipsFor(a);
+    if (a.state === "planned") { html += splitFor(a); html += shapeCard(a); }
+    const ap = a.appliance || {};
+    if (ap.measured_from) {
+        html += '<p class="note">' + title.charAt(0).toUpperCase() + title.slice(1)
+            + ': ' + esc(String(ap.minutes)) + ' minutes and ' + esc(String(ap.kwh))
+            + ' kWh, measured from ' + esc(ap.measured_from) + ' of its own, not the manual.</p>';
+    }
+    return html + "</div>";
+}
+
+function render() {
+    if (!PLAN) return;
+    $("ts").textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    markFreshness();
+
+    const list = PLAN.appliances || [];
+    let html = "";
+    if (!list.length) {
+        html = '<div class="card"><div class="hero-verdict">Nothing is metered yet.</div>'
+            + '<p class="note">' + esc(PLAN.note || "Put a metering plug on an appliance and "
+            + "add an Appliance Monitor device pointed at it.") + ' Once it has run about '
+            + 'five cycles this page can say when to run it, using that machine\'s own '
+            + 'timings rather than a figure off the manual.</p></div>';
+    } else {
+        html = list.map(applianceCard).join("");
+    }
+    $("content").innerHTML = html;
+
+    document.querySelectorAll(".chips button").forEach(function (btn) {
+        btn.addEventListener("click", () => setDeadline(btn.dataset.key, btn.dataset.v, btn));
+    });
+    if (window.DashIcons && window.DashIcons.apply) window.DashIcons.apply();
+}
+
+if (window.DashFeatures && DashFeatures.sigenAbsent('Laundry')) {
+    /* v3.13.0: no SigenEnergyManager — the notice is on screen in place of
+       the page and there is nothing to poll. markFreshness finds no bar and
+       returns. */
+} else {
+    load();
+    setInterval(load, POLL_MS);
+}
+</script>
+<script src="dashboards-icons.js"></script>
+<script src="a11y.js"></script>
+<script src="standalone-nav.js"></script>
+</body>
+</html>

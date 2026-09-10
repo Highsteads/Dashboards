@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Deliberately NO indigo-page-name meta: this is the Phase C0 spike
+         harness, not a dashboard page — it must stay out of the nav/catalog.
+         Delete the file once the WebRTC tile ships (or keep it as the
+         diagnostic it is; it costs nothing while unlisted). -->
+    <title>WebRTC spike</title>
+    <style>
+        body { font-family: -apple-system, system-ui, sans-serif; margin: 0;
+               background: #111; color: #ddd; }
+        .bar { display: flex; gap: 8px; padding: 10px; align-items: center;
+               flex-wrap: wrap; }
+        select, button { font-size: 16px; padding: 8px 12px; border-radius: 8px;
+                         border: 1px solid #444; background: #222; color: #ddd; }
+        button.primary { background: #2b6; color: #fff; border-color: #2b6; }
+        video { width: 100%; max-height: 60vh; background: #000; display: block; }
+        #log { font: 12px/1.5 ui-monospace, monospace; white-space: pre-wrap;
+               padding: 10px; color: #9c9; }
+        #log .err { color: #f88; }
+    </style>
+</head>
+<body>
+    <div class="bar">
+        <select id="cam"></select>
+        <button id="start" class="primary">Start</button>
+        <button id="stop">Stop</button>
+        <span id="state">idle</span>
+    </div>
+    <video id="v" autoplay playsinline muted></video>
+    <div id="log"></div>
+
+<script src="config.js"></script>
+<script>
+    "use strict";
+    // Phase C0 spike: does go2rtc WebRTC play on this device over this link?
+    // Media path: browser <-> go2rtc :8555 (UDP+TCP mux), reached directly on
+    // the LAN address (works over the Tailscale subnet route). Signalling:
+    // POST the SDP offer to the plugin proxy :8177/webrtc/<host>, which
+    // forwards to go2rtc's loopback API (contract: 201 + application/sdp).
+    // These named functions are the future cameras.html player — keep them
+    // page-independent.
+    const cfg   = window.CAMERA_CONFIG || {};
+    const hosts = cfg.hosts || [];
+    const names = cfg.names || {};
+    const logEl = document.getElementById("log");
+    const stEl  = document.getElementById("state");
+    const video = document.getElementById("v");
+    let pc = null, t0 = 0, statTimer = null;
+
+    function log(msg, err) {
+        const line = document.createElement("div");
+        if (err) line.className = "err";
+        line.textContent = `+${((performance.now() - t0) / 1000).toFixed(2)}s  ${msg}`;
+        logEl.appendChild(line);
+    }
+    function whepUrl(host) {
+        const port = cfg.mjpegPort || 8177;
+        const path = (cfg.webrtcPath || "/webrtc/{host}").replace("{host}", host);
+        return `${location.protocol}//${location.hostname}:${port}${path}`;
+    }
+    // Build the peer connection. No STUN — the only candidate that can work
+    // is go2rtc's LAN host candidate, directly reachable on every allowed
+    // path. Video only: the cameras' AAC audio cannot negotiate in WebRTC,
+    // and transcoding audio for a security camera is not worth an ffmpeg leg.
+    function buildPc() {
+        const p = new RTCPeerConnection({ iceServers: [] });
+        p.addTransceiver("video", { direction: "recvonly" });
+        p.addEventListener("track", (e) => {
+            log("track received");
+            video.srcObject = e.streams[0] || new MediaStream([e.track]);
+        });
+        p.addEventListener("connectionstatechange", () => {
+            log(`connectionState: ${p.connectionState}`);
+            stEl.textContent = p.connectionState;
+        });
+        p.addEventListener("iceconnectionstatechange", () =>
+            log(`iceConnectionState: ${p.iceConnectionState}`));
+        return p;
+    }
+    async function negotiate(p, host) {
+        const offer = await p.createOffer();
+        await p.setLocalDescription(offer);
+        // Wait for gathering (capped): host-only candidates arrive fast.
+        await new Promise((r) => {
+            if (p.iceGatheringState === "complete") return r();
+            const done = () => { if (p.iceGatheringState === "complete") r(); };
+            p.addEventListener("icegatheringstatechange", done);
+            setTimeout(r, 1000);
+        });
+        log(`offer ready (${p.localDescription.sdp.length} bytes)`);
+        const posted = performance.now();
+        const resp = await fetch(whepUrl(host), {
+            method: "POST",
+            headers: { "Content-Type": "application/sdp" },
+            body: p.localDescription.sdp,
+        });
+        log(`signalling ${resp.status} in ${Math.round(performance.now() - posted)}ms`);
+        if (!resp.ok) throw new Error(`signalling failed: ${resp.status} ${await resp.text()}`);
+        const answer = await resp.text();
+        await p.setRemoteDescription({ type: "answer", sdp: answer });
+        log("answer applied");
+    }
+    async function start() {
+        stop();
+        t0 = performance.now();
+        logEl.textContent = "";
+        const host = document.getElementById("cam").value;
+        log(`starting ${names[host] || host} (${host})`);
+        pc = buildPc();
+        try {
+            await negotiate(pc, host);
+        } catch (e) {
+            log(e.message, true);
+            stop();
+            return;
+        }
+        if (video.requestVideoFrameCallback) {
+            video.requestVideoFrameCallback(() =>
+                log(`FIRST FRAME rendered — time-to-first-frame above`));
+        }
+        // Once a second: nominated candidate pair (the udp-vs-tcp answer)
+        // and decode/byte counters — the numbers the spike protocol records.
+        statTimer = setInterval(async () => {
+            if (!pc) return;
+            try {
+                const stats = await pc.getStats();
+                let pair = null, local = {}, remote = {}, inbound = null;
+                stats.forEach((s) => {
+                    if (s.type === "candidate-pair" && s.nominated && s.state === "succeeded") pair = s;
+                    if (s.type === "inbound-rtp" && s.kind === "video") inbound = s;
+                });
+                if (pair) {
+                    stats.forEach((s) => {
+                        if (s.id === pair.localCandidateId)  local  = s;
+                        if (s.id === pair.remoteCandidateId) remote = s;
+                    });
+                }
+                const bits = [];
+                if (local.protocol) bits.push(`pair ${local.protocol} ${local.candidateType}->${remote.candidateType} ${remote.address || ""}:${remote.port || ""}`);
+                if (inbound) bits.push(`frames ${inbound.framesDecoded} · ${(inbound.bytesReceived / 1024).toFixed(0)} kB`);
+                stEl.textContent = `${pc.connectionState} · ${bits.join(" · ")}`;
+            } catch (e) { /* stats are best-effort */ }
+        }, 1000);
+    }
+    function stop() {
+        if (statTimer) { clearInterval(statTimer); statTimer = null; }
+        if (pc) { try { pc.close(); } catch (e) {} pc = null; }
+        video.srcObject = null;
+        stEl.textContent = "idle";
+    }
+    const sel = document.getElementById("cam");
+    for (const h of hosts) {
+        const o = document.createElement("option");
+        o.value = h; o.textContent = `${names[h] || h} (${h})`;
+        sel.appendChild(o);
+    }
+    document.getElementById("start").addEventListener("click", start);
+    document.getElementById("stop").addEventListener("click", stop);
+    window.addEventListener("pagehide", stop);
+</script>
+</body>
+</html>

@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<!--
+  Filename:    system-health.html
+  Description: Server health page — verdict hero, Mac vitals (disk, RAM + swap,
+               load, uptime), storage breakdown, the plugin's own camera
+               services, and a device-health census. One server-side round-trip
+               via the systemHealth endpoint (the browser can't read host stats).
+               v2.33.0: restyled to the Energy/Cost design language; verdict
+               hero; services card; Indigo/API versions; boot date displayed;
+               RAM now in binary GiB server-side; storage note matches its
+               maths; countdown replaced by the live dot.
+  Author:      CliveS & Claude Fable 5
+  Date:        13-07-2026
+  Version:     2.0
+-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta name="indigo-page-name" content="System">
+    <meta name="indigo-page-icon" content="stethoscope">
+    <meta name="indigo-page-description" content="Mac vitals, storage, services and device health">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Dashboards">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#8e8e93">
+    <link rel="apple-touch-icon" sizes="180x180" href="/public/dashboards/apple-touch-icon.png">
+    <title>System · Dashboards</title>
+<link rel="stylesheet" href="dashboards-theme.css">
+<style>
+:root {
+    --hero-grad: linear-gradient(160deg, rgba(142,142,147,0.08), rgba(255,255,255,0) 60%);
+}
+@media (prefers-color-scheme: dark){
+  :root {
+    --hero-grad: linear-gradient(160deg, rgba(142,142,147,0.14), rgba(0,0,0,0) 60%);
+}
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{overflow-x:hidden;width:100%;max-width:100vw}
+body{
+  background:var(--bg);color:var(--text);
+  font-family:var(--font-ui);
+  font-size:14px;min-height:100vh;-webkit-overflow-scrolling:touch;
+  padding-top:max(80px, calc(72px + env(safe-area-inset-top)));
+}
+header{
+  display:grid;grid-template-columns:1fr 2fr 1fr;align-items:center;gap:8px;
+  padding:10px max(16px,env(safe-area-inset-right)) 10px max(16px,env(safe-area-inset-left));
+  padding-top:max(10px,env(safe-area-inset-top));
+  position:fixed;top:0;left:0;right:0;z-index:10;
+  background:rgba(249,249,251,0.82);
+  -webkit-backdrop-filter:saturate(180%) blur(20px);
+  backdrop-filter:saturate(180%) blur(20px);
+  border-bottom:1px solid var(--border-soft);
+}
+@media (prefers-color-scheme: dark){header{background:rgba(22,22,24,0.80)}}
+.hdr-left{justify-self:start}.hdr-right{justify-self:end}
+.hdr-center{justify-self:stretch;text-align:center;min-width:0;display:flex;flex-direction:column;align-items:center;gap:1px;line-height:1.15}
+header h1{font-size:20px;font-weight:700;letter-spacing:-.02em;white-space:nowrap}
+.topbar-status{font-size:11px;color:var(--text-secondary);font-variant-numeric:tabular-nums;white-space:nowrap}
+.topbar-status .ts::before{content:'●';color:var(--on-color);margin-right:4px;animation:live-pulse 2.4s ease-in-out infinite}
+@keyframes live-pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.nav-btn{
+  background:var(--card-bg);border:1px solid var(--border-soft);color:var(--accent);
+  padding:8px 14px;border-radius: var(--r-md);font-size:14px;font-weight:600;cursor:pointer;
+  font-family:inherit;text-decoration:none;display:inline-flex;align-items:center;gap:4px;
+  min-height:36px;transition:transform .08s ease-out, background .15s, border-color .15s;
+  user-select:none;-webkit-tap-highlight-color:transparent;white-space:nowrap;
+}
+.nav-btn:hover{background:var(--card-bg-alt);border-color:var(--accent)}
+.nav-btn:active{transform:translateY(2px) scale(.96);background:var(--accent);color:#fff}
+
+.main{padding:16px;display:flex;flex-direction:column;gap:12px;max-width:940px;margin:0 auto}
+.main > *{min-width:0}
+.sec-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--text-secondary);margin:14px 4px 0}
+.card{
+  background:var(--card-bg);border:1px solid var(--border-soft);
+  border-radius: var(--r-xl);padding:18px;box-shadow:var(--shadow);
+  animation:card-in .4s ease-out both;
+}
+@keyframes card-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.card h2{font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.7px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.card h2 .pill{font-weight:500;text-transform:none;letter-spacing:0;color:var(--text-muted);font-variant-numeric:tabular-nums}
+.muted{color:var(--text-muted)}
+.good{color:var(--on-color)}.warn{color:var(--warn)}.bad{color:var(--bad)}
+
+/* verdict hero */
+.hero{background:var(--card-bg);background-image:var(--hero-grad)}
+.hero-top{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.hero-icon{font-size:34px;line-height:1}
+.hero-verdict{font-size:24px;font-weight:800;letter-spacing:-.02em}
+.hero-sub{font-size:12.5px;color:var(--text-secondary);margin-top:2px}
+.hero-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;padding:6px 11px;border-radius: var(--r-md);
+  background:var(--card-bg-alt);border:1px solid var(--border-soft);color:var(--text);font-variant-numeric:tabular-nums}
+.chip.good{background:rgba(52,199,89,.14);border-color:rgba(52,199,89,.25);color:var(--on-color)}
+.chip.warn{background:rgba(255,149,0,.14);border-color:rgba(255,149,0,.25);color:var(--warn)}
+.chip.bad{background:rgba(255,69,58,.14);border-color:rgba(255,69,58,.25);color:var(--bad)}
+
+/* gauges */
+.strip{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+@media(max-width:720px){.strip{grid-template-columns:repeat(2,1fr)}}
+.gauge{background:var(--card-bg);border:1px solid var(--border-soft);border-radius: var(--r-lg);padding:14px 16px;box-shadow:var(--shadow)}
+.gauge-lab{font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.6px}
+.gauge-big{font-size:26px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums;margin-top:4px;letter-spacing:-.02em}
+.gauge-sub{font-size:11.5px;color:var(--text-muted);margin-top:2px}
+.gauge .bar{margin-top:8px}
+.gauge.warn .gauge-big{color:var(--warn)}
+.gauge.bad .gauge-big{color:var(--bad)}
+
+/* meters / kv */
+.meter{margin-bottom:14px}
+.meter:last-child{margin-bottom:0}
+.meter-head{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;margin-bottom:6px}
+.meter-head b{font-variant-numeric:tabular-nums}
+.bar{height:8px;border-radius:5px;background:var(--track);overflow:hidden}
+.bar-fill{height:100%;border-radius:5px;transition:width .4s ease}
+.meter-note{font-size:11px;color:var(--text-muted);margin-top:5px;line-height:1.45}
+.kv{display:flex;justify-content:space-between;font-size:12.5px;padding:5px 0;color:var(--text-secondary);border-top:1px solid var(--border-soft)}
+.kv:first-child{border-top:0}
+.kv b{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
+.badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius: var(--r-sm)}
+.badge.good{background:rgba(52,199,89,.16);color:var(--on-color)}
+.badge.warn{background:rgba(255,149,0,.16);color:var(--warn)}
+.badge.bad{background:rgba(255,69,58,.16);color:var(--bad)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:720px){.grid2{grid-template-columns:1fr}}
+
+.ditem{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--border-soft);font-size:13px}
+.ditem:first-child{border-top:0}
+.ditem .dn{flex:1;min-width:0}
+.ditem .dn b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ditem .dn span{font-size:11.5px;color:var(--text-secondary)}
+.ditem .dv{font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:600}
+.empty{font-size:12.5px;color:var(--text-muted);padding:4px 0}
+
+table.ptable{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums}
+table.ptable th,table.ptable td{text-align:right;padding:7px 6px;border-bottom:1px solid var(--border-soft)}
+table.ptable th:first-child,table.ptable td:first-child{text-align:left}
+table.ptable th{font-size:11px;color:var(--text-secondary);font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+table.ptable tr:last-child td{border-bottom:none}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--off-color);margin-right:6px;vertical-align:middle}
+.dot.on{background:var(--on-color)}.dot.off{background:var(--bad)}
+
+details{margin-top:8px}
+summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--accent)}
+.note{font-size:11px;color:var(--text-muted);margin-top:10px;line-height:1.5}
+.loading{text-align:center;padding:60px 20px;color:var(--text-secondary)}
+.spinner{width:24px;height:24px;border:3px solid var(--off-color);border-top-color:var(--accent);
+  border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Safari / a11y polish */
+html{-webkit-text-size-adjust:100%}
+body{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+@supports (min-height:100dvh){body{min-height:100dvh}}
+a,button,input,select,textarea{-webkit-tap-highlight-color:transparent}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{transition-duration:.01ms !important;animation-duration:.01ms !important;scroll-behavior:auto !important}
+}
+@media(max-width:480px){
+  header{padding:8px 12px;padding-top:max(8px,env(safe-area-inset-top))}
+  header h1{font-size:15px}
+  .main{padding:10px;gap:10px}
+  .card{padding:14px}
+  .gauge-big{font-size:22px}
+  .hero-verdict{font-size:20px}
+}
+
+.topbar h1 .dsh-icon,h1 .dsh-icon{width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;opacity:.85}
+</style>
+</head>
+<body>
+<header>
+  <div class="hdr-left"><a class="nav-btn" href="index.html">&larr; Home</a></div>
+  <div class="hdr-center">
+    <h1><span data-icon="health"></span> System</h1>
+    <span class="topbar-status"><span class="ts">Updated <span id="ts">&#8212;</span></span> &middot; every 30s</span>
+  </div>
+  <div class="hdr-right"><a class="nav-btn" href="settings.html">Settings &rarr;</a></div>
+</header>
+
+<main class="main">
+  <div id="content"><div class="loading"><div class="spinner"></div><p>Connecting&#8230;</p></div></div>
+</main>
+
+<script src="config.js" onerror="window.INDIGO_CONFIG_MISSING=true"></script>
+<script src="dashboards-auth.js"></script>
+    <script src="dashboards-ui.js"></script>
+<script src="dashboards-gate.js"></script>
+<script>
+const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
+
+const POLL_INTERVAL_MS = 30000;
+const HEALTH_EP = "/message/com.clives.indigoplugin.dashboards/systemHealth/";
+async function healthFetch() {
+    // v2.70.0: never call /message/ while the plugin is stopping — a
+    // request in flight when the host dies wedges all of IWS for ~5 min.
+    if (window.DashGate && await window.DashGate.check() === "down")
+        throw new Error("Dashboards plugin restarting");
+    const key = (window.INDIGO_CONFIG || {}).apiKey || "";
+    return fetch(HEALTH_EP, { method: "POST",
+        headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
+        body: "{}" });
+}
+
+function esc(t) { const d = document.createElement("div"); d.textContent = String(t == null ? "" : t); return d.innerHTML; }
+function num(v, dp) { return (v === null || v === undefined || isNaN(Number(v))) ? "—" : Number(v).toFixed(dp == null ? 1 : dp); }
+function gb(v) { return (v === null || v === undefined || isNaN(Number(v))) ? "—" : Number(v).toFixed(Number(v) < 10 ? 2 : 1) + " GB"; }
+function band(v, warnAt, badAt) { if (v >= badAt) return "bad"; if (v >= warnAt) return "warn"; return ""; }
+function barColour(cls) { return cls === "bad" ? "var(--bad)" : cls === "warn" ? "var(--warn)" : "var(--on-color)"; }
+function setTs() {
+    const d = new Date();
+    const p = n => String(n).padStart(2, "0");
+    const el = document.getElementById("ts");
+    if (el) el.textContent = p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
+}
+
+if (!window.INDIGO_CONFIG || !window.INDIGO_CONFIG.apiKey) { location.href = "index.html"; }
+else { load(); setInterval(load, POLL_INTERVAL_MS); }
+
+async function load() {
+    try {
+        const r = await healthFetch();
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        const d = await r.json();
+        setTs();
+        render(d);
+    } catch (e) {
+        document.getElementById("content").innerHTML =
+            `<div class="loading"><p>Couldn't reach the system-health data.<br><small>${esc(e.message)}</small></p></div>`;
+    }
+}
+
+function meter(label, valTxt, pct, cls, note) {
+    const w = Math.max(0, Math.min(100, Number(pct) || 0));
+    return `<div class="meter">
+        <div class="meter-head"><span>${esc(label)}</span><b class="${cls}">${esc(valTxt)}</b></div>
+        <div class="bar"><div class="bar-fill" style="width:${w}%;background:${barColour(cls)}"></div></div>
+        ${note ? `<div class="meter-note">${note}</div>` : ""}
+    </div>`;
+}
+function ditem(name, plugin, value) {
+    return `<div class="ditem"><div class="dn"><b>${esc(name)}</b><span>${esc(plugin)}</span></div><div class="dv">${value}</div></div>`;
+}
+
+function render(d) {
+    const mac = d.mac || {}, st = d.storage || {}, dev = d.devices || {}, svc = d.services || {};
+    const disk = mac.disk || {}, ram = mac.ram || {}, load = mac.load || [];
+    let html = "";
+
+    // ── Verdict hero: one glance = is anything wrong? ──────────────────
+    const diskCls = band(disk.used_pct || 0, 80, 90);
+    const ramCls  = ram.pressure === "high" ? "bad" : ram.pressure === "elevated" ? "warn" : "";
+    const cores   = mac.cores || 0;
+    const l1      = load.length ? load[0] : null;
+    const loadCls = (l1 != null && cores) ? band(l1 / cores, 0.7, 1.0) : "";
+    const errs    = dev.in_error || [];
+    const lb      = dev.low_battery || [];
+    const plugins = dev.by_plugin || [];
+    // running is isRunning() from 2.95.1 (it was isEnabled(), so a crashed
+    // plugin read as healthy). pluginEnabled tells the two apart: enabled
+    // and not running is a CRASH and deserves red; disabled is a choice.
+    const crashed  = plugins.filter(p => p.running === false && p.pluginEnabled !== false).length;
+    const disabled = plugins.filter(p => p.pluginEnabled === false).length;
+    const stopped  = crashed + disabled;
+
+    const issues = [];   // [cls, label, anchor]
+    if (diskCls)      issues.push([diskCls, `${I("disk")} Disk ${num(disk.used_pct,0)}% full`]);
+    if (ramCls)       issues.push([ramCls, `${I("memory")} Memory pressure ${esc(ram.pressure)}`]);
+    if (loadCls)      issues.push([loadCls, `${I("gear")} Load ${num(l1,2)} on ${cores} cores`]);
+    if (errs.length)  issues.push(["bad", `${I("warn")} ${errs.length} device${errs.length===1?"":"s"} in error`]);
+    if (lb.length)    issues.push(["warn", `${I("battery")} ${lb.length} low batter${lb.length===1?"y":"ies"}`]);
+    if (svc.cameras && (!svc.go2rtc || !svc.mjpeg_proxy))
+                      issues.push(["warn", `${I("camera")} Camera service down`]);
+    const worst = issues.some(i => i[0] === "bad") ? "bad" : issues.length ? "warn" : "good";
+    const verdict = worst === "good" ? "All systems healthy"
+                  : worst === "warn" ? "Mostly healthy — worth a look"
+                  : "Needs attention";
+    const heroIcon = I(worst === "good" ? "check" : worst === "warn" ? "warn" : "alert");
+    html += `<section class="card hero">
+        <div class="hero-top">
+            <div class="hero-icon">${heroIcon}</div>
+            <div>
+                <div class="hero-verdict ${worst === "good" ? "good" : worst}">${verdict}</div>
+                <div class="hero-sub">${esc(mac.hostname || "Indigo server")} · Indigo ${esc(mac.indigo || "—")} · up ${esc(mac.uptime_text || "—")}</div>
+            </div>
+        </div>
+        <div class="hero-chips">${
+            issues.length
+                ? issues.map(i => `<span class="chip ${i[0]}">${i[1]}</span>`).join("")
+                : `<span class="chip good">${I("disk")} Disk OK</span><span class="chip good">${I("memory")} Memory OK</span><span class="chip good">${I("gear")} Load OK</span><span class="chip good">${I("plug")} Devices OK</span>`
+        }</div>
+    </section>`;
+
+    // ── Gauges: Disk · Memory · Load · Plugins ─────────────────────────
+    html += `<div class="strip">
+        <div class="gauge ${diskCls}">
+            <div class="gauge-lab">Disk</div>
+            <div class="gauge-big">${num(disk.used_pct,0)}%</div>
+            <div class="gauge-sub">${gb(disk.free_gb)} free of ${gb(disk.total_gb)}</div>
+            <div class="bar"><div class="bar-fill" style="width:${Math.min(100, disk.used_pct||0)}%;background:${barColour(diskCls)}"></div></div>
+        </div>
+        <div class="gauge ${ramCls}">
+            <div class="gauge-lab">Memory</div>
+            <div class="gauge-big" style="text-transform:capitalize">${esc(ram.pressure || "—")}</div>
+            <div class="gauge-sub">${num(ram.used_gb)} / ${num(ram.total_gb)} GB${ram.swap_used_mb != null ? ` · swap ${num(ram.swap_used_mb/1024,1)} GB` : ""}</div>
+            <div class="bar"><div class="bar-fill" style="width:${Math.min(100, ram.used_pct||0)}%;background:${barColour(ramCls)}"></div></div>
+        </div>
+        <div class="gauge ${loadCls}">
+            <div class="gauge-lab">Load (1m)</div>
+            <div class="gauge-big">${l1 != null ? num(l1,2) : "—"}</div>
+            <div class="gauge-sub">${cores ? cores + " cores · " : ""}${load.length ? load.map(x => num(x,2)).join(" / ") : "—"}</div>
+            <div class="bar"><div class="bar-fill" style="width:${(l1 != null && cores) ? Math.min(100, l1/cores*100) : 0}%;background:${barColour(loadCls)}"></div></div>
+        </div>
+        <div class="gauge ${crashed ? "bad" : (disabled ? "warn" : "")}">
+            <div class="gauge-lab">Plugins</div>
+            <div class="gauge-big">${plugins.filter(p => p.running === true).length}<span style="font-size:15px;color:var(--text-muted)"> / ${plugins.length}</span></div>
+            <div class="gauge-sub">${crashed ? crashed + " with devices but NOT RUNNING" + (disabled ? ", " + disabled + " disabled" : "")
+                                   : (disabled ? disabled + " with devices but disabled" : "all device-owning plugins running")}</div>
+        </div>
+    </div>`;
+
+    // ── Server section ─────────────────────────────────────────────────
+    html += `<div class="sec-label">Server</div>`;
+    html += `<div class="grid2">`;
+
+    html += `<section class="card"><h2>Mac mini <span class="pill">${esc(mac.hostname || "")}</span></h2>`;
+    html += meter("Disk", `${num(disk.used_gb)} / ${gb(disk.total_gb)} · ${num(disk.used_pct,0)}%`,
+        disk.used_pct, diskCls, `${gb(disk.free_gb)} free`);
+    let ramNote = "App + wired + compressed memory.";
+    const macGb = num(ram.total_gb, 0);        // not a literal "8 GB" — this page is published
+    if (ram.swap_used_mb != null) {
+        const swCls = ram.swap_used_mb >= 1500 ? "bad" : ram.swap_used_mb >= 400 ? "warn" : "good";
+        ramNote += ` Swap <b class="${swCls}">${num(ram.swap_used_mb/1024,2)} GB</b> of ${num((ram.swap_total_mb||0)/1024,1)} GB in use`;
+        ramNote += ram.swap_used_mb >= 400 ? " — the real pressure signal on a ${macGb} GB Mac." : ".";
+    }
+    html += meter("Memory", `${num(ram.used_gb)} / ${num(ram.total_gb)} GB · ${num(ram.used_pct,0)}%`,
+        ram.used_pct, ramCls, ramNote);
+    const bootTxt = mac.boot_epoch
+        ? new Date(mac.boot_epoch * 1000).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+        : null;
+    html += `<div style="margin-top:6px">`;
+    html += `<div class="kv"><span>Load average</span><b>${load.length ? load.map(x => num(x,2)).join("  /  ") : "—"}</b></div>`;
+    html += `<div class="kv"><span>Up since</span><b>${bootTxt ? esc(bootTxt) : esc(mac.uptime_text || "—")}${bootTxt ? ` · ${esc(mac.uptime_text || "")}` : ""}</b></div>`;
+    html += `<div class="kv"><span>Indigo</span><b>${esc(mac.indigo || "—")}${mac.api ? " · API " + esc(mac.api) : ""}</b></div>`;
+    html += `<div class="kv"><span>macOS</span><b>${esc(mac.macos || "—")} · ${esc(mac.arch || "")}</b></div>`;
+    html += `<div class="kv"><span>Python</span><b>${esc(mac.python || "—")}</b></div>`;
+    html += `</div></section>`;
+
+    // ── Storage + services ─────────────────────────────────────────────
+    html += `<section class="card"><h2>Storage <span class="pill">Logs ${gb(st.logs_total_gb)}</span></h2>`;
+    // Share of free space: pruning the DB would grow free space by this much.
+    const sqlVsFree = (disk.free_gb && st.sql_history_gb) ? (st.sql_history_gb / disk.free_gb * 100) : 0;
+    html += `<div class="meter">
+        <div class="meter-head"><span>SQL history database</span><b>${gb(st.sql_history_gb)}</b></div>
+        <div class="bar"><div class="bar-fill" style="width:${Math.min(100, sqlVsFree).toFixed(1)}%;background:var(--warn)"></div></div>
+        <div class="meter-note">indigo_history.sqlite — equivalent to ${num(sqlVsFree,0)}% of the current ${gb(disk.free_gb)} free. Pruning old device history reclaims disk.</div>
+    </div>`;
+    if ((st.top_items || []).length) {
+        html += `<div style="margin-top:4px">`;
+        for (const it of st.top_items) {
+            html += `<div class="kv"><span>${it.dir ? I("folder") + " " : I("file") + " "}${esc(it.name)}</span><b>${gb(it.gb)}</b></div>`;
+        }
+        html += `</div>`;
+    }
+    html += `<h2 style="margin-top:16px">Dashboard services <span class="pill">plugin v${esc(svc.plugin_version || "—")}</span></h2>`;
+    const svcRow = (label, ok, okTxt, badTxt) =>
+        `<div class="kv"><span>${label}</span><b class="${ok ? "good" : "bad"}">${ok ? okTxt : badTxt}</b></div>`;
+    if (svc.cameras) {
+        html += svcRow("go2rtc transcoder", svc.go2rtc, "running", "not running");
+        html += svcRow("MJPEG proxy (:8177)", svc.mjpeg_proxy, "listening", "down");
+        html += `<div class="kv"><span>Cameras configured</span><b>${svc.cameras}</b></div>`;
+    } else {
+        html += `<div class="empty">No cameras configured — camera services idle by design.</div>`;
+    }
+    html += `</section>`;
+    html += `</div>`;   // grid2
+
+    // ── Devices section ────────────────────────────────────────────────
+    html += `<div class="sec-label">Devices</div>`;
+    html += `<section class="card"><h2>Device health
+        <span class="pill">${dev.total || 0} total${(dev.known > dev.total) ? ` (+${dev.known - dev.total} unconfigured)` : ""} · ${dev.enabled || 0} enabled${dev.disabled ? ` · ${dev.disabled} off` : ""}</span></h2>`;
+
+    html += `<div style="margin-bottom:4px"><b style="font-size:12.5px">In error ${errs.length ? `<span class="badge bad">${errs.length}</span>` : `<span class="badge good">0</span>`}</b></div>`;
+    if (errs.length) {
+        for (const e of errs) html += ditem(e.name, e.plugin, `<span class="bad">${esc(e.error)}</span>`);
+    } else { html += `<div class="empty">No devices reporting an error.</div>`; }
+
+    html += `<div style="margin:12px 0 4px"><b style="font-size:12.5px">Low battery ${lb.length ? `<span class="badge warn">${lb.length}</span>` : `<span class="badge good">0</span>`}</b>
+        <span style="font-size:11px;color:var(--text-secondary)"> ≤ ${dev.low_batt_pct || 20}%</span></div>`;
+    if (lb.length) {
+        for (const b of lb) {
+            const v = (b.battery == null)
+                ? `<span class="bad">LOW</span>`
+                : `<span class="${b.battery <= 10 ? "bad" : "warn"}">${b.battery}%</span>`;
+            html += ditem(b.name, b.plugin, v);
+        }
+    } else { html += `<div class="empty">Every battery device is above ${dev.low_batt_pct || 20}%.</div>`; }
+
+    const stale = dev.stale || [];
+    if ((dev.stale_count || 0) > 0) {
+        html += `<details><summary>Quiet battery devices · ${dev.stale_count} (no report in ${dev.stale_hours || 48}h+)</summary>`;
+        for (const s of stale) {
+            const days = s.age_hours / 24;
+            const ageTxt = days >= 2 ? `${num(days,0)}d ago` : `${num(s.age_hours,0)}h ago`;
+            const batTxt = s.battery != null ? `<span class="${s.battery <= 20 ? 'bad' : ''}">${s.battery}%</span> · `
+                         : (s.alarm ? `<span class="bad">LOW</span> · ` : "");
+            html += ditem(s.name, s.plugin, `${batTxt}${ageTxt}`);
+        }
+        if (dev.stale_count > stale.length) html += `<div class="empty">…and ${dev.stale_count - stale.length} more.</div>`;
+        html += `<div class="note">Battery sensors that haven't reported recently — possibly a flat battery or a dropped mesh link. A rarely-triggered contact can show here legitimately, so cross-check the battery %. Mains devices are excluded (their silence is normal).</div></details>`;
+    }
+
+    if (plugins.length) {
+        html += `<details style="margin-top:10px"><summary>Per-plugin census · ${plugins.length} plugins${stopped ? ` · <span class="warn">${stopped} disabled</span>` : ""}</summary>
+            <table class="ptable" style="margin-top:8px">
+            <thead><tr><th>Plugin</th><th>Devices</th><th>Enabled</th><th>State</th></tr></thead><tbody>`;
+        for (const p of plugins) {
+            const dotCls = p.running === true ? "on" : p.running === false ? "off" : "";
+            const state  = p.running === true ? "running"
+                         : p.running === false ? (p.pluginEnabled === false ? "disabled" : "STOPPED")
+                         : "—";
+            html += `<tr><td><span class="dot ${dotCls}"></span>${esc(p.name)}</td><td>${p.count}</td><td>${p.enabled}</td><td>${state}</td></tr>`;
+        }
+        html += `</tbody></table>
+            <div class="note">Green dot = plugin running. Red = not running: STOPPED means enabled but dead (a crash), disabled means switched off on purpose. Counts are devices owned by each plugin.</div></details>`;
+    }
+    html += `</section>`;
+
+    document.getElementById("content").innerHTML = html;
+}
+</script>
+<script src="dashboards-icons.js"></script>
+<script src="a11y.js"></script>
+<script src="standalone-nav.js"></script>
+</body>
+</html>

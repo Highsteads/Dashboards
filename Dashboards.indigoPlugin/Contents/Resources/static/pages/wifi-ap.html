@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta name="indigo-page-name" content="WiFi AP">
+    <meta name="indigo-page-icon" content="wifi.medium">
+    <meta name="indigo-page-description" content="Full detail for a single UniFi access point">
+
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Dashboards">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#5856d6">
+    <link rel="apple-touch-icon" sizes="180x180" href="/public/dashboards/apple-touch-icon.png">
+    <title>WiFi AP</title>
+    <link rel="stylesheet" href="dashboards-theme.css">
+    <style>
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: var(--font-ui);
+            background: var(--bg); color: var(--text);
+            padding: max(80px, calc(72px + env(safe-area-inset-top))) 0 max(32px, env(safe-area-inset-bottom));
+            min-height: 100vh; -webkit-overflow-scrolling: touch;
+        }
+        .topbar {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 10;
+            background: var(--card-bg); border-bottom: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            padding: 10px max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left));
+            padding-top: max(10px, env(safe-area-inset-top));
+        }
+        .topbar-inner { max-width: 900px; margin: 0 auto; }
+        .topbar-3col { display: grid; grid-template-columns: 1fr 2fr 1fr; align-items: center; gap: 8px; }
+        .topbar-3col .hdr-left { justify-self: start; display: flex; }
+        .topbar-3col .hdr-right { justify-self: end; display: flex; }
+        .topbar-3col .hdr-center { justify-self: stretch; text-align: center; min-width: 0;
+            display: flex; flex-direction: column; align-items: center; gap: 1px; line-height: 1.15; }
+        .topbar-3col h1 { font-size: 20px; font-weight: 700; margin: 0; letter-spacing: -0.02em;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+        .topbar-status { font-size: 11px; color: var(--text-secondary); font-variant-numeric: tabular-nums;
+            white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+        .nav-btn {
+            background: var(--card-bg); border: 1px solid var(--border); color: var(--accent);
+            padding: 8px 14px; border-radius: var(--r-md); font-size: 14px; font-weight: 600; cursor: pointer;
+            font-family: inherit; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;
+            min-height: 36px; box-shadow: 0 1px 2px rgba(0,0,0,0.08); white-space: nowrap;
+            transition: transform 0.08s ease-out, background 0.15s, border-color 0.15s;
+        }
+        .nav-btn:hover { background: var(--bg); border-color: var(--accent); }
+        .nav-btn:active { transform: translateY(2px) scale(0.96); background: var(--accent); color: #fff; }
+        .container { max-width: 900px; margin: 0 auto;
+            padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left)); }
+        .bottombar { position: sticky; bottom: 0; z-index: 10; background: var(--card-bg);
+            border-top: 1px solid var(--border); box-shadow: 0 -1px 3px rgba(0,0,0,0.08);
+            padding: 8px 16px; padding-bottom: max(8px, env(safe-area-inset-bottom)); margin-top: 16px; }
+        .bottombar-inner { text-align: center; max-width: 900px; margin: 0 auto; font-size: 13px;
+            color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+
+        /* ── Status banner ── */
+        .summary { background: var(--card-bg); border-radius: var(--r-lg); padding: 14px 16px;
+            box-shadow: var(--shadow); margin-bottom: 14px; border-left: 3px solid var(--good); }
+        .summary.has-issues { border-left-color: var(--warn); }
+        .summary.bad { border-left-color: var(--bad); }
+        .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 10px; }
+        .metric { text-align: center; }
+        .m-val { font-size: 22px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+        .m-lab { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+
+        /* ── Cards ── */
+        .card { background: var(--card-bg); border-radius: var(--r-lg); padding: 14px 16px;
+            box-shadow: var(--shadow); margin-bottom: 14px; }
+        .card-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+        .card-title .sub { font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-left: 8px; }
+
+        /* ── Band block ── */
+        .band-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 4px 0 8px; }
+        .band-name { font-size: 15px; font-weight: 700; }
+        .band-util { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+        .util-bar { height: 10px; background: var(--track); border-radius: 5px; overflow: hidden; margin: 6px 0 4px; }
+        .util-fill { height: 100%; border-radius: 5px; transition: width 0.4s; }
+
+        /* ── Key/value grid — two pairs per line, collapses to one on narrow screens ── */
+        .kv-grid { display: grid; grid-template-columns: 1fr 1fr; column-gap: 22px; }
+        @media (max-width: 480px) { .kv-grid { grid-template-columns: 1fr; } }
+        .kv { display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
+            padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 13px; min-width: 0; }
+        .kv-key { color: var(--text-secondary); flex-shrink: 0; }
+        .kv-val { color: var(--text); font-weight: 500; font-variant-numeric: tabular-nums;
+            text-align: right; word-break: break-word; min-width: 0; }
+        .detail-group-title { font-size: 11px; color: var(--text-secondary); text-transform: uppercase;
+            letter-spacing: 0.5px; margin: 12px 0 6px; }
+
+        .flags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+        .flag { font-size: 12px; background: rgba(255,149,0,0.16); color: var(--warn);
+            padding: 4px 9px; border-radius: var(--r-sm); font-weight: 500; }
+        .ok { font-size: 13px; color: var(--good); font-weight: 600; }
+
+        /* ── Connected clients list ── */
+        .clients { display: flex; flex-direction: column; }
+        .client { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+            padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+        .client:last-child { border-bottom: none; }
+        .client-name { font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .client-meta { display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+            font-variant-numeric: tabular-nums; }
+        .band-chip { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: var(--r-sm);
+            background: var(--track); color: var(--text-secondary); }
+        .band-chip.b24 { background: rgba(255,149,0,0.16); color: var(--warn); }
+        .band-chip.b5  { background: rgba(88,86,214,0.20); color: var(--accent); }
+        .band-chip.b6  { background: rgba(52,199,89,0.18); color: var(--good); }
+        .client-sat { font-weight: 600; min-width: 28px; text-align: right; }
+        .client-sig { color: var(--text-secondary); font-size: 12px; min-width: 56px; text-align: right; }
+        .clients-empty { color: var(--text-secondary); padding: 6px 0; font-size: 13px; }
+
+        .raw-toggle { background: transparent; border: 1px solid var(--border); color: var(--accent);
+            padding: 8px 14px; border-radius: var(--r-md); font-size: 13px; font-weight: 500; cursor: pointer;
+            margin-top: 4px; font-family: inherit; }
+        .raw-toggle:hover { background: var(--bg); }
+        .raw-json { max-height: 360px; overflow: auto; background: var(--bg); border: 1px solid var(--border);
+            border-radius: var(--r-sm); padding: 10px 12px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 11px; line-height: 1.45; margin-top: 10px; white-space: pre; }
+
+        .good { color: var(--good); } .warn { color: var(--warn); } .bad { color: var(--bad); }
+        .fill-good { background: var(--good); } .fill-warn { background: var(--warn); } .fill-bad { background: var(--bad); }
+        .loading { text-align: center; padding: 60px 20px; color: var(--text-secondary); }
+        .spinner { width: 24px; height: 24px; border: 3px solid var(--off-color); border-top-color: var(--accent);
+            border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    
+        /* ═══ Shared Apple/Safari polish (v2.25.0) ═════════════════
+           Appended uniformly across pages: frosted translucent bars, laptop
+           hover states, keyboard focus rings, reduced-motion support, and
+           Safari/iOS fixes (dynamic viewport height, text-size-adjust, tap
+           highlight). Selectors a page lacks simply never match. */
+        html { -webkit-text-size-adjust: 100%; }
+        body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+        @supports (min-height: 100dvh) { body { min-height: 100dvh; } }
+        a, button, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+        :focus-visible { outline: 2px solid var(--accent, #5856d6); outline-offset: 2px; }
+        .topbar, .bottombar {
+            background: rgba(249, 249, 251, 0.82);
+            -webkit-backdrop-filter: saturate(180%) blur(20px);
+            backdrop-filter: saturate(180%) blur(20px);
+            box-shadow: none;
+        }
+        @media (prefers-color-scheme: dark) {
+            .topbar, .bottombar { background: rgba(22, 22, 24, 0.80); }
+        }
+        @media (hover: hover) and (pointer: fine) {
+            a.card:hover, a.dash-card:hover, .fav-tile:not(.fav-reading):hover, a.home-cam:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+            }
+            .nav-btn:hover { transform: translateY(-1px); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                transition-duration: 0.01ms !important;
+                animation-duration: 0.01ms !important;
+                scroll-behavior: auto !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <div class="topbar-inner topbar-3col">
+            <div class="hdr-left"><a class="nav-btn" href="wifi.html">← WiFi</a></div>
+            <div class="hdr-center">
+                <h1 id="ap-title">Access Point</h1>
+                <span class="topbar-status">Updated <span id="ts">—</span> · Next <span id="cdwn">—</span>s</span>
+            </div>
+            <div class="hdr-right">
+                <button class="nav-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Top">↑ Top</button>
+            </div>
+        </div>
+    </header>
+    <div class="container">
+        <div id="content"><div class="loading"><div class="spinner"></div><p>Connecting…</p></div></div>
+    </div>
+
+    <script src="config.js" onerror="window.INDIGO_CONFIG_MISSING=true"></script>
+    <script src="dashboards-auth.js"></script>
+    <script src="dashboards-ui.js"></script>
+    <script src="dashboards-gate.js"></script>
+    <script src="dashboard.js"></script>
+    <script>
+const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
+
+    const POLL_INTERVAL_MS = 3000;
+    const AP_ID = parseInt(new URLSearchParams(location.search).get("id"), 10);
+    let _lastUpdate = 0;
+    let _lastDevice = null;
+    function _pad(n) { return String(n).padStart(2, "0"); }
+    function markRefreshed() { _lastUpdate = Date.now(); tickRefreshStatus(); }
+    function tickRefreshStatus() {
+        let tsStr = "—";
+        if (_lastUpdate) { const d = new Date(_lastUpdate);
+            tsStr = _pad(d.getHours()) + ":" + _pad(d.getMinutes()) + ":" + _pad(d.getSeconds()); }
+        const elapsedS = _lastUpdate ? (Date.now() - _lastUpdate) / 1000 : 0;
+        const cdwn = Math.max(0, Math.round((POLL_INTERVAL_MS / 1000) - elapsedS));
+        for (const id of ["ts", "ts-bot"]) { const el = document.getElementById(id); if (el) el.textContent = tsStr; }
+        for (const id of ["cdwn", "cdwn-bot"]) { const el = document.getElementById(id); if (el) el.textContent = String(cdwn); }
+    }
+    // markRefreshed fires from observeAll's onOk (every successful poll),
+    // never a blind timer that ticks through an outage.
+    setInterval(tickRefreshStatus, 1000);
+
+    let indigo = null;
+    if (!IndigoAPI.isConfigured()) { location.href = "index.html"; }
+    else if (isNaN(AP_ID)) { document.getElementById("content").innerHTML = notFoundHtml("No access point specified."); }
+    else { start(); }
+    function start() {
+        indigo = new IndigoAPI();
+        indigo.onAuthFailure(() => { IndigoAPI.clearConfig(); location.href = "index.html"; });
+        indigo.observeAll(d => render(d), POLL_INTERVAL_MS, undefined, markRefreshed);
+    }
+
+    // ── helpers (shared shape with wifi.html) ───────────────────────────────
+    function num(v) { const n = parseInt(v); return isNaN(n) ? null : n; }
+    function utilClass(v) { const n = num(v); if (n === null) return ""; if (n >= 70) return "bad"; if (n >= 50) return "warn"; return "good"; }
+    function fillClass(v) { const n = num(v); if (n === null) return "fill-good"; if (n >= 70) return "fill-bad"; if (n >= 50) return "fill-warn"; return "fill-good"; }
+    function satClass(v) { const n = num(v); if (n === null || n < 0) return ""; if (n < 70) return "bad"; if (n < 90) return "warn"; return "good"; }
+    function loadClass(v) { const n = num(v); if (n === null) return ""; if (n >= 90) return "bad"; if (n >= 75) return "warn"; return "good"; }
+    function fmtSat(v) { const n = num(v); return (n === null || n < 0) ? "—" : String(n); }
+    function uptimeUi(s) { const n = num(s) || 0; const d = Math.floor(n/86400), h = Math.floor((n%86400)/3600), m = Math.floor((n%3600)/60); return d + "d " + h + "h " + m + "m"; }
+    function fmtWidth(w) { const n = num(w); return [20, 40, 80, 160, 240, 320].includes(n) ? n + "MHz" : (n === null ? "" : n + "MHz"); }
+    function escapeHtml(t) { const d = document.createElement("div"); d.textContent = String(t == null ? "" : t); return d.innerHTML; }
+    function fmtTxPower(v) { const s = String(v || "").trim(); return s ? s.charAt(0).toUpperCase() + s.slice(1) : "—"; }
+    function fmtBool(v) { return v === true ? "Yes" : (v === false ? "No" : "—"); }
+    function fmtVal(v) {
+        if (v === true) return "Yes"; if (v === false) return "No";
+        if (v === null || v === undefined || v === "") return "—";
+        return String(v);
+    }
+    function formatWhen(iso) {
+        if (!iso) return "—";
+        const t = Date.parse(iso);
+        if (isNaN(t)) return iso;
+        const mins = Math.round((Date.now() - t) / 60000);
+        if (mins < 1) return "just now";
+        if (mins < 60) return mins + "m ago";
+        const hrs = Math.round(mins / 60);
+        if (hrs < 24) return hrs + "h ago";
+        return Math.round(hrs / 24) + "d ago";
+    }
+    function _kv(k, v, cls) {
+        const c = cls ? ' ' + cls : '';
+        return `<div class="kv"><span class="kv-key">${escapeHtml(k)}</span><span class="kv-val${c}">${escapeHtml(fmtVal(v))}</span></div>`;
+    }
+    function _kvGrid(cells) { return `<div class="kv-grid">${cells.filter(Boolean).join('')}</div>`; }
+    function _detailGroup(title) { return `<div class="detail-group-title">${escapeHtml(title)}</div>`; }
+    function notFoundHtml(msg) {
+        return `<div class="card"><p style="padding:8px 0;color:var(--text-secondary)">${escapeHtml(msg)}</p>` +
+               `<a class="nav-btn" href="wifi.html">← WiFi</a></div>`;
+    }
+
+    // ── render ──────────────────────────────────────────────────────────────
+    function render(devices) {
+        const d = (devices || []).find(x => x.id === AP_ID);
+        if (!d) {
+            document.getElementById("content").innerHTML =
+                notFoundHtml(_lastDevice ? "Access point no longer reported by the controller." : "Access point not found.");
+            return;
+        }
+        if (d.deviceTypeId !== "unifiAP") {
+            document.getElementById("content").innerHTML = notFoundHtml("That device is not a UniFi access point.");
+            return;
+        }
+        _lastDevice = d;
+        const s = d.states || {};
+        const online = d.onState === true;
+        const name = String(d.name || "").replace(/^UniFi AP /, "");
+        document.title = name + " · WiFi";
+        document.getElementById("ap-title").textContent = name;
+
+        const flags = String(s.auditFlags || "").split(",").map(x => x.trim()).filter(Boolean);
+        const banner = online ? (flags.length ? "has-issues" : "") : "bad";
+        // worst (highest) channel utilisation across this AP's active bands
+        const utilVals = [num(s.band24Utilisation), num(s.band5Utilisation), num(s.band6Utilisation)].filter(v => v !== null);
+        const worstUtil = utilVals.length ? Math.max(...utilVals) : null;
+
+        let html = "";
+
+        // Status banner
+        html += `
+            <div class="summary ${banner}">
+                <div class="summary-grid">
+                    <div class="metric"><div class="m-val ${online ? 'good' : 'bad'}">${online ? '● online' : '○ offline'}</div><div class="m-lab">Status</div></div>
+                    <div class="metric"><div class="m-val">${s.numClients ?? 0}</div><div class="m-lab">Clients</div></div>
+                    <div class="metric"><div class="m-val">${escapeHtml(s.apModel || '—')}</div><div class="m-lab">Model</div></div>
+                    <div class="metric"><div class="m-val">${uptimeUi(s.uptimeSeconds)}</div><div class="m-lab">Uptime</div></div>
+                    <div class="metric"><div class="m-val ${utilClass(worstUtil)}">${worstUtil === null ? '—' : worstUtil + '%'}</div><div class="m-lab">Worst util</div></div>
+                </div>
+            </div>`;
+
+        // Connected devices — the headline: what's actually on this AP
+        html += renderClients(s);
+
+        // Audit
+        html += `<div class="card"><div class="card-title">Config audit</div>`;
+        if (flags.length) {
+            html += `<div class="flags">${flags.map(f => `<span class="flag">${escapeHtml(f)}</span>`).join('')}</div>`;
+        } else {
+            html += `<div class="ok">${I("check")} Config OK</div>`;
+        }
+        html += `</div>`;
+
+        // Radio bands
+        html += bandCard("2.4 GHz", {
+            ch: s.band24Channel, width: s.band24Width, util: s.band24Utilisation,
+            sat: s.band24Satisfaction, clients: s.band24Clients,
+            txPower: s.band24TxPower, minRssi: s.band24MinRssiOn
+        });
+        html += bandCard("5 GHz", {
+            ch: s.band5Channel, width: s.band5Width, util: s.band5Utilisation,
+            sat: s.band5Satisfaction, clients: s.band5Clients, txPower: s.band5TxPower
+        });
+        html += bandCard("6 GHz", {
+            ch: s.band6Channel, width: s.band6Width, util: s.band6Utilisation,
+            clients: s.band6Clients
+        });
+
+        // Hardware & uplink (v0.5.0)
+        html += hardwareCard(s);
+
+        // Identity & status — two pairs per line
+        html += `<div class="card">`;
+        html += _detailGroup("Identity & status");
+        html += _kvGrid([
+            _kv("Name", d.name),
+            _kv("Model", s.apModel || d.model),
+            _kv("MAC", d.address),
+            _kv("Device ID", d.id),
+            _kv("Uplink", s.uplinkType),
+            _kv("Online", online ? "Yes" : "No", online ? "good" : "bad"),
+            _kv("Rebooted", fmtBool(s.rebooted)),
+            _kv("Uptime", uptimeUi(s.uptimeSeconds)),
+            _kv("Last comm", formatWhen(d.lastSuccessfulComm)),
+            _kv("Last changed", formatWhen(d.lastChanged)),
+            d.errorState ? _kv("Error", d.errorState, "bad") : ""
+        ]);
+        html += `</div>`;
+
+        // All states — full dump so nothing is hidden, two pairs per line.
+        // Skip clientsJson — it's a raw JSON blob, already shown nicely as the
+        // Connected devices card above.
+        html += `<div class="card"><div class="card-title">All states</div>`;
+        const skipStates = new Set(["clientsJson"]);
+        html += _kvGrid(Object.keys(s).sort().filter(k => !skipStates.has(k)).map(k => _kv(k, s[k])));
+        html += `</div>`;
+
+        // Raw JSON
+        html += `<div class="card">
+            <button class="raw-toggle" id="raw-toggle-btn" onclick="toggleRaw()">Show raw JSON</button>
+            <pre class="raw-json" id="raw-json" hidden></pre>
+        </div>`;
+
+        // Remember whether the raw view was open — the innerHTML rebuild on
+        // every changed poll used to collapse it mid-read.
+        const wasOpen = !(document.getElementById("raw-json") || {hidden: true}).hidden;
+        document.getElementById("content").innerHTML = html;
+        const rawEl = document.getElementById("raw-json");
+        if (rawEl) {
+            rawEl.textContent = JSON.stringify(d, null, 2);
+            if (wasOpen) {
+                rawEl.hidden = false;
+                const btn = document.getElementById("raw-toggle-btn");
+                if (btn) btn.textContent = "Hide raw JSON";
+            }
+        }
+    }
+
+    function bandChipClass(b) { return b === "2.4" ? "b24" : (b === "5" ? "b5" : (b === "6" ? "b6" : "")); }
+    function renderClients(s) {
+        let list = [];
+        try { list = JSON.parse(s.clientsJson || "[]"); } catch (e) { list = []; }
+        if (!Array.isArray(list)) list = [];
+        let inner;
+        if (!list.length) {
+            inner = `<div class="clients-empty">No wireless clients connected.</div>`;
+        } else {
+            inner = '<div class="clients">' + list.map(c => {
+                const band = c.b ? `<span class="band-chip ${bandChipClass(c.b)}">${escapeHtml(c.b)}</span>` : '';
+                const sat = (c.sat === null || c.sat === undefined) ? '' : `<span class="client-sat ${satClass(c.sat)}">${escapeHtml(c.sat)}</span>`;
+                const sig = (c.sig === null || c.sig === undefined) ? '' : `<span class="client-sig">${escapeHtml(c.sig)} dBm</span>`;
+                return `<div class="client"><span class="client-name">${escapeHtml(c.n || '—')}</span>` +
+                       `<span class="client-meta">${band}${sat}${sig}</span></div>`;
+            }).join('') + '</div>';
+        }
+        return `<div class="card"><div class="card-title">Connected devices <span class="sub">${list.length}</span></div>${inner}</div>`;
+    }
+
+    function hardwareCard(s) {
+        // Only render when the v0.5.0 hardware states are present (older plugin → skip).
+        if (s.firmwareVersion === undefined && s.cpuPct === undefined && s.uplinkSpeedMbps === undefined) return "";
+        const usp = num(s.uplinkSpeedMbps), umax = num(s.uplinkMaxMbps);
+        const upTxt = usp ? (usp + (umax && umax !== usp ? " / " + umax : "") + " Mbps") : "—";
+        const cells = [
+            _kv("Firmware", s.firmwareVersion),
+            _kv("Update available", fmtBool(s.firmwareUpgradable), s.firmwareUpgradable === true ? "warn" : ""),
+            _kv("CPU", (s.cpuPct === null || s.cpuPct === undefined) ? "—" : s.cpuPct + "%", loadClass(s.cpuPct)),
+            _kv("Memory", (s.memPct === null || s.memPct === undefined) ? "—" : s.memPct + "%", loadClass(s.memPct)),
+            _kv("Load (1m)", s.loadAvg1),
+            _kv("Throughput", (s.throughputKbps === null || s.throughputKbps === undefined) ? "—" : s.throughputKbps + " kB/s"),
+            _kv("Uplink speed", upTxt, s.uplinkUnderspeed === true ? "warn" : ""),
+            _kv("Uplink to", (s.uplinkDevice || "") + (s.uplinkPort ? " : " + s.uplinkPort : "")),
+            _kv("Co-channel neighbours (2.4)", s.neighbourCount)
+        ];
+        let html = `<div class="card">`;
+        html += _detailGroup("Hardware & uplink");
+        html += _kvGrid(cells);
+        if (s.uplinkUnderspeed === true && usp && umax)
+            html += `<div class="flags"><span class="flag">Uplink linked at ${usp} Mbps, below the AP's ${umax} Mbps capability</span></div>`;
+        html += `</div>`;
+        return html;
+    }
+
+    function bandCard(label, b) {
+        if (b.ch === undefined || b.ch === null || b.ch === "") return "";
+        const u = num(b.util);
+        const pct = u === null ? 0 : Math.min(100, u);
+        const cells = [
+            _kv("Channel", b.ch),
+            _kv("Width", fmtWidth(b.width)),
+            _kv("Clients", b.clients ?? 0)
+        ];
+        if (b.sat !== undefined) cells.push(_kv("Satisfaction", fmtSat(b.sat), satClass(b.sat)));
+        if (b.txPower !== undefined) cells.push(_kv("TX power", fmtTxPower(b.txPower)));
+        if (b.minRssi !== undefined) cells.push(_kv("Min-RSSI", fmtBool(b.minRssi)));
+        return `
+            <div class="card">
+                <div class="band-head">
+                    <span class="band-name">${escapeHtml(label)}</span>
+                    <span class="band-util ${utilClass(b.util)}">${u === null ? '—' : u + '%'} util</span>
+                </div>
+                <div class="util-bar"><div class="util-fill ${fillClass(b.util)}" style="width:${pct}%"></div></div>
+                ${_kvGrid(cells)}
+            </div>`;
+    }
+
+    function toggleRaw() {
+        const raw = document.getElementById("raw-json");
+        const btn = document.getElementById("raw-toggle-btn");
+        if (!raw || !btn) return;
+        raw.hidden = !raw.hidden;
+        btn.textContent = raw.hidden ? "Show raw JSON" : "Hide raw JSON";
+    }
+    </script>
+
+    <footer class="bottombar">
+        <div class="bottombar-inner">Updated <span id="ts-bot">—</span> · Next refresh <span id="cdwn-bot">—</span>s</div>
+    </footer>
+    <script src="dashboards-icons.js"></script>
+<script src="a11y.js"></script>
+    <script src="standalone-nav.js"></script>
+</body>
+</html>

@@ -1,0 +1,44 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"   # matches Indigo 2025.2's embedded Python
+      - name: Syntax check
+        run: python -m compileall -q "Dashboards.indigoPlugin/Contents/Server Plugin"
+      - name: Lint (ruff — errors only, see ruff.toml)
+        run: |
+          pip install ruff
+          ruff check .
+      # The job is NAMED "tests" — until v2.73.0 it ran none, so the whole
+      # 240-odd-check contract suite was manual-only and a push could land red.
+      - name: Contract tests (pytest)
+        run: |
+          pip install pytest
+          python -m pytest tests -q
+
+      - name: Contract tests (the companion scripts this repo ships)
+        run: |
+          # A gate can only cover what it enumerates. scripts/ holds code other people
+          # install; nothing here ran a line of it until v3.11.0.
+          python -m pytest scripts -q
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Contract tests (node)
+        run: |
+          for f in tests/*.mjs; do node "$f"; done

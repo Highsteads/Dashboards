@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta name="indigo-page-name" content="Active">
+    <meta name="indigo-page-icon" content="bolt.fill">
+    <meta name="indigo-page-description" content="Devices on or off with toggle controls">
+
+    <!-- iOS / macOS Web App (File → Add to Dock on Mac, Share → Add to Home Screen on iPhone). -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Dashboards">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#5856d6">
+    <link rel="apple-touch-icon" sizes="180x180" href="/public/dashboards/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="/public/dashboards/apple-touch-icon-167.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="/public/dashboards/apple-touch-icon-152.png">
+    <link rel="apple-touch-icon-precomposed" href="/public/dashboards/apple-touch-icon.png">
+    <title>Active Devices</title>
+    <link rel="stylesheet" href="dashboards-theme.css">
+    <style>
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: var(--font-ui);
+            background: var(--bg); color: var(--text);
+            padding: max(80px, calc(72px + env(safe-area-inset-top))) 0 max(32px, env(safe-area-inset-bottom));
+            min-height: 100vh; -webkit-overflow-scrolling: touch;
+        }
+        .topbar {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 10;
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            padding: 10px max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left));
+            padding-top: max(10px, env(safe-area-inset-top));
+            margin-bottom: 0;
+        }
+        .topbar-inner {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 10px; flex-wrap: wrap;
+            max-width: 900px; margin: 0 auto;
+        }
+        .topbar h1 { font-size: 18px; font-weight: 600; margin: 0; letter-spacing: -.01em; }
+        .top-jump {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--accent);
+            width: 34px; height: 32px;
+            border-radius: var(--r-sm);
+            font-size: 16px; font-weight: 700;
+            cursor: pointer;
+            display: inline-flex; align-items: center; justify-content: center;
+            font-family: inherit;
+            transition: background .15s, color .15s;
+            margin-left: 6px;
+        }
+        .top-jump:hover  { background: var(--bg); }
+        .top-jump:active { background: var(--accent); color: #fff; }
+        /* ── 3-column topbar (Back · Title + Updated · Top) ── */
+        .topbar-3col {
+            display: grid;
+            grid-template-columns: 1fr 2fr 1fr;
+            align-items: center;
+            gap: 8px;
+        }
+        .topbar-3col .hdr-left  { justify-self: start; display: flex; }
+        .topbar-3col .hdr-right { justify-self: end;   display: flex; }
+        .topbar-3col .hdr-center {
+            justify-self: stretch;
+            text-align: center;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1px;
+            line-height: 1.15;
+        }
+        .topbar-3col h1 {
+            font-size: 20px;
+            font-weight: 700;
+            margin: 0;
+            letter-spacing: -0.02em;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
+        }
+        .topbar-3col .topbar-status {
+            font-size: 11px;
+            color: var(--text-secondary);
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .nav-btn {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            color: var(--accent);
+            padding: 8px 14px;
+            border-radius: var(--r-md);
+            font-size: 14px; font-weight: 600;
+            cursor: pointer;
+            font-family: inherit;
+            text-decoration: none;
+            display: inline-flex; align-items: center; gap: 4px;
+            min-height: 36px;
+            transition: transform 0.08s ease-out, background 0.15s, box-shadow 0.08s, border-color 0.15s;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            white-space: nowrap;
+        }
+        .nav-btn:hover  { background: var(--bg); border-color: var(--accent); }
+        .nav-btn:active {
+            transform: translateY(2px) scale(0.96);
+            background: var(--accent); color: #fff;
+            box-shadow: 0 0 0 rgba(0,0,0,0);
+        }
+
+
+        .hdr-left, .hdr-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .topbar .back-link {
+            color: var(--accent); text-decoration: none; font-size: 14px; font-weight: 500;
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 6px 10px; border-radius: var(--r-sm);
+            min-height: 32px;
+            transition: background .15s;
+        }
+        .topbar .back-link:hover { background: var(--bg); }
+        .topbar-status { font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+        .bottombar {
+            position: sticky; bottom: 0; z-index: 10;
+            background: var(--card-bg);
+            border-top: 1px solid var(--border);
+            box-shadow: 0 -1px 3px rgba(0,0,0,0.08);
+            padding: 8px max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left));
+            padding-bottom: max(8px, env(safe-area-inset-bottom));
+            margin-top: 16px;
+        }
+        .bottombar-inner {
+            text-align: center;
+            max-width: 900px; margin: 0 auto;
+            font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums;
+            line-height: 1.4;
+        }
+        .container {
+            max-width: 700px; margin: 0 auto;
+            padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
+        }
+        .filter-bar {
+            display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px;
+        }
+        .filter-pill {
+            border: 1px solid var(--border); border-radius: var(--r-lg);
+            padding: 6px 14px; font-size: 13px; cursor: pointer;
+            background: var(--card-bg); color: var(--text);
+            min-height: 32px;
+        }
+        .filter-pill.active { background: var(--accent); color: white; border-color: var(--accent); }
+        .active-total { background: var(--card-bg); border-radius: var(--r-md); padding: 10px 16px;
+            margin-bottom: 12px; box-shadow: var(--shadow); font-size: 14px;
+            color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+        .active-total b { color: var(--text); font-size: 16px; }
+        .device-list { display: flex; flex-direction: column; gap: 8px; }
+        .device-row {
+            background: var(--card-bg); border-radius: var(--r-md); padding: 14px 16px;
+            display: flex; align-items: center; justify-content: space-between;
+            box-shadow: var(--shadow); gap: 12px;
+        }
+        .device-info { flex: 1; min-width: 0; }
+        .device-name { font-size: 16px; font-weight: 500; }
+        .device-state { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+        .device-controls { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+
+        .toggle { position: relative; width: 51px; height: 31px; flex-shrink: 0; cursor: pointer; }
+        .toggle input { opacity: 0; width: 0; height: 0; }
+        .toggle .slider {
+            position: absolute; inset: 0; background: var(--off-color);
+            border-radius: var(--r-pill); transition: background 0.25s;
+        }
+        .toggle .slider::before {
+            content: ""; position: absolute; width: 27px; height: 27px;
+            left: 2px; bottom: 2px; background: white; border-radius: 50%;
+            transition: transform 0.25s; box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+        .toggle input:checked + .slider { background: var(--on-color); }
+        .toggle input:checked + .slider::before { transform: translateX(20px); }
+        .toggle input:disabled + .slider { opacity: 0.5; }
+        .brightness {
+            width: 80px; height: 32px; -webkit-appearance: none; appearance: none;
+            background: linear-gradient(to right, var(--accent) 0%, var(--off-color) 0%);
+            border-radius: var(--r-lg); outline: none;
+        }
+        .brightness::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none;
+            width: 26px; height: 26px; border-radius: 50%;
+            background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+            cursor: pointer;
+        }
+        .empty { text-align: center; padding: 40px 20px; color: var(--text-secondary); }
+        .loading { text-align: center; padding: 60px 20px; color: var(--text-secondary); }
+        .spinner {
+            width: 24px; height: 24px; border: 3px solid var(--off-color);
+            border-top-color: var(--accent); border-radius: 50%;
+            animation: spin 0.8s linear infinite; margin: 0 auto 12px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .last-updated { text-align: center; font-size: 12px; color: var(--text-secondary); padding-top: 16px; }
+    
+        /* ═══ Shared Apple/Safari polish (v2.25.0) ═════════════════
+           Appended uniformly across pages: frosted translucent bars, laptop
+           hover states, keyboard focus rings, reduced-motion support, and
+           Safari/iOS fixes (dynamic viewport height, text-size-adjust, tap
+           highlight). Selectors a page lacks simply never match. */
+        html { -webkit-text-size-adjust: 100%; }
+        body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+        @supports (min-height: 100dvh) { body { min-height: 100dvh; } }
+        a, button, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+        :focus-visible { outline: 2px solid var(--accent, #5856d6); outline-offset: 2px; }
+        .topbar, .bottombar {
+            background: rgba(249, 249, 251, 0.82);
+            -webkit-backdrop-filter: saturate(180%) blur(20px);
+            backdrop-filter: saturate(180%) blur(20px);
+            box-shadow: none;
+        }
+        @media (prefers-color-scheme: dark) {
+            .topbar, .bottombar { background: rgba(22, 22, 24, 0.80); }
+        }
+        @media (hover: hover) and (pointer: fine) {
+            a.card:hover, a.dash-card:hover, .fav-tile:not(.fav-reading):hover, a.home-cam:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+            }
+            .nav-btn:hover { transform: translateY(-1px); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                transition-duration: 0.01ms !important;
+                animation-duration: 0.01ms !important;
+                scroll-behavior: auto !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <div class="topbar-inner topbar-3col">
+            <div class="hdr-left">
+                <a class="nav-btn" href="index.html">&larr; Home</a>
+            </div>
+            <div class="hdr-center">
+                <h1>Active</h1>
+                <span class="topbar-status">Updated <span id="ts">—</span> · Next refresh <span id="cdwn">—</span>s</span>
+            </div>
+            <div class="hdr-right">
+                <button class="nav-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Back to top">↑ Top</button>
+            </div>
+        </div>
+    </header>
+    <div class="container">
+        <div class="filter-bar" id="filters">
+            <button class="filter-pill active" data-filter="all">All</button>
+            <button class="filter-pill" data-filter="lights">Lights</button>
+            <button class="filter-pill" data-filter="switches">Switches</button>
+            <button class="filter-pill" data-filter="other">Other</button>
+        </div>
+
+        <div id="list"><div class="loading"><div class="spinner"></div><p>Connecting…</p></div></div>
+    </div>
+
+    <script src="config.js" onerror="window.INDIGO_CONFIG_MISSING=true"></script>
+    <script src="dashboards-auth.js"></script>
+    <script src="dashboards-ui.js"></script>
+    <script src="dashboards-gate.js"></script>
+    <script src="dashboard.js"></script>
+    <script>
+    // ── Refresh status: drives Updated / Next refresh in both top + bottom bar.
+    const POLL_INTERVAL_MS = 3000;
+    let _lastUpdate = 0;
+    function _pad(n) { return String(n).padStart(2, "0"); }
+    function markRefreshed() {
+        _lastUpdate = Date.now();
+        tickRefreshStatus();
+    }
+    function tickRefreshStatus() {
+        let tsStr = "—";
+        if (_lastUpdate) {
+            const d = new Date(_lastUpdate);
+            tsStr = _pad(d.getHours()) + ":" + _pad(d.getMinutes()) + ":" + _pad(d.getSeconds());
+        }
+        const elapsedS = _lastUpdate ? (Date.now() - _lastUpdate) / 1000 : 0;
+        const cdwn = Math.max(0, Math.round((POLL_INTERVAL_MS / 1000) - elapsedS));
+        for (const id of ["ts", "ts-bot"]) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = tsStr;
+        }
+        for (const id of ["cdwn", "cdwn-bot"]) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = String(cdwn);
+        }
+    }
+    // "Updated" is stamped by observeAll's onOk hook — every SUCCESSFUL
+    // poll, changed or not — never by a blind timer (the v2.67.0 lesson).
+    // Tick the display every second so the countdown actually counts down.
+    setInterval(tickRefreshStatus, 1000);
+
+    let indigo = null;
+    let currentFilter = "all";
+    let lastDevices = [];
+    const debounceTimers = {};
+
+    if (!IndigoAPI.isConfigured()) {
+        location.href = "index.html";
+    } else {
+        start();
+    }
+
+    function start() {
+        indigo = new IndigoAPI();
+        indigo.onAuthFailure(() => { IndigoAPI.clearConfig(); location.href = "index.html"; });
+        document.querySelectorAll("#filters .filter-pill").forEach(b => {
+            b.addEventListener("click", () => setFilter(b.dataset.filter));
+        });
+        indigo.observeAll(devices => { lastDevices = devices; render(); }, POLL_INTERVAL_MS, undefined, markRefreshed);
+    }
+
+    function setFilter(f) {
+        currentFilter = f;
+        document.querySelectorAll("#filters .filter-pill").forEach(b => {
+            b.classList.toggle("active", b.dataset.filter === f);
+        });
+        render();
+    }
+
+    function classify(d) {
+        const cls = d.class || "";
+        const name = (d.name || "").toLowerCase();
+        // A plug is a Switch whatever its class — covers relay plugs whose name
+        // mentions the lamp they power, e.g. "Gold Lamp Plug".
+        if (/plug/.test(name)) return "switches";
+        if (/Dimmer/.test(cls)) return "lights";
+        if (/Relay/.test(cls)) {
+            if (/light|lamp|chandelier|sconce|bulb/.test(name)) return "lights";
+            return "switches";
+        }
+        return "other";
+    }
+
+    function describeState(d) {
+        if (d.onState !== true) return "Off";
+        const cls = (d.class || "").toLowerCase();
+        if (cls.includes("dimmer")) return `${d.brightness != null ? d.brightness : 0}% · ${classify(d)}`;
+        return classify(d) === "lights" ? "Light on" : "On";
+    }
+
+    // v2.18.0 — live power draw for metered switches/plugs (Shelly powerWatts,
+    // Tasmota curEnergyLevel, ESPHome power). Lets the Active page double as a
+    // "what's actually drawing power" view.
+    function getWatts(d) {
+        const s = d.states || {};
+        for (const k of ["powerWatts", "power", "curEnergyLevel", "activePower"]) {
+            if (s[k] !== undefined) { const n = parseFloat(s[k]); if (!isNaN(n)) return n; }
+        }
+        return null;
+    }
+    function fmtW(w) {
+        const n = Math.round(w);
+        return Math.abs(n) >= 1000 ? (w / 1000).toFixed(2) + " kW" : n + " W";
+    }
+
+    function render() {
+        if (!lastDevices.length) return;
+        // Every switchable device (Relay/Dimmer class), on OR off, so anything
+        // you switched off can be switched back on. Skipped: disabled devices
+        // (they cannot be commanded) and anything with no switch of its own.
+        //
+        // That last test used to match the NAME — "athom-without-relay" — from
+        // when ESPHomeBridge presented relay-less power monitors as dimmer light
+        // nodes. It classifies them as sensors now, so the class test above
+        // already excludes them and the name test had become dead code: measured
+        // 08-09-2026, 68 devices pass the class test, none matches that name and
+        // none reports supportsOnState false. A guard shaped like a device name
+        // is a landmine — renaming the device silently disarms it — so it now
+        // asks the capability, which no rename can change.
+        const base = lastDevices.filter(d =>
+            /Dimmer|Relay/.test(d.class || "") &&
+            d.enabled !== false &&
+            d.supportsOnState !== false);
+        const filtered = currentFilter === "all" ? base : base.filter(d => classify(d) === currentFilter);
+
+        // Total live draw across every metered switchable device that's on — the
+        // house's switchable load right now (independent of the category filter).
+        const onDevices = base.filter(d => d.onState === true);
+        const totalW = onDevices.reduce((a, d) => a + (getWatts(d) || 0), 0);
+        const header = `<div class="active-total">${I("bolt")} <b>${fmtW(totalW)}</b> drawn now · ${onDevices.length} on</div>`;
+
+        const list = document.getElementById("list");
+        if (filtered.length === 0) {
+            list.innerHTML = header + '<p class="empty">Nothing to show in this category.</p>';
+        } else {
+            // A full rebuild severs a brightness slider mid-drag — skip
+            // this render and let the next poll repaint after release.
+            if (window._sliderDragging) return;
+            list.innerHTML = header + '<div class="device-list">' +
+                filtered
+                    // Strict alphabetical so a device keeps its position when toggled
+                    // — no jumping between an "on" group and an "off" group.
+                    .sort((a, b) => a.name.localeCompare(b.name))
+                    .map(d => renderRow(d)).join("") +
+                '</div>';
+        }
+
+    }
+
+    function renderRow(d) {
+        const isDimmer = /Dimmer/.test(d.class || "");
+        const w = getWatts(d);
+        const wStr = (d.onState === true && w != null && w >= 0.5) ? ` · ${fmtW(w)}` : "";
+        const slider = isDimmer ? `
+            <input type="range" class="brightness" min="0" max="100"
+                   onpointerdown="window._sliderDragging = true"
+                   onpointerup="window._sliderDragging = false"
+                   onpointercancel="window._sliderDragging = false"
+                   value="${d.brightness != null ? d.brightness : 100}"
+                   data-id="${d.id}"
+                   oninput="onSlider(this)"
+                   onchange="onSliderCommit(this)">` : "";
+        return `
+            <div class="device-row">
+                <div class="device-info">
+                    <div class="device-name">${escapeHtml(d.name)}</div>
+                    <div class="device-state">${escapeHtml(describeState(d))}${wStr}</div>
+                </div>
+                <div class="device-controls">
+                    ${slider}
+                    <label class="toggle">
+                        <input type="checkbox" data-id="${d.id}" ${d.onState ? "checked" : ""}
+                               onchange="onToggle(this)">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>`;
+    }
+
+    // A pointerup that lands outside the slider never reaches its own handler;
+    // without this a stuck flag would freeze every render for good.
+    window.addEventListener("pointerup", () => { window._sliderDragging = false; });
+    window.addEventListener("pointercancel", () => { window._sliderDragging = false; });
+
+    async function onToggle(el) {
+        el.disabled = true;
+        const id = parseInt(el.dataset.id);
+        const expected = el.checked;
+        try { await indigo.toggle(id); _confirmToggle(el, id, expected); }
+        catch { el.checked = !el.checked; }
+        setTimeout(() => { el.disabled = false; }, 500);
+    }
+
+    // A toggle is CONFIRMED from the device, not assumed (v2.95.3). A device
+    // whose communication is disabled, or whose plugin has stopped, swallows
+    // the command without an error — the switch used to stay flipped for ever.
+    function _confirmToggle(el, id, expected) {
+        setTimeout(async () => {
+            try {
+                const d = await indigo.getDevice(id);
+                if (d && typeof d.onState === "boolean" && d.onState !== expected) {
+                    el.checked = d.onState;
+                    console.warn(`toggle ${id}: no confirmation from the device`);
+                    try { if (window.DashAction) DashAction.note("device:" + id, "timeout", "No confirmation — check it"); } catch (_) {}
+                }
+            } catch (_) { /* the next poll repaints from the server anyway */ }
+        }, 4000);
+    }
+
+    function onSlider(el) {
+        const pct = parseInt(el.value);
+        el.style.background = `linear-gradient(to right, var(--accent) ${pct}%, var(--off-color) ${pct}%)`;
+    }
+
+    function onSliderCommit(el) {
+        const id = parseInt(el.dataset.id);
+        const value = parseInt(el.value);
+        clearTimeout(debounceTimers[id]);
+        debounceTimers[id] = setTimeout(async () => {
+            try { await indigo.setBrightness(id, value); } catch {}
+        }, 300);
+    }
+
+    function escapeHtml(t) {
+        const d = document.createElement("div");
+        d.textContent = String(t == null ? "" : t);
+        return d.innerHTML;
+    }
+    </script>
+
+    <footer class="bottombar">
+        <div class="bottombar-inner">
+            Updated <span id="ts-bot">—</span> · Next refresh <span id="cdwn-bot">—</span>s
+        </div>
+    </footer>
+
+
+    <style>
+        .back-to-top {
+            position: fixed;
+            bottom: max(80px, calc(72px + env(safe-area-inset-bottom)));
+            right: max(16px, env(safe-area-inset-right));
+            width: 44px; height: 44px;
+            border-radius: 50%;
+            background: var(--accent); color: #fff;
+            border: none; cursor: pointer;
+            font-size: 22px; font-weight: 700;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+            opacity: 0; pointer-events: none;
+            transition: opacity 0.25s, transform 0.15s;
+            z-index: 9;
+            font-family: inherit;
+        }
+        .back-to-top.visible { opacity: 0.9; pointer-events: auto; }
+        .back-to-top:hover  { opacity: 1; transform: translateY(-2px); }
+        .back-to-top:active { transform: translateY(0); opacity: 0.85; }
+    </style>
+    <button class="back-to-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Back to top">↑</button>
+    <script>
+const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
+
+        (function() {
+            const btn = document.querySelector(".back-to-top");
+            if (!btn) return;
+            const onScroll = () => {
+                if (window.scrollY > 200) btn.classList.add("visible");
+                else btn.classList.remove("visible");
+            };
+            window.addEventListener("scroll", onScroll, { passive: true });
+            onScroll();
+        })();
+    </script>
+
+<script src="dashboards-icons.js"></script>
+<script src="a11y.js"></script>
+
+<script src="standalone-nav.js"></script>
+</body>
+</html>

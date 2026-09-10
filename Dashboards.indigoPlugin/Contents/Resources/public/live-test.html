@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Live Test">
+    <title>Dashboard Live Test</title>
+    <style>
+        :root {
+            --bg: #f5f5f7; --card-bg: #ffffff; --text: #1d1d1f;
+            --text-secondary: #86868b; --border: #d2d2d7;
+            --accent: #5856d6; --good: #34c759; --warn: #ff9500; --bad: #ff453a;
+            --shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #000000; --card-bg: #1c1c1e; --text: #f5f5f7;
+                --text-secondary: #98989d; --border: #38383a;
+                --accent: #7d7aff; --good: #30d158;
+                --shadow: 0 1px 3px rgba(0,0,0,0.3);
+            }
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+            background: var(--bg); color: var(--text);
+            padding: 80px 16px 32px;
+            min-height: 100vh;
+        }
+        .topbar {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 10;
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--border);
+            padding: 14px 20px;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .topbar h1 { font-size: 17px; font-weight: 600; }
+        .live-badge {
+            display: flex; align-items: center; gap: 6px;
+            font-size: 12px; color: var(--good); font-weight: 600;
+        }
+        .live-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--good);
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; } 50% { opacity: 0.3; }
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 12px; max-width: 700px; margin: 0 auto;
+        }
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 18px;
+            box-shadow: var(--shadow);
+        }
+        .card-label {
+            font-size: 12px; color: var(--text-secondary);
+            text-transform: uppercase; letter-spacing: 0.04em;
+            margin-bottom: 8px;
+        }
+        .card-value {
+            font-size: 36px; font-weight: 700;
+            line-height: 1; color: var(--text);
+        }
+        .card-unit {
+            font-size: 16px; font-weight: 400;
+            color: var(--text-secondary); margin-left: 2px;
+        }
+        .card-sub {
+            font-size: 12px; color: var(--text-secondary);
+            margin-top: 6px;
+        }
+        .card-wide {
+            grid-column: 1 / -1;
+        }
+        .clock-card .card-value {
+            font-size: 48px; letter-spacing: -0.02em;
+            font-variant-numeric: tabular-nums;
+        }
+        .progress-bar {
+            height: 6px; background: var(--border);
+            border-radius: 3px; overflow: hidden;
+            margin-top: 10px;
+        }
+        .progress-fill {
+            height: 100%; border-radius: 3px;
+            background: var(--accent);
+            transition: width 0.4s ease;
+        }
+        .status-row {
+            display: flex; flex-direction: column; gap: 10px;
+        }
+        .status-item {
+            display: flex; align-items: center; justify-content: space-between;
+            font-size: 14px;
+        }
+        .status-dot {
+            width: 10px; height: 10px; border-radius: 50%;
+            margin-right: 8px; flex-shrink: 0;
+        }
+        .status-name { display: flex; align-items: center; color: var(--text); }
+        .status-val { font-weight: 600; color: var(--text); }
+        .footer {
+            text-align: center; margin-top: 20px;
+            font-size: 12px; color: var(--text-secondary);
+        }
+    </style>
+</head>
+<body>
+
+<div class="topbar">
+    <h1>Dashboard Live Test</h1>
+    <div class="live-badge">
+        <div class="live-dot"></div>
+        LIVE
+    </div>
+</div>
+
+<div class="grid">
+
+    <!-- Live clock -->
+    <div class="card clock-card card-wide">
+        <div class="card-label">Live Clock — updates every second</div>
+        <div class="card-value" id="clock">--:--:--</div>
+        <div class="card-sub" id="date-line">--</div>
+    </div>
+
+    <!-- Poll counter -->
+    <div class="card">
+        <div class="card-label">Poll Count</div>
+        <div class="card-value" id="poll-count">0</div>
+        <div class="card-sub">polls since page load</div>
+        <div class="progress-bar">
+            <div class="progress-fill" id="poll-progress" style="width:0%"></div>
+        </div>
+        <div class="card-sub" id="next-poll">Next poll in 5s</div>
+    </div>
+
+    <!-- Simulated temperature -->
+    <div class="card">
+        <div class="card-label">Simulated Temp</div>
+        <div class="card-value" id="sim-temp">--<span class="card-unit">°C</span></div>
+        <div class="card-sub">random on each poll</div>
+    </div>
+
+    <!-- Simulated power -->
+    <div class="card">
+        <div class="card-label">Simulated Power</div>
+        <div class="card-value" id="sim-power">--<span class="card-unit">W</span></div>
+        <div class="card-sub">random on each poll</div>
+    </div>
+
+    <!-- Simulated device states -->
+    <div class="card card-wide">
+        <div class="card-label">Simulated Device States — toggle on each poll</div>
+        <div class="status-row" id="device-states"></div>
+    </div>
+
+    <!-- Last updated -->
+    <div class="card card-wide">
+        <div class="card-label">Last Poll Timestamp</div>
+        <div class="card-value" style="font-size:20px; font-weight:500;" id="last-poll">Waiting for first poll...</div>
+        <div class="card-sub">If this timestamp updates every 5 seconds, live polling is working in this view.</div>
+    </div>
+
+</div>
+
+<div class="footer">
+    Highsteads Dashboard Live Test &mdash; no device IDs, no API calls &mdash; pure JavaScript polling proof
+</div>
+
+<script>
+    // --- Simulated devices ---
+    const DEVICES = [
+        { name: "Living Room Light", color: "#ff9500" },
+        { name: "Kitchen Light",     color: "#5856d6" },
+        { name: "Hallway Light",     color: "#34c759" },
+        { name: "Heating",           color: "#ff453a" },
+    ];
+    let deviceStates = DEVICES.map(() => Math.random() > 0.5);
+
+    // Build device state rows
+    const stateContainer = document.getElementById("device-states");
+    DEVICES.forEach((d, i) => {
+        const row = document.createElement("div");
+        row.className = "status-item";
+        row.innerHTML = `
+            <span class="status-name">
+                <span class="status-dot" id="dot-${i}" style="background:${d.color}"></span>
+                ${d.name}
+            </span>
+            <span class="status-val" id="state-${i}">--</span>`;
+        stateContainer.appendChild(row);
+    });
+
+    // --- Clock (every second) ---
+    function updateClock() {
+        const now = new Date();
+        const hh = String(now.getHours()).padStart(2,"0");
+        const mm = String(now.getMinutes()).padStart(2,"0");
+        const ss = String(now.getSeconds()).padStart(2,"0");
+        document.getElementById("clock").textContent = `${hh}:${mm}:${ss}`;
+        document.getElementById("date-line").textContent =
+            now.toLocaleDateString("en-GB", { weekday:"long", day:"numeric", month:"long", year:"numeric" });
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // --- Poll countdown progress bar ---
+    const POLL_INTERVAL = 5000;
+    let lastPoll = Date.now();
+    let pollCount = 0;
+
+    function updateProgress() {
+        const elapsed = Date.now() - lastPoll;
+        const pct = Math.min(100, (elapsed / POLL_INTERVAL) * 100);
+        document.getElementById("poll-progress").style.width = pct + "%";
+        const remaining = Math.max(0, Math.ceil((POLL_INTERVAL - elapsed) / 1000));
+        document.getElementById("next-poll").textContent = remaining > 0
+            ? `Next poll in ${remaining}s`
+            : "Polling now...";
+    }
+    setInterval(updateProgress, 200);
+
+    // --- Main poll (every 5 seconds) ---
+    function doPoll() {
+        pollCount++;
+        lastPoll = Date.now();
+
+        // Simulated temperature: 18.0 – 23.5
+        const temp = (18 + Math.random() * 5.5).toFixed(1);
+        document.getElementById("sim-temp").innerHTML =
+            `${temp}<span class="card-unit">°C</span>`;
+
+        // Simulated power: 200 – 3500 W
+        const power = Math.round(200 + Math.random() * 3300);
+        document.getElementById("sim-power").innerHTML =
+            `${power.toLocaleString()}<span class="card-unit">W</span>`;
+
+        // Toggle device states
+        deviceStates = deviceStates.map(s => Math.random() > 0.3 ? !s : s);
+        DEVICES.forEach((d, i) => {
+            const on = deviceStates[i];
+            document.getElementById(`state-${i}`).textContent = on ? "ON" : "OFF";
+            document.getElementById(`state-${i}`).style.color = on ? "var(--good)" : "var(--text-secondary)";
+            document.getElementById(`dot-${i}`).style.opacity = on ? "1" : "0.3";
+        });
+
+        // Poll count
+        document.getElementById("poll-count").textContent = pollCount;
+
+        // Last poll timestamp
+        const now = new Date();
+        document.getElementById("last-poll").textContent =
+            now.toLocaleTimeString("en-GB", { hour:"2-digit", minute:"2-digit", second:"2-digit" }) +
+            " — poll #" + pollCount;
+    }
+
+    // First poll immediately, then every 5 seconds
+    doPoll();
+    setInterval(doPoll, POLL_INTERVAL);
+</script>
+</body>
+</html>
