@@ -45,6 +45,46 @@ to run, and it never needs your passwords — when something needs signing in, i
 and waits for you. It comes as a Mac app (the Code tab in the Claude desktop app) and as a
 terminal command; either is fine, and it does not matter which.
 
+## Can I use Claude chat instead of Claude Code?
+
+Partly, and it is worth knowing exactly where the line is, because the chat version is on the
+free plan and Claude Code is not.
+
+**Claude chat** — the claude.ai website or the Chat tab of the desktop app — can explain every
+step on this page, write anything for you to paste, and answer questions about what a page is
+showing. What it cannot do is touch your Mac: it cannot install the plugin, the camera tools, an
+MCP server or Tailscale, it cannot read a log file, restart a plugin, or put a page into the
+plugin. It hands you the commands and you type them, or double-click the bundle yourself.
+
+**Claude chat with an MCP server** gets much further. The Claude desktop app can run an Indigo
+MCP server as a local connector, and Anthropic's pricing page lists connectors as available on
+every plan, the free one included (free accounts are limited to one custom connector). With one
+connected, the chat can see your devices by name, read their states and the event log, run
+actions, and use this plugin's own tools — set your rooms, add or remove cameras, run the setup
+check, read the plugin's log. "The kitchen light" works from a chat window too. The desktop app
+has to be on a Mac at home (or on your tailnet), because the server is on your network:
+claude.ai's "custom connectors" connect from Anthropic's cloud and would need your Indigo MCP
+server reachable from the internet, which none of the three is set up for and which you should
+not want.
+
+**Claude Code** is the one that acts. It installs things, edits and builds pages, restarts the
+plugin, reads whatever it needs on the Mac, and checks what happened. Everything in "The path"
+below that says *install* or *build* needs it.
+
+| | Claude chat | Chat + an MCP server | Claude Code + an MCP server |
+|---|---|---|---|
+| Plan | Free upwards | Free upwards | Pro upwards |
+| Runs where | anywhere | the desktop app, at home | on the Indigo Mac |
+| Install the plugin, camera tools, Tailscale | tells you how | tells you how | does it |
+| See devices by name, read logs | no | yes | yes |
+| Change rooms and cameras | via the Settings page | yes, directly | yes |
+| Build or change a page | writes it, you copy it in | the same | does it |
+| Fix something in the plugin itself | no | no | yes |
+
+So a free-plan reader with the desktop app and an MCP server can run the dashboards, keep the
+rooms and cameras right, and get real help when something is wrong. Building your own pages is
+where Claude Code earns its subscription.
+
 ## The path, step by step
 
 You do not have to do all of this in one go. Each step is useful on its own.
