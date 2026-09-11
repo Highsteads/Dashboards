@@ -1,17 +1,22 @@
 #!/bin/bash
 # Filename:    build_demo_site.sh
-# Description: Build the GitHub Pages demo showcase into docs/ from the
+# Description: Build the GitHub Pages demo showcase into docs/demo/ from the
 #              bundle's pages. The hosted copy forces demo mode for every
 #              visitor via its config.js, so all entry points work without
-#              an Indigo server. Run from the repo root, then commit docs/.
-# Author:      CliveS & Claude Fable 5
-# Date:        11-06-2026
-# Version:     1.0
+#              an Indigo server. Run from the repo root, then commit docs/demo/.
+#              docs/ itself is the documentation site (Jekyll, GitHub Pages);
+#              its _config.yml excludes demo/ from the Jekyll build so the
+#              pages are served as plain files. Not run since the hosted demo
+#              was retired in July 2026 — publishing it again is a decision,
+#              not a side effect of building the docs.
+# Author:      CliveS & Claude Fable 5; Claude Fable 5.1 (1.1)
+# Date:        11-06-2026 (1.1: 11-09-2026)
+# Version:     1.1
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 PAGES="Dashboards.indigoPlugin/Contents/Resources/static/pages"
-DOCS="docs"
+DOCS="docs/demo"
 
 rm -rf "$DOCS"
 mkdir -p "$DOCS"
@@ -54,4 +59,4 @@ cat > "$DOCS/demo-cam.svg" << 'EOF'
 EOF
 
 echo "Demo site built into $DOCS/ ($(ls "$DOCS" | wc -l | tr -d ' ') files)."
-echo "Entry point once published: <pages-url>/demo.html (or any page — demo is forced)."
+echo "Entry point once published: <pages-url>/demo/demo.html (or any page there — demo is forced)."

@@ -1,0 +1,81 @@
+---
+title: Remote access
+nav_order: 7
+---
+
+# Remote access
+
+## Run Tailscale
+
+Away from home, the way to use the dashboards is [Tailscale](https://tailscale.com) — a zero-config
+WireGuard VPN whose free tier comfortably covers a family's devices. With it running, your phone or
+laptop is effectively "at home" anywhere in the world, and the plugin already treats it that way:
+the private-client gate on port 8177 accepts Tailscale's `100.64.0.0/10` range alongside the LAN.
+
+Why this plugin needs it:
+
+- **Cameras only work remotely this way.** The MJPEG proxy lives on port 8177, which nothing else
+  fronts — without Tailscale you get every data page but no live streams; over Tailscale you get the
+  lot, including the hub's camera strip.
+- **No pairing ceremony.** A new browser on the tailnet auto-pairs on first visit, exactly as at
+  home. Any other way in, you would need a one-time setup link or to type the API key.
+- **Nothing exposed.** No port forwarding, no public attack surface, WireGuard encryption end to
+  end.
+
+Setup:
+
+1. Install Tailscale on the **Indigo Mac**, sign in once, and tick "start on login" — it just sits
+   in the menu bar.
+2. Install the Tailscale app on the **iPhone / iPad / MacBook**, signed into the same tailnet, and
+   enable **MagicDNS** in the admin console.
+3. Bookmark the dashboard using the Mac's tailnet name, e.g.
+   `http://your-mac-name:8176/public/dashboards/` — that one URL then works identically on the sofa
+   and on holiday.
+4. On the phone, leave the VPN toggle **on**. WireGuard is idle when unused, so the battery cost is
+   negligible — and toggling it on demand is noticeably slow, so always-on is both simpler and
+   faster.
+
+## The Indigo reflector
+
+The pages also work over the Indigo reflector (`https://myhouse.indigodomo.net/...`), with two
+things to know.
+
+**It is metered, and cameras are what spend it.** Indigo Domotics count the reflector's bandwidth,
+and a Cameras page polling stills every second off the LAN is the single easiest way to run through
+the allowance — about 8 GB a day if left open. So a page that can see it was reached through the
+reflector polls at a tenth of the home rate, stops altogether after ten minutes untouched, and shows
+a banner with the LAN link. The plugin also notes each device that arrives over the reflector, once
+an hour, in its log, naming the device and the LAN address it should use instead.
+
+**"Remote" can be your own house.** A phone that was paired with the reflector address while sitting
+on the home Wi-Fi goes out to Indigo's servers and back for every request, and looks remote to
+everyone. Pair with the LAN or Tailscale address; keep the reflector link for a device that is
+genuinely away.
+
+If you use Tailscale and want the reflector out of the picture entirely, tick **Refuse the
+reflector** under Configure. Every page then stops before asking for anything and shows the LAN
+address instead. It is off by default, because plenty of installs have no other way in.
+
+## Guest devices
+
+A wall tablet or a visitor's phone should be able to look and not touch. **Plugins → Dashboards →
+Show Guest Access Info** logs a pairing URL; open it on the device and `guest.html` takes a guest
+token from the plugin's LAN-only proxy, stores it, and forwards to the hub. The device never holds
+the API key, so there is no control surface on it at all. That proxy refuses any non-private source
+address, which makes guest access home-network and Tailscale only by construction. Clearing the
+browser's site data un-pairs it.
+
+## Ports
+
+| Port | Purpose | Auth |
+|---|---|---|
+| 8176 | Indigo Web Server — the pages are served here | None for the pages; API key for every data call |
+| 8177 | Plugin MJPEG proxy — live camera streams, stills, pairing | None (trusted LAN / Tailscale; refuses non-private sources) |
+| 1984 | go2rtc HTTP API | None |
+| 8554 | go2rtc RTSP republish | None |
+| 8555 | go2rtc WebRTC media (TCP and UDP) | None |
+
+The proxy and go2rtc ports are intentionally unauthenticated — the same trusted-LAN / Tailscale
+threat model as Indigo's `/public/` namespace. Do not expose port 8177 directly to the internet, and
+do not put a credential into anything under `/public/`: that namespace is anonymous even over the
+reflector.

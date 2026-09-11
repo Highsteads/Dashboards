@@ -1,0 +1,100 @@
+---
+title: Troubleshooting
+nav_order: 10
+---
+
+# Troubleshooting
+
+## Start with the setup check
+
+**Plugins → Dashboards → Test Dashboards Setup** runs every check in one go and logs a verdict per
+line: the Indigo API URL and key, the camera credentials and the camera list, the room folders, the
+SQL Logger history connection, whether the public pages folder is writable, whether the liveness
+stamp is beating, and whether SigenEnergyManager is present. Optional pieces that are absent report
+SKIP, not FAIL. The same sweep is available to Claude as `dashboards_run_setup_check`.
+
+**Plugins → Dashboards → Show Plugin Info** logs the environment — versions, architecture, Python —
+which is the first thing to paste into a support post.
+
+## The page asks me to connect, or shows nothing
+
+The pages are public files; the data behind them needs an API key. Enter it in the Connect form, or
+pair the browser with a one-time setup link, or turn on *Auto-seed the API key to LAN browsers* — see
+[Getting started](getting-started.md#pairing-a-browser). If the key was rotated, every paired browser
+needs pairing again; the footer's *Reset connection* link forgets the old one.
+
+## No rooms, or the wrong things in a room
+
+With nothing configured the plugin uses one house's folder names and yours will produce no rooms.
+Tick your Indigo device folders on the Settings page's Rooms card. A device in the wrong section is
+the classifier guessing from folder and name — the Rooms card has a per-room override (`include`,
+`hideDeviceIds`, `sortOrder` and the tile types in [Configuration](configuration.md#room-extras)).
+Read the resolved counts under each room before assuming a page is broken.
+
+## Cameras
+
+- **No streams anywhere, and a warning in the log.** Both ffmpeg and go2rtc are needed. Install
+  them and restart the plugin. If go2rtc is somewhere unusual, set its path under Configure.
+- **One camera never connects.** Check the vendor (the RTSP URL template differs), the credentials
+  (one set, shared), and that the camera has RTSP enabled. `dashboards_list_cameras` and
+  `dashboards_read_log` show what the plugin sees.
+- **A tile flashes a 500 and then recovers.** ffmpeg exiting with code 69 on first contact; go2rtc
+  quirk, one retry clears it, the plugin already does that.
+- **Tiles say "2s" or "5s" at home.** The page thinks the link is slow. Tap "this device is" at the
+  bottom of the Cameras page to pin it to home. Check whether the browser was paired with the
+  reflector address rather than the LAN one.
+- **Only some tiles are live.** `livePoolSize` (default six) is a browser limit, not a plugin one:
+  about six long-lived connections per address is all a browser will open.
+- **Cameras work at home and not away.** Live streams need port 8177, which only Tailscale reaches.
+  Over the reflector you get stills, slowly, by design.
+
+## Energy, Cost or Laundry are missing from the menu
+
+They need the SigenEnergyManager plugin and hide themselves without it. Installing (or enabling) it
+is noticed within thirty seconds; the hub says which plugin is missing until then.
+
+## The heating page has no boost or force buttons
+
+They are EvoHomeControl's own actions and appear only when that plugin is installed *and enabled*.
+Zone temperatures and setpoints work with any thermostat device regardless.
+
+## Graphs, Timeline or the Meter page's history are empty
+
+They read the SQL Logger's history database. Check the plugin is running and, under Configure, that
+the backend matches where it writes (SQLite by default). For PostgreSQL the `psql` client must be
+installed; **Test History Connection** proves the settings. A state that exists on a device but has
+never been logged will not appear in the Graphs picker, and that is the correct answer.
+
+## The Wi-Fi page is empty
+
+It renders devices published by the UniFiHealth plugin (v0.2.0 or later). Nothing on the page talks
+to the controller itself.
+
+## "Not updating for four minutes"
+
+The page's poll has stopped returning data. Usually the plugin is restarting; the amber line clears
+on the next good poll. If it stays amber, check the plugin is running and read the event log. If
+*every* page and every other plugin's endpoint has gone quiet for about five minutes right after a
+plugin restart, a page running old JavaScript polled the plugin mid-restart and stalled the web
+server; it recovers on its own, and reloading long-open tabs stops it recurring.
+
+## The Settings page will not save
+
+Save checks the plugin is up first, and refuses while it is restarting. Wait a few seconds and try
+again. A refused save says what is wrong.
+
+## Guest pairing fails
+
+Guest pairing works on the home network and over Tailscale only; the proxy refuses any other source
+address. A device that was previously paired with the full key is demoted to a guest, not left
+holding both.
+
+## Something is wrong and none of the above fits
+
+- The plugin's own log, via **Plugins → Dashboards → Show Plugin Info** for the environment and the
+  `dashboards_read_log` tool (or the log file itself) for the last lines.
+- The Indigo event log, for the plugin's warnings and errors.
+- The Activity page's Alerts card, which collapses the event log's errors by signature so one fault
+  reads as one row.
+- [Open an issue](https://github.com/Highsteads/Dashboards/issues) with the setup-check output and
+  the plugin-info banner.

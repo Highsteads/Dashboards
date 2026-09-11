@@ -46,6 +46,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_colour_one_call.mjs` | Contract test for the browser half of the v2.94.0 colour move — |
 | `test_command_guards.py` | applyColour must refuse a command Indigo would swallow |
 | `test_config_js_no_secrets.py` | Pins the plugin's single most important security invariant: |
+| `test_docs_site.py` | The documentation site (docs/, GitHub Pages) and the README |
 | `test_door_tile.mjs` | Contract test for the hub's state-driven door favourite — |
 | `test_energy_alert_bar.mjs` | Node contract test for energy.html's alert bar. Extracts the |
 | `test_energy_cost.mjs` | Node contract test for energy-calc.js — the shared arithmetic |

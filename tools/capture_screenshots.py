@@ -26,7 +26,7 @@
 # it is also clear of the "never call IWS from inside a plugin host" deadlock.
 #
 #   python3 tools/capture_screenshots.py --host 192.168.1.10 \
-#       --out screenshots settings activity
+#       --out docs/screenshots settings activity
 #
 # Addresses are mapped deterministically and per-subnet, so the picture stays
 # coherent: the cameras still look like a camera subnet, and the same real host
@@ -513,7 +513,7 @@ def main():
     ap.add_argument("--host", default="192.168.1.10", help="Indigo server")
     ap.add_argument("--iws-port", type=int, default=8176)
     ap.add_argument("--port", type=int, default=8899, help="local proxy port")
-    ap.add_argument("--out", default="screenshots")
+    ap.add_argument("--out", default="docs/screenshots")
     ap.add_argument("--width", type=int, default=1280)
     ap.add_argument("--height", type=int, default=2400,
                     help="window height; ignored when --full-page measures one")

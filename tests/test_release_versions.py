@@ -28,6 +28,7 @@ ROOT   = Path(__file__).resolve().parents[1]
 PLIST  = ROOT / "Dashboards.indigoPlugin/Contents/Info.plist"
 PLUGIN = ROOT / "Dashboards.indigoPlugin/Contents/Server Plugin/plugin.py"
 README = ROOT / "README.md"
+CHANGELOG = ROOT / "docs/changelog.md"
 CLAUDE = ROOT / "CLAUDE.md"
 
 
@@ -53,7 +54,11 @@ def _tracked():
         _find(PLUGIN, r'^PLUGIN_VERSION\s*=\s*"([^"]+)"', "plugin.py PLUGIN_VERSION"),
         _find(PLUGIN, r'^# Version:\s*([0-9][0-9.]*)', "plugin.py header comment"),
         _find(README, r'^\*\*Version:\*\*\s*v?([0-9][0-9.]*)', "README **Version:** header"),
-        _find(README, r'^\*\*([0-9]+(?:\.[0-9]+)+)\*\*', "README newest changelog entry"),
+        _find(README, r'^\*\*([0-9]+(?:\.[0-9]+)+)\*\*', "README What's new newest entry"),
+        # The full history moved to docs/changelog.md on 11-09-2026 (the README
+        # keeps only the newest few under "What's new"); both are tracked, and
+        # test_docs_site.py pins the two to the same text.
+        _find(CHANGELOG, r'^\*\*([0-9]+(?:\.[0-9]+)+)\*\*', "docs/changelog.md newest entry"),
     ]
 
 
@@ -69,7 +74,7 @@ def test_tracked_version_declarations_match():
 def test_the_tracked_scan_is_not_vacuous():
     """A pattern that matches nothing would make the test above pass silently."""
     legs = _tracked()
-    assert len(legs) == 5, legs
+    assert len(legs) == 6, legs
     assert all(v for _, v in legs), legs
 
 
