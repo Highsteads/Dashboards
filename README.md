@@ -216,10 +216,12 @@ advertises your home network as a subnet route, which is one setting — the sam
 you use at home, so one bookmark works everywhere. Claude Code will install and set Tailscale up
 for you if you ask.
 
-The pages also work over the Indigo reflector, which is metered, so a page that can see it was
-reached that way polls stills at a tenth of the home rate and stops after ten minutes untouched.
-A Configure switch refuses the reflector altogether for Tailscale-only households. Details, and
-the guest-device pairing for a wall tablet, on the [Remote access](https://highsteads.github.io/Dashboards/remote-access.html) page.
+The pages also work over the Indigo reflector, which is metered, and my advice is not to use it:
+run cameras through it and Indigo Domotics will write to you, then switch it off, as I found out.
+A page that can see it was reached that way polls stills at a tenth of the home rate and stops
+after ten minutes untouched, and a Configure switch refuses the reflector altogether once you have
+Tailscale. Details, and the guest-device pairing for a wall tablet, on the
+[Remote access](https://highsteads.github.io/Dashboards/remote-access.html) page.
 
 ## Ports
 

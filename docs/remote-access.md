@@ -56,24 +56,32 @@ tailscale-app`), opens it for you to sign in, and tells you what to do on the ph
 
 ## The Indigo reflector
 
-The pages also work over the Indigo reflector (`https://myhouse.indigodomo.net/...`), with two
-things to know.
+The pages work over the Indigo reflector (`https://myhouse.indigodomo.net/...`), and my advice is
+not to use it: install Tailscale and leave the reflector out of it. Here is why.
 
-**It is metered, and cameras are what spend it.** Indigo Domotics count the reflector's bandwidth,
-and a Cameras page polling stills every second off the LAN is the single easiest way to run through
-the allowance — about 8 GB a day if left open. So a page that can see it was reached through the
-reflector polls at a tenth of the home rate, stops altogether after ten minutes untouched, and shows
-a banner with the LAN link. The plugin also notes each device that arrives over the reflector, once
-an hour, in its log, naming the device and the LAN address it should use instead.
+**It is metered, and cameras are what spend it.** The reflector relays every byte through Indigo
+Domotics' own servers, and they pay their hosting company for it. A Cameras page polling stills
+every second is the single easiest way to run through the allowance — about 8 GB a day if left
+open — and it does not have to be a phone on mobile data doing it. I found out the hard way: two
+emails from Indigo Domotics in a week, the first asking me to look, the second telling me the
+reflector was using twice their limit and had been switched off at their end, with the
+subscription itself next if that did not stop it. The culprits were one phone on mobile data and
+one sitting on my own Wi-Fi that had been paired with the reflector address, so every picture went
+out to their servers and back. Neither looked remote to me.
 
-**"Remote" can be your own house.** A phone that was paired with the reflector address while sitting
-on the home Wi-Fi goes out to Indigo's servers and back for every request, and looks remote to
-everyone. Pair with the LAN or Tailscale address; keep the reflector link for a device that is
-genuinely away.
+**What the plugin does about it.** A page that can see it was reached through the reflector polls
+at a tenth of the home rate, stops altogether after ten minutes untouched, and shows a banner with
+the LAN link. The plugin notes each device that arrives over the reflector, once an hour, in its
+log, naming the device and the LAN address it should use instead. And **Refuse the reflector**
+under Configure turns it away entirely: every page then stops before asking for anything and shows
+the LAN address instead. It is off by default, because plenty of installs have no other way in,
+and it should go on the day you have Tailscale — which is how this house runs now, with the
+reflector switched off in Indigo as well.
 
-If you use Tailscale and want the reflector out of the picture entirely, tick **Refuse the
-reflector** under Configure. Every page then stops before asking for anything and shows the LAN
-address instead. It is off by default, because plenty of installs have no other way in.
+**"Remote" can be your own house.** A phone that was paired with the reflector address while
+sitting on the home Wi-Fi goes out to Indigo's servers and back for every request, and looks
+remote to everyone. Pair with the LAN or Tailscale address. If you must keep a reflector link,
+keep it for a device that is genuinely away, and close the page when you have finished with it.
 
 ## Guest devices
 
