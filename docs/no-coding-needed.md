@@ -18,6 +18,11 @@ pages exist because I have solar and a battery, the Laundry page exists because 
 guessing when to put the washing on, and the Mains page exists because I wanted to know which
 of my plugs was telling the truth. Yours will be different, and they should be.
 
+You can go as deep as you want on any Indigo device. A page can show or control any of it:
+switch things on and off, dim them, open and close them, change a light's colour, show which
+doors and windows are open, run a trigger, a schedule, an action group or a Python script. If
+Indigo can do it, you can ask for a page that does it.
+
 Nothing here is a template you have to live inside. It shows what is possible when you can
 describe a page and have it built for you, and the sensible way to use it is to look through
 [every page](pages/index.md), decide which ideas suit your house, ignore the rest, and then ask
@@ -29,8 +34,9 @@ for the pages you actually want — including ones I never thought of.
   web server.
 - **A Claude subscription.** Claude Code — the version of Claude that can actually do things
   on your Mac — is **not on the free plan**. It is included in every paid plan (Pro is the
-  cheapest, and it is what I would start with) and it shares that plan's usage limits, so a
-  long evening of building may hit the limit and ask you to wait a while. There is also a
+  cheapest, and it is what I would start with; what it costs is under "Things worth knowing"
+  below) and it shares that plan's usage limits, so a long evening of building may hit the limit
+  and ask you to wait a while. There is also a
   pay-as-you-go route through an Anthropic Console account with pre-paid credits.
   [Anthropic's pricing page](https://claude.com/pricing) has the current details.
 - **Nothing else.** No MCP server, no Tailscale, no Homebrew, no camera tools. Claude installs
@@ -112,9 +118,9 @@ You make the key, you paste it into **Plugins → Dashboards → Configure**. Op
 > *"My rooms are the device folders Kitchen, Hall, Lounge and Bedroom. Set the dashboards up to
 > use those."*
 
-Without an MCP server (next step) Claude will walk you through the Settings page. With one, it
-does it directly — and it can see your folders, so it will tell you if you have misremembered a
-name.
+Without an MCP server (next step) Claude walks you through the Settings page. With one, it does
+it directly, and because it can see your folders it will find the right ones even if you have got
+a name slightly wrong.
 
 ### 4. Give Claude eyes on Indigo — the MCP server
 
@@ -141,16 +147,20 @@ one you pick and install it:
 - Simon's MCP Lite, in [Simon's plugins](https://github.com/simons-plugins).
 
 Each README says what it needs (Indigo version, Mac type, any keys). The prompt is the same
-whichever you choose:
+whichever you choose — put the GitHub address of the one you picked where the brackets are:
 
-> *"Read the README at <that repository> and install that MCP server for me, then connect
-> Claude Code to it."*
+> *"Read the README at [GitHub address] and install that MCP server for me, then connect Claude
+> Code to it."*
 
 From v3.12.0 this plugin adds its own tools to whichever server you install, so Claude can also
 check the dashboards' setup, list and change your rooms and cameras, and read the plugin's log
 without you finding a single file. See [Claude Code and MCP tools](claude-code.md).
 
 ### 5. Cameras, if you have them
+
+They need to be IP cameras: the kind with an address on your home network and a video stream of
+its own, which is most Dahua, Hikvision, Reolink and Amcrest models and plenty of others. A
+camera that only talks to its maker's cloud app will not do.
 
 > *"Install ffmpeg and go2rtc with Homebrew so the camera grid works, then add my front door
 > camera at 192.168.1.50 — it is a Dahua."*
@@ -161,12 +171,15 @@ fields to fill on the Settings page.
 ### 6. Reach it from anywhere — Tailscale
 
 > *"Install Tailscale on this Mac and set it up so I can open the dashboards from my phone when
-> I am out. Then tell me what to do on the phone."*
+> I am out. Then tell me how to set up the iPhone."*
 
-Claude installs Tailscale with Homebrew (`brew install --cask tailscale-app`), opens it for you
-to sign in, and explains the phone side: install the Tailscale app, sign in with the same
-account, leave it switched on. From then on your phone is "at home" wherever it is, and the
-cameras work too — they only ever work remotely this way. If you want to keep using the same
+Ask the same for Android, Windows, Linux or a NAS; Tailscale runs on all of them. Claude
+installs it on the Mac with Homebrew (`brew install --cask tailscale-app`), opens it for you to
+sign in, and explains the phone side: install the Tailscale app, sign in with the same account,
+leave it switched on. From then on your phone is "at home" wherever it is, and the cameras work
+too — they only ever work remotely this way. I have checked on the house from Perth, Australia,
+and at 36,000 feet over the Indian Ocean I could still watch the cameras, thanks to Tailscale.
+If you want to keep using the same
 address you use at home (mine is a `192.168.` address, yours will be different), ask Claude to
 make the Mac a Tailscale **subnet router** for your home network; that is one setting, and the
 [Remote access](remote-access.md) page explains the three ways of addressing the Mac.
@@ -207,6 +220,21 @@ asked.
 - **Keep Time Machine on.** Claude is careful, and it is still software changing your Mac.
 - **A wrong result costs one more sentence.** If a page comes out wrong, say so and it tries
   again. You are not expected to get the ask right first time — I never did.
+- **Claude makes mistakes.** I have not found it a problem. It keeps a copy of what it changes,
+  it can put things back exactly as they were, and more often than not it simply repairs the
+  error when you point at it.
+- **What Pro costs, and what you get for it.** At the time of writing Pro is £18 a month billed
+  monthly, or £15 a month if you pay a year up front, VAT included —
+  [the pricing page](https://claude.com/pricing) has today's figure. You can cancel at any time
+  during the month, so one month is enough to have Claude build your pages. Be warned: it is
+  addictive. Ten months ago I had no plugins at all, mainly because I cannot write one. I now
+  have 32, mostly for my own use and some private. The scripts I had for turning room lights on
+  and off, and the pile of triggers that ran them, have been streamlined down to a single
+  trigger, and my heating, which ran as three separate scripts, is now a plugin. I even get
+  Claude to write my triggers and schedules: Indigo has no way for a program to create those,
+  so the Claude desktop app drives the Indigo app itself to make them, and everything after
+  that — changing them, switching them on and off, testing them, writing the scripts they run —
+  goes through the MCP server.
 - **Usage limits are real on the Pro plan.** A long building session can run into them; the app
   tells you when, and the work is still there when the limit resets.
 - **The dashboards themselves never need Claude.** Once a page exists, it is a plain web page
