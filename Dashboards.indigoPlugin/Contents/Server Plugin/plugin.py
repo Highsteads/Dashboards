@@ -20,7 +20,11 @@
 #              stream connection fails.
 # Author:      CliveS & Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
 # Date:        11-09-2026
-# Version:     3.13.2
+# Version:     3.13.3
+#
+# v3.13.3 (11-09-2026): GITHUBINFO. The bundle now carries the standard GitHub record
+# (GithubInfo: GithubUser/GithubRepo), as the Indigo Domotics and community plugins do.
+# No behaviour change.
 #
 # v3.13.2 (11-09-2026): HOUSEKEEPING — the retired page builder's server side is
 #   removed: the hidden `customPages` action + handleCustomPages, _custom_pages_dir,
@@ -1131,7 +1135,7 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION    = "3.13.2"
+PLUGIN_VERSION    = "3.13.3"
 # Pages are mirrored into Web Assets/public/dashboards/ so IWS serves them
 # WITHOUT HTTP Basic Auth. Indigo only treats the global /public/ namespace
 # as anonymous — per-plugin `public/` subfolders still require auth.
