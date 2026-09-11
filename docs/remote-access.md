@@ -1,6 +1,6 @@
 ---
 title: Remote access
-nav_order: 7
+nav_order: 8
 ---
 
 # Remote access
@@ -28,12 +28,31 @@ Setup:
    in the menu bar.
 2. Install the Tailscale app on the **iPhone / iPad / MacBook**, signed into the same tailnet, and
    enable **MagicDNS** in the admin console.
-3. Bookmark the dashboard using the Mac's tailnet name, e.g.
-   `http://your-mac-name:8176/public/dashboards/` — that one URL then works identically on the sofa
-   and on holiday.
+3. Bookmark the dashboard by one of the three addresses below — that one URL then works
+   identically on the sofa and on holiday.
 4. On the phone, leave the VPN toggle **on**. WireGuard is idle when unused, so the battery cost is
    negligible — and toggling it on demand is noticeably slow, so always-on is both simpler and
    faster.
+
+Claude Code can do the Mac side for you: *"install Tailscale on this Mac and set it up so I can
+open the dashboards from my phone"* — it installs it with Homebrew (`brew install --cask
+tailscale-app`), opens it for you to sign in, and tells you what to do on the phone. See
+[Start with nothing but Claude](no-coding-needed.md).
+
+### Three ways to address the Mac over Tailscale
+
+- **Its tailnet name**, with MagicDNS on: `http://your-mac-name:8176/public/dashboards/`. The
+  simplest, and it never changes.
+- **Its Tailscale address**, the `100.x.y.z` one shown in the Tailscale menu. Works without
+  MagicDNS.
+- **Its ordinary home address — the same `192.168.` address you use on the sofa** (mine is one,
+  yours will be a different one) — **if a device on your tailnet advertises your home network as a
+  subnet route.** The Indigo Mac can do that itself: Tailscale calls it a subnet router, it is one
+  setting (`tailscale set --advertise-routes=<your LAN>/24`, then approve the route in the admin
+  console), and Tailscale's guide covers it for macOS. With that in place a bookmark to
+  `http://192.168.1.10:8176/public/dashboards/` works on holiday exactly as it does at home, which
+  is how this house runs: one address for everything, and no re-pairing when a phone leaves the
+  Wi-Fi. The plugin treats any Tailscale source as private either way.
 
 ## The Indigo reflector
 

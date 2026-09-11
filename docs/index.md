@@ -18,17 +18,32 @@ when you are away — opens them without typing credentials. The plugin handles 
 and Indigo-side authentication on the server. It works in any modern browser: Chrome, Firefox,
 Safari, Edge and anything Chromium-based.
 
+## One house, not a template
+
+**Everything here is my interpretation of my house.** The rooms are mine, the energy pages exist
+because I have solar and a battery, the Laundry page because I was tired of guessing when to put
+the washing on. Yours will be different, and they should be. Nothing on this site is a shape you
+have to fit into — it shows what is possible when you can describe a page and have it built, and
+the right way to use it is to take the ideas that suit your house, ignore the rest, and ask for
+the pages you actually want.
+
+Every page here, the plugin behind it and these docs were written by Claude from conversation.
+Nobody typed the code. If that sounds out of reach, start at
+**[Start with nothing but Claude](no-coding-needed.md)** — it assumes you have Indigo, a Claude
+subscription and nothing else.
+
 ## Start here
 
 | | |
 |---|---|
+| **[Start with nothing but Claude](no-coding-needed.md)** | For a complete beginner: install Claude Code, then have it install the plugin, an MCP server, the camera tools and Tailscale, and build your own pages. No coding, ever |
 | **[Getting started](getting-started.md)** | What you need, how to install it, and how a browser gets paired |
 | **[Configuration](configuration.md)** | The Settings page, the Configure dialog, cameras, rooms and every config key |
 | **[Using the dashboards](using.md)** | What moves, what you can tap, the live dot, PIN and guest access |
 | **[Every page](pages/index.md)** | One page of notes for each of the 27 pages — what is on it, where the numbers come from, what you can do |
 | **[Cameras](cameras.md)** | How H.264 becomes a picture in an `<img>` tag, and what it costs on a slow link |
 | **[Remote access](remote-access.md)** | Tailscale, the ports, guest devices, and why the reflector is treated as somebody else's money |
-| **[Claude Code and MCP tools](claude-code.md)** | Building on it with Claude Code, and the tools the plugin offers to any Indigo MCP server |
+| **[Claude Code and MCP tools](claude-code.md)** | What Claude Code adds, what an MCP server adds on top, and the tools the plugin offers to any Indigo MCP server |
 | **[How it is built](architecture.md)** | Page files, the data endpoints, the shared scripts and the test suite |
 | **[Troubleshooting](troubleshooting.md)** | The setup check, and the things that go wrong most often |
 | **[Version history](changelog.md)** | Every release, newest first |

@@ -1,14 +1,27 @@
 ---
 title: Claude Code and MCP tools
-nav_order: 8
+nav_order: 9
 ---
 
 # Claude Code and MCP tools
 
 The whole dashboard was built and is maintained through conversation with Claude Code — no
-hand-editing of HTML or plugin internals required. None of this is needed to *run* the plugin: the
-pages need Indigo and a browser, nothing else. It is how you extend it, and how you get help when
-something is not working.
+hand-editing of HTML or plugin internals required, and none by me. None of this is needed to *run*
+the plugin: the pages need Indigo and a browser, nothing else. It is how you extend it, and how you
+get help when something is not working. If you have never done any of this, start with
+[Start with nothing but Claude](no-coding-needed.md), which walks a complete beginner through it.
+
+Claude Code is included in every paid Claude plan (Pro is the cheapest) and in Anthropic Console
+accounts with pre-paid credits. It is not on the free plan. It shares the plan's usage limits.
+
+## What each part adds
+
+| You have | What Claude can do for the dashboards |
+|---|---|
+| **Claude Code alone** | Download and install the plugin, install ffmpeg, go2rtc and Tailscale, read and edit the pages, read the plugin's log file, and build any page you can describe. It cannot see Indigo: a device is a number you have to look up and tell it |
+| **+ an Indigo MCP server** | See your devices, variables, action groups and folders by name, read their states and the event log, run actions, restart plugins. "The kitchen light" is enough; it finds the device. Diagnosis becomes a conversation: "why is the garden camera not streaming" and it goes and looks |
+| **+ this plugin's own tools** (automatic, v3.12.0+) | Run the dashboards' setup check as data, list and change your rooms and cameras, read the plugin's log — through the same MCP server, with nothing configured |
+| **+ Tailscale** | Everything above from anywhere, and the dashboards themselves on your phone when you are out |
 
 ## Building on it
 

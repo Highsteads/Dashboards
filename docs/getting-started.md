@@ -1,12 +1,16 @@
 ---
 title: Getting started
-nav_order: 2
+nav_order: 3
 ---
 
 # Getting started
 
 Ten minutes from download to a hub page on a phone, if the cameras can wait. The cameras are the
 only part with anything to install by hand.
+
+> **Would rather not do any of this yourself?** [Start with nothing but Claude](no-coding-needed.md)
+> is the same journey with Claude Code doing the typing — installing the plugin, the camera tools,
+> an MCP server and Tailscale, and then building the pages you actually want.
 
 ## What you need
 

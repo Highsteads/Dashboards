@@ -11,7 +11,7 @@ nothing leaving the house.
 <img src="https://img.shields.io/badge/version-3.13.1-5856d6" alt="Version 3.13.1">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-27-0a84ff" alt="27 pages">
-<img src="https://img.shields.io/badge/tests-716%20passing-30d158" alt="716 tests passing">
+<img src="https://img.shields.io/badge/tests-718%20passing-30d158" alt="718 tests passing">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
 
 <br><br>
@@ -37,7 +37,8 @@ access, troubleshooting, and the full version history. This README is the short 
 **[Installation](#installation)** &nbsp;·&nbsp;
 **[Configuration](#configuration)** &nbsp;·&nbsp;
 **[Remote access](#remote-access)** &nbsp;·&nbsp;
-**[Claude Code](#building-and-extending-with-claude-code)**
+**[Claude Code](#building-and-extending-with-claude-code)** &nbsp;·&nbsp;
+**[No coding needed](https://highsteads.github.io/Dashboards/no-coding-needed.html)**
 
 ---
 
@@ -55,6 +56,8 @@ Dock.
 with a gentle state simulator, touching no live devices.
 
 ---
+
+**This is one house, not a template.** Every page here is my interpretation of my house — my rooms, my solar and battery, my washing machine. Yours will be different, and they should be. What this shows is what becomes possible when you can describe a page and have it built for you: take the ideas that suit your house, ignore the rest, and ask for the pages you actually want. Every page, the plugin behind it and the documentation site were written by Claude from conversation; nobody typed the code. If you have never done anything like this, **[Start with nothing but Claude](https://highsteads.github.io/Dashboards/no-coding-needed.html)** assumes you have Indigo, a Claude subscription and nothing else, and walks through the lot — installing the plugin, an MCP server, the camera tools and Tailscale — without you writing a line.
 
 **A note on origins.** This started out as a personal plugin built around my own [ClaudeBridge](https://github.com/Highsteads/ClaudeBridge) MCP, which connects Claude Code directly to an Indigo server and is what I use day-to-day to develop and maintain it. That said, you are very welcome to use it with any Indigo MCP setup — it is not tied to ClaudeBridge in any way at runtime. If you do use Claude Code for plugin development, I would strongly recommend loading [Simon's Indigo skills](https://github.com/simons-plugins/indigo-claude-skill) at the start of your session; they bundle the full Indigo SDK reference, lifecycle docs, and worked examples in a form Claude can actually use, and will save you a fair amount of time and tokens compared to piecing it together from the wiki.
 
@@ -208,6 +211,11 @@ cameras only work remotely this way (the MJPEG proxy on port 8177 is fronted by 
 new browser on the tailnet pairs itself on first visit, and nothing is exposed — no port
 forwarding, no public attack surface.
 
+Over Tailscale the Mac answers to its tailnet name, its Tailscale address, or — if the Mac
+advertises your home network as a subnet route, which is one setting — the same `192.168.` address
+you use at home, so one bookmark works everywhere. Claude Code will install and set Tailscale up
+for you if you ask.
+
 The pages also work over the Indigo reflector, which is metered, so a page that can see it was
 reached that way polls stills at a tenth of the home rate and stops after ten minutes untouched.
 A Configure switch refuses the reflector altogether for Tailscale-only households. Details, and
@@ -234,6 +242,14 @@ page that pulses relay 12345 for 2 seconds"*, *"the garden camera is not showing
 check the go2rtc config"*, *"install ffmpeg and go2rtc so the camera grid works"*: Claude Code can
 read the plugin source, check the Indigo event log through whichever Indigo MCP server you run,
 edit pages, restart the plugin and verify the result, all in one conversation.
+
+Claude Code is included in every paid Claude plan — Pro is the cheapest — and in Anthropic
+Console accounts with pre-paid credits; it is not on the free plan. On its own it can install the
+plugin, the camera tools and Tailscale, and build any page you can describe, but it cannot see
+Indigo. Add an Indigo MCP server and it can: "the kitchen light" is enough, it finds the device,
+reads the event log, restarts plugins and runs the checks itself. The
+[Claude Code and MCP tools](https://highsteads.github.io/Dashboards/claude-code.html) page has the
+table of what each part adds.
 
 ### The plugin's own Claude tools
 
