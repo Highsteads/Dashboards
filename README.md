@@ -251,7 +251,7 @@ manifest. An Indigo MCP server that reads those — [mlamoure's Indigo MCP Serve
 | `dashboards_remove_camera` | Remove a camera, and take it out of the hub mosaic |
 | `dashboards_read_log` | The last lines of the plugin's own log, optionally filtered to a phrase |
 
-The writes are refused if the MCP server's "allow plugin-provided tools to make changes" setting is off, and every write goes through the same validation as the Settings page. Reads never return a credential. Without an MCP server the manifest is inert and nothing about the plugin changes. More on the [Claude Code and MCP tools](https://highsteads.github.io/Dashboards/claude.html) page.
+The writes are refused if the MCP server's "allow plugin-provided tools to make changes" setting is off, and every write goes through the same validation as the Settings page. Reads never return a credential. Without an MCP server the manifest is inert and nothing about the plugin changes. More on the [Claude Code and MCP tools](https://highsteads.github.io/Dashboards/claude-code.html) page.
 
 ## Authors & licence
 

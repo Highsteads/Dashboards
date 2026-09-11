@@ -28,7 +28,7 @@ Safari, Edge and anything Chromium-based.
 | **[Every page](pages/index.md)** | One page of notes for each of the 27 pages — what is on it, where the numbers come from, what you can do |
 | **[Cameras](cameras.md)** | How H.264 becomes a picture in an `<img>` tag, and what it costs on a slow link |
 | **[Remote access](remote-access.md)** | Tailscale, the ports, guest devices, and why the reflector is treated as somebody else's money |
-| **[Claude Code and MCP tools](claude.md)** | Building on it with Claude Code, and the tools the plugin offers to any Indigo MCP server |
+| **[Claude Code and MCP tools](claude-code.md)** | Building on it with Claude Code, and the tools the plugin offers to any Indigo MCP server |
 | **[How it is built](architecture.md)** | Page files, the data endpoints, the shared scripts and the test suite |
 | **[Troubleshooting](troubleshooting.md)** | The setup check, and the things that go wrong most often |
 | **[Version history](changelog.md)** | Every release, newest first |

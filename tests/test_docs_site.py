@@ -14,6 +14,7 @@
 # Version:     1.0
 
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -150,10 +151,51 @@ def _local_targets(path):
         yield target.split("#", 1)[0]
 
 
+def _published():
+    """What git TRACKS, as repo-relative paths — plus every directory above a
+    tracked file, so a link to a folder resolves too. The working tree is not
+    the site: docs/claude.md existed locally, resolved every link, and was
+    never in the repository at all — `**/CLAUDE.md` in .gitignore swallowed it
+    on a case-insensitive volume — so CI, and the published site, had a hole
+    the local run could not see (11-09-2026). Falls back to the file system
+    when there is no repository (a bare export)."""
+    try:
+        out = subprocess.run(["git", "ls-files", "-z"], cwd=ROOT, capture_output=True, check=True)
+        files = {n for n in out.stdout.decode("utf-8").split("\0") if n}
+    except (subprocess.CalledProcessError, OSError):
+        return None
+    dirs = set()
+    for f in files:
+        parts = f.split("/")
+        for i in range(1, len(parts)):
+            dirs.add("/".join(parts[:i]))
+    return files | dirs
+
+
+PUBLISHED = _published()
+
+
+def _resolves(path, target):
+    full = (path.parent / target).resolve()
+    if PUBLISHED is None:
+        return full.exists()
+    try:
+        rel = full.relative_to(ROOT.resolve())
+    except ValueError:
+        return False
+    return str(rel) in PUBLISHED
+
+
 @pytest.mark.parametrize("path", [README] + sorted(DOCS.rglob("*.md")), ids=lambda p: str(p.relative_to(ROOT)))
 def test_every_local_link_and_image_resolves(path):
-    bad = [t for t in _local_targets(path) if t and not (path.parent / t).exists()]
-    assert not bad, f"{path.relative_to(ROOT)}: broken local links {bad}"
+    """Against the TRACKED tree: a file that is only in the working copy is not
+    on the site. Stage new docs before running the gate."""
+    bad = [t for t in _local_targets(path) if t and not _resolves(path, t)]
+    assert not bad, f"{path.relative_to(ROOT)}: local links to nothing git tracks {bad}"
+
+
+def test_the_published_set_was_read():
+    assert PUBLISHED is None or len(PUBLISHED) > 100
 
 
 def test_the_link_scan_is_not_vacuous():

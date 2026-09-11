@@ -52,7 +52,7 @@ showing an empty chart:
 
 > **Using Claude Code?** It has shell access and can install both camera binaries, install the
 > plugin and fill in the credentials for you — no other plugins or MCP servers needed. See
-> [Claude Code and MCP tools](claude.md).
+> [Claude Code and MCP tools](claude-code.md).
 
 ## Pairing a browser
 

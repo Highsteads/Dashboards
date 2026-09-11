@@ -10,7 +10,7 @@
 #              reports file:line for anything it will not accept.
 # Author:      CliveS & Claude Fable 5.1
 # Date:        10-09-2026
-# Version:     1.0
+# Version:     1.1
 
 import re
 import subprocess
@@ -77,11 +77,16 @@ def test_every_reflector_and_tailscale_host_is_an_example():
 
 
 def _is_email(candidate):
-    """An e-mail, not a URL credential: `user:pass@192.168.2.50` in an RTSP
-    address has the shape but an all-numeric host, and is a fixture password
-    the security test exists to redact — not an address of anyone's."""
+    """An e-mail, not a URL credential or a version pin: `user:pass@192.168.2.50`
+    in an RTSP address has the shape but an all-numeric host, and is a fixture
+    password the security test exists to redact — not an address of anyone's.
+    `just-the-docs@v0.12.0` (a Jekyll remote-theme ref) has the shape and a
+    domain whose last label is a number; a real address always ends in letters.
+    Caught on CI, 11-09-2026, the first push after docs/_config.yml existed."""
     domain = candidate.rsplit("@", 1)[1]
-    return not IPV4.fullmatch(domain)
+    if IPV4.fullmatch(domain):
+        return False
+    return bool(re.fullmatch(r"[A-Za-z]{2,}", domain.rsplit(".", 1)[-1]))
 
 
 def test_every_email_is_an_example():
