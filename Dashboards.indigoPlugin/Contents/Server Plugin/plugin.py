@@ -19,8 +19,16 @@
 #              for the live grid and falls back to the still snapshot if a
 #              stream connection fails.
 # Author:      CliveS & Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
-# Date:        10-09-2026
-# Version:     3.13.1
+# Date:        11-09-2026
+# Version:     3.13.2
+#
+# v3.13.2 (11-09-2026): HOUSEKEEPING — the retired page builder's server side is
+#   removed: the hidden `customPages` action + handleCustomPages, _custom_pages_dir,
+#   _reserved_slugs, _validate_page_def and _mirror_custom_pages (a no-op since the
+#   builder went in v2.9.0, but it still wrote an always-empty custom-pages.json
+#   into /public on every start). Startup now removes that leftover, and any saved
+#   <slug>.page.json, from /public once; definitions in Preferences are untouched.
+#   No behaviour change for anyone.
 #
 # v3.13.1 (10-09-2026): FIRST PUBLIC RELEASE — a fresh single-commit repository
 #   built from a scrubbed tree; the earlier history stays in a private archive.
@@ -1123,7 +1131,7 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION    = "3.13.1"
+PLUGIN_VERSION    = "3.13.2"
 # Pages are mirrored into Web Assets/public/dashboards/ so IWS serves them
 # WITHOUT HTTP Basic Auth. Indigo only treats the global /public/ namespace
 # as anonymous — per-plugin `public/` subfolders still require auth.
@@ -4542,7 +4550,21 @@ class Plugin(indigo.PluginBase):
                                  "/public/dashboards/presence.json")
         except OSError as exc:
             self.logger.warning(f"[Presence] could not remove legacy presence.json: {exc}")
-        self._mirror_custom_pages()
+        # v3.13.2: the page builder was retired in v2.9.0 and its server side is
+        # gone now too. It used to publish an always-empty custom-pages.json (and
+        # any saved <slug>.page.json) into /public on every start; take the
+        # leftovers out so an anonymous file does not outlive the feature that
+        # wrote it. Saved definitions in Preferences are left alone.
+        try:
+            _dst = self._public_dashboards_dir()
+            _stale = [f for f in os.listdir(_dst)
+                      if f == "custom-pages.json" or f.endswith(".page.json")]
+            for _f in _stale:
+                os.remove(os.path.join(_dst, _f))
+                self.logger.info(f"[Pages] removed the retired page builder's "
+                                 f"/public/dashboards/{_f}")
+        except OSError as exc:
+            self.logger.warning(f"[Pages] could not remove a retired builder file: {exc}")
         self._write_config_js()
         self._sync_pages_to_domio()
         self._cleanup_setup_links(force_all=True)    # no links survive a restart
@@ -4696,198 +4718,6 @@ class Plugin(indigo.PluginBase):
         t = self._stamp_thread
         if t and t.is_alive():
             t.join(timeout=1.0)
-
-    # ── Custom pages (v2.5.0) — JSON page definitions + builder endpoint ────
-
-    _SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,40}$")
-    _TILE_TYPES = {"switch", "dimmer", "sensor", "variable", "scene", "chart",
-                   "camera", "heading"}
-
-    def _custom_pages_dir(self):
-        """Per-plugin Preferences folder for page definitions — survives plugin
-        upgrades (the bundle is replaced on update, Preferences are not)."""
-        base = indigo.server.getInstallFolderPath()
-        d = os.path.join(base, "Preferences", "Plugins", self.pluginId, "custom_pages")
-        os.makedirs(d, exist_ok=True)
-        return d
-
-    def _reserved_slugs(self):
-        """Shipped page names may not be shadowed by a custom page."""
-        names = {"custom", "builder"}
-        try:
-            for f in os.listdir(PAGES_SOURCE_DIR):
-                if f.endswith(".html"):
-                    names.add(f[:-5].lower())
-        except Exception:
-            pass
-        return names
-
-    def _mirror_custom_pages(self):
-        """Copy every stored <slug>.page.json into the public dashboards dir
-        and (re)write custom-pages.json — the index that index.html and
-        builder.html read. Stale .page.json files in public (definition
-        deleted) are removed."""
-        try:
-            store = self._custom_pages_dir()
-            dst   = self._public_dashboards_dir()
-            os.makedirs(dst, exist_ok=True)
-            index = []
-            stored = sorted(f for f in os.listdir(store) if f.endswith(".page.json"))
-            for f in stored:
-                with open(os.path.join(store, f), encoding="utf-8") as fh:
-                    page = json.load(fh)
-                self._write_atomic(os.path.join(dst, f),
-                                   json.dumps(page, indent=1).encode("utf-8"))
-                index.append({
-                    "slug":  f[:-len(".page.json")],
-                    "title": page.get("title") or f[:-len(".page.json")],
-                    "icon":  page.get("icon") or "📄",
-                    "tiles": len(page.get("tiles") or []),
-                })
-            for f in os.listdir(dst):
-                if f.endswith(".page.json") and f not in stored:
-                    try:
-                        os.remove(os.path.join(dst, f))
-                    except OSError:
-                        pass
-            self._write_atomic(os.path.join(dst, "custom-pages.json"),
-                               json.dumps({"pages": index}, indent=1).encode("utf-8"))
-            if index:
-                self._activity(f"[Pages] {len(index)} custom page(s) published")
-            return len(index)
-        except Exception as exc:
-            log(f"[Pages] custom-page mirror failed: {exc}", level="ERROR")
-            return 0
-
-    def _validate_page_def(self, page):
-        """Return (clean_page, errors). Conservative allow-list validation —
-        anything not understood is rejected, not passed through."""
-        errors = []
-        if not isinstance(page, dict):
-            return None, ["page must be an object"]
-        title = str(page.get("title") or "").strip()
-        if not title or len(title) > 80:
-            errors.append("title is required (max 80 characters)")
-        theme = page.get("theme") or "auto"
-        if theme not in ("auto", "dark", "light"):
-            errors.append("theme must be auto, dark or light")
-        accent = str(page.get("accent") or "").strip()
-        if accent and not re.match(r"^#[0-9a-fA-F]{3,8}$", accent):
-            errors.append("accent must be a hex colour like #2b6cb0")
-        icon = str(page.get("icon") or "").strip()[:4]
-        tiles_in = page.get("tiles")
-        if not isinstance(tiles_in, list) or not 1 <= len(tiles_in) <= 60:
-            return None, errors + ["tiles must be a list of 1-60 tiles"]
-        tiles = []
-        for i, t in enumerate(tiles_in):
-            n = i + 1
-            if not isinstance(t, dict):
-                errors.append(f"tile {n}: must be an object")
-                continue
-            ttype = t.get("type")
-            if ttype not in self._TILE_TYPES:
-                errors.append(f"tile {n}: unknown type {ttype!r}")
-                continue
-            clean = {"type": ttype}
-            label = str(t.get("label") or "").strip()
-            if len(label) > 60:
-                errors.append(f"tile {n}: label too long")
-            elif label:
-                clean["label"] = label
-            if ttype == "heading":
-                text = str(t.get("text") or "").strip()
-                if not text or len(text) > 80:
-                    errors.append(f"tile {n}: heading needs text (max 80)")
-                clean["text"] = text
-            elif ttype == "camera":
-                host = str(t.get("host") or "").strip()
-                if not re.match(r"^[A-Za-z0-9_.-]{1,80}$", host):
-                    errors.append(f"tile {n}: camera needs a valid host")
-                clean["host"] = host
-            else:
-                try:
-                    clean["id"] = int(t.get("id"))
-                except (TypeError, ValueError):
-                    errors.append(f"tile {n}: needs a numeric Indigo id")
-                    continue
-                if ttype == "chart":
-                    state = str(t.get("state") or "").strip()
-                    if not re.match(r"^[A-Za-z0-9_.]{1,60}$", state):
-                        errors.append(f"tile {n}: chart needs a state name")
-                    clean["state"] = state
-                    try:
-                        hours = int(t.get("hours") or 24)
-                    except (TypeError, ValueError):
-                        hours = 24
-                    clean["hours"] = max(1, min(720, hours))
-            tiles.append(clean)
-        clean_page = {"title": title, "theme": theme, "tiles": tiles}
-        if accent:
-            clean_page["accent"] = accent
-        if icon:
-            clean_page["icon"] = icon
-        return clean_page, errors
-
-    def handleCustomPages(self, action, dev=None, callerWaitingForResult=True):
-        """POST /message/com.clives.indigoplugin.dashboards/customPages/
-        Bearer-authenticated by IWS (same bar as device control).
-        Body: {"op": "list"} | {"op": "save", "slug": s, "page": {...}}
-              | {"op": "delete", "slug": s}"""
-        body = action.props.get("request_body") or ""
-        if len(body) > 100_000:
-            return self._evo_reply({"ok": False, "error": "page too large (100KB cap)"}, status=400)
-        try:
-            payload = json.loads(body) if body else {}
-        except Exception as exc:
-            return self._evo_reply({"ok": False, "error": f"bad JSON: {exc}"}, status=400)
-        if not isinstance(payload, dict):
-            return self._evo_reply({"ok": False, "error": "body must be a JSON object"}, status=400)
-        op = payload.get("op")
-
-        if op == "list":
-            store = self._custom_pages_dir()
-            out = []
-            for f in sorted(os.listdir(store)):
-                if f.endswith(".page.json"):
-                    try:
-                        with open(os.path.join(store, f), encoding="utf-8") as fh:
-                            page = json.load(fh)
-                        out.append({"slug": f[:-len(".page.json")],
-                                    "title": page.get("title", ""),
-                                    "icon": page.get("icon") or "📄",
-                                    "tiles": len(page.get("tiles") or [])})
-                    except Exception:
-                        pass
-            return self._evo_reply({"ok": True, "pages": out})
-
-        slug = str(payload.get("slug") or "").strip().lower()
-        if not self._SLUG_RE.match(slug):
-            return self._evo_reply(
-                {"ok": False, "error": "slug must be 1-41 chars: a-z, 0-9, hyphens"}, status=400)
-        if slug in self._reserved_slugs():
-            return self._evo_reply(
-                {"ok": False, "error": f"'{slug}' is a built-in page name — pick another"}, status=400)
-        path = os.path.join(self._custom_pages_dir(), f"{slug}.page.json")
-
-        if op == "save":
-            clean, errors = self._validate_page_def(payload.get("page"))
-            if errors:
-                return self._evo_reply({"ok": False, "error": "; ".join(errors)}, status=400)
-            self._write_atomic(path, json.dumps(clean, indent=1).encode("utf-8"))
-            self._mirror_custom_pages()
-            log(f"[Pages] custom page saved: {slug} ({len(clean['tiles'])} tiles)")
-            return self._evo_reply({"ok": True, "slug": slug,
-                                    "url": f"custom.html?page={slug}"})
-
-        if op == "delete":
-            if not os.path.isfile(path):
-                return self._evo_reply({"ok": False, "error": "no such page"}, status=404)
-            os.remove(path)
-            self._mirror_custom_pages()
-            log(f"[Pages] custom page deleted: {slug}")
-            return self._evo_reply({"ok": True, "deleted": slug})
-
-        return self._evo_reply({"ok": False, "error": f"unknown op {op!r}"}, status=400)
 
     def handleChangedSince(self, action, dev=None, callerWaitingForResult=True):
         """POST /message/com.clives.indigoplugin.dashboards/changedSince/
@@ -6384,7 +6214,6 @@ class Plugin(indigo.PluginBase):
                 f"using PluginConfig values", level="WARNING")
         self._resolve_credentials(self.pluginPrefs, secrets_mod)
         self._sync_pages_to_public()
-        self._mirror_custom_pages()
         self._write_config_js()
         self._sync_pages_to_domio()
         return True

@@ -184,14 +184,6 @@
         <CallbackMethod>handleVerifyPin</CallbackMethod>
     </Action>
 
-    <!-- POST /message/com.clives.indigoplugin.dashboards/customPages/
-         Body: {"op": "list"|"save"|"delete", ...} — JSON custom-page
-         definitions (v2.5.0). Bearer-authenticated by IWS. -->
-    <Action id="customPages" uiPath="hidden">
-        <Name>Custom Pages (internal)</Name>
-        <CallbackMethod>handleCustomPages</CallbackMethod>
-    </Action>
-
     <!-- POST /message/com.clives.indigoplugin.dashboards/historyQuery/
          Body: {"action": "states"|"series", "deviceId": N, "state": "...",
                 "hours": N, "maxPoints": N}

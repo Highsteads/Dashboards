@@ -46,7 +46,7 @@ The shared scripts, in the order a page loads them:
   proxy to SigenEnergyManager, so the Energy page works away from home), `systemHealth`,
   `carbonAdvisor`, `timelineDay`, `historyQuery`, `mainsMeters` and `mainsMeter`, `homeInsights`,
   `activityFeed`, `logErrors`, `presenceData`, `solarStringHours`, `laundryPlan` and
-  `laundryDeadline`, `evoHomeAction`, `applyColour`, `verifyPin`, `customPages`,
+  `laundryDeadline`, `evoHomeAction`, `applyColour`, `verifyPin`,
   `getDashboardsConfig` and `saveDashboardsConfig`, `burnSetupToken`, and `mcp_tool_invoke`.
 - **Files the plugin writes** under `/public/dashboards/`: `config.js`, `rooms.json`, `weather.json`,
   `scenes.json`, the camera stills and thumbnails, and `changed.stamp` — the liveness stamp,

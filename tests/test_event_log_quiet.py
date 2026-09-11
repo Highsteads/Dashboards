@@ -242,7 +242,6 @@ QUIETENED = [
     ("runConcurrentThread",    "[Cameras] Poller started"),
     ("runConcurrentThread",    "[Cameras] Poller stopped"),
     ("shutdown",               "stopped"),
-    ("_mirror_custom_pages",   "custom page(s) published"),
 ]
 
 
@@ -274,7 +273,8 @@ def test_no_fault_was_routed_through_activity():
     """_activity has no level argument by design. A call that tries to pass one
     is someone funnelling a warning into the quiet channel."""
     calls = _calls(_tree(), "_activity")
-    assert len(calls) >= 15, f"only {len(calls)} _activity calls found - did a sweep drop some?"
+    # 14 on 11-09-2026 (15 until v3.13.2 took the custom-pages mirror out).
+    assert len(calls) >= 14, f"only {len(calls)} _activity calls found - did a sweep drop some?"
     for c in calls:
         assert not c.keywords, "_activity takes no keywords; a level= here would be a demoted fault"
 
@@ -285,9 +285,11 @@ def test_startup_writes_exactly_one_info_line():
     fn = _func("startup")
     infos = _calls(fn, "info")
     loud_log = [c for c in _calls(fn, "log") if _level_kw(c) in (None, "INFO")]
-    # The one-time pre-v2.71.0 presence.json migration line is allowed: it
-    # fires once in the life of an install, not once per restart.
-    infos = [c for c in infos if "presence.json" not in _joined_strings(c)]
+    # Two one-time migration lines are allowed: the pre-v2.71.0 presence.json
+    # removal and the v3.13.2 removal of the retired page builder's leftovers.
+    # Each fires once in the life of an install, not once per restart.
+    ONE_OFF = ("presence.json", "retired page builder")
+    infos = [c for c in infos if not any(k in _joined_strings(c) for k in ONE_OFF)]
     assert len(infos) + len(loud_log) == 1, \
         f"startup writes {len(infos) + len(loud_log)} Info lines to the event log, expected 1"
 
@@ -387,7 +389,6 @@ FAULT_SIBLINGS = [
     ("_stop_go2rtc",          "[go2rtc] Shutdown error"),
     ("_mirror_go2rtc_assets", "[go2rtc] Could not mirror"),
     ("runConcurrentThread",   "DAHUA_USER/DAHUA_PASS are not set"),
-    ("_mirror_custom_pages",  "custom-page mirror failed"),
 ]
 
 
@@ -419,11 +420,9 @@ def test_the_plugin_still_raises_plenty_of_faults_to_the_event_log():
 
 def test_actions_taken_on_the_house_stay_in_the_event_log():
     """A record of the plugin DOING something is not narration. The EvoHome
-    proxy changes the heating and the custom-page writes change what the house
-    displays; both stay at Info."""
-    for name, fragment in (("handleEvoHomeAction", "triggered via dashboard"),
-                           ("handleCustomPages", "custom page saved"),
-                           ("handleCustomPages", "custom page deleted")):
+    proxy changes the heating; that stays at Info. (The custom-page writes that
+    used to sit beside it went with the retired page builder in v3.13.2.)"""
+    for name, fragment in (("handleEvoHomeAction", "triggered via dashboard"),):
         fn = _func(name)
         loud = [c for c in _calls(fn, "info") + _calls(fn, "log")
                 if fragment in _joined_strings(c) and _level_kw(c) in (None, "INFO")]

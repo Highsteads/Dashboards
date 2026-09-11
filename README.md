@@ -8,7 +8,7 @@ Browser dashboards for [Indigo Domotics](https://www.indigodomo.com/), built for
 wall, a phone in your pocket and a Mac on the desk. No app to install, no cloud account,
 nothing leaving the house.
 
-<img src="https://img.shields.io/badge/version-3.13.1-5856d6" alt="Version 3.13.1">
+<img src="https://img.shields.io/badge/version-3.13.2-5856d6" alt="Version 3.13.2">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-27-0a84ff" alt="27 pages">
 <img src="https://img.shields.io/badge/tests-718%20passing-30d158" alt="718 tests passing">
@@ -22,7 +22,7 @@ nothing leaving the house.
 
 ---
 
-**Version:** 3.13.1
+**Version:** 3.13.2
 
 **Documentation:** **[highsteads.github.io/Dashboards](https://highsteads.github.io/Dashboards/)** —
 getting started, configuration, a page of notes for every one of the 27 pages, cameras, remote
@@ -68,11 +68,11 @@ with a gentle state simulator, touching no live devices.
 The three most recent releases, word for word. Every release before these is in
 **[the version history](docs/changelog.md)**, which the documentation site also carries.
 
+**3.13.2** (11-Sep-2026) - **Housekeeping: the retired page builder's server endpoint is gone.** Version 2.5.0 added a visual page builder and a hidden `customPages` endpoint behind it; the builder was retired months ago and nothing has called the endpoint since. It is removed, along with the plumbing that published an always-empty `custom-pages.json` into the public folder — the plugin now deletes that leftover file at startup. Nothing on a running install changes, and a page definition saved back then would still be sitting untouched in the plugin's Preferences folder.
+
 **3.13.1** (10-Sep-2026) - **First public release.** The repository is now public, rebuilt as a fresh single commit from a scrubbed tree; the earlier history stays in a private archive. In the tree itself the changes are small: example addresses in comments and tests are now generic documentation ones, the demo fixture has been re-sanitised (credentials of every kind, e-mail addresses, Zigbee and Shelly hardware addresses and a household name are placeholders, not only IP addresses), and the fixture generator scrubs those same classes so a regenerated fixture cannot bring them back. Two new tests keep it that way: one refuses any real-looking address, hostname or e-mail anywhere in the tree, the other checks the demo fixture and the generator. Nothing on a running install changes.
 
 **3.13.0** (10-Sep-2026) - **The Sigenergy pages hide themselves when the plugin is not there.** Energy, Cost and Laundry only have something to draw with the SigenEnergyManager plugin installed, and until now nothing said so: an install without it got three tiles leading to empty charts and fetch errors, a hub card reading "Sigen device not found", and an amber line in the event log every thirty seconds as the hub asked a port nothing was listening on. Now the plugin publishes whether SigenEnergyManager is present beside the flag the heating page already uses; without it the menu drops the three tiles, the hub hides its Energy and Solar cards and says in one line which plugin is missing, each page opened from a bookmark shows one card explaining what it needs, the proxy answers at once instead of dialling out, the laundry planner does not run, and Test Dashboards Setup reports it as an optional skip rather than a failure. Installing or removing the plugin is noticed within thirty seconds without a restart. Demo mode is unaffected, and an older config file without the new flag reads as present, so an upgrade cannot hide pages that were there yesterday. The heating page's boost panel now also asks that EvoHomeControl be enabled, not merely installed, since a disabled plugin swallows those actions silently.
-
-**3.12.0** (10-Sep-2026) - **The plugin now offers its own tools to Claude.** Any Indigo MCP server that reads plugin-provided tool manifests (mlamoure's Indigo MCP Server from v2026.8.1, Claude Bridge from v2.26.0) finds `Contents/Resources/mcp-manifest.json` in the bundle and lists eight `dashboards_` tools to the AI: the plugin's status, the setup check as data rather than log lines, the room folders (read and set, with unknown folder names refused and the real ones offered back), the cameras (list, add or update, remove), and the last lines of the plugin's own log. So "set my dashboard rooms to Kitchen, Hall and Lounge" or "why is the garden camera not streaming" is now a conversation with no source files in it. The writes go through exactly the validation the Settings page uses, and say plainly when a restart is needed. With no MCP server installed nothing changes: the manifest is inert data and the action behind it is never called. Also fixed: reopening Settings straight after adding a camera showed the camera list from before the save, so a second Save would quietly have deleted the new one; the editor now shows what is saved.
 
 ## A look around
 
