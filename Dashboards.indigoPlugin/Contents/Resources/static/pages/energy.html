@@ -944,6 +944,87 @@ function _wireHelpTips() {
   });
 }
 
+/* ── Octopus Saving Sessions ──────────────────────────────────────────
+   Reads octopus_sessions.upcoming, NOT the manager's `windows` list.
+   `windows` is filtered to JOINED turn-downs and happy hours because that is
+   what the battery is driven from, so a session you are NOT opted into is
+   absent from it entirely — and the banner would then go silent in the one
+   case that most needs saying out loud. `upcoming` carries every announced
+   session with its own `joined` flag.
+
+   The fallback to `windows` is for an older SigenEnergyManager that predates
+   `upcoming` (added there in v5.108.0). Every row in `windows` is joined by
+   construction, so labelling those rows joined cannot invent a false "opted
+   in" — the degraded mode loses the NOT-OPTED-IN warning rather than getting
+   it wrong. */
+
+/* 800 Octopoints = GBP 1, i.e. one point is an eighth of a penny. Confirmed
+   against the account 03-Sep-2026 (a session paying 120 points settled at 15p).
+   The points figure alone means nothing to a reader, so the banner shows pence. */
+const OCTOPOINTS_PER_PENNY = 8;
+
+const SS_TURN_DOWN  = 'TURN_DOWN';
+const SS_HAPPY_HOUR = 'WEEKEND_HAPPY_HOUR';
+
+/* "18:00-19:00", with a weekday in front when it is not today. Uses the same
+   locale clock as fmtT so one page never shows two time formats. */
+function _ssRange(startMs, endMs, nowMs) {
+  const t = ms => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const sameDay = new Date(startMs).toDateString() === new Date(nowMs).toDateString();
+  const day = sameDay ? '' : new Date(startMs).toLocaleDateString([], { weekday: 'short' }) + ' ';
+  return day + t(startMs) + '-' + t(endMs);
+}
+
+/* Pure so a test can drive it. Returns [{icon, text, warn}] in the same shape
+   the alert bar already uses — icon is SVG MARKUP and must stay apart from the
+   text, which is escaped. */
+function savingSessionAlerts(oct, nowMs) {
+  const rows = (oct && oct.upcoming)
+             || ((oct && oct.windows) || []).map(w => Object.assign({ joined: true }, w));
+  const out = [];
+  for (const r of rows) {
+    const start = Date.parse(r.start), end = Date.parse(r.end);
+    /* A row the plugin cached up to an hour ago can already be over, so the
+       page re-checks the clock rather than trusting the cache to be fresh. */
+    if (!isFinite(start) || !isFinite(end) || end <= nowMs) continue;
+    const live = start <= nowMs;
+    /* A session six days out is real but it is not news. Live always shows. */
+    if (!live && start - nowMs > 24 * 3600 * 1000) continue;
+
+    const when   = live ? 'until ' + new Date(end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                        : _ssRange(start, end, nowMs);
+    const joined = !!r.joined;
+    const pence  = (r.points || 0) / OCTOPOINTS_PER_PENNY;
+    const extra  = pence > 0 ? ', ' + (pence >= 1 ? pence.toFixed(0) : pence.toFixed(1))
+                             + 'p/kWh extra' : '';
+
+    if (r.direction === SS_HAPPY_HOUR) {
+      /* A Happy Hour is BOOKED, and booking spends a token. Not having booked
+         one is a decision, not a fault, so it never warns. */
+      out.push(joined
+        ? { icon: I('money'), text: live ? ' FREE HOUR ACTIVE — charging ' + when
+                                         : ' Free hour booked ' + when, warn: false }
+        : { icon: I('money'), text: ' Free hour ' + when + ' — not booked', warn: false });
+    } else if (r.direction === SS_TURN_DOWN) {
+      out.push(joined
+        ? { icon: I('money'), text: (live ? ' SAVING SESSION ACTIVE — exporting ' + when
+                                          : ' Saving Session ' + when + ' — opted in') + (live ? '' : extra),
+            warn: false }
+        : { icon: I('money'), text: ' Saving Session ' + when + ' — NOT OPTED IN' + extra,
+            warn: true });
+    } else {
+      /* TURN_UP, or a direction this page has never heard of. Both mean the
+         battery is not driven, and quoting an unknown value beats dropping it
+         so a new session type surfaces instead of vanishing. */
+      const name = r.direction === 'TURN_UP' ? 'Power Up' : 'Session "' + r.direction + '"';
+      out.push({ icon: I('money'),
+                 text: ' ' + name + ' ' + when + ' — uses more power, the battery is not driven',
+                 warn: false });
+    }
+  }
+  return out;
+}
+
 /* ── alerts bar ── */
 function updateAlerts(d) {
   const bar = document.getElementById('alert-bar');
@@ -965,14 +1046,24 @@ function updateAlerts(d) {
   } else if (d.vpp && d.vpp.state === 'announced') {
     msgs.push({icon: I('bolt'), text: ' VPP event announced: ' + (d.vpp.event_str || '')});
   }
+  /* Octopus Saving Sessions, in the same bar as the Axle VPP event above and
+     for the same reason: an announced window changes what the battery is about
+     to do, and it is worth nothing if nobody is told before it starts. */
+  for (const m of savingSessionAlerts(d.octopus_sessions, Date.now())) msgs.push(m);
   if (d.storm && d.storm.level !== 'none') {
-    msgs.push({icon: I('storm'), text: ' Storm watch: ' + d.storm.level + ' — dawn SOC target raised'});
+    msgs.push({icon: I('storm'), text: ' Storm watch: ' + d.storm.level + ' — dawn SOC target raised',
+               warn: true});
   }
   if (d.flags && d.flags.import_active) msgs.push({icon: '', text: '↓ Charging from grid'});
-  if (!d.flags || !d.flags.modbus_connected) msgs.push({icon: I('cross'), text: ' Modbus disconnected'});
+  if (!d.flags || !d.flags.modbus_connected) msgs.push({icon: I('cross'), text: ' Modbus disconnected',
+                                                        warn: true});
   if (msgs.length) {
     bar.style.display = 'block';
-    bar.className = msgs.some(m => m.text.includes('Storm') || m.text.includes('Modbus')) ? 'warn' : '';
+    /* Carried as a flag, not sniffed out of the rendered text. The old test
+       matched the substrings "Storm" and "Modbus", so any new message had to
+       either contain one of those words or silently render in the calm colour —
+       and a NOT-OPTED-IN warning rendering as calm is the wrong way round. */
+    bar.className = msgs.some(m => m.warn) ? 'warn' : '';
     bar.innerHTML = msgs.map(m => m.icon + esc(m.text)).join(' • ');
   } else {
     bar.style.display = 'none';

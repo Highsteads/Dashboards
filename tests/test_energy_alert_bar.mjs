@@ -52,6 +52,12 @@ function grab(name) {
     return src.slice(start, end);
 }
 
+function grabConst(name) {
+    const m = src.match(new RegExp(`^const ${name}\\s*=.*$`, "m"));
+    if (!m) throw new Error(`could not find const ${name} in energy.html`);
+    return m[0];
+}
+
 // ── stub DOM ───────────────────────────────────────────────────────────────
 const bar = {
     id: "alert-bar", textContent: "", innerHTML: "", className: "",
@@ -65,8 +71,16 @@ const ICON = (n) => `<svg class="dsh-icon" data-n="${n}"><path d="M0 0"/></svg>`
 globalThis.DashIcons = { svg: ICON };
 
 // ── load the real functions ────────────────────────────────────────────────
+// updateAlerts calls savingSessionAlerts, so that and its helpers have to come
+// with it — a stub would let the two drift apart and this file would then be
+// asserting against a banner the page does not have.
 const code = [
     grab("esc"),
+    grabConst("OCTOPOINTS_PER_PENNY"),
+    grabConst("SS_TURN_DOWN"),
+    grabConst("SS_HAPPY_HOUR"),
+    grab("_ssRange"),
+    grab("savingSessionAlerts"),
     grab("updateAlerts"),
     "const I = (n) => (window.DashIcons ? DashIcons.svg(n) : '');",
     "globalThis.updateAlerts = updateAlerts;",

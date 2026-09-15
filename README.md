@@ -22,7 +22,7 @@ nothing leaving the house.
 
 ---
 
-**Version:** 3.13.3
+**Version:** 3.14.0
 
 **Documentation:** **[highsteads.github.io/Dashboards](https://highsteads.github.io/Dashboards/)** —
 getting started, configuration, a page of notes for every one of the 27 pages, cameras, remote
@@ -68,11 +68,11 @@ with a gentle state simulator, touching no live devices.
 The three most recent releases, word for word. Every release before these is in
 **[the version history](docs/changelog.md)**, which the documentation site also carries.
 
+**3.14.0** (15-Sep-2026) - **The Energy page now tells you about an Octopus Saving Session, the same way it tells you about an Axle event.** A session is announced hours ahead and pays nothing at all unless you are opted into that particular one, so the thing worth knowing is whether you are in it — and until now the page said nothing whatever. The banner across the top names the window, says whether you are opted in, quotes what the extra is worth in pence, and turns amber when you are not in it. A session already running says so. The weekend free hour and the occasional Power Up each get their own wording, because a Power Up asks you to use MORE and the battery is deliberately not driven for one. It reads a list of every announced session rather than the list the battery is driven from: that one holds only the sessions already joined, so a banner built on it would have gone quiet in exactly the case worth shouting about. Inside, the bar's amber colour is now carried as a flag rather than found by searching the finished sentence for the words "Storm" and "Modbus", which no new message could ever have matched. Needs SigenEnergyManager 5.108.0 or newer for the not-opted-in warning; with an older one the banner still shows the sessions you are in.
+
 **3.13.3** (11-Sep-2026) - **The bundle now carries the standard GitHub record.** Indigo plugins can carry a small note inside the bundle saying where their source lives on GitHub, spelt the way the Indigo Domotics and community plugins spell it. This one now has it, pointing at this repository. Nothing else changed.
 
 **3.13.2** (11-Sep-2026) - **Housekeeping: the retired page builder's server endpoint is gone.** Version 2.5.0 added a visual page builder and a hidden `customPages` endpoint behind it; the builder was retired months ago and nothing has called the endpoint since. It is removed, along with the plumbing that published an always-empty `custom-pages.json` into the public folder — the plugin now deletes that leftover file at startup. Nothing on a running install changes, and a page definition saved back then would still be sitting untouched in the plugin's Preferences folder.
-
-**3.13.1** (10-Sep-2026) - **First public release.** The repository is now public, rebuilt as a fresh single commit from a scrubbed tree; the earlier history stays in a private archive. In the tree itself the changes are small: example addresses in comments and tests are now generic documentation ones, the demo fixture has been re-sanitised (credentials of every kind, e-mail addresses, Zigbee and Shelly hardware addresses and a household name are placeholders, not only IP addresses), and the fixture generator scrubs those same classes so a regenerated fixture cannot bring them back. Two new tests keep it that way: one refuses any real-looking address, hostname or e-mail anywhere in the tree, the other checks the demo fixture and the generator. Nothing on a running install changes.
 
 ## A look around
 
