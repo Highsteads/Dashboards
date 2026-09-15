@@ -22,7 +22,7 @@ nothing leaving the house.
 
 ---
 
-**Version:** 3.14.0
+**Version:** 3.15.0
 
 **Documentation:** **[highsteads.github.io/Dashboards](https://highsteads.github.io/Dashboards/)** —
 getting started, configuration, a page of notes for every one of the 27 pages, cameras, remote
@@ -68,11 +68,11 @@ with a gentle state simulator, touching no live devices.
 The three most recent releases, word for word. Every release before these is in
 **[the version history](docs/changelog.md)**, which the documentation site also carries.
 
+**3.15.0** (15-Sep-2026) - **The Saving Session now shows on the front page too, not just the Energy page.** It sits in the energy card beside the Axle line, giving the window, whether you are opted in and what the extra is worth, and going amber when you are not in it. It is on the phone layout and the desktop one, which are built separately, so a row added to one and forgotten on the other is now something a test refuses. The decision behind both pages — which session matters, whether you are in it, what it pays — has moved into one shared place instead of being worked out twice, so the front page and the Energy page cannot end up disagreeing about whether you are opted in. The row says nothing at all when there is no session, rather than saying "none announced" the way the Axle line does: the Axle data carries a health signal and this does not, so an empty list could equally mean a quiet week or a fetch that failed, and it will not print a reassurance it cannot stand behind.
+
 **3.14.0** (15-Sep-2026) - **The Energy page now tells you about an Octopus Saving Session, the same way it tells you about an Axle event.** A session is announced hours ahead and pays nothing at all unless you are opted into that particular one, so the thing worth knowing is whether you are in it — and until now the page said nothing whatever. The banner across the top names the window, says whether you are opted in, quotes what the extra is worth in pence, and turns amber when you are not in it. A session already running says so. The weekend free hour and the occasional Power Up each get their own wording, because a Power Up asks you to use MORE and the battery is deliberately not driven for one. It reads a list of every announced session rather than the list the battery is driven from: that one holds only the sessions already joined, so a banner built on it would have gone quiet in exactly the case worth shouting about. Inside, the bar's amber colour is now carried as a flag rather than found by searching the finished sentence for the words "Storm" and "Modbus", which no new message could ever have matched. Needs SigenEnergyManager 5.108.0 or newer for the not-opted-in warning; with an older one the banner still shows the sessions you are in.
 
 **3.13.3** (11-Sep-2026) - **The bundle now carries the standard GitHub record.** Indigo plugins can carry a small note inside the bundle saying where their source lives on GitHub, spelt the way the Indigo Domotics and community plugins spell it. This one now has it, pointing at this repository. Nothing else changed.
-
-**3.13.2** (11-Sep-2026) - **Housekeeping: the retired page builder's server endpoint is gone.** Version 2.5.0 added a visual page builder and a hidden `customPages` endpoint behind it; the builder was retired months ago and nothing has called the endpoint since. It is removed, along with the plumbing that published an always-empty `custom-pages.json` into the public folder — the plugin now deletes that leftover file at startup. Nothing on a running install changes, and a page definition saved back then would still be sitting untouched in the plugin's Preferences folder.
 
 ## A look around
 

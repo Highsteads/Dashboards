@@ -23,6 +23,7 @@ import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SRC = path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
@@ -43,12 +44,15 @@ function fn(name) {
     throw new Error(`unbalanced braces in ${name}`);
 }
 
-// Take the constants from the SOURCE, not a copy here — a changed conversion
-// rate must break this test rather than be quietly duplicated.
-function constLine(name) {
-    const m = code.match(new RegExp(`^const ${name}\\s*=.*$`, "m"));
-    if (!m) throw new Error(`could not find const ${name}`);
-    return m[0];
+// The DECISION lives in DashCalc (energy-calc.js), shared with the hub. Load the
+// REAL module rather than stubbing it: a stub would let the page and the shared
+// rule drift apart, which is the whole thing this split exists to prevent.
+const require_ = createRequire(import.meta.url);
+require_(path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
+                   "Resources", "static", "pages", "energy-calc.js"));
+const DashCalc = globalThis.DashCalc;
+if (!DashCalc || typeof DashCalc.savingSessions !== "function") {
+    throw new Error("energy-calc.js did not export DashCalc.savingSessions");
 }
 
 let pass = 0, fail = 0;
@@ -57,11 +61,10 @@ const check = (ok, label, detail = "") => {
     console.log(`  ${ok ? "ok  " : "FAIL"} ${label}${detail ? "   " + detail : ""}`);
 };
 
-const ctx = { Date, Math, isFinite, Object,
+const ctx = { Date, Math, isFinite, Object, DashCalc,
               I: (n) => `<svg data-icon="${n}">` };
 vm.createContext(ctx);
-vm.runInContext([constLine("OCTOPOINTS_PER_PENNY"), constLine("SS_TURN_DOWN"),
-                 constLine("SS_HAPPY_HOUR"), fn("_ssRange"), fn("savingSessionAlerts"),
+vm.runInContext([fn("savingSessionAlerts"),
                  "globalThis.savingSessionAlerts = savingSessionAlerts;"].join("\n"), ctx);
 const alerts = ctx.savingSessionAlerts;
 

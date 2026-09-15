@@ -7,9 +7,9 @@
  *              can drive it directly.
  * Author:      CliveS & Claude Opus 5 (v1.0); Claude Fable 5 (v1.1-1.2)
  * Date:        13-08-2026
- * Version:     1.4 (packBalanceText + gridFrequencyState — wording the
- *              battery pack-balance inference and the grid-frequency band)
- *              prior 1.3 (buildSolarHours + site series), 1.2, 1.1
+ * Version:     1.5 (savingSessions — ONE Octopus Saving Session decision for
+ *              the Energy page's alert bar and the hub's energy card)
+ *              prior 1.4 (packBalanceText + gridFrequencyState), 1.3, 1.2, 1.1
  */
 
 (function (root) {
@@ -507,6 +507,97 @@
              headroom: Math.round((hi - volts) * 100) / 100 };
   }
 
+  /* ── Octopus Saving Sessions ────────────────────────────────────────────
+     ONE decision, shared by the Energy page's alert bar and the hub's energy
+     card. They present it differently and must never decide it differently:
+     an intent expressed in two places drifts, and this estate has paid for that
+     more than once.
+
+     Reads `octopus_sessions.upcoming` (SigenEnergyManager 5.108.0), NOT
+     `windows`. `windows` is the list the battery is DRIVEN from, so the plugin
+     filters it to JOINED turn-downs and happy hours — an un-joined session is
+     absent from it, and a reader built on it is silent in the one case worth
+     shouting about.
+
+     The fallback to `windows` covers an older plugin. Every row there is joined
+     by construction, so labelling them joined cannot invent a false "opted in":
+     the degraded mode LOSES the not-opted-in warning rather than getting it wrong.
+
+     Returns [] when there is nothing to say. An empty list means "no session
+     within a day", NOT "the feed is healthy" — `octopus_sessions` carries no
+     health field, so neither caller may render "none announced" from it. */
+
+  /* 800 Octopoints = GBP 1, i.e. one point is an eighth of a penny. Confirmed
+     against the account 03-Sep-2026: a session paying 120 points settled at 15p. */
+  var OCTOPOINTS_PER_PENNY = 8;
+  var SS_TURN_DOWN  = 'TURN_DOWN';
+  var SS_HAPPY_HOUR = 'WEEKEND_HAPPY_HOUR';
+  /* A session six days out is real but it is not news. Live always shows. */
+  var SS_LOOKAHEAD_MS = 24 * 3600 * 1000;
+
+  /* "18:00-19:00", with a weekday in front when it is not today. Shared so the
+     hub and the Energy page render the identical string — the one part of this
+     that genuinely must not differ between them. Uses the viewer's locale, like
+     every other clock on these pages, so a UK browser gets 24-hour. */
+  function sessionRange(startMs, endMs, nowMs) {
+    function t(ms) {
+      return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    var sameDay = new Date(startMs).toDateString() === new Date(nowMs).toDateString();
+    var day = sameDay ? ''
+      : new Date(startMs).toLocaleDateString([], { weekday: 'short' }) + ' ';
+    return day + t(startMs) + '-' + t(endMs);
+  }
+
+  function sessionEndTime(endMs) {
+    return new Date(endMs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function savingSessions(oct, nowMs) {
+    var rows = (oct && oct.upcoming) || null;
+    if (!rows) {
+      rows = ((oct && oct.windows) || []).map(function (w) {
+        var c = {}, k;
+        for (k in w) { if (Object.prototype.hasOwnProperty.call(w, k)) c[k] = w[k]; }
+        c.joined = true;
+        return c;
+      });
+    }
+    var out = [], i;
+    for (i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      var start = Date.parse(r.start), end = Date.parse(r.end);
+      /* A row the plugin cached up to an hour ago can already be over, so the
+         clock is re-checked here rather than trusting the cache to be fresh. */
+      if (!isFinite(start) || !isFinite(end) || end <= nowMs) continue;
+      var live = start <= nowMs;
+      if (!live && start - nowMs > SS_LOOKAHEAD_MS) continue;
+      out.push({
+        id: r.id,
+        startMs: start,
+        endMs: end,
+        live: live,
+        joined: !!r.joined,
+        direction: r.direction || null,
+        /* A turn-down is the only one the battery earns by exporting into. */
+        isTurnDown: r.direction === SS_TURN_DOWN,
+        isHappyHour: r.direction === SS_HAPPY_HOUR,
+        /* A direction neither page has heard of is carried through rather than
+           dropped, so a new session type surfaces instead of vanishing. */
+        isKnown: r.direction === SS_TURN_DOWN || r.direction === SS_HAPPY_HOUR
+                 || r.direction === 'TURN_UP',
+        points: Number(r.points) || 0,
+        pence: (Number(r.points) || 0) / OCTOPOINTS_PER_PENNY,
+        /* Wanting attention: an announced turn-down nobody has opted into earns
+           nothing at all. A Happy Hour is BOOKED and booking spends a scarce
+           token, so not having booked one is a decision, never a fault. */
+        needsAttention: r.direction === SS_TURN_DOWN && !r.joined,
+      });
+    }
+    out.sort(function (a, b) { return a.startMs - b.startMs; });
+    return out;
+  }
+
   var API = {
     DEFAULT_CAPACITY_KWH: DEFAULT_CAPACITY_KWH,
     BACKUP_RESERVE_PCT: BACKUP_RESERVE_PCT,
@@ -525,6 +616,10 @@
     packBalanceText: packBalanceText,
     gridFrequencyState: gridFrequencyState,
     gridVoltageState: gridVoltageState,
+    savingSessions: savingSessions,
+    sessionRange: sessionRange,
+    sessionEndTime: sessionEndTime,
+    OCTOPOINTS_PER_PENNY: OCTOPOINTS_PER_PENNY,
   };
 
   root.DashCalc = API;

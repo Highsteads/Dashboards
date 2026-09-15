@@ -20,8 +20,16 @@
 #              stream connection fails.
 # Author:      CliveS & Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
 # Date:        11-09-2026
-# Version:     3.14.0
+# Version:     3.15.0
 #
+# v3.15.0 (15-09-2026): SAVING SESSION ON THE HUB TOO. The row joins the energy
+#   card beside the VPP line, on BOTH the compact and full layouts (a test counts
+#   the placements — they are separate template literals). The decision moved to
+#   DashCalc.savingSessions so the hub and energy.html cannot disagree; only the
+#   wording is per page. The hub row is NOT permanent like the VPP one: that
+#   payload has api_status to tell a dead feed from a quiet fortnight and
+#   octopus_sessions has nothing of the kind, so it stays silent rather than
+#   printing "none announced" it cannot stand behind.
 # v3.14.0 (15-09-2026): SAVING SESSION BANNER. The Energy page's alert bar now
 #   shows an announced or running Octopus Saving Session, reading the new
 #   octopus_sessions.upcoming list (SigenEnergyManager 5.108.0) rather than
@@ -1141,7 +1149,7 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION    = "3.14.0"
+PLUGIN_VERSION    = "3.15.0"
 # Pages are mirrored into Web Assets/public/dashboards/ so IWS serves them
 # WITHOUT HTTP Basic Auth. Indigo only treats the global /public/ namespace
 # as anonymous — per-plugin `public/` subfolders still require auth.

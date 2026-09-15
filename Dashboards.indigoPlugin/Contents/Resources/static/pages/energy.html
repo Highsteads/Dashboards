@@ -958,68 +958,43 @@ function _wireHelpTips() {
    in" — the degraded mode loses the NOT-OPTED-IN warning rather than getting
    it wrong. */
 
-/* 800 Octopoints = GBP 1, i.e. one point is an eighth of a penny. Confirmed
-   against the account 03-Sep-2026 (a session paying 120 points settled at 15p).
-   The points figure alone means nothing to a reader, so the banner shows pence. */
-const OCTOPOINTS_PER_PENNY = 8;
+/* The DECISION — which sessions matter, joined or not, what each is worth —
+   lives in DashCalc.savingSessions so this page and the hub cannot drift apart.
+   What stays here is only how THIS page words it. energy-calc.js is loaded by a
+   <script> tag above; a guarded call to a library a page never loads is a silent
+   no-op, and tests/test_shared_ui_present.mjs pins the tag. */
 
-const SS_TURN_DOWN  = 'TURN_DOWN';
-const SS_HAPPY_HOUR = 'WEEKEND_HAPPY_HOUR';
-
-/* "18:00-19:00", with a weekday in front when it is not today. Uses the same
-   locale clock as fmtT so one page never shows two time formats. */
-function _ssRange(startMs, endMs, nowMs) {
-  const t = ms => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  const sameDay = new Date(startMs).toDateString() === new Date(nowMs).toDateString();
-  const day = sameDay ? '' : new Date(startMs).toLocaleDateString([], { weekday: 'short' }) + ' ';
-  return day + t(startMs) + '-' + t(endMs);
-}
-
-/* Pure so a test can drive it. Returns [{icon, text, warn}] in the same shape
-   the alert bar already uses — icon is SVG MARKUP and must stay apart from the
-   text, which is escaped. */
+/* Returns [{icon, text, warn}] in the shape the alert bar already uses — icon is
+   SVG MARKUP and must stay apart from the text, which is escaped. */
 function savingSessionAlerts(oct, nowMs) {
-  const rows = (oct && oct.upcoming)
-             || ((oct && oct.windows) || []).map(w => Object.assign({ joined: true }, w));
   const out = [];
-  for (const r of rows) {
-    const start = Date.parse(r.start), end = Date.parse(r.end);
-    /* A row the plugin cached up to an hour ago can already be over, so the
-       page re-checks the clock rather than trusting the cache to be fresh. */
-    if (!isFinite(start) || !isFinite(end) || end <= nowMs) continue;
-    const live = start <= nowMs;
-    /* A session six days out is real but it is not news. Live always shows. */
-    if (!live && start - nowMs > 24 * 3600 * 1000) continue;
+  for (const r of DashCalc.savingSessions(oct, nowMs)) {
+    const when  = r.live
+      ? 'until ' + DashCalc.sessionEndTime(r.endMs)
+      : DashCalc.sessionRange(r.startMs, r.endMs, nowMs);
+    const extra = r.pence > 0
+      ? ', ' + (r.pence >= 1 ? r.pence.toFixed(0) : r.pence.toFixed(1)) + 'p/kWh extra' : '';
 
-    const when   = live ? 'until ' + new Date(end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                        : _ssRange(start, end, nowMs);
-    const joined = !!r.joined;
-    const pence  = (r.points || 0) / OCTOPOINTS_PER_PENNY;
-    const extra  = pence > 0 ? ', ' + (pence >= 1 ? pence.toFixed(0) : pence.toFixed(1))
-                             + 'p/kWh extra' : '';
-
-    if (r.direction === SS_HAPPY_HOUR) {
+    if (r.isHappyHour) {
       /* A Happy Hour is BOOKED, and booking spends a token. Not having booked
          one is a decision, not a fault, so it never warns. */
-      out.push(joined
-        ? { icon: I('money'), text: live ? ' FREE HOUR ACTIVE — charging ' + when
-                                         : ' Free hour booked ' + when, warn: false }
-        : { icon: I('money'), text: ' Free hour ' + when + ' — not booked', warn: false });
-    } else if (r.direction === SS_TURN_DOWN) {
-      out.push(joined
-        ? { icon: I('money'), text: (live ? ' SAVING SESSION ACTIVE — exporting ' + when
-                                          : ' Saving Session ' + when + ' — opted in') + (live ? '' : extra),
-            warn: false }
-        : { icon: I('money'), text: ' Saving Session ' + when + ' — NOT OPTED IN' + extra,
-            warn: true });
+      out.push({ icon: I('money'), warn: false,
+                 text: r.joined ? (r.live ? ' FREE HOUR ACTIVE — charging ' + when
+                                          : ' Free hour booked ' + when)
+                                : ' Free hour ' + when + ' — not booked' });
+    } else if (r.isTurnDown) {
+      out.push({ icon: I('money'), warn: r.needsAttention,
+                 text: r.joined
+                   ? (r.live ? ' SAVING SESSION ACTIVE — exporting ' + when
+                             : ' Saving Session ' + when + ' — opted in' + extra)
+                   : ' Saving Session ' + when + ' — NOT OPTED IN' + extra });
     } else {
       /* TURN_UP, or a direction this page has never heard of. Both mean the
          battery is not driven, and quoting an unknown value beats dropping it
          so a new session type surfaces instead of vanishing. */
       const name = r.direction === 'TURN_UP' ? 'Power Up' : 'Session "' + r.direction + '"';
-      out.push({ icon: I('money'),
-                 text: ' ' + name + ' ' + when + ' — uses more power, the battery is not driven',
-                 warn: false });
+      out.push({ icon: I('money'), warn: false,
+                 text: ' ' + name + ' ' + when + ' — uses more power, the battery is not driven' });
     }
   }
   return out;

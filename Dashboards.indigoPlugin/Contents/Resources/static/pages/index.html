@@ -1322,6 +1322,10 @@
         const vppNow      = (_sigen() && _sigen().vpp) || null;
         const vppRow      = vppStatusRow(vppNow);
         const vppMoneyRow = vppEarningsRow(vppNow);
+        // Same argument as the VPP row: a paid grid event is exactly the thing
+        // worth a line on a card that is otherwise kept short.
+        const ssRow = savingSessionRow((_sigen() && _sigen().octopus_sessions) || null,
+                                       Date.now());
         if (isCompact) {
             // Battery, solar, home and grid are in the diagram above, so the
             // phone keeps only what it cannot show — and stays short.
@@ -1332,6 +1336,7 @@
                 <div class="row"><span class="key">Solar today</span><span class="val ok">${pvToday.toFixed(1)} kWh</span></div>
                 ${actionStr ? `<div class="row"><span class="key">Now</span><span class="val">${escapeAttr(actionStr)}</span></div>` : ""}
                 ${vppRow}
+                ${ssRow}
                 ${benefitStr ? `<div class="row"><span class="key">Solar saved</span><span class="val ok">${benefitStr}</span></div>` : ""}
                 ${vppMoneyRow}
                 ${ssStr ? `<div class="row"><span class="key">Self-sufficient</span><span class="val">${ssStr}</span></div>` : ""}`;
@@ -1342,6 +1347,7 @@
         rows.innerHTML = `
             ${actionStr ? `<div class="row"><span class="key">Now</span><span class="val">${escapeAttr(actionStr)}</span></div>` : ""}
             ${vppRow}
+            ${ssRow}
             <h3 style="margin-top:10px">Today</h3>
             <div class="row"><span class="key">Solar produced</span><span class="val">${pvToday.toFixed(1)} kWh</span></div>
             <div class="row"><span class="key">Home used</span><span class="val">${homeToday.toFixed(1)} kWh</span></div>
@@ -1417,6 +1423,51 @@
         return `<div class="row"><span class="key">VPP earned</span>`
              + `<span class="val ok">${main}${note}${tail}</span></div>`;
     }
+    /* ── Octopus Saving Session row ──────────────────────────────────────
+       The DECISION is DashCalc.savingSessions, shared with the Energy page's
+       alert bar, so the two can never disagree about whether you are in a
+       session. Only the wording is this page's.
+
+       Unlike the VPP row above this one is NOT permanent, and deliberately so.
+       "None announced" is honest for VPP because that payload carries an
+       `api_status` health field, so a dead feed is distinguishable from a quiet
+       fortnight. `octopus_sessions` carries no such field: an empty list could
+       equally mean "no sessions" or "the fetch failed", and printing "none"
+       from data that cannot tell the difference is the absent-state trap. So it
+       says nothing when it has nothing it can stand behind.
+
+       Only the soonest session gets a line — a live one sorts first — because
+       the phone card is deliberately short. */
+    function savingSessionRow(oct, nowMs) {
+        const list = (window.DashCalc && DashCalc.savingSessions)
+                   ? DashCalc.savingSessions(oct, nowMs) : [];
+        if (!list.length) return "";
+        const r = list[0];
+        const range = DashCalc.sessionRange(r.startMs, r.endMs, nowMs);
+        let cls, txt;
+        if (r.isHappyHour) {
+            /* Booking a free hour spends a token, so not having booked one is a
+               decision and never wants attention. */
+            cls = r.joined ? "ok" : "";
+            txt = "Free hour · " + range + (r.joined ? " · booked" : " · not booked");
+        } else if (r.isTurnDown) {
+            const rate = r.pence > 0
+                ? " · " + (r.pence >= 1 ? r.pence.toFixed(0) : r.pence.toFixed(1)) + "p/kWh" : "";
+            if (!r.joined)   { cls = "warn"; txt = range + " · NOT OPTED IN"; }
+            else if (r.live) { cls = "warn"; txt = "Running · until " + DashCalc.sessionEndTime(r.endMs); }
+            else             { cls = "ok";   txt = range + " · opted in" + rate; }
+        } else {
+            /* TURN_UP, or something neither page has heard of. Quoted rather
+               than dropped so a new session type surfaces instead of vanishing. */
+            const name = r.direction === "TURN_UP" ? "Power Up"
+                       : "Session " + escapeAttr(String(r.direction));
+            cls = "";
+            txt = name + " · " + range + " · battery not driven";
+        }
+        return `<div class="row"><span class="key">Saving Session</span>`
+             + `<span class="val ${cls}">${txt}</span></div>`;
+    }
+
     const HUB_ACTION_LABELS = {
         self_consumption: "Self-consumption", solar_overflow: "Exporting surplus",
         start_export: "Exporting to grid", stop_export: "Stopping export",
