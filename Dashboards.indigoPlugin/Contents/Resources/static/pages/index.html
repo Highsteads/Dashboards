@@ -1468,6 +1468,44 @@
              + `<span class="val ${cls}">${txt}</span></div>`;
     }
 
+    /* ── Octopus Saving Session chip (v3.16.0) ────────────────────────────
+       The hero's chip row is where the Axle chip appears, so that is where a
+       Saving Session has to appear too: the energy-card row above sits below
+       the fold on a phone and was not what was asked for. Same shared decision
+       (DashCalc.savingSessions), same rule as the VPP chip — present only while
+       there is something to say, so the row stays short on the other days.
+
+       Returns null, or {cls, text} for renderHousePulse to wrap. The words are
+       spelled out rather than left to the colour: green alone cannot say
+       "opted in" to someone who cannot tell green from amber. */
+    function savingSessionChip(oct, nowMs) {
+        const list = (window.DashCalc && DashCalc.savingSessions)
+                   ? DashCalc.savingSessions(oct, nowMs) : [];
+        if (!list.length) return null;
+        const r = list[0];
+        const range = DashCalc.sessionRange(r.startMs, r.endMs, nowMs);
+        const start = new Date(r.startMs);
+        const sameDay = start.toDateString() === new Date(nowMs).toDateString();
+        /* sessionRange already puts the weekday in front when it is not today. */
+        const when = sameDay ? (start.getHours() >= 17 ? " tonight" : " today") : "";
+        if (r.isHappyHour) {
+            return r.live
+                ? { cls: r.joined ? "good" : "", text: "Free hour running · until " + DashCalc.sessionEndTime(r.endMs) }
+                : { cls: r.joined ? "good" : "",
+                    text: "Free hour" + when + " · " + range + (r.joined ? " · booked" : " · not booked") };
+        }
+        if (r.isTurnDown) {
+            if (!r.joined) return { cls: "warn", text: "Saving Session" + (r.live ? " running" : when)
+                                                     + " · " + range + " · NOT OPTED IN" };
+            if (r.live)    return { cls: "warn", text: "Saving Session running · until "
+                                                     + DashCalc.sessionEndTime(r.endMs) };
+            return { cls: "good", text: "Saving Session" + when + " · " + range + " · opted in" };
+        }
+        const name = r.direction === "TURN_UP" ? "Power Up"
+                   : "Session " + escapeAttr(String(r.direction));
+        return { cls: "", text: name + (r.live ? " running" : when) + " · " + range };
+    }
+
     const HUB_ACTION_LABELS = {
         self_consumption: "Self-consumption", solar_overflow: "Exporting surplus",
         start_export: "Exporting to grid", stop_export: "Stopping export",
@@ -2245,6 +2283,9 @@
             chips.push(chip("energy.html", "good",
                 `${DashIcons.svg("bolt")} VPP announced${vpp.event_str ? " · " + escapeAttr(vpp.event_str) : ""}`));
         }
+        // Saving Session chip (v3.16.0) — beside the Axle chip, on the same terms.
+        const ss = savingSessionChip((_sigen() && _sigen().octopus_sessions) || null, Date.now());
+        if (ss) chips.push(chip("energy.html", ss.cls, `${DashIcons.svg("money")} ${ss.text}`));
         el.innerHTML = chips.join("");
     }
 

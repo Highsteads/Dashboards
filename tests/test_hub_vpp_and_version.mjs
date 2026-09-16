@@ -74,6 +74,7 @@ const helpers = `
 // v2.95.3: the pulse reads the Sigen payload through _sigen(), which ages it
 // out at 120 s — supplied FROM SOURCE, same rule as asBool above.
 new Function(helpers + grab("renderHousePulse") + grab("renderHero") + grab("_sigen") +
+             grab("savingSessionChip") +
              "globalThis.renderHousePulse = renderHousePulse;" +
              "globalThis.renderHero = renderHero;" +
              "globalThis._sigen = _sigen;")();
