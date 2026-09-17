@@ -226,6 +226,18 @@ header h1{font-size:20px;font-weight:700;letter-spacing:-.02em;white-space:nowra
 .tariff-tmrw b{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums}
 .tmrw-up{color:var(--bad);font-weight:700}
 .tmrw-down{color:var(--on-color);font-weight:700}
+/* Banded tariffs (Flux): one row per price, with the hours it runs. */
+.tier-list{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.tier{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:4px 10px;
+  padding:9px 11px;border:1px solid var(--border-soft);border-radius:var(--r-md);background:var(--card-bg-alt)}
+.tier.now{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+.tier-name{font-size:13px;font-weight:600;color:var(--text)}
+.tier-name .chip{margin-left:6px;font-size:10px;padding:1px 6px;vertical-align:1px}
+.tier-hours{grid-column:1;font-size:11.5px;color:var(--text-secondary);font-variant-numeric:tabular-nums}
+.tier-p{grid-column:2;grid-row:1 / span 2;font-size:20px;font-weight:700;font-variant-numeric:tabular-nums;
+  letter-spacing:-.02em;color:var(--warn)}
+.tier-p.exp{color:var(--grid-exp)}
+.tier-p small{font-size:12px;font-weight:600;margin-left:1px}
 
 /* ── tables ── */
 .table-scroll{overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch}
@@ -304,6 +316,7 @@ a,button,input,select,textarea{-webkit-tap-highlight-color:transparent}
   .hero-big{font-size:36px}
   .bill-big{font-size:24px}
   .tariff-rate{font-size:26px}
+  .tier-p{font-size:18px}
   .hero-chips{justify-content:flex-start}
 }
 
@@ -451,15 +464,27 @@ a,button,input,select,textarea{-webkit-tap-highlight-color:transparent}
   <div class="sec-label">Rates</div>
   <div class="grid2">
     <section class="card">
-      <h2 data-help-title="Import tariff" data-help="Octopus Tracker — the unit rate changes daily at midnight and is published the day before.">Import tariff</h2>
-      <div class="tariff-rate"><span id="tar-rate">&#8212;</span>p</div>
-      <div class="tariff-sub" id="tar-name">&#8212;</div>
-      <div class="tariff-tmrw">Tomorrow: <b id="tar-tmrw">&#8212;</b>p <span id="tar-delta"></span></div>
+      <h2 data-help-title="Import tariff" data-help="What each unit drawn from the grid costs. A time-of-use tariff such as Flux lists every price with the hours it applies; the one in force now is marked. A daily tariff such as Tracker shows today's price and tomorrow's once published.">Import tariff</h2>
+      <div id="tar-flat">
+        <div class="tariff-rate"><span id="tar-rate">&#8212;</span>p</div>
+        <div class="tariff-sub" id="tar-name">&#8212;</div>
+        <div class="tariff-tmrw">Tomorrow: <b id="tar-tmrw">&#8212;</b>p <span id="tar-delta"></span></div>
+      </div>
+      <div id="tar-banded" hidden>
+        <div class="tariff-sub" id="tar-banded-name">&#8212;</div>
+        <ul class="tier-list" id="tar-tiers"></ul>
+      </div>
     </section>
     <section class="card">
-      <h2 data-help-title="Export rate" data-help="Octopus Outgoing — flat rate per kWh exported.">Export rate</h2>
-      <div class="tariff-rate exp"><span id="exp-rate">&#8212;</span>p</div>
-      <div class="tariff-sub">Octopus Outgoing &middot; flat</div>
+      <h2 data-help-title="Export tariff" data-help="What each unit sent to the grid earns. A time-of-use tariff such as Flux lists every price with the hours it applies; the one in force now is marked. The surplus line values tomorrow's spare solar at the midday price.">Export tariff</h2>
+      <div id="exp-flat">
+        <div class="tariff-rate exp"><span id="exp-rate">&#8212;</span>p</div>
+        <div class="tariff-sub" id="exp-name">&#8212;</div>
+      </div>
+      <div id="exp-banded" hidden>
+        <div class="tariff-sub" id="exp-banded-name">&#8212;</div>
+        <ul class="tier-list" id="exp-tiers"></ul>
+      </div>
       <div class="tariff-tmrw">Tomorrow&#8217;s forecast surplus: <b id="exp-surplus">&#8212;</b> &middot; about <b id="exp-surplus-gbp">&#8212;</b></div>
     </section>
   </div>
@@ -1015,6 +1040,49 @@ function serverMonthKey(econ) {
   return null;
 }
 
+/* ── Rates tiles ──
+   A banded side (Flux) lists every price with the hours it runs, cheapest
+   first, and marks the one in force. A flat side keeps the single figure.
+   Older plugin versions send no import_side/export_side, so both tiles fall
+   back to the flat layout rather than going blank. */
+function tierRows(side, isExport) {
+  return (side.tiers || []).map(function (t) {
+    const hours = (t.windows || []).map(function (w) {
+      return esc(w.start) + ' to ' + esc(w.end);
+    }).join(' and ');
+    return '<li class="tier' + (t.current ? ' now' : '') + '">'
+      + '<span class="tier-name">' + esc(t.label)
+      + (t.current ? '<span class="chip good">now</span>' : '') + '</span>'
+      + '<span class="tier-p' + (isExport ? ' exp' : '') + '">'
+      + esc(DashCalc.fmtPence(t.p)) + '<small>p</small></span>'
+      + '<span class="tier-hours">' + hours + '</span>'
+      + '</li>';
+  }).join('');
+}
+
+function renderTariffSide(side, prefix, isExport, flatName) {
+  const banded = !!(side && side.banded && side.tiers && side.tiers.length);
+  const flatEl = document.getElementById(prefix + '-flat');
+  const bandEl = document.getElementById(prefix + '-banded');
+  if (flatEl) flatEl.hidden = banded;
+  if (bandEl) bandEl.hidden = !banded;
+  if (banded) {
+    setText(prefix + '-banded-name', side.name || side.tariff_code || '—');
+    const list = document.getElementById(prefix + '-tiers');
+    if (list) list.innerHTML = tierRows(side, isExport);
+  } else if (flatName != null) {
+    setText(prefix + '-name', flatName);
+  }
+}
+
+function renderTariffSides(d) {
+  const t = d.tariff || {};
+  renderTariffSide(t.import_side, 'tar', false, null);
+  const exp = t.export_side;
+  renderTariffSide(exp, 'exp', true,
+    exp && exp.name ? exp.name : 'Flat rate per unit');
+}
+
 /* ── main render ── */
 function render(d) {
   const econ = d.economics || {};
@@ -1032,6 +1100,7 @@ function render(d) {
 
   renderMonth(econ);
 
+  renderTariffSides(d);
   if (d.tariff) {
     setText('tar-rate', d.tariff.today_p != null ? Number(d.tariff.today_p).toFixed(2) : '—');
     setText('tar-name', (d.tariff.name || '—') + (d.tariff.product_code ? ' · ' + d.tariff.product_code : ''));

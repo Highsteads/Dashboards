@@ -22,7 +22,7 @@ nothing leaving the house.
 
 ---
 
-**Version:** 3.16.0
+**Version:** 3.17.0
 
 **Documentation:** **[highsteads.github.io/Dashboards](https://highsteads.github.io/Dashboards/)** —
 getting started, configuration, a page of notes for every one of the 27 pages, cameras, remote
@@ -68,11 +68,11 @@ with a gentle state simulator, touching no live devices.
 The three most recent releases, word for word. Every release before these is in
 **[the version history](docs/changelog.md)**, which the documentation site also carries.
 
+**3.17.0** (17-Sep-2026) - **The Rates tiles on the Cost page now show every price on a time-of-use tariff, with the hours each one applies.** On Octopus Flux that is three import prices and three export prices: the cheap one from 2am to 5am, the peak from 4pm to 7pm, and the day price for the rest, which runs from 5am to 4pm and again from 7pm to 2am and is shown as those two stretches rather than split at midnight. The price in force now is marked, and each tile names the tariff from your Octopus account. A daily tariff such as Tracker, or a flat export rate, keeps the single figure it had before, and so does an older SigenEnergyManager that does not send the prices. The Energy page's tariff card says when the price next changes instead of offering a tomorrow's price that Flux does not have, and calls the export figure the rate now rather than flat. Needs SigenEnergyManager 5.110.0 or newer for the price lists.
+
 **3.16.0** (16-Sep-2026) - **The Saving Session now shows in the greeting panel at the top of the front page, beside the Axle chip.** 3.15.0 put it in the energy card, which is not where the Axle notice appears and sits out of sight on a phone, so a session on tonight was easy to miss. The new chip reads "Saving Session tonight", with the times and "opted in", and links to the Energy page. It turns amber and says NOT OPTED IN when you are not in it, and says when it ends while it is running. The words carry the meaning as well as the colour, so it reads the same to someone who cannot tell green from amber. Like the Axle chip, it only appears when there is a session within the next day. The energy card line stays as it was.
 
 **3.15.0** (15-Sep-2026) - **The Saving Session now shows on the front page too, not just the Energy page.** It sits in the energy card beside the Axle line, giving the window, whether you are opted in and what the extra is worth, and going amber when you are not in it. It is on the phone layout and the desktop one, which are built separately, so a row added to one and forgotten on the other is now something a test refuses. The decision behind both pages — which session matters, whether you are in it, what it pays — has moved into one shared place instead of being worked out twice, so the front page and the Energy page cannot end up disagreeing about whether you are opted in. The row says nothing at all when there is no session, rather than saying "none announced" the way the Axle line does: the Axle data carries a health signal and this does not, so an empty list could equally mean a quiet week or a fetch that failed, and it will not print a reassurance it cannot stand behind.
-
-**3.14.0** (15-Sep-2026) - **The Energy page now tells you about an Octopus Saving Session, the same way it tells you about an Axle event.** A session is announced hours ahead and pays nothing at all unless you are opted into that particular one, so the thing worth knowing is whether you are in it — and until now the page said nothing whatever. The banner across the top names the window, says whether you are opted in, quotes what the extra is worth in pence, and turns amber when you are not in it. A session already running says so. The weekend free hour and the occasional Power Up each get their own wording, because a Power Up asks you to use MORE and the battery is deliberately not driven for one. It reads a list of every announced session rather than the list the battery is driven from: that one holds only the sessions already joined, so a banner built on it would have gone quiet in exactly the case worth shouting about. Inside, the bar's amber colour is now carried as a flag rather than found by searching the finished sentence for the words "Storm" and "Modbus", which no new message could ever have matched. Needs SigenEnergyManager 5.108.0 or newer for the not-opted-in warning; with an older one the banner still shows the sessions you are in.
 
 ## A look around
 

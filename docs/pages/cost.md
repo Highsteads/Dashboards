@@ -41,8 +41,11 @@ withdraw, lifetime earnings, this month, and earnings from events alone, then ev
 or settled, newest first, with what it paid and how many kWh it counted. A pending window shows a
 dash rather than a guess.
 
-**Rates.** Import tariff with the product and tomorrow's rate and direction; export rate with
-tomorrow's forecast surplus and what it is worth.
+**Rates.** One tile for import and one for export. On a time-of-use tariff such as Octopus Flux
+each tile lists every price, cheapest first, with the hours it applies, and marks the one in force
+now. On a daily tariff such as Tracker the import tile shows today's rate with tomorrow's and its
+direction, and a flat export rate shows as one figure. The export tile also gives tomorrow's
+forecast surplus and what it is worth at the midday export price.
 
 **Totals.** Week, month and year, each with days, solar benefit, grid-only cost, electric bill,
 export earned, import paid and net grid, with a per-day average under every figure. The note

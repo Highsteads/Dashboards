@@ -620,12 +620,13 @@ a,button,input,select,textarea{-webkit-tap-highlight-color:transparent}
     </section>
 
     <section class="card">
-      <h2 data-help-title="Tariff" data-help="Octopus Tracker import rate — changes daily at midnight, published the day before. Export is Octopus Outgoing flat.">Tariff</h2>
+      <h2 data-help-title="Tariff" data-help="The import price per unit now. On a daily tariff such as Tracker, tomorrow's price appears once published; on a time-of-use tariff such as Flux the line shows the next price change instead. The Costs page lists every band.">Tariff</h2>
       <div class="tariff-rate"><span id="tar-rate">&#8212;</span>p</div>
       <div class="tariff-sub" id="tar-name">&#8212;</div>
       <div class="tariff-sub muted" id="tar-code">&#8212;</div>
-      <div class="tariff-tmrw">Tomorrow: <span id="tar-tmrw">&#8212;</span>p <span id="tar-delta"></span></div>
-      <div class="tariff-tmrw" style="margin-top:4px">Export: <span id="tar-exp">&#8212;</span>p flat</div>
+      <div class="tariff-tmrw" id="tar-tmrw-row">Tomorrow: <span id="tar-tmrw">&#8212;</span>p <span id="tar-delta"></span></div>
+      <div class="tariff-tmrw" id="tar-next" hidden></div>
+      <div class="tariff-tmrw" style="margin-top:4px">Export: <span id="tar-exp">&#8212;</span>p <span id="tar-exp-kind">flat</span></div>
     </section>
 
     <section class="card">
@@ -1384,6 +1385,19 @@ function update(d) {
     setText('tar-name', d.tariff.name || '—');
     setText('tar-code', d.tariff.product_code || '');
     setText('tar-tmrw', d.tariff.tomorrow_p != null ? d.tariff.tomorrow_p.toFixed(2) : 'TBD');
+    /* A banded tariff (Flux) has no "tomorrow's price": say what comes next. */
+    const imp = d.tariff.import_side;
+    const banded = !!(imp && imp.banded && imp.tiers && imp.tiers.length);
+    const next = banded ? nextBand(imp.tiers) : null;
+    const tmrwRow = document.getElementById('tar-tmrw-row');
+    const nextRow = document.getElementById('tar-next');
+    if (tmrwRow) tmrwRow.hidden = banded;
+    if (nextRow) {
+      nextRow.hidden = !next;
+      nextRow.textContent = next ? ('From ' + next.start + ': ' + DashCalc.fmtPence(next.p) + 'p (' + next.label + ')') : '';
+    }
+    const exSide = d.tariff.export_side;
+    setText('tar-exp-kind', exSide && exSide.banded ? 'now' : 'flat');
     const delta = document.getElementById('tar-delta');
     if (delta && d.tariff.today_p != null && d.tariff.tomorrow_p != null) {
       const diff = d.tariff.tomorrow_p - d.tariff.today_p;
@@ -1608,6 +1622,19 @@ function _serverClock() {
   const m = /^(\d{2}):(\d{2})/.exec(String((_solStatus || {}).timestamp || ''));
   if (m) nowMin = parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
   return { todayStr, nowMin };
+}
+
+/* The band that starts next after the one marked current, from the plugin's
+   tiers ([{label, p, windows:[{start, end, current}]}]). Null if none is current. */
+function nextBand(tiers) {
+  let endAt = null;
+  tiers.forEach(function (t) { (t.windows || []).forEach(function (w) { if (w.current) endAt = w.end; }); });
+  if (endAt == null) return null;
+  let found = null;
+  tiers.forEach(function (t) { (t.windows || []).forEach(function (w) {
+    if (!w.current && w.start === endAt) found = { start: w.start, p: t.p, label: t.label };
+  }); });
+  return found;
 }
 
 function renderDecisionTrace(d) {
