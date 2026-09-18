@@ -18,9 +18,9 @@
 #              again handling Digest auth server-side. The page uses MJPEG
 #              for the live grid and falls back to the still snapshot if a
 #              stream connection fails.
-# Author:      CliveS & Claude Opus 5 (3.17.0-3.17.1); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
+# Author:      CliveS & Claude Opus 5 (3.17.0-3.18.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
 # Date:        17-09-2026
-# Version:     3.17.1
+# Version:     3.18.0
 #
 # v3.16.0 (16-09-2026): SAVING SESSION CHIP IN THE HUB HERO, beside the VPP chip.
 #   The 3.15.0 energy-card row was not where the Axle notice lives (the hero's
@@ -1028,6 +1028,7 @@ except ImportError:
 
 import json
 import os
+import queue
 import re
 import secrets as _stdlib_secrets   # stdlib token generator (NOT IndigoSecrets)
 import shutil
@@ -1155,7 +1156,7 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION    = "3.17.1"
+PLUGIN_VERSION    = "3.18.0"
 # Pages are mirrored into Web Assets/public/dashboards/ so IWS serves them
 # WITHOUT HTTP Basic Auth. Indigo only treats the global /public/ namespace
 # as anonymous — per-plugin `public/` subfolders still require auth.
@@ -4596,6 +4597,7 @@ class Plugin(indigo.PluginBase):
         self._start_go2rtc()
         self._mirror_go2rtc_assets()
         self._start_weather_thread()
+        self._start_sigen_workers()
         self._start_stamp_thread()
         self.logger.info(self._startup_summary())
         # v3.12.0: tell any MCP server that reads provider manifests that this
@@ -4636,6 +4638,10 @@ class Plugin(indigo.PluginBase):
         self._stop_snapshot_pool()
         self._stop_mjpeg_proxy()
         self._stop_weather_thread()
+        # Workers are daemon threads blocked on a queue, so this only has to
+        # wake them; each join is capped at a second and the budget above
+        # still holds.
+        self._stop_sigen_workers()
         # Indigo logs its own "Stopped plugin" line, so this one only ever
         # doubled it up in the shared log.
         self._activity(f"{self.pluginDisplayName} stopped")
@@ -5156,6 +5162,22 @@ class Plugin(indigo.PluginBase):
     # → this handler → localhost:8179, so the LAN-only :8179 port is never
     # exposed. Single source of the flow card lives in energy.html now.
     # -----------------------------------------------------------------------
+    # How long a fetched reply counts as current. Unchanged from the v2.72.0
+    # micro-cache: three pages poll `status` within a second of each other.
+    SIGEN_FRESH_SECONDS = 2.5
+    # The ONLY time this handler is allowed to wait. A healthy
+    # SigenEnergyManager answers in about 30 ms (measured 18-09-2026), so a
+    # three-quarter-second hand-off is invisible in the normal case and caps
+    # the damage at 1/16th of the old 12 s in the bad one.
+    SIGEN_HANDOFF_WAIT  = 0.75
+    # What the WORKER allows the upstream. Still 12 s, and still for the reason
+    # given below — the difference is who waits it out.
+    SIGEN_UPSTREAM_TIMEOUT = 12
+    # Two, so one slow path cannot starve another: a 12 s `history` used to
+    # leave `status` queued behind it. More than two buys nothing — the
+    # allow-list is seven paths and duplicates coalesce before they are queued.
+    SIGEN_WORKERS = 2
+
     _SIGEN_API_BASE      = "http://127.0.0.1:8179/api"
     _SIGEN_ALLOWED_PATHS = frozenset({
         "status", "history", "daily", "export-sync", "years", "calendar",
@@ -5164,6 +5186,139 @@ class Plugin(indigo.PluginBase):
         # status payload is polled every few seconds by three pages.
         "vpp",
     })
+
+    # ── The fetcher, off the dispatch path (v3.18.0) ───────────────────────
+    # WHY THIS EXISTS. handleSigenApi used to call urlopen(timeout=12) itself,
+    # and an Indigo /message/ handler runs on the shared dispatch path — this
+    # file's own gate comment says such a call "can wedge the whole IWS event
+    # loop for ~5 min". So a SigenEnergyManager busy with its EMS Modbus burst
+    # could hold up everything the web server served, and whatever request
+    # happened to be in flight came back as a 500.
+    #
+    # Measured over September 2026 before changing anything: 130 of those 500s,
+    # and "[SigenProxy] status fetch failed: timed out" fell within ten seconds
+    # of one in 16 of its 58 occurrences — 324 times the background rate — with
+    # 16 of the 24 correlated pairs landing in the SAME two-second bucket as the
+    # timeout being logged. The upstream gives up at 12 s, the warning is
+    # written, and everything stacked behind it comes out at once.
+    #
+    # Now: the handler never touches the network. It answers from cache, or asks
+    # these workers and waits SIGEN_HANDOFF_WAIT at the very most. A slow
+    # upstream costs a page one poll, not the whole web server.
+
+    def _sigen_state(self):
+        """Lazily built so a handler can never race startup()."""
+        st = getattr(self, "_sigen_store", None)
+        if st is None:
+            st = self._sigen_store = {
+                "cache":   {},        # url -> (fetched_at, raw)
+                "fail":    {},        # url -> (at, detail, is_404)
+                "waiters": {},        # url -> Event, present only while queued
+                "lock":    threading.Lock(),
+                "queue":   queue.Queue(),
+                "stop":    threading.Event(),
+                "threads": [],
+            }
+        return st
+
+    def _start_sigen_workers(self):
+        st = self._sigen_state()
+        for i in range(self.SIGEN_WORKERS):
+            t = threading.Thread(target=self._sigen_worker_main, args=(st,),
+                                 name=f"dashboards-sigen-{i}", daemon=True)
+            st["threads"].append(t)
+            t.start()
+
+    def _stop_sigen_workers(self):
+        st = getattr(self, "_sigen_store", None)
+        if not st:
+            return
+        st["stop"].set()
+        for _ in st["threads"]:
+            st["queue"].put(None)          # a worker parked in get() needs waking
+        for t in st["threads"]:
+            t.join(timeout=1.0)
+        st["threads"] = []
+
+    def _sigen_worker_main(self, st):
+        while True:
+            url = st["queue"].get()
+            if url is None or st["stop"].is_set():
+                return
+            try:
+                self._sigen_fetch(st, url)
+            except Exception as exc:      # never let one bad fetch end a worker
+                with st["lock"]:
+                    st["fail"][url] = (time.time(), str(exc), False)
+            finally:
+                with st["lock"]:
+                    ev = st["waiters"].pop(url, None)
+                if ev is not None:
+                    ev.set()
+
+    def _sigen_fetch(self, st, url):
+        """The blocking bit, on a worker thread where blocking is harmless."""
+        import urllib.request
+        req = urllib.request.Request(
+            url, headers={"User-Agent": f"Dashboards/{PLUGIN_VERSION}"})
+        try:
+            # 12 s, not 8 s: SigenEnergyManager serves /api/status from the same
+            # process that runs its periodic EMS-control cycle, which pushes a
+            # burst of serial modbus writes (set EMS mode + discharge/charge
+            # limits, ~8-10 s in total). At 8 s the status fetch occasionally
+            # timed out mid-cycle. (Diagnosed 18-Jul-2026 — the timeouts
+            # correlated to the second with SEM's "Setting ESS max
+            # discharge/charge limit".)
+            with urllib.request.urlopen(
+                    req, timeout=self.SIGEN_UPSTREAM_TIMEOUT) as resp:
+                raw = resp.read().decode("utf-8")
+        except Exception as exc:
+            # A 404 from upstream is not a fault — it means this
+            # SigenEnergyManager is older than the path being asked for, which
+            # is the ordinary state of affairs between the two plugins being
+            # upgraded. The page already degrades by hiding the card, so
+            # warning about it once every poll would put an amber line in the
+            # log for a system working exactly as designed.
+            not_found = getattr(exc, "code", None) == 404
+            msg = f"[SigenProxy] {url.rsplit('/', 1)[-1]} fetch failed: {exc}"
+            if not_found:
+                self.logger.debug(msg + " — upstream plugin has no such path (optional)")
+            else:
+                self.logger.warning(msg)
+            with st["lock"]:
+                st["fail"][url] = (time.time(), str(exc), not_found)
+            return
+        with st["lock"]:
+            # Cap the cache so a burst of distinct history queries cannot grow
+            # it without bound.
+            if len(st["cache"]) > 32:
+                st["cache"].clear()
+            st["cache"][url] = (time.time(), raw)
+            st["fail"].pop(url, None)
+
+    def _sigen_ask(self, st, url):
+        """Queue a fetch and return the Event to wait on.
+
+        Callers asking for the same url share one Event and produce one
+        upstream fetch — three pages polling `status` within a second of each
+        other cost one round trip, not three.
+        """
+        with st["lock"]:
+            ev = st["waiters"].get(url)
+            if ev is None:
+                ev = st["waiters"][url] = threading.Event()
+                st["queue"].put(url)
+            return ev
+
+    def _sigen_reply_from_cache(self, raw):
+        return {
+            "status":  200,
+            "headers": {
+                "Content-Type":  "application/json; charset=utf-8",
+                "Cache-Control": "no-store",
+            },
+            "content": raw,
+        }
 
     def handleSigenApi(self, action, dev=None, callerWaitingForResult=True):
         """POST /message/com.clives.indigoplugin.dashboards/sigenApi/
@@ -5182,8 +5337,7 @@ class Plugin(indigo.PluginBase):
             # without it used to WARN on every hub poll, thirty seconds apart.
             return self._evo_reply({"error": "SigenEnergyManager is not installed",
                                     "reason": "sem_absent"}, status=503)
-        import urllib.request
-        import urllib.parse
+        import urllib.parse      # urlencode only — the fetching lives on a worker
         body = action.props.get("request_body") or ""
         try:
             payload = json.loads(body) if body else {}
@@ -5207,64 +5361,38 @@ class Plugin(indigo.PluginBase):
         if qs:
             url += "?" + urllib.parse.urlencode(qs)
 
-        # Micro-cache (v2.72.0): the dispatch thread is SINGLE — while one
-        # 12 s upstream fetch runs, every queued duplicate (the hub, energy
-        # and cost pages all poll `status`) used to wait its turn and then
-        # spend ANOTHER 12 s asking the identical question. A 2.5 s TTL on
-        # successful replies answers the queue from the first result.
-        cache = getattr(self, "_sigen_reply_cache", None)
-        if cache is None:
-            cache = self._sigen_reply_cache = {}
-        hit = cache.get(url)
-        if hit and time.time() - hit[0] < 2.5:
-            return {"status": 200,
-                    "headers": {"Content-Type": "application/json; charset=utf-8",
-                                "Cache-Control": "no-store"},
-                    "content": hit[1]}
+        # The handler does no network I/O at all (v3.18.0). It answers from
+        # cache, or asks a worker and waits SIGEN_HANDOFF_WAIT at the very
+        # most — see the block above _sigen_state for what this replaced and
+        # why. Nothing here can hold the dispatch path for twelve seconds.
+        st  = self._sigen_state()
+        now = time.time()
+        with st["lock"]:
+            hit = st["cache"].get(url)
+        if hit and now - hit[0] < self.SIGEN_FRESH_SECONDS:
+            return self._sigen_reply_from_cache(hit[1])
 
-        try:
-            req = urllib.request.Request(
-                url, headers={"User-Agent": f"Dashboards/{PLUGIN_VERSION}"})
-            # 12s, not 8s: SigenEnergyManager serves /api/status from the same
-            # process that runs its periodic EMS-control cycle, which pushes a
-            # burst of serial modbus writes (set EMS mode + discharge/charge
-            # limits, ~8-10s in total). At 8s the status fetch occasionally
-            # times out mid-cycle and the energy tile drops to a 502; 12s rides
-            # the burst out. (Diagnosed 18-Jul-2026 — the timeouts correlated to
-            # the second with SEM's "Setting ESS max discharge/charge limit".)
-            with urllib.request.urlopen(req, timeout=12) as resp:
-                raw = resp.read().decode("utf-8")
-        except Exception as exc:
-            # A 404 from upstream is not a fault — it means this SigenEnergyManager
-            # is older than the path being asked for, which is the ordinary state
-            # of affairs between the two plugins being upgraded. The page already
-            # degrades by hiding the card, so warning about it once every poll
-            # would put an amber line in the log for a system working exactly as
-            # designed. Everything else is a genuine failure and still warns.
-            not_found = getattr(exc, "code", None) == 404
-            msg = f"[SigenProxy] {path} fetch failed: {exc}"
-            if not_found:
-                self.logger.debug(msg + " — upstream plugin has no such path (optional)")
-            else:
-                self.logger.warning(msg)
+        self._sigen_ask(st, url).wait(self.SIGEN_HANDOFF_WAIT)
+
+        with st["lock"]:
+            hit  = st["cache"].get(url)
+            fail = st["fail"].get(url)
+        if hit and time.time() - hit[0] < self.SIGEN_FRESH_SECONDS:
+            return self._sigen_reply_from_cache(hit[1])
+
+        # Deliberately NOT serving the stale copy as though it were current. A
+        # figure about now has to come from now, and every page already handles
+        # a bad reply by keeping the render it has — so the tile holds its last
+        # value and its "Updated" clock stops, which is the truth. Serving
+        # yesterday's SOC silently would not be.
+        if fail:
             return self._evo_reply(
-                {"error": "Sigenergy data API unavailable", "detail": str(exc)},
+                {"error": "Sigenergy data API unavailable", "detail": fail[1]},
                 status=502)
-
-        # Pass the upstream JSON text straight through (and remember it
-        # briefly — see the micro-cache above). Cap the cache so a burst of
-        # distinct history queries cannot grow it without bound.
-        if len(cache) > 32:
-            cache.clear()
-        cache[url] = (time.time(), raw)
-        return {
-            "status":  200,
-            "headers": {
-                "Content-Type":  "application/json; charset=utf-8",
-                "Cache-Control": "no-store",
-            },
-            "content": raw,
-        }
+        return self._evo_reply(
+            {"error": "Sigenergy data is still being fetched",
+             "reason": "sigen_pending"},
+            status=503)
 
     # -----------------------------------------------------------------------
     # System-health endpoint — Mac vitals + storage + device-health census.

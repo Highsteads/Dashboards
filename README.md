@@ -22,7 +22,7 @@ nothing leaving the house.
 
 ---
 
-**Version:** 3.17.1
+**Version:** 3.18.0
 
 **Documentation:** **[highsteads.github.io/Dashboards](https://highsteads.github.io/Dashboards/)** —
 getting started, configuration, a page of notes for every one of the 27 pages, cameras, remote
@@ -67,6 +67,8 @@ with a gentle state simulator, touching no live devices.
 
 The three most recent releases, word for word. Every release before these is in
 **[the version history](docs/changelog.md)**, which the documentation site also carries.
+
+**3.18.0** (18-Sep-2026) - **The Sigenergy data proxy no longer blocks the web server.** When SigenEnergyManager was slow to answer - which it is for eight to ten seconds whenever it pushes a burst of battery commands - the dashboard page that asked it held up everything Indigo was serving, and whatever request happened to be in flight came back as an error. That was 130 web server errors in September, and the file they named was innocent every time: the dashboards ask for a small liveness file every two seconds, so it was simply the request most likely to be caught. The fetching now happens on background workers. A page gets an answer straight away if one is current, and otherwise waits three-quarters of a second at the outside before going without - it keeps the figures it already has and its clock stops, rather than showing an old reading as a new one. Three pages asking the same question at the same moment still cost one round trip, and a slow history query no longer makes the live figures wait behind it.
 
 **3.17.1** (18-Sep-2026) - **The alerts card now says why a quiet row is quiet.** A row it is not raising with you carries a word saying which of the three reasons applies: muted, because you told it to; answered, because whatever logged the error logged the matching success moments later; or explained, because another line accounts for it, and the card names that reason beside it. This matters from today, because Log_Error_Watch has stopped muting every internal server error the web server raises and now excuses only the ones a plugin restart caused. Without this change those rows would have turned bright red on the card with nothing to say for themselves.
 
