@@ -18,9 +18,9 @@
 #              again handling Digest auth server-side. The page uses MJPEG
 #              for the live grid and falls back to the still snapshot if a
 #              stream connection fails.
-# Author:      CliveS & Claude Opus 5 (3.17.0-3.19.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
+# Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
 # Date:        17-09-2026
-# Version:     3.19.0
+# Version:     3.20.0
 #
 # v3.16.0 (16-09-2026): SAVING SESSION CHIP IN THE HUB HERO, beside the VPP chip.
 #   The 3.15.0 energy-card row was not where the Axle notice lives (the hero's
@@ -1156,7 +1156,7 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION    = "3.19.0"
+PLUGIN_VERSION    = "3.20.0"
 # Pages are mirrored into Web Assets/public/dashboards/ so IWS serves them
 # WITHOUT HTTP Basic Auth. Indigo only treats the global /public/ namespace
 # as anonymous — per-plugin `public/` subfolders still require auth.
@@ -5227,6 +5227,12 @@ class Plugin(indigo.PluginBase):
     TIMELINE_WAIT      = 0.15
     SYSTEM_HEALTH_WAIT = 0.15
 
+    # A chart is a picture of a window that keeps moving, so half a minute of
+    # age is invisible on every range the page offers — and on the 720 h chip
+    # it turns a six-second wait into one, once.
+    HISTORY_TTL        = 30
+    HISTORY_WAIT       = 0.15
+
     def _offpath(self):
         """Lazily built, so a handler can never race startup()."""
         st = getattr(self, "_offpath_store", None)
@@ -7052,13 +7058,77 @@ class Plugin(indigo.PluginBase):
             params = json.loads(body) if body else {}
         except Exception as exc:
             return self._evo_reply({"ok": False, "error": f"bad JSON: {exc}"}, status=400)
+        # Off the dispatch path (v3.20.0). Measured 18-09-2026 with the
+        # parameters the Graphs page actually sends — action=series,
+        # maxPoints=240, the 720 h chip, against the biggest history table
+        # (4.0 M rows): 5.2-6.1 SECONDS on every call, uncached. Three and a
+        # half times what timelineDay cost before 3.19.0, and one click reaches
+        # it. The SQL is not at fault: it is PK-bounded through _pk_window and
+        # buckets server-side, so SQLite returns 240 rows and not a million.
+        # The time is SQLite scanning ~1.3 M rows in that id range with no
+        # index to help, which is inherent — so the fix is where it runs.
+        #
+        # NB the guest passthrough at /guest/history keeps calling
+        # _history_query directly, on purpose: it is served by the MJPEG
+        # proxy's own HTTP server on :8177, its own threads, so blocking there
+        # costs that one guest request and nothing else.
         try:
-            return self._evo_reply(self._history_query(params))
+            dev_id = int(params.get("deviceId") or 0)
+        except (ValueError, TypeError):
+            dev_id = 0
+        if dev_id <= 0:
+            # Checked HERE because it is free, so a malformed request is a 400
+            # the page reports rather than something a worker discovers.
+            return self._evo_reply({"ok": False, "error": "deviceId required"},
+                                   status=400)
+
+        key = self._history_key(params)
+        state, payload = self._offpath_get(key, lambda: self._history_producer(params),
+                                           self.HISTORY_TTL, wait=self.HISTORY_WAIT)
+        if state == "fresh":
+            # The producer separates the two failure kinds EXPLICITLY rather
+            # than leaving the handler to guess one from the text of an
+            # exception — which is exactly how timelineDay's bad-date path came
+            # to answer 500 while its test passed.
+            if payload.get("client_error"):
+                return self._evo_reply({"ok": False, "error": payload["client_error"]},
+                                       status=400)
+            return self._evo_reply(payload["result"])
+        if state == "failed":
+            self.logger.error(f"[History] query failed: {payload}")
+            return self._evo_reply({"ok": False, "error": payload}, status=500)
+        return self._evo_reply(
+            {"ok": False, "pending": True,
+             "error": "the chart is still being built — try again shortly"},
+            status=503)
+
+    @staticmethod
+    def _history_key(params):
+        """Cache key for one question. Every parameter that changes the answer
+        is in it, normalised, so two pages asking the same thing share a build
+        and two different questions never collide."""
+        def _i(name, default):
+            try:
+                return int(params.get(name) or default)
+            except (TypeError, ValueError):
+                return default
+        return "history:{}:{}:{}:{}:{}".format(
+            str(params.get("action") or "series").strip().lower(),
+            _i("deviceId", 0),
+            str(params.get("state") or "").strip(),
+            _i("hours", 24),
+            _i("maxPoints", 240))
+
+    def _history_producer(self, params):
+        """Run the query on a worker. A ValueError from _history_query means
+        the CALLER asked for something impossible — an unknown device or state,
+        or a history database that is not there — and must come back as a 400,
+        so it is returned as data. Anything else propagates, the pool records a
+        failure, and the handler answers 500."""
+        try:
+            return {"result": self._history_query(params)}
         except ValueError as exc:
-            return self._evo_reply({"ok": False, "error": str(exc)}, status=400)
-        except Exception as exc:
-            self.logger.error(f"[History] query failed: {exc}")
-            return self._evo_reply({"ok": False, "error": str(exc)}, status=500)
+            return {"client_error": str(exc)}
 
     # --------------------------------------------------------
     # Timeline replay (v2.40.0) — assemble one local day of the house's

@@ -29,13 +29,18 @@
 # Date:        18-09-2026 + UK time now
 # Version:     2.0
 
+import io
 import json
+import os
 import threading
 import time
 
 import pytest
 
 from conftest import bare_plugin
+
+SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..",
+                   "Dashboards.indigoPlugin", "Contents", "Server Plugin", "plugin.py")
 
 
 class FakeAction:
@@ -329,3 +334,94 @@ def test_the_shorter_cap_is_the_one_actually_applied(plug, monkeypatch, handler,
     assert reply["status"] == 503
     assert elapsed < cap + 0.35, (
         f"held the path {elapsed:.2f}s against a {cap}s cap")
+
+# ── historyQuery (v3.20.0) ─────────────────────────────────────────────────
+# Measured before the move, with the parameters the Graphs page actually sends
+# (action=series, maxPoints=240, the 720 h chip, biggest table at 4.0 M rows):
+# 5.2-6.1 SECONDS on every call, uncached. The worst wedge in the plugin, and
+# one click reached it.
+
+def history(p, **kw):
+    params = {"action": "series", "deviceId": 933771328, "state": "voltage",
+              "hours": 720, "maxPoints": 240}
+    params.update(kw)
+    return p.handleHistoryQuery(FakeAction(json.dumps(params)))
+
+
+def test_a_slow_history_query_does_not_hold_the_handler(plug, monkeypatch):
+    monkeypatch.setattr(plug, "_history_query", lambda params: time.sleep(8))
+    t0 = time.time()
+    reply = history(plug)
+    elapsed = time.time() - t0
+    assert elapsed < plug.HISTORY_WAIT + 0.35, (
+        f"held the path {elapsed:.2f}s — the 720 h chip used to cost six seconds")
+    assert reply["status"] == 503
+    assert body(reply)["pending"] is True
+
+
+def test_a_history_result_comes_back_and_is_then_cached(plug, monkeypatch):
+    runs = []
+    monkeypatch.setattr(plug, "_history_query",
+                        lambda params: runs.append(1) or {"ok": True, "points": [1, 2]})
+    assert body(history(plug))["points"] == [1, 2]
+    history(plug)
+    assert len(runs) == 1, "the second identical question must come from cache"
+
+
+def test_every_parameter_that_changes_the_answer_is_in_the_key(plug):
+    base = {"action": "series", "deviceId": 1, "state": "voltage",
+            "hours": 24, "maxPoints": 240}
+    seen = {plug._history_key(base)}
+    for field, other in (("action", "states"), ("deviceId", 2), ("state", "current"),
+                         ("hours", 720), ("maxPoints", 1000)):
+        v = dict(base); v[field] = other
+        k = plug._history_key(v)
+        assert k not in seen, f"changing {field} did not change the cache key"
+        seen.add(k)
+
+
+def test_the_key_normalises_so_the_same_question_shares_one_build(plug):
+    a = plug._history_key({"action": "Series", "deviceId": "7", "state": " voltage ",
+                           "hours": "24", "maxPoints": "240"})
+    b = plug._history_key({"action": "series", "deviceId": 7, "state": "voltage",
+                           "hours": 24, "maxPoints": 240})
+    assert a == b
+
+
+def test_a_missing_device_is_a_400_and_never_reaches_the_pool(plug, monkeypatch):
+    ran = []
+    monkeypatch.setattr(plug, "_history_query", lambda p: ran.append(1) or {})
+    for bad in ({"deviceId": 0}, {"deviceId": "nonsense"}, {"deviceId": -3}):
+        reply = history(plug, **bad)
+        assert reply["status"] == 400, f"{bad} answered {reply['status']}"
+    assert ran == [], "a request with no device must never reach a worker"
+
+
+def test_a_caller_error_from_the_query_is_a_400_not_a_500(plug, monkeypatch):
+    """_history_query raises ValueError when the CALLER asked for something
+    impossible — an unknown state, a device with no history. The producer
+    returns that as data, so the handler never has to guess it from the text
+    of an exception, which is how timelineDay's bad-date path once answered
+    500 while its test passed."""
+    def unknown(params):
+        raise ValueError("no history recorded for device 933771328")
+    monkeypatch.setattr(plug, "_history_query", unknown)
+    reply = history(plug)
+    assert reply["status"] == 400
+    assert "no history recorded" in body(reply)["error"]
+    assert not body(reply).get("pending")
+
+
+def test_a_real_failure_is_a_500(plug, monkeypatch):
+    def boom(params):
+        raise RuntimeError("database is locked")
+    monkeypatch.setattr(plug, "_history_query", boom)
+    assert history(plug)["status"] == 500
+
+
+def test_the_guest_path_still_calls_the_query_directly(plug):
+    """Deliberate: /guest/history is served by the MJPEG proxy's own HTTP
+    server on its own threads, so blocking there costs that one request and
+    not the web server. Routing it through the pool would be churn."""
+    src = io.open(SRC, encoding="utf-8").read()
+    assert "plugin_self._history_query(flat)" in src

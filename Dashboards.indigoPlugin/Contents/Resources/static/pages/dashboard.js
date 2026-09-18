@@ -38,6 +38,12 @@ const _INDIGO_STORE = {
 };
 const _FULL_REFRESH_MS = 300000;   // safety full resync every 5 min
 const _FETCH_TIMEOUT_MS = 10000;   // per-request cap — a hung socket must not hold a slot for the OS's minutes-long default
+// How long to keep asking a handler that says its answer is still being
+// built, and how often. The 30-day chart takes about six seconds to
+// build the first time (measured 18-09-2026), so the ceiling has to
+// clear that comfortably or the page gives up before the data lands.
+const _PENDING_POLL_MS    = 400;
+const _PENDING_TIMEOUT_MS = 30000;
 const _DELTA_PATH = "/message/com.clives.indigoplugin.dashboards/changedSince/";
 
 class IndigoAPI {
@@ -67,7 +73,13 @@ class IndigoAPI {
     static clearConfig() { localStorage.removeItem("indigo_config"); }
     onError(fn) { this._errH.push(fn); }
     onAuthFailure(fn) { this._authH.push(fn); }
-    async _fetch(path, opts = {}) {
+    async _fetch(path, opts = {}, pendingUntil = 0) {
+        // A handler that moved its slow work onto a worker (plugin 3.18.0
+        // onwards) answers 503 + {"pending": true} while that work runs, so
+        // the FIRST ask for a cold chart lands on pending. Retrying here
+        // rather than in each caller means every /message/ call this class
+        // makes gets the behaviour, including ones added later.
+        if (!pendingUntil) pendingUntil = Date.now() + _PENDING_TIMEOUT_MS;
         // The liveness gate, ONCE, for every /message/ call made through this
         // class (v2.95.3). Graphs (historyQuery) went ungated because only
         // getDevices consulted DashGate; a /message/ request landing on a
@@ -90,6 +102,15 @@ class IndigoAPI {
             if (r.status === 401 || r.status === 403) {
                 const err = new IndigoAPIError("Auth failed", r.status);
                 this._authH.forEach(h => h(err)); throw err;
+            }
+            if (r.status === 503) {
+                let pb = null;
+                try { pb = await r.clone().json(); } catch (e) { pb = null; }
+                if (pb && pb.pending && Date.now() < pendingUntil) {
+                    clearTimeout(timer);
+                    await new Promise(res => setTimeout(res, _PENDING_POLL_MS));
+                    return this._fetch(path, opts, pendingUntil);
+                }
             }
             if (!r.ok) {
                 const err = new IndigoAPIError("HTTP " + r.status, r.status);
