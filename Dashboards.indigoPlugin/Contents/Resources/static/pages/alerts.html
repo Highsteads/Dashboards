@@ -409,15 +409,28 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
             + (feed.generatedLocal ? " · checked " + shortTime(feed.generatedLocal) : "");
 
         body.innerHTML = rows.map(r => {
-            const colour = r.muted ? "var(--text-secondary)"
+            // Three ways a row is not news, and the card has to say which.
+            // Muted is the user's own instruction. Answered means the source
+            // logged the matching success moments later. Explained means
+            // another source's line accounts for it, and the reason says how —
+            // a 500 raised while the server was restarting a plugin, say.
+            // All three are already out of the headline counts the watch
+            // computes; painting them red as well would put back the noise
+            // those rules exist to remove.
+            const settled = r.muted || r.recovered || r.explained;
+            const colour = settled ? "var(--text-secondary)"
                 : (r.level === "error" ? "var(--red)" : "#ff9500");
             const count = r.count > 1 ? ` <span class="pill">x${esc(r.count)}</span>` : "";
-            const muted = r.muted ? ' <span class="pill">muted</span>' : "";
+            const label = r.muted ? "muted"
+                : r.recovered ? "answered"
+                : r.explained ? "explained" : "";
+            const pill = label ? ` <span class="pill">${esc(label)}</span>` : "";
+            const why  = (r.explained && r.reason) ? ` · ${esc(r.reason)}` : "";
             return `<div style="display:flex;gap:9px;padding:7px 0;border-top:1px solid var(--border);">
                 <span aria-hidden="true" style="color:${colour};line-height:1.35;">●</span>
                 <div style="min-width:0;flex:1;">
                     <div style="font-size:14px;word-break:break-word;">${esc(r.message)}</div>
-                    <div class="hint" style="margin-top:2px;">${esc(r.source)}${count}${muted}
+                    <div class="hint" style="margin-top:2px;">${esc(r.source)}${count}${pill}${why}
                         · last ${esc(shortTime(r.last))}</div>
                 </div></div>`;
         }).join("");

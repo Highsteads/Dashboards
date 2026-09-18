@@ -22,7 +22,7 @@ nothing leaving the house.
 
 ---
 
-**Version:** 3.17.0
+**Version:** 3.17.1
 
 **Documentation:** **[highsteads.github.io/Dashboards](https://highsteads.github.io/Dashboards/)** —
 getting started, configuration, a page of notes for every one of the 27 pages, cameras, remote
@@ -67,6 +67,8 @@ with a gentle state simulator, touching no live devices.
 
 The three most recent releases, word for word. Every release before these is in
 **[the version history](docs/changelog.md)**, which the documentation site also carries.
+
+**3.17.1** (18-Sep-2026) - **The alerts card now says why a quiet row is quiet.** A row it is not raising with you carries a word saying which of the three reasons applies: muted, because you told it to; answered, because whatever logged the error logged the matching success moments later; or explained, because another line accounts for it, and the card names that reason beside it. This matters from today, because Log_Error_Watch has stopped muting every internal server error the web server raises and now excuses only the ones a plugin restart caused. Without this change those rows would have turned bright red on the card with nothing to say for themselves.
 
 **3.17.0** (17-Sep-2026) - **The Rates tiles on the Cost page now show every price on a time-of-use tariff, with the hours each one applies.** On Octopus Flux that is three import prices and three export prices: the cheap one from 2am to 5am, the peak from 4pm to 7pm, and the day price for the rest, which runs from 5am to 4pm and again from 7pm to 2am and is shown as those two stretches rather than split at midnight. The price in force now is marked, and each tile names the tariff from your Octopus account. A daily tariff such as Tracker, or a flat export rate, keeps the single figure it had before, and so does an older SigenEnergyManager that does not send the prices. The Energy page's tariff card says when the price next changes instead of offering a tomorrow's price that Flux does not have, and calls the export figure the rate now rather than flat. Needs SigenEnergyManager 5.110.0 or newer for the price lists.
 
