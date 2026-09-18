@@ -205,9 +205,13 @@ async function healthFetch() {
     if (window.DashGate && await window.DashGate.check() === "down")
         throw new Error("Dashboards plugin restarting");
     const key = (window.INDIGO_CONFIG || {}).apiKey || "";
-    return fetch(HEALTH_EP, { method: "POST",
+    // Gathered on a worker now (plugin 3.19.0): the Mac vitals shell out and
+    // the storage breakdown walks the disk, which took 262 ms on the thread
+    // that serves every other page. A cold ask answers 503 + pending.
+    const once = () => fetch(HEALTH_EP, { method: "POST",
         headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
         body: "{}" });
+    return (window.DashUI && DashUI.whenReady) ? DashUI.whenReady(once) : once();
 }
 
 function esc(t) { const d = document.createElement("div"); d.textContent = String(t == null ? "" : t); return d.innerHTML; }

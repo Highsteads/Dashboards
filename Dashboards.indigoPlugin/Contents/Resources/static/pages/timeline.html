@@ -146,9 +146,19 @@ async function fetchDay(date) {
     throw new Error("the Dashboards plugin is restarting — try again in a moment");
   }
   const key = (window.INDIGO_CONFIG || {}).apiKey || "";
-  const r = await fetch(EP, { method:"POST",
+  // The server builds a day on a worker now (plugin 3.19.0) — it used to take
+  // 1.7 s inline, stalling every other dashboard in the house for all of it.
+  // So the first ask for a day answers 503 + pending; wait for it rather than
+  // reporting an error the user cannot act on.
+  const once = () => fetch(EP, { method:"POST",
     headers:{ "Authorization":"Bearer "+key, "Content-Type":"application/json" },
     body: JSON.stringify({ date }) });
+  const r = window.DashUI && DashUI.whenReady
+    ? await DashUI.whenReady(once, { onWait: () => {
+        const b = document.getElementById("tl-body");
+        if (b) b.innerHTML = '<p class="muted">Building this day…</p>';
+      } })
+    : await once();
   if (!r.ok) throw new Error("HTTP " + r.status);
   return r.json();
 }

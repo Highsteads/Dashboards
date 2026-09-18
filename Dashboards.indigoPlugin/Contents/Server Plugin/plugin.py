@@ -18,9 +18,9 @@
 #              again handling Digest auth server-side. The page uses MJPEG
 #              for the live grid and falls back to the still snapshot if a
 #              stream connection fails.
-# Author:      CliveS & Claude Opus 5 (3.17.0-3.18.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
+# Author:      CliveS & Claude Opus 5 (3.17.0-3.19.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
 # Date:        17-09-2026
-# Version:     3.18.0
+# Version:     3.19.0
 #
 # v3.16.0 (16-09-2026): SAVING SESSION CHIP IN THE HUB HERO, beside the VPP chip.
 #   The 3.15.0 energy-card row was not where the Axle notice lives (the hero's
@@ -1156,7 +1156,7 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION    = "3.18.0"
+PLUGIN_VERSION    = "3.19.0"
 # Pages are mirrored into Web Assets/public/dashboards/ so IWS serves them
 # WITHOUT HTTP Basic Auth. Indigo only treats the global /public/ namespace
 # as anonymous — per-plugin `public/` subfolders still require auth.
@@ -4597,7 +4597,7 @@ class Plugin(indigo.PluginBase):
         self._start_go2rtc()
         self._mirror_go2rtc_assets()
         self._start_weather_thread()
-        self._start_sigen_workers()
+        self._start_offpath_workers()
         self._start_stamp_thread()
         self.logger.info(self._startup_summary())
         # v3.12.0: tell any MCP server that reads provider manifests that this
@@ -4641,7 +4641,7 @@ class Plugin(indigo.PluginBase):
         # Workers are daemon threads blocked on a queue, so this only has to
         # wake them; each join is capped at a second and the budget above
         # still holds.
-        self._stop_sigen_workers()
+        self._stop_offpath_workers()
         # Indigo logs its own "Stopped plugin" line, so this one only ever
         # doubled it up in the shared log.
         self._activity(f"{self.pluginDisplayName} stopped")
@@ -5165,18 +5165,10 @@ class Plugin(indigo.PluginBase):
     # How long a fetched reply counts as current. Unchanged from the v2.72.0
     # micro-cache: three pages poll `status` within a second of each other.
     SIGEN_FRESH_SECONDS = 2.5
-    # The ONLY time this handler is allowed to wait. A healthy
-    # SigenEnergyManager answers in about 30 ms (measured 18-09-2026), so a
-    # three-quarter-second hand-off is invisible in the normal case and caps
-    # the damage at 1/16th of the old 12 s in the bad one.
-    SIGEN_HANDOFF_WAIT  = 0.75
     # What the WORKER allows the upstream. Still 12 s, and still for the reason
-    # given below — the difference is who waits it out.
+    # given in _sigen_fetch — the difference is who waits it out. The handler's
+    # own cap is OFFPATH_WAIT.
     SIGEN_UPSTREAM_TIMEOUT = 12
-    # Two, so one slow path cannot starve another: a 12 s `history` used to
-    # leave `status` queued behind it. More than two buys nothing — the
-    # allow-list is seven paths and duplicates coalesce before they are queued.
-    SIGEN_WORKERS = 2
 
     _SIGEN_API_BASE      = "http://127.0.0.1:8179/api"
     _SIGEN_ALLOWED_PATHS = frozenset({
@@ -5187,33 +5179,62 @@ class Plugin(indigo.PluginBase):
         "vpp",
     })
 
-    # ── The fetcher, off the dispatch path (v3.18.0) ───────────────────────
-    # WHY THIS EXISTS. handleSigenApi used to call urlopen(timeout=12) itself,
-    # and an Indigo /message/ handler runs on the shared dispatch path — this
-    # file's own gate comment says such a call "can wedge the whole IWS event
-    # loop for ~5 min". So a SigenEnergyManager busy with its EMS Modbus burst
-    # could hold up everything the web server served, and whatever request
-    # happened to be in flight came back as a 500.
+    # ── Slow work, off the dispatch path (v3.18.0, generalised v3.19.0) ────
+    # WHY THIS EXISTS. An Indigo /message/ handler runs on the shared dispatch
+    # path — this file's own gate comment says such a call "can wedge the whole
+    # IWS event loop for ~5 min" — so anything slow done inline is an outage of
+    # the web server, not a slow tile, and whatever request happens to be in
+    # flight comes back as a 500.
     #
-    # Measured over September 2026 before changing anything: 130 of those 500s,
-    # and "[SigenProxy] status fetch failed: timed out" fell within ten seconds
-    # of one in 16 of its 58 occurrences — 324 times the background rate — with
-    # 16 of the 24 correlated pairs landing in the SAME two-second bucket as the
-    # timeout being logged. The upstream gives up at 12 s, the warning is
-    # written, and everything stacked behind it comes out at once.
+    # Measured over September 2026: 130 of those 500s. "[SigenProxy] status
+    # fetch failed: timed out" fell within ten seconds of one in 16 of its 58
+    # occurrences — 324 times the background rate — with 16 of the 24 correlated
+    # pairs landing in the SAME two-second bucket as the timeout being logged.
+    # Then an audit of all 32 browser-reachable endpoints, TIMED rather than
+    # eyeballed, found two more: timelineDay at 1707 ms and systemHealth at
+    # 262 ms, worst of three calls each.
     #
-    # Now: the handler never touches the network. It answers from cache, or asks
-    # these workers and waits SIGEN_HANDOFF_WAIT at the very most. A slow
-    # upstream costs a page one poll, not the whole web server.
+    # v3.18.0 fixed the Sigen proxy with its own worker pool. v3.19.0 makes that
+    # ONE pool any handler can use, because three copies of this machinery would
+    # have rotted apart. A handler asks for a key; it gets a cached answer, or it
+    # waits OFFPATH_WAIT at the very most and is told the work is pending.
 
-    def _sigen_state(self):
-        """Lazily built so a handler can never race startup()."""
-        st = getattr(self, "_sigen_store", None)
+    OFFPATH_WORKERS = 3
+    # The ONLY time a handler is allowed to wait. Long enough that a healthy
+    # producer lands inside it (SigenEnergyManager answers in ~30 ms), short
+    # enough that a sick one costs a page one poll instead of the house.
+    OFFPATH_WAIT    = 0.75
+    OFFPATH_CACHE_MAX = 64
+
+    # A finished day cannot change, so it is held for the session; today's
+    # is still being written to, so it is rebuilt every minute.
+    TIMELINE_TODAY_TTL = 60
+    TIMELINE_PAST_TTL  = 86400
+    # Disk, RAM and the device census move slowly; half a minute is live
+    # enough for a page somebody opens to look at them.
+    SYSTEM_HEALTH_TTL  = 30
+
+    # These two pages wait properly — they use DashUI.whenReady, which polls a
+    # pending reply and shows "Building this day…" — so their handlers need not
+    # hold the dispatch path at all while a first build runs. Measured after
+    # the move: with the default 0.75 s cap, timelineDay's worst call was
+    # 779 ms, which is the CAP rather than the work, and still nearly a second
+    # of everything else waiting. A page that can wait should be told to.
+    #
+    # The default stays 0.75 s for sigenApi, whose callers (hub, energy, cost)
+    # do NOT poll on pending — they keep their last render — so a longer look
+    # before giving up is worth more to them than a shorter one.
+    TIMELINE_WAIT      = 0.15
+    SYSTEM_HEALTH_WAIT = 0.15
+
+    def _offpath(self):
+        """Lazily built, so a handler can never race startup()."""
+        st = getattr(self, "_offpath_store", None)
         if st is None:
-            st = self._sigen_store = {
-                "cache":   {},        # url -> (fetched_at, raw)
-                "fail":    {},        # url -> (at, detail, is_404)
-                "waiters": {},        # url -> Event, present only while queued
+            st = self._offpath_store = {
+                "cache":   {},        # key -> (produced_at, payload)
+                "fail":    {},        # key -> (at, detail)
+                "waiters": {},        # key -> Event, present only while queued
                 "lock":    threading.Lock(),
                 "queue":   queue.Queue(),
                 "stop":    threading.Event(),
@@ -5221,43 +5242,87 @@ class Plugin(indigo.PluginBase):
             }
         return st
 
-    def _start_sigen_workers(self):
-        st = self._sigen_state()
-        for i in range(self.SIGEN_WORKERS):
-            t = threading.Thread(target=self._sigen_worker_main, args=(st,),
-                                 name=f"dashboards-sigen-{i}", daemon=True)
+    def _start_offpath_workers(self):
+        st = self._offpath()
+        for i in range(self.OFFPATH_WORKERS):
+            t = threading.Thread(target=self._offpath_worker_main, args=(st,),
+                                 name=f"dashboards-offpath-{i}", daemon=True)
             st["threads"].append(t)
             t.start()
 
-    def _stop_sigen_workers(self):
-        st = getattr(self, "_sigen_store", None)
+    def _stop_offpath_workers(self):
+        st = getattr(self, "_offpath_store", None)
         if not st:
             return
         st["stop"].set()
         for _ in st["threads"]:
-            st["queue"].put(None)          # a worker parked in get() needs waking
+            st["queue"].put(None)      # a worker parked in get() needs waking
         for t in st["threads"]:
             t.join(timeout=1.0)
         st["threads"] = []
 
-    def _sigen_worker_main(self, st):
+    def _offpath_worker_main(self, st):
         while True:
-            url = st["queue"].get()
-            if url is None or st["stop"].is_set():
+            job = st["queue"].get()
+            if job is None or st["stop"].is_set():
                 return
+            key, producer = job
             try:
-                self._sigen_fetch(st, url)
-            except Exception as exc:      # never let one bad fetch end a worker
+                payload = producer()
+            except Exception as exc:   # never let one bad job end a worker
+                self.logger.warning(f"[offpath] {key} failed: {exc}")
                 with st["lock"]:
-                    st["fail"][url] = (time.time(), str(exc), False)
+                    st["fail"][key] = (time.time(), str(exc))
+            else:
+                with st["lock"]:
+                    if len(st["cache"]) > self.OFFPATH_CACHE_MAX:
+                        st["cache"].clear()
+                    st["cache"][key] = (time.time(), payload)
+                    st["fail"].pop(key, None)
             finally:
                 with st["lock"]:
-                    ev = st["waiters"].pop(url, None)
+                    ev = st["waiters"].pop(key, None)
                 if ev is not None:
                     ev.set()
 
-    def _sigen_fetch(self, st, url):
-        """The blocking bit, on a worker thread where blocking is harmless."""
+    def _offpath_get(self, key, producer, ttl, wait=None):
+        """Return (state, payload): "fresh" | "failed" | "pending".
+
+        Callers asking for the same key share one Event and produce ONE run of
+        the producer — three pages polling the same thing within a second cost
+        one round trip, not three.
+
+        A stale entry is deliberately NOT returned as though it were current. A
+        figure about now has to come from now, and every page here keeps its
+        last render on a bad reply, so the tile holds its value and its clock
+        stops. That is the truth; an old reading dressed as a new one is not.
+        """
+        st  = self._offpath()
+        with st["lock"]:
+            hit = st["cache"].get(key)
+        if hit and time.time() - hit[0] < ttl:
+            return "fresh", hit[1]
+
+        with st["lock"]:
+            ev = st["waiters"].get(key)
+            if ev is None:
+                ev = st["waiters"][key] = threading.Event()
+                st["queue"].put((key, producer))
+        ev.wait(self.OFFPATH_WAIT if wait is None else wait)
+
+        with st["lock"]:
+            hit  = st["cache"].get(key)
+            fail = st["fail"].get(key)
+        if hit and time.time() - hit[0] < ttl:
+            return "fresh", hit[1]
+        if fail:
+            return "failed", fail[1]
+        return "pending", None
+
+    def _sigen_fetch(self, url):
+        """One upstream round trip. Runs on an off-path worker, where blocking
+        is harmless. Returns the body, or raises — the pool records the failure
+        and tells every caller waiting on that key."""
         import urllib.request
         req = urllib.request.Request(
             url, headers={"User-Agent": f"Dashboards/{PLUGIN_VERSION}"})
@@ -5271,7 +5336,7 @@ class Plugin(indigo.PluginBase):
             # discharge/charge limit".)
             with urllib.request.urlopen(
                     req, timeout=self.SIGEN_UPSTREAM_TIMEOUT) as resp:
-                raw = resp.read().decode("utf-8")
+                return resp.read().decode("utf-8")
         except Exception as exc:
             # A 404 from upstream is not a fault — it means this
             # SigenEnergyManager is older than the path being asked for, which
@@ -5279,46 +5344,12 @@ class Plugin(indigo.PluginBase):
             # upgraded. The page already degrades by hiding the card, so
             # warning about it once every poll would put an amber line in the
             # log for a system working exactly as designed.
-            not_found = getattr(exc, "code", None) == 404
             msg = f"[SigenProxy] {url.rsplit('/', 1)[-1]} fetch failed: {exc}"
-            if not_found:
+            if getattr(exc, "code", None) == 404:
                 self.logger.debug(msg + " — upstream plugin has no such path (optional)")
             else:
                 self.logger.warning(msg)
-            with st["lock"]:
-                st["fail"][url] = (time.time(), str(exc), not_found)
-            return
-        with st["lock"]:
-            # Cap the cache so a burst of distinct history queries cannot grow
-            # it without bound.
-            if len(st["cache"]) > 32:
-                st["cache"].clear()
-            st["cache"][url] = (time.time(), raw)
-            st["fail"].pop(url, None)
-
-    def _sigen_ask(self, st, url):
-        """Queue a fetch and return the Event to wait on.
-
-        Callers asking for the same url share one Event and produce one
-        upstream fetch — three pages polling `status` within a second of each
-        other cost one round trip, not three.
-        """
-        with st["lock"]:
-            ev = st["waiters"].get(url)
-            if ev is None:
-                ev = st["waiters"][url] = threading.Event()
-                st["queue"].put(url)
-            return ev
-
-    def _sigen_reply_from_cache(self, raw):
-        return {
-            "status":  200,
-            "headers": {
-                "Content-Type":  "application/json; charset=utf-8",
-                "Cache-Control": "no-store",
-            },
-            "content": raw,
-        }
+            raise
 
     def handleSigenApi(self, action, dev=None, callerWaitingForResult=True):
         """POST /message/com.clives.indigoplugin.dashboards/sigenApi/
@@ -5361,33 +5392,20 @@ class Plugin(indigo.PluginBase):
         if qs:
             url += "?" + urllib.parse.urlencode(qs)
 
-        # The handler does no network I/O at all (v3.18.0). It answers from
-        # cache, or asks a worker and waits SIGEN_HANDOFF_WAIT at the very
-        # most — see the block above _sigen_state for what this replaced and
-        # why. Nothing here can hold the dispatch path for twelve seconds.
-        st  = self._sigen_state()
-        now = time.time()
-        with st["lock"]:
-            hit = st["cache"].get(url)
-        if hit and now - hit[0] < self.SIGEN_FRESH_SECONDS:
-            return self._sigen_reply_from_cache(hit[1])
-
-        self._sigen_ask(st, url).wait(self.SIGEN_HANDOFF_WAIT)
-
-        with st["lock"]:
-            hit  = st["cache"].get(url)
-            fail = st["fail"].get(url)
-        if hit and time.time() - hit[0] < self.SIGEN_FRESH_SECONDS:
-            return self._sigen_reply_from_cache(hit[1])
-
-        # Deliberately NOT serving the stale copy as though it were current. A
-        # figure about now has to come from now, and every page already handles
-        # a bad reply by keeping the render it has — so the tile holds its last
-        # value and its "Updated" clock stops, which is the truth. Serving
-        # yesterday's SOC silently would not be.
-        if fail:
+        # No network I/O on the dispatch path (v3.18.0; on the shared pool
+        # since v3.19.0). See the block above _offpath for what this replaced.
+        state, payload = self._offpath_get(
+            f"sigen:{url}", lambda: self._sigen_fetch(url), self.SIGEN_FRESH_SECONDS)
+        if state == "fresh":
+            return {
+                "status":  200,
+                "headers": {"Content-Type":  "application/json; charset=utf-8",
+                            "Cache-Control": "no-store"},
+                "content": payload,
+            }
+        if state == "failed":
             return self._evo_reply(
-                {"error": "Sigenergy data API unavailable", "detail": fail[1]},
+                {"error": "Sigenergy data API unavailable", "detail": payload},
                 status=502)
         return self._evo_reply(
             {"error": "Sigenergy data is still being fetched",
@@ -5408,6 +5426,27 @@ class Plugin(indigo.PluginBase):
         _refused = self._refuse_reflector(action)
         if _refused:
             return _refused
+        # Off the dispatch path (v3.19.0). Measured at 262 ms worst of three on
+        # 18-09-2026: subprocess.run for the Mac vitals, os.walk and os.scandir
+        # for the storage breakdown. None of it is wrong; none of it belongs on
+        # the thread that serves every dashboard in the house.
+        state, payload = self._offpath_get(
+            "systemhealth", self._system_health_payload, self.SYSTEM_HEALTH_TTL,
+            wait=self.SYSTEM_HEALTH_WAIT)
+        if state == "fresh":
+            return self._evo_reply(payload)
+        if state == "failed":
+            return self._evo_reply({"ok": False, "error": payload}, status=500)
+        return self._evo_reply(
+            {"ok": False, "pending": True,
+             "error": "system health is still being gathered — try again shortly"},
+            status=503)
+
+    def _system_health_payload(self):
+        """The four collectors, on an off-path worker. Each section is computed
+        defensively so one failure degrades to a partial answer rather than
+        losing the page — which is why this never raises and the pool therefore
+        never records a failure for it."""
         out = {"ok": True, "now": time.time()}
         for key, fn in (("mac",      self._mac_vitals),
                         ("storage",  self._storage_breakdown),
@@ -5418,7 +5457,7 @@ class Plugin(indigo.PluginBase):
             except Exception as exc:
                 self.logger.warning(f"[SystemHealth] {key} section failed: {exc}")
                 out[key] = {"error": str(exc)}
-        return self._evo_reply(out)
+        return out
 
     def _service_health(self):
         """This plugin's own background services (v2.33.0) — the page can then
@@ -7470,13 +7509,41 @@ class Plugin(indigo.PluginBase):
         date_str = str(params.get("date") or "").strip()
         if not date_str:
             date_str = datetime.now().strftime("%Y-%m-%d")
+        # Check the date HERE, not on a worker. It is a pure string test costing
+        # nothing on the dispatch path, and it keeps the two failure kinds
+        # apart: a malformed date is a 400 the page reports to the user, while
+        # a 503 means "not ready yet" and DashUI.whenReady polls it. Deciding
+        # that from the text of the exception instead — which is what the first
+        # version of this did — got it wrong, because the real message reads
+        # "date must be YYYY-MM-DD" and the guess looked for the word "format".
         try:
-            return self._evo_reply(self._timeline_day(date_str))
-        except ValueError as exc:
-            return self._evo_reply({"ok": False, "error": str(exc)}, status=400)
-        except Exception as exc:
-            self.logger.error(f"[Timeline] build failed: {exc}")
-            return self._evo_reply({"ok": False, "error": str(exc)}, status=500)
+            datetime.strptime(date_str, "%Y-%m-%d")
+        except ValueError:
+            return self._evo_reply(
+                {"ok": False, "error": "date must be YYYY-MM-DD"}, status=400)
+        # Off the dispatch path (v3.19.0). Measured at 1707 ms worst of three
+        # on 18-09-2026 — the slowest endpoint in the plugin, and every
+        # millisecond of it was a stall of everything else IWS was serving.
+        # The query itself is not the problem: _rowid_for_ts already binary-
+        # searches the integer PK because the history DB has no ts index. It is
+        # simply a lot of correct small queries across a whole day, so the fix
+        # is where it runs, not how it is written.
+        #
+        # A past day cannot change, so it is cached for the session; today's is
+        # still being written, so it gets a minute.
+        today = datetime.now().strftime("%Y-%m-%d")
+        ttl   = self.TIMELINE_TODAY_TTL if date_str >= today else self.TIMELINE_PAST_TTL
+        state, payload = self._offpath_get(
+            f"timeline:{date_str}", lambda: self._timeline_day(date_str), ttl,
+            wait=self.TIMELINE_WAIT)
+        if state == "fresh":
+            return self._evo_reply(payload)
+        if state == "failed":
+            return self._evo_reply({"ok": False, "error": payload}, status=500)
+        return self._evo_reply(
+            {"ok": False, "pending": True,
+             "error": "the timeline is still being built — try again shortly"},
+            status=503)
 
     # --------------------------------------------------------
     # Home Insights (v2.42.0) — auto-surface anomalies vs each device's OWN

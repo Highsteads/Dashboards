@@ -961,6 +961,41 @@
     return b + '/public/dashboards/' + (page || 'index.html');
   }
 
+
+  /* ── Waiting for work the server moved off its dispatch path ──────────────
+   * Dashboards 3.19.0 stopped doing slow work inside a /message/ handler,
+   * because that handler runs on the path IWS serves everything else from —
+   * timelineDay took 1707 ms and systemHealth 262 ms, and every one of those
+   * milliseconds stalled every other dashboard in the house.
+   *
+   * The server now answers within three-quarters of a second either way: with
+   * the data, or with 503 and {"pending": true} meaning a worker is building
+   * it. The first view of a slow page therefore ALWAYS lands on pending, so a
+   * page that treats it as an error shows one. Poll until it is ready.
+   *
+   * Anything that is not a pending reply — a 400, a 500, a network failure —
+   * comes straight back. Retrying a bad date for ever would be worse than the
+   * stall this replaced.
+   */
+  async function whenReady(fetchOnce, opts) {
+    const o        = opts || {};
+    const everyMs  = o.everyMs   || 400;
+    const timeout  = o.timeoutMs || 20000;
+    const onWait   = o.onWait;
+    const deadline = Date.now() + timeout;
+    let waited = false;
+    for (;;) {
+      const r = await fetchOnce();
+      if (r.status !== 503) return r;
+      let body = null;
+      try { body = await r.clone().json(); } catch (e) { body = null; }
+      if (!body || !body.pending) return r;      // a 503 that is not ours
+      if (Date.now() >= deadline) throw new Error(body.error || 'still not ready');
+      if (!waited && typeof onWait === 'function') { waited = true; onWait(body); }
+      await new Promise(res => setTimeout(res, everyMs));
+    }
+  }
+
   var API = {
     cssVar: cssVar,
     setText: setText,
@@ -971,6 +1006,7 @@
     solarHoursChart: solarHoursChart,
     STRING_COLOURS: STRING_COLOURS,
     STRING_STACK_ORDER: STRING_STACK_ORDER,
+    whenReady: whenReady,
     linkClass: linkClass,
     probeBandwidth: probeBandwidth,
     streamBudget: streamBudget,
