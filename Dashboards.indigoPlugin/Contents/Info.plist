@@ -15,8 +15,6 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>1.0.0</string>
-	<key>IwsApiVersion</key>
-	<string>3.0</string>
 	<key>GithubInfo</key>
 	<dict>
 		<key>GithubRepo</key>
@@ -24,8 +22,10 @@
 		<key>GithubUser</key>
 		<string>Highsteads</string>
 	</dict>
+	<key>IwsApiVersion</key>
+	<string>3.0</string>
 	<key>PluginVersion</key>
-	<string>3.20.0</string>
+	<string>3.20.1</string>
 	<key>ServerApiVersion</key>
 	<string>3.0</string>
 </dict>

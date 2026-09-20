@@ -22,7 +22,7 @@ nothing leaving the house.
 
 ---
 
-**Version:** 3.20.0
+**Version:** 3.20.1
 
 **Documentation:** **[highsteads.github.io/Dashboards](https://highsteads.github.io/Dashboards/)** —
 getting started, configuration, a page of notes for every one of the 27 pages, cameras, remote
@@ -68,6 +68,8 @@ with a gentle state simulator, touching no live devices.
 The three most recent releases, word for word. Every release before these is in
 **[the version history](docs/changelog.md)**, which the documentation site also carries.
 
+**3.20.1** (20-Sep-2026) - **The plugin has an icon of its own.** Anywhere Dashboards was listed it fell back to Indigo's generic plugin picture, because the bundle carried none. It now has one: the same white house on the same indigo blue as the icon you already get if you save a dashboard to your phone's home screen, with the name underneath. The house is measured off that icon rather than redrawn by eye, so the two match, and the script that draws it ships with the plugin. Nothing about the dashboards themselves changes.
+
 **3.20.0** (18-Sep-2026) - **The Graphs page no longer stalls the house when you ask for thirty days.** Building a 30-day chart on a device that logs often takes about six seconds, and until now all six were spent on the one thread Indigo serves every other page from - so one click on that chip froze every dashboard in the house. The work moved to the background workers the timeline and system-health pages already use, and the answer is kept for half a minute, so asking twice costs one build. A chart that is not ready yet says so and the page waits for it rather than showing an error. The figures are unchanged: the chart is built from exactly the same query, on exactly the same data.
 
 **3.19.0** (18-Sep-2026) - **Two more pages stopped holding up the whole web server.** An audit of every endpoint the dashboards call, timed rather than eyeballed, found the timeline taking 1.7 seconds to build a day and the system-health page a quarter of a second to gather the Mac figures - and all of that time was spent on the one thread Indigo serves every other page from, so opening the timeline stalled every dashboard in the house. Both now do their work in the background, the way the Sigenergy data already does since 3.18.0, and all three share one set of workers rather than a copy each. A page that asks for something not yet ready is told so and waits for it, showing "Building this day..." instead of an error. Nothing is ever shown as current when it is not: if the figures cannot be refreshed, a tile keeps what it had and its clock stops, rather than passing off an old reading as a new one.
@@ -75,9 +77,6 @@ The three most recent releases, word for word. Every release before these is in
 **3.18.0** (18-Sep-2026) - **The Sigenergy data proxy no longer blocks the web server.** When SigenEnergyManager was slow to answer - which it is for eight to ten seconds whenever it pushes a burst of battery commands - the dashboard page that asked it held up everything Indigo was serving, and whatever request happened to be in flight came back as an error. That was 130 web server errors in September, and the file they named was innocent every time: the dashboards ask for a small liveness file every two seconds, so it was simply the request most likely to be caught. The fetching now happens on background workers. A page gets an answer straight away if one is current, and otherwise waits three-quarters of a second at the outside before going without - it keeps the figures it already has and its clock stops, rather than showing an old reading as a new one. Three pages asking the same question at the same moment still cost one round trip, and a slow history query no longer makes the live figures wait behind it.
 
 **3.17.1** (18-Sep-2026) - **The alerts card now says why a quiet row is quiet.** A row it is not raising with you carries a word saying which of the three reasons applies: muted, because you told it to; answered, because whatever logged the error logged the matching success moments later; or explained, because another line accounts for it, and the card names that reason beside it. This matters from today, because Log_Error_Watch has stopped muting every internal server error the web server raises and now excuses only the ones a plugin restart caused. Without this change those rows would have turned bright red on the card with nothing to say for themselves.
-
-**3.17.0** (17-Sep-2026) - **The Rates tiles on the Cost page now show every price on a time-of-use tariff, with the hours each one applies.** On Octopus Flux that is three import prices and three export prices: the cheap one from 2am to 5am, the peak from 4pm to 7pm, and the day price for the rest, which runs from 5am to 4pm and again from 7pm to 2am and is shown as those two stretches rather than split at midnight. The price in force now is marked, and each tile names the tariff from your Octopus account. A daily tariff such as Tracker, or a flat export rate, keeps the single figure it had before, and so does an older SigenEnergyManager that does not send the prices. The Energy page's tariff card says when the price next changes instead of offering a tomorrow's price that Flux does not have, and calls the export figure the rate now rather than flat. Needs SigenEnergyManager 5.110.0 or newer for the price lists.
-
 
 ## A look around
 

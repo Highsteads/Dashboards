@@ -20,7 +20,7 @@
 #              stream connection fails.
 # Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
 # Date:        17-09-2026
-# Version:     3.20.0
+# Version:     3.20.1
 #
 # v3.16.0 (16-09-2026): SAVING SESSION CHIP IN THE HUB HERO, beside the VPP chip.
 #   The 3.15.0 energy-card row was not where the Axle notice lives (the hero's
@@ -1156,7 +1156,7 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION    = "3.20.0"
+PLUGIN_VERSION = "3.20.1"
 # Pages are mirrored into Web Assets/public/dashboards/ so IWS serves them
 # WITHOUT HTTP Basic Auth. Indigo only treats the global /public/ namespace
 # as anonymous — per-plugin `public/` subfolders still require auth.
