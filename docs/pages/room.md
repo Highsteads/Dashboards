@@ -28,6 +28,11 @@ colour picker.
 **Fire.** A relay the room extras mark as a fire, the same shape as a light card but kept apart,
 because it is switched by RF and never tells the page it has actually lit.
 
+**Fire with a power meter.** With Broadlink RF 1.4.0 or later and a meter set on the fire's relay,
+the fire's card reads the meter wherever it sits, Lights included: "Heater on" in amber with the
+watts, "Flame only", "Off", "Turning on…" while a command is on its way, "Did not respond" when the
+fire ignored one, and "not confirmed" when the meter cannot be read.
+
 **TV.** The AV group from the room extras. Each card shows current draw in watts alongside its
 toggle, and an active card carries a coloured edge, so what is actually on reads at a glance.
 

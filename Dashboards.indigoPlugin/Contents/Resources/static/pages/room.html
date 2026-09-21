@@ -267,6 +267,7 @@
         }
         .light-name { font-size: 15px; font-weight: 600; flex: 1; min-width: 0; }
         .light-state { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+        .light-state.heater-on { color: var(--amber); font-weight: 600; }
         .toggle { position: relative; width: 51px; height: 31px; flex-shrink: 0; cursor: pointer; }
         .toggle input { opacity: 0; width: 0; height: 0; }
         .toggle .slider {
@@ -1093,8 +1094,9 @@
         // Same toggleable tile as Lights/TV/Plugs, own header, and no bulk
         // control — there is one of them. Kept out of `lights` on purpose so a
         // lit fire cannot read as "1 light on" on the hub tile.
-        // NB the fire is an open-loop RF relay: its state is the last command
-        // sent, not a reading, so the tile shows what Indigo believes.
+        // NB the fire is an RF relay. Since Broadlink RF 1.4.0 its state follows
+        // the plug it runs on, and fireSubtitle() says whether the heater is
+        // running; with no reading it falls back to the last command sent.
         if (fire.length) {
             html += renderSectionHeader("Fire");
             html += '<div class="grid">' + fire.map(renderLight).join("") + '</div>';
@@ -1169,9 +1171,14 @@
         // (e.g. Shelly PM plugs) instead of a bare "On · relay".
         const watts     = (d.states && d.states.powerWatts != null) ? Math.round(parseFloat(d.states.powerWatts)) : null;
         const showPower = !!cap && cap.annotations.indexOf("power") >= 0 && watts != null && !isNaN(watts);
-        const subtitle = isDimmer
+        // Keyed on what the DEVICE publishes, not on which section it sits in:
+        // the living room fire is configured into Lights (so "All Off" reaches
+        // it), not into the Fire section, and a FIRE_IDS test never matched it.
+        const fireLine = fireSubtitle(d);
+        const subtitle = fireLine ? fireLine.text : isDimmer
             ? (onState ? `${bri}% · dimmer` : "Off · dimmer")
             : (onState ? (showPower ? `On · ${watts} W` : "On · relay") : "Off · relay");
+        const stateCls = fireLine && fireLine.heater ? " heater-on" : "";
 
         const sliderHtml = isDimmer ? `
             <div class="brightness-row" onclick="event.stopPropagation()">
@@ -1216,7 +1223,7 @@
                             <button class="info-btn" aria-label="Details"
                                     onclick="event.stopPropagation(); openDeviceDetails(${d.id})">&#9432;</button>
                         </div>
-                        <div class="light-state">${escapeHtml(subtitle)}</div>
+                        <div class="light-state${stateCls}">${escapeHtml(subtitle)}</div>
                     </div>
                     <label class="toggle" onclick="event.stopPropagation()">
                         <input type="checkbox" data-id="${d.id}" ${onState ? 'checked' : ''}
@@ -1227,6 +1234,36 @@
                 ${sliderHtml}
                 ${chipsHtml}
             </div>`;
+    }
+
+    // The fire's line under its name (v3.21.0). Broadlink RF 1.4.0 reads the
+    // fire's plug and publishes measuredState (on/off/unknown), measuredWatts,
+    // heavyLoad (the heater is running) and feedbackStatus. Returns null when
+    // the relay publishes none of that, so an older plugin keeps the ordinary
+    // relay wording. The v2 API can hand a custom boolean back as the string
+    // "True"/"False", so heavyLoad is compared as text, never by truthiness —
+    // the string "False" is truthy. Only a Broadlink RF relay with a meter
+    // publishes measuredState, and the only one is the fire, hence the words.
+    function fireSubtitle(d) {
+        const s = d.states || {};
+        const measured = String(s.measuredState == null ? "" : s.measuredState).toLowerCase();
+        if (!measured) return null;
+        const status = String(s.feedbackStatus || "");
+        const heavy  = String(s.heavyLoad).toLowerCase() === "true";
+        const w      = parseFloat(s.measuredWatts);
+        const watts  = isFinite(w) ? `${Math.round(w).toLocaleString("en-GB")} W` : "";
+        if (status.indexOf("Waiting for on") === 0)  return { text: "Turning on…",  heater: false };
+        if (status.indexOf("Waiting for off") === 0) return { text: "Turning off…", heater: false };
+        if (status.indexOf("Did not turn") === 0) {
+            return { text: `Did not respond · ${measured === "on" ? "still on" : "still off"}`, heater: heavy };
+        }
+        if (measured === "on") {
+            return heavy ? { text: `Heater on · ${watts}`, heater: true }
+                         : { text: `Flame only · ${watts}`, heater: false };
+        }
+        if (measured === "off") return { text: "Off", heater: false };
+        // "unknown": the plug cannot be read, so all we have is the last code sent.
+        return { text: d.onState === true ? "On · not confirmed" : "Off · not confirmed", heater: false };
     }
 
     function colorSwatchCss(d) {

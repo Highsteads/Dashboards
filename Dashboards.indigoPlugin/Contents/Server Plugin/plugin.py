@@ -19,10 +19,19 @@
 #              for the live grid and falls back to the still snapshot if a
 #              stream connection fails.
 # Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
-# Date:        17-09-2026
-# Version:     3.20.1
+# Date:        21-09-2026
+# Version:     3.21.0
 #
-# v3.16.0 (16-09-2026): SAVING SESSION CHIP IN THE HUB HERO, beside the VPP chip.
+# v3.21.0 (21-09-2026): THE FIRE TILE SAYS WHETHER THE HEATER IS RUNNING.
+#   Broadlink RF 1.4.0 reads the fire's plug and publishes measuredState,
+#   measuredWatts, heavyLoad and feedbackStatus on Fire On/Off. room.html's
+#   fireSubtitle() turns them into one line: "Heater on - 1,512 W" in amber,
+#   "Flame only - 38 W", "Off", "Turning on...", "Did not respond", or
+#   "not confirmed" when the plug cannot be read. Keyed on what the device
+#   publishes, not on its section: the living room config files the fire under
+#   Lights, so a FIRE_IDS test never matched it. heavyLoad is compared as text,
+#   because the v2 API can return the string "False", which is truthy.
+## v3.16.0 (16-09-2026): SAVING SESSION CHIP IN THE HUB HERO, beside the VPP chip.
 #   The 3.15.0 energy-card row was not where the Axle notice lives (the hero's
 #   pulse row), so tonight's session did not show where CliveS looks. New pure
 #   savingSessionChip() over DashCalc.savingSessions, pushed by renderHousePulse
@@ -1156,7 +1165,7 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION = "3.20.1"
+PLUGIN_VERSION = "3.21.0"
 # Pages are mirrored into Web Assets/public/dashboards/ so IWS serves them
 # WITHOUT HTTP Basic Auth. Indigo only treats the global /public/ namespace
 # as anonymous — per-plugin `public/` subfolders still require auth.
