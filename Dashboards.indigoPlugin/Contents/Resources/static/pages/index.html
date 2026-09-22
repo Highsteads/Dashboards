@@ -2228,6 +2228,35 @@
     // home (UniFi presence), zones calling for heat (RAMSES hvacHeaterIsOn),
     // low-battery / device-error counts, and the live grid-carbon reading. Each
     // chip deep-links to its page. All device chips come from the 3s poll.
+    // Fire-heater chip (v3.22.0). Broadlink RF 1.4.0 reads the plug a fire runs
+    // on and sets heavyLoad while the heater draws power. Shown ONLY while a
+    // heater runs, like the VPP chip: an always-on "heater off" would be noise
+    // most of the year. heavyLoad goes through asBool because the v2 API can
+    // return the string "False", which is truthy. The link goes to the room
+    // the device is filed under in rooms.json, or the heating page without one.
+    function fireHeaterChip(devices, rooms) {
+        const on = devices.filter(d => d.enabled !== false
+            && String((d.states || {}).measuredState || "").toLowerCase() === "on"
+            && asBool((d.states || {}).heavyLoad));
+        if (!on.length) return null;
+        const roomOf = id => {
+            for (const [name, r] of Object.entries((rooms && rooms.rooms) || {})) {
+                for (const v of Object.values(r || {})) {
+                    if (Array.isArray(v) && v.indexOf(id) >= 0) return name;
+                }
+            }
+            return null;
+        };
+        const room = roomOf(on[0].id);
+        const href = room ? "room.html?room=" + encodeURIComponent(room) : "heating.html";
+        if (on.length > 1) return { href, text: `${on.length} heaters on` };
+        const d = on[0];
+        const label = /fire/i.test(d.name || "") ? "Fire" : String(d.name || "Heater");
+        const w = parseFloat((d.states || {}).measuredWatts);
+        const watts = isFinite(w) ? ` · ${Math.round(w).toLocaleString("en-GB")} W` : "";
+        return { href, text: `${label} heater on${watts}` };
+    }
+
     function renderHousePulse(devices) {
         const el = document.getElementById("pulse-row");
         if (!el) return;
@@ -2266,6 +2295,8 @@
         }
         chips.push(chip("heating.html", heating ? "warn" : "",
             `${DashIcons.svg("flame")} <span class="pc-num">${heating}</span> zone${heating === 1 ? "" : "s"} heating`));
+        const fh = fireHeaterChip(devices, ROOMS);
+        if (fh) chips.push(chip(fh.href, "warn", `${DashIcons.svg("flame")} ${escapeAttr(fh.text)}`));
         if (lowBatt) chips.push(chip("system-health.html", "warn",
             `${DashIcons.svg("battery")} <span class="pc-num">${lowBatt}</span> low battery`));
         if (errors)  chips.push(chip("system-health.html", "bad",

@@ -63,6 +63,8 @@ new Function(`
     }
     ${(code.match(/const asBool = [^\n]+\n/) || [""])[0]}
     ${fn("savingSessionChip")}
+    let ROOMS = null;
+    ${fn("fireHeaterChip")}
     ${fn("renderHousePulse")}
     ${fn("_sigen")}
     globalThis.savingSessionChip = savingSessionChip;
@@ -158,6 +160,19 @@ html = pulse({ vpp: { state: "announced", active: false, event_str: "19:00-20:00
                octopus_sessions: sess(liveNow + 3600e3, liveNow + 7200e3) });
 check(html.indexOf("VPP announced") >= 0 && html.indexOf("VPP announced") < html.indexOf("Saving Session"),
       "and sits after the VPP chip");
+
+// 11. The fire-heater chip (v3.22.0) reaches the REAL row, amber, after the
+// heating-zones chip — rendered, not grepped.
+DEVICES.push({ id: 614164061, name: "Fire On/Off", enabled: true, errorState: "",
+               states: { measuredState: "on", heavyLoad: "True", measuredWatts: 1512 } });
+html = pulse({});
+check(/<a class="pulse-chip warn" href="heating.html"><svg data-n="flame"><\/svg> Fire heater on · 1,512 W<\/a>/.test(html)
+      && html.indexOf("zones heating") < html.indexOf("Fire heater on"),
+      "a running heater puts an amber chip in the row, after the heating zones", html.slice(0, 400));
+DEVICES[DEVICES.length - 1].states.heavyLoad = "False";
+html = pulse({});
+check(html.indexOf("Fire heater") < 0, "and it goes when the heater stops");
+DEVICES.pop();
 html = pulse({ octopus_sessions: { upcoming: [] } });
 check(!/Saving Session/.test(html), "no session, no chip in the hero");
 html = pulse(null);

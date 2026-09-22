@@ -20,8 +20,9 @@ appears once you scroll.
 
 **Greeting card.** A time-of-day greeting, the date, the running build number, and the current
 weather with today's high and low and the sun times. Below that, a row of pills: each person's
-presence, how many heating zones are calling for heat, a low-battery or in-error count, and, when
-the energy plugin has one coming, a VPP event pill.
+presence, how many heating zones are calling for heat, a "Fire heater on" pill with the watts while
+a fire's heater runs (Broadlink RF 1.4.0 with a power meter), a low-battery or in-error count, and,
+when the energy plugin has one coming, a VPP event pill.
 
 **Favourites.** One-tap tiles in the order set on the Settings page. A tile is a control (toggles a
 device or runs a scene), a reading (shows a device state and cannot be tapped), a door tile (shows

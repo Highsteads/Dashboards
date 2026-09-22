@@ -19,10 +19,17 @@
 #              for the live grid and falls back to the still snapshot if a
 #              stream connection fails.
 # Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
-# Date:        21-09-2026
-# Version:     3.21.0
+# Date:        22-09-2026
+# Version:     3.22.0
 #
-# v3.21.0 (21-09-2026): THE FIRE TILE SAYS WHETHER THE HEATER IS RUNNING.
+# v3.22.0 (22-09-2026): A FIRE-HEATER CHIP ON THE HUB. index.html's pure
+#   fireHeaterChip() adds "Fire heater on - 1,512 W" to the house-pulse row,
+#   amber, beside the heating-zones chip, and only while a device reports
+#   measuredState "on" AND heavyLoad (Broadlink RF 1.4.0 with a meter). Shown
+#   only while it runs, like the VPP chip. Links to the room rooms.json files
+#   the device under, else heating.html. A stale heavyLoad under a lost
+#   reading ("unknown") does not count.
+## v3.21.0 (21-09-2026): THE FIRE TILE SAYS WHETHER THE HEATER IS RUNNING.
 #   Broadlink RF 1.4.0 reads the fire's plug and publishes measuredState,
 #   measuredWatts, heavyLoad and feedbackStatus on Fire On/Off. room.html's
 #   fireSubtitle() turns them into one line: "Heater on - 1,512 W" in amber,
@@ -1165,7 +1172,7 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION = "3.21.0"
+PLUGIN_VERSION = "3.22.0"
 # Pages are mirrored into Web Assets/public/dashboards/ so IWS serves them
 # WITHOUT HTTP Basic Auth. Indigo only treats the global /public/ namespace
 # as anonymous — per-plugin `public/` subfolders still require auth.
