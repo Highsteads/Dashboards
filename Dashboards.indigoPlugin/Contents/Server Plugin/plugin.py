@@ -18,10 +18,16 @@
 #              again handling Digest auth server-side. The page uses MJPEG
 #              for the live grid and falls back to the still snapshot if a
 #              stream connection fails.
-# Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
+# Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.23.2); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
 # Date:        22-09-2026
-# Version:     3.23.1
+# Version:     3.23.2
 #
+# v3.23.2 (22-09-2026): A PLAIN SNAPSHOT WARNING. When a camera is off the
+#   network go2rtc answers /api/frame.jpeg with an empty 200 and no
+#   Content-Type, which the poller reported as "unexpected content-type ''".
+#   An empty reply now reads "no picture from the camera: go2rtc could not
+#   reach it". Diagnosed from the Garage/Patio replacement on 21-Sep: every
+#   one of those warnings matched a go2rtc "host is down" line.
 # v3.23.1 (22-09-2026): FASTER START, ONE LINE PER SIGEN TIMEOUT. startup()
 #   spent ~1 s on a fixed sleep checking go2rtc had not exited at once, then
 #   mirrored its two JS files. Both now run on a daemon thread
@@ -1191,7 +1197,7 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION = "3.23.1"
+PLUGIN_VERSION = "3.23.2"
 # Pages are mirrored into Web Assets/public/dashboards/ so IWS serves them
 # WITHOUT HTTP Basic Auth. Indigo only treats the global /public/ namespace
 # as anonymous — per-plugin `public/` subfolders still require auth.
@@ -3322,6 +3328,13 @@ class Plugin(indigo.PluginBase):
                     return False, f"HTTP {r.status_code}"
                 ct = r.headers.get("Content-Type", "")
                 if "image" not in ct:
+                    if not r.content:
+                        # go2rtc answers an unreachable camera with an EMPTY
+                        # 200 (mjpeg.go logs the dial error and returns
+                        # without writing), so this is the camera, not
+                        # go2rtc. Say so rather than name a blank header.
+                        return False, ("no picture from the camera: go2rtc "
+                                       "could not reach it")
                     return False, f"unexpected content-type {ct!r}"
                 return True, r.content
             except Exception as exc:
