@@ -20,9 +20,15 @@
 #              stream connection fails.
 # Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
 # Date:        22-09-2026
-# Version:     3.22.0
+# Version:     3.22.1
 #
-# v3.22.0 (22-09-2026): A FIRE-HEATER CHIP ON THE HUB. index.html's pure
+# v3.22.1 (22-09-2026): THE DOMIO PAGE MIRROR IS GONE. Domio has been removed
+#   from the estate for good, so _sync_pages_to_domio() and its two calls
+#   (startup and the Reload IndigoSecrets menu) are deleted rather than left
+#   to skip. It had already been doing nothing: it returned early whenever
+#   Domio.indigoPlugin was absent, which is how Web Assets/static/pages/ sat
+#   frozen from 02-09-2026. The folder itself has been removed by hand.
+## v3.22.0 (22-09-2026): A FIRE-HEATER CHIP ON THE HUB. index.html's pure
 #   fireHeaterChip() adds "Fire heater on - 1,512 W" to the house-pulse row,
 #   amber, beside the heating-zones chip, and only while a device reports
 #   measuredState "on" AND heavyLoad (Broadlink RF 1.4.0 with a meter). Shown
@@ -1172,7 +1178,7 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION = "3.22.0"
+PLUGIN_VERSION = "3.22.1"
 # Pages are mirrored into Web Assets/public/dashboards/ so IWS serves them
 # WITHOUT HTTP Basic Auth. Indigo only treats the global /public/ namespace
 # as anonymous — per-plugin `public/` subfolders still require auth.
@@ -1689,7 +1695,7 @@ class Plugin(indigo.PluginBase):
         # plugin" pair. Thirteen is the high mark, not the constant: counted
         # off the dated Events.txt files on 06-09-2026, the six most recent
         # restarts produced 13, 13, 13, 10, 11 and 11 Dashboards Info lines,
-        # because several of them (the Domio copy, the stale-file removal, the
+        # because several of them (the since-removed Domio copy, the stale-file removal, the
         # go2rtc asset mirror) only speak when they had something to do.
         # Warnings and errors
         # are NEVER routed through this - Log_Error_Watch.py reads the event
@@ -1982,70 +1988,6 @@ class Plugin(indigo.PluginBase):
                 log(f"Manifest copy failed: {exc}", level="WARNING")
 
         self._activity(f"Synced {copied} of {len(sources)} asset(s) to {dst}")
-        return copied
-
-    def _sync_pages_to_domio(self):
-        """Copy HTML pages to Web Assets/static/pages/ so the Domio iOS app
-        can discover and display them alongside its own bundled pages.
-        Additive only — never deletes files from the shared Domio folder as
-        we cannot safely distinguish our stale pages from another plugin's or
-        the user's own custom pages. If a page is renamed or removed, the user
-        should delete the old copy from Web Assets/static/pages/ manually.
-        Silently skips if Domio is not installed — never creates the folder
-        itself so the plugin does not choke on a Domio-free system."""
-        src = PAGES_SOURCE_DIR
-        base = indigo.server.getInstallFolderPath()
-        domio_plugin = os.path.join(base, "Plugins", "Domio.indigoPlugin")
-        if not os.path.isdir(domio_plugin):
-            return 0
-        dst = os.path.join(base, "Web Assets", "static", "pages")
-        if not os.path.isdir(src):
-            return 0
-        try:
-            os.makedirs(dst, exist_ok=True)
-        except Exception as exc:
-            log(f"Domio sync: could not create {dst}: {exc}", level="WARNING")
-            return 0
-
-        # HTML pages from the bundle source dir
-        candidates = {name: os.path.join(src, name)
-                      for name in sorted(os.listdir(src))
-                      if name.endswith(".html")}
-
-        # EVERY shared JS and CSS file from the source dir, not a hand-kept
-        # list. The list was three names while the pages referenced eight, so
-        # the Domio copies had been loading without a11y.js (24 pages) and
-        # Chart.js (6 pages) since those were added — and a new one,
-        # energy-calc.js, would have broken the Energy and Cost pages outright
-        # rather than just degrading them. Mirroring *.js and *.css the same
-        # way we mirror *.html means adding an asset can no longer half-ship.
-        for asset in sorted(os.listdir(src)):
-            if asset.endswith((".js", ".css")):
-                candidates[asset] = os.path.join(src, asset)
-
-        # config.js from the runtime public folder (written by _write_config_js,
-        # which must be called BEFORE this method so the file exists)
-        cfg_src = os.path.join(self._public_dashboards_dir(), "config.js")
-        if os.path.isfile(cfg_src):
-            candidates["config.js"] = cfg_src
-
-        # Copy / update
-        copied = 0
-        for name, sp in candidates.items():
-            dp = os.path.join(dst, name)
-            try:
-                need = True
-                if os.path.exists(dp):
-                    ss = os.stat(sp); ds = os.stat(dp)
-                    need = (ss.st_size != ds.st_size) or (ss.st_mtime > ds.st_mtime)
-                if need:
-                    self._copy_atomic(sp, dp)
-                    copied += 1
-            except Exception as exc:
-                log(f"Domio sync: copy failed for {name}: {exc}", level="WARNING")
-
-        if copied:
-            self._activity(f"Domio sync: copied {copied} file(s) to {dst}")
         return copied
 
     def _plugin_present(self, plugin_id):
@@ -4607,7 +4549,6 @@ class Plugin(indigo.PluginBase):
         except OSError as exc:
             self.logger.warning(f"[Pages] could not remove a retired builder file: {exc}")
         self._write_config_js()
-        self._sync_pages_to_domio()
         self._cleanup_setup_links(force_all=True)    # no links survive a restart
         self._start_mjpeg_proxy()
         self._start_go2rtc()
@@ -6428,7 +6369,6 @@ class Plugin(indigo.PluginBase):
         self._resolve_credentials(self.pluginPrefs, secrets_mod)
         self._sync_pages_to_public()
         self._write_config_js()
-        self._sync_pages_to_domio()
         return True
 
     def closedPrefsConfigUi(self, valuesDict, userCancelled):

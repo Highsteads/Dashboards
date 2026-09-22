@@ -231,7 +231,6 @@ QUIETENED = [
     ("_sync_pages_to_public",  "Synced manifest.json"),
     ("_sync_pages_to_public",  "asset(s) to"),
     ("_sync_pages_to_public",  "Removed stale"),
-    ("_sync_pages_to_domio",   "Domio sync: copied"),
     ("_write_config_js",       "Wrote "),
     ("_start_mjpeg_proxy",     "[MJPEG] Proxy listening"),
     ("_stop_mjpeg_proxy",      "[MJPEG] Proxy stopped"),
@@ -273,8 +272,9 @@ def test_no_fault_was_routed_through_activity():
     """_activity has no level argument by design. A call that tries to pass one
     is someone funnelling a warning into the quiet channel."""
     calls = _calls(_tree(), "_activity")
-    # 14 on 11-09-2026 (15 until v3.13.2 took the custom-pages mirror out).
-    assert len(calls) >= 14, f"only {len(calls)} _activity calls found - did a sweep drop some?"
+    # 13 on 22-09-2026: 15 until v3.13.2 took the custom-pages mirror out,
+    # 14 until v3.22.1 took the Domio page mirror out.
+    assert len(calls) >= 13, f"only {len(calls)} _activity calls found - did a sweep drop some?"
     for c in calls:
         assert not c.keywords, "_activity takes no keywords; a level= here would be a demoted fault"
 
@@ -383,7 +383,6 @@ FAULT_SIBLINGS = [
     # (function, fragment of the fault message that must stay loud)
     ("_sync_pages_to_public", "Could not remove stale"),
     ("_sync_pages_to_public", "Manifest copy failed"),
-    ("_sync_pages_to_domio",  "copy failed for"),
     ("_write_config_js",      "Failed to write"),
     ("_stop_mjpeg_proxy",     "[MJPEG] Shutdown error"),
     ("_stop_go2rtc",          "[go2rtc] Shutdown error"),

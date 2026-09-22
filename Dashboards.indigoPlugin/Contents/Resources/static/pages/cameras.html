@@ -490,13 +490,12 @@
         // Freshness comes from that conditional request, not from the URL.
         const pat = full ? imgPattern : thumbPattern;
         const p = pat.replace("{host}", host);
-        // Absolute, like streamsApi(): served from /static/pages/ (Domio) a
-        // relative "cam-x.jpg" resolved to the wrong folder.
+        // Absolute, like streamsApi(): a page served from anywhere but
+        // /public/dashboards/ would resolve a relative "cam-x.jpg" wrongly.
         return (p.startsWith("/") || /^https?:/i.test(p)) ? p : "/public/dashboards/" + p;
     }
     function streamsApi() {
-        // Absolute path so this works whether the page is served from
-        // /public/dashboards/ (Dashboards plugin) or /static/pages/ (Domio).
+        // Absolute path, so it works wherever the page is served from.
         return "/public/dashboards/streams.json?t=" + Date.now();
     }
     function tsStamp() {

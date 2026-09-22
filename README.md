@@ -8,7 +8,7 @@ Browser dashboards for [Indigo Domotics](https://www.indigodomo.com/), built for
 wall, a phone in your pocket and a Mac on the desk. No app to install, no cloud account,
 nothing leaving the house.
 
-<img src="https://img.shields.io/badge/version-3.22.0-5856d6" alt="Version 3.22.0">
+<img src="https://img.shields.io/badge/version-3.22.1-5856d6" alt="Version 3.22.1">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-27-0a84ff" alt="27 pages">
 <img src="https://img.shields.io/badge/tests-752%20passing-30d158" alt="752 tests passing">
@@ -22,7 +22,7 @@ nothing leaving the house.
 
 ---
 
-**Version:** 3.22.0
+**Version:** 3.22.1
 
 **Documentation:** **[highsteads.github.io/Dashboards](https://highsteads.github.io/Dashboards/)** —
 getting started, configuration, a page of notes for every one of the 27 pages, cameras, remote
@@ -68,11 +68,11 @@ with a gentle state simulator, touching no live devices.
 The three most recent releases, word for word. Every release before these is in
 **[the version history](docs/changelog.md)**, which the documentation site also carries.
 
+**3.22.1** (22-Sep-2026) - **The copy of every page kept for the Domio app is gone.** Domio has been removed from this house for good, so the plugin no longer carries the code that copied the dashboards into Domio's folder at every start. It had already been doing nothing since Domio was uninstalled. Nothing you can see changes.
+
 **3.22.0** (22-Sep-2026) - **The front page now tells you when the fire's heater is running.** A "Fire heater on" chip appears in the row at the top of the page, beside the heating zones, in amber and with the watts the fire is drawing. Tapping it opens the living room. It is only there while the heater runs, so on most days you will not see it at all. It needs Broadlink RF 1.4.0 with a power meter set on the fire, and if the meter cannot be read the chip stays away rather than guessing.
 
 **3.21.0** (21-Sep-2026) - **The living room fire's tile now says whether the heater is running.** Broadlink RF 1.4.0 reads the smart plug the fire runs on, and the tile uses that reading instead of guessing. It shows "Heater on" in amber with the watts when the heater is running, "Flame only" when just the flame effect is lit, and plain "Off" when it is off. While a command is on its way it says "Turning on..." or "Turning off...", and if the fire ignored the command it says "Did not respond". When the plug cannot be read, it says the state is not confirmed rather than guessing. Other tiles are unchanged, and so is the fire with an older Broadlink RF that sends no reading.
-
-**3.20.1** (20-Sep-2026) - **The plugin has an icon of its own.** Anywhere Dashboards was listed it fell back to Indigo's generic plugin picture, because the bundle carried none. It now has one: the same white house on the same indigo blue as the icon you already get if you save a dashboard to your phone's home screen, with the name underneath. The house is measured off that icon rather than redrawn by eye, so the two match, and the script that draws it ships with the plugin. Nothing about the dashboards themselves changes.
 
 ## A look around
 

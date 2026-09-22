@@ -9,6 +9,8 @@ Every release, newest first. The three most recent also appear under **What's ne
 [README](https://github.com/Highsteads/Dashboards#whats-new); this page is the whole record.
 Dates are day-month-year.
 
+**3.22.1** (22-Sep-2026) - **The copy of every page kept for the Domio app is gone.** Domio has been removed from this house for good, so the plugin no longer carries the code that copied the dashboards into Domio's folder at every start. It had already been doing nothing since Domio was uninstalled. Nothing you can see changes.
+
 **3.22.0** (22-Sep-2026) - **The front page now tells you when the fire's heater is running.** A "Fire heater on" chip appears in the row at the top of the page, beside the heating zones, in amber and with the watts the fire is drawing. Tapping it opens the living room. It is only there while the heater runs, so on most days you will not see it at all. It needs Broadlink RF 1.4.0 with a power meter set on the fire, and if the meter cannot be read the chip stays away rather than guessing.
 
 **3.21.0** (21-Sep-2026) - **The living room fire's tile now says whether the heater is running.** Broadlink RF 1.4.0 reads the smart plug the fire runs on, and the tile uses that reading instead of guessing. It shows "Heater on" in amber with the watts when the heater is running, "Flame only" when just the flame effect is lit, and plain "Off" when it is off. While a command is on its way it says "Turning on..." or "Turning off...", and if the fire ignored the command it says "Did not respond". When the plug cannot be read, it says the state is not confirmed rather than guessing. Other tiles are unchanged, and so is the fire with an older Broadlink RF that sends no reading.
