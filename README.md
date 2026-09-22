@@ -22,7 +22,7 @@ nothing leaving the house.
 
 ---
 
-**Version:** 3.22.1
+**Version:** 3.23.0
 
 **Documentation:** **[highsteads.github.io/Dashboards](https://highsteads.github.io/Dashboards/)** —
 getting started, configuration, a page of notes for every one of the 27 pages, cameras, remote
@@ -68,11 +68,11 @@ with a gentle state simulator, touching no live devices.
 The three most recent releases, word for word. Every release before these is in
 **[the version history](docs/changelog.md)**, which the documentation site also carries.
 
+**3.23.0** (22-Sep-2026) - **A reading tile that shows a time now says it the way a person would.** A favourite reading whose value is a bare date and time, such as the doorbell's last ring, used to show it raw as 2026-09-22 13:00:30. It now reads "1pm today", "4:15pm yesterday", "Monday at 9:30am", or the date for anything older than a week. It is worked out each time the page refreshes, so "today" becomes "yesterday" overnight on its own. Every other reading shows exactly as before.
+
 **3.22.1** (22-Sep-2026) - **The copy of every page kept for the Domio app is gone.** Domio has been removed from this house for good, so the plugin no longer carries the code that copied the dashboards into Domio's folder at every start. It had already been doing nothing since Domio was uninstalled. Nothing you can see changes.
 
 **3.22.0** (22-Sep-2026) - **The front page now tells you when the fire's heater is running.** A "Fire heater on" chip appears in the row at the top of the page, beside the heating zones, in amber and with the watts the fire is drawing. Tapping it opens the living room. It is only there while the heater runs, so on most days you will not see it at all. It needs Broadlink RF 1.4.0 with a power meter set on the fire, and if the meter cannot be read the chip stays away rather than guessing.
-
-**3.21.0** (21-Sep-2026) - **The living room fire's tile now says whether the heater is running.** Broadlink RF 1.4.0 reads the smart plug the fire runs on, and the tile uses that reading instead of guessing. It shows "Heater on" in amber with the watts when the heater is running, "Flame only" when just the flame effect is lit, and plain "Off" when it is off. While a command is on its way it says "Turning on..." or "Turning off...", and if the fire ignored the command it says "Did not respond". When the plug cannot be read, it says the state is not confirmed rather than guessing. Other tiles are unchanged, and so is the fire with an older Broadlink RF that sends no reading.
 
 ## A look around
 

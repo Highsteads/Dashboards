@@ -183,6 +183,7 @@ const ctx = vm.createContext({
 });
 ctx.DashAction.repaint = () => {};
 vm.runInContext("const _doorLast = new Map();", ctx);
+vm.runInContext(extractFn(pageSrc, "spokenWhen"), ctx);   // v3.23.0 helper the reading tile calls
 vm.runInContext(extractFn(pageSrc, "renderFavouritesCard"), ctx);
 
 function render(favs, devices) {

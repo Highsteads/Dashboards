@@ -18,10 +18,14 @@
 #              again handling Digest auth server-side. The page uses MJPEG
 #              for the live grid and falls back to the still snapshot if a
 #              stream connection fails.
-# Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
+# Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
 # Date:        22-09-2026
-# Version:     3.22.1
+# Version:     3.23.0
 #
+# v3.23.0 (22-09-2026): SPOKEN TIMESTAMPS ON READING TILES. index.html's
+#   spokenWhen() says a bare "YYYY-MM-DD HH:MM:SS" reading as "1pm today",
+#   "4:15pm yesterday", "Monday at 9:30am" or "12 September", at render time so
+#   it rolls over by itself. No server change - the favourite config is unchanged.
 # v3.22.1 (22-09-2026): THE DOMIO PAGE MIRROR IS GONE. Domio has been removed
 #   from the estate for good, so _sync_pages_to_domio() and its two calls
 #   (startup and the Reload IndigoSecrets menu) are deleted rather than left
@@ -1178,7 +1182,7 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION = "3.22.1"
+PLUGIN_VERSION = "3.23.0"
 # Pages are mirrored into Web Assets/public/dashboards/ so IWS serves them
 # WITHOUT HTTP Basic Auth. Indigo only treats the global /public/ namespace
 # as anonymous — per-plugin `public/` subfolders still require auth.

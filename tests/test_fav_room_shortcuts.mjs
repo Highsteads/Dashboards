@@ -62,6 +62,7 @@ const ctx = vm.createContext({
     DashAction: { repaint: () => {} },
     DashIcons: { has: () => false, svg: () => "" },
 });
+vm.runInContext(extractFn(src, "spokenWhen"), ctx);   // v3.23.0 helper the reading tile calls
 vm.runInContext(extractFn(src, "renderFavouritesCard"), ctx);
 vm.runInContext("renderFavouritesCard([{ id: 1, name: 'A lamp', onState: false }])", ctx);
 const html = host.innerHTML;
