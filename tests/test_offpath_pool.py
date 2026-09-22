@@ -425,3 +425,115 @@ def test_the_guest_path_still_calls_the_query_directly(plug):
     not the web server. Routing it through the pool would be churn."""
     src = io.open(SRC, encoding="utf-8").read()
     assert "plugin_self._history_query(flat)" in src
+
+
+# ── one fault, one log line (v3.23.1) ───────────────────────────────────────
+# Every Sigen timeout used to be logged twice — "[SigenProxy] status fetch
+# failed" by the producer, then "[offpath] sigen:... failed" by the worker —
+# 82 duplicated amber pairs in a week.
+
+class _Rec:
+    def __init__(self):
+        self.lines = []
+
+    def __getattr__(self, level):
+        return lambda msg, *a, **k: self.lines.append((level, msg))
+
+
+def test_a_sigen_timeout_is_one_warning_not_two(plug, monkeypatch):
+    import urllib.request
+
+    def timeout(*a, **k):
+        raise TimeoutError("timed out")
+    monkeypatch.setattr(urllib.request, "urlopen", timeout)
+    plug.logger = _Rec()
+    assert plug._offpath_get("sigen:x", lambda: plug._sigen_fetch(
+        "http://127.0.0.1:8179/api/status"), 30)[0] == "failed"
+    warnings = [m for lvl, m in plug.logger.lines if lvl == "warning"]
+    assert warnings == ["[SigenProxy] status fetch failed: timed out"]
+
+
+def test_an_unreported_producer_failure_is_still_a_warning(plug):
+    plug.logger = _Rec()
+
+    def explode():
+        raise ValueError("kaboom")
+    plug._offpath_get("a", explode, 30)
+    assert ("warning", "[offpath] a failed: kaboom") in plug.logger.lines
+
+
+def test_startup_does_not_wait_for_go2rtc():
+    import ast
+    tree = ast.parse(open(SRC, encoding="utf-8").read())
+    startup = next(n for n in ast.walk(tree)
+                   if isinstance(n, ast.FunctionDef) and n.name == "startup")
+    direct = [n for n in ast.walk(startup) if isinstance(n, ast.Call)
+              and getattr(n.func, "attr", "") in ("_mirror_go2rtc_assets",
+                                                 "_go2rtc_settle_check")]
+    assert not direct, "startup() must hand these to a thread"
+    starts = [n for n in ast.walk(startup) if isinstance(n, ast.Call)
+              and getattr(n.func, "attr", "") == "_start_go2rtc"]
+    assert starts and all(any(kw.arg == "settle" and kw.value.value is False
+                              for kw in n.keywords) for n in starts), \
+        "startup() must call _start_go2rtc(settle=False)"
+    handed = [kw for n in ast.walk(startup) if isinstance(n, ast.Call)
+              for kw in n.keywords if kw.arg == "target"
+              and getattr(kw.value, "attr", "") == "_go2rtc_boot_bg"]
+    assert handed, "startup() no longer starts the mirror at all"
+
+
+class _Proc:
+    def __init__(self, rc):
+        self._rc = rc
+
+    def poll(self):
+        return self._rc
+
+
+@pytest.fixture
+def settle(monkeypatch):
+    import sys
+    mod = sys.modules[type(bare_plugin()).__module__]
+    monkeypatch.setattr(mod.time, "sleep", lambda s: None)
+    lines = []
+    monkeypatch.setattr(mod, "log", lambda m, level="INFO": lines.append((level, m)))
+    p = bare_plugin()
+    p._go2rtc_log_path = lambda: "go2rtc.log"
+    p._cam_pool_closed = False
+    return p, lines
+
+
+def test_a_go2rtc_that_dies_at_once_is_reported_and_forgotten(settle):
+    p, lines = settle
+    p._go2rtc_proc = _Proc(1)
+    assert p._go2rtc_settle_check() is False
+    assert p._go2rtc_proc is None
+    assert lines and lines[0][0] == "ERROR" and "Exited immediately" in lines[0][1]
+
+
+def test_a_go2rtc_still_up_after_a_second_passes(settle):
+    p, lines = settle
+    p._go2rtc_proc = proc = _Proc(None)
+    assert p._go2rtc_settle_check() is True
+    assert p._go2rtc_proc is proc and not lines
+
+
+def test_an_exit_during_shutdown_is_not_an_error(settle):
+    p, lines = settle
+    p._go2rtc_proc = _Proc(-15)
+    p._cam_pool_closed = True
+    assert p._go2rtc_settle_check() is False and not lines
+
+
+def test_a_supervisor_restart_is_not_cleared_by_a_stale_check(settle):
+    p, lines = settle
+    old = _Proc(1)
+    p._go2rtc_proc = old
+    new = _Proc(None)
+    real_poll = old.poll
+    def poll():                       # the supervisor swaps in a new process
+        p._go2rtc_proc = new
+        return real_poll()
+    old.poll = poll
+    assert p._go2rtc_settle_check() is False
+    assert p._go2rtc_proc is new

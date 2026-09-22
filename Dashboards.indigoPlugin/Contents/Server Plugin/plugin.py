@@ -18,10 +18,19 @@
 #              again handling Digest auth server-side. The page uses MJPEG
 #              for the live grid and falls back to the still snapshot if a
 #              stream connection fails.
-# Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
+# Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
 # Date:        22-09-2026
-# Version:     3.23.0
+# Version:     3.23.1
 #
+# v3.23.1 (22-09-2026): FASTER START, ONE LINE PER SIGEN TIMEOUT. startup()
+#   spent ~1 s on a fixed sleep checking go2rtc had not exited at once, then
+#   mirrored its two JS files. Both now run on a daemon thread
+#   (_go2rtc_boot_bg; _start_go2rtc(settle=False)), so start-up returns and the
+#   camera poller starts a second sooner. The supervisor's restart path keeps
+#   the synchronous check. And a Sigen fetch timeout was
+#   logged twice (producer + off-path worker, 82 pairs in a week): a producer
+#   that has reported its own failure marks the exception, and the worker then
+#   logs it at DEBUG only.
 # v3.23.0 (22-09-2026): SPOKEN TIMESTAMPS ON READING TILES. index.html's
 #   spokenWhen() says a bare "YYYY-MM-DD HH:MM:SS" reading as "1pm today",
 #   "4:15pm yesterday", "Monday at 9:30am" or "12 September", at render time so
@@ -1182,7 +1191,7 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION = "3.23.0"
+PLUGIN_VERSION = "3.23.1"
 # Pages are mirrored into Web Assets/public/dashboards/ so IWS serves them
 # WITHOUT HTTP Basic Auth. Indigo only treats the global /public/ namespace
 # as anonymous — per-plugin `public/` subfolders still require auth.
@@ -2882,9 +2891,13 @@ class Plugin(indigo.PluginBase):
         """Stable stream name for a camera: lowercase, spaces → underscores."""
         return "".join(c if c.isalnum() else "_" for c in name.lower()).strip("_")
 
-    def _start_go2rtc(self):
+    def _start_go2rtc(self, settle=True):
         """Launch go2rtc as a subprocess. We don't keep stdout in memory —
-        it's redirected to a logfile so the event log stays clean."""
+        it's redirected to a logfile so the event log stays clean.
+
+        settle=False (startup only, v3.23.1) skips the one-second
+        exited-immediately check here; the caller runs _go2rtc_settle_check()
+        on a background thread instead, so start-up does not wait on it."""
         import urllib.request      # module-local: plugin.py never imports
                                    # urllib at top level, and the orphan guard
                                    # below silently NameError'd without this
@@ -3014,14 +3027,8 @@ class Plugin(indigo.PluginBase):
             )
             self._activity(f"[go2rtc] Started (pid {self._go2rtc_proc.pid}) - "
                            f"API http://127.0.0.1:{GO2RTC_API_PORT}/ (loopback only)")
-            # Catch an immediate bind failure (e.g. a port still held) rather
-            # than reporting a phantom-healthy start.
-            time.sleep(1.0)
-            rc = self._go2rtc_proc.poll()
-            if rc is not None:
-                log(f"[go2rtc] Exited immediately (code {rc}) — likely a port "
-                    f"still in use; see {self._go2rtc_log_path()}", level="ERROR")
-                self._go2rtc_proc = None
+            if settle:
+                self._go2rtc_settle_check()
         except Exception as exc:
             log(f"[go2rtc] Could not start: {exc}", level="ERROR")
             self._go2rtc_proc = None
@@ -3059,6 +3066,34 @@ class Plugin(indigo.PluginBase):
         except Exception:
             # Never let a log cosmetic touch the supervision path it rides on.
             pass
+
+    def _go2rtc_settle_check(self):
+        """Catch an immediate bind failure (e.g. a port still held) rather
+        than reporting a phantom-healthy start. True if go2rtc is still up
+        a second after launch."""
+        proc = getattr(self, "_go2rtc_proc", None)
+        if proc is None:
+            return False
+        time.sleep(1.0)
+        if getattr(self, "_cam_pool_closed", False):
+            return False                 # shutting down: an exit now is ours
+        rc = proc.poll()
+        if rc is not None:
+            log(f"[go2rtc] Exited immediately (code {rc}) — likely a port "
+                f"still in use; see {self._go2rtc_log_path()}", level="ERROR")
+            if self._go2rtc_proc is proc:  # the supervisor may have moved on
+                self._go2rtc_proc = None
+            return False
+        return True
+
+    def _go2rtc_boot_bg(self):
+        """Start-up thread body (v3.23.1): the settle check, then the JS
+        mirror. A failure is logged, never allowed to vanish with the thread."""
+        try:
+            if self._go2rtc_settle_check():
+                self._mirror_go2rtc_assets()
+        except Exception as exc:
+            log(f"[go2rtc] Could not mirror JS assets: {exc}", level="WARNING")
 
     def _mirror_go2rtc_assets(self):
         """Copy go2rtc's video-stream.js + video-rtc.js into the public dashboards
@@ -4555,8 +4590,14 @@ class Plugin(indigo.PluginBase):
         self._write_config_js()
         self._cleanup_setup_links(force_all=True)    # no links survive a restart
         self._start_mjpeg_proxy()
-        self._start_go2rtc()
-        self._mirror_go2rtc_assets()
+        self._start_go2rtc(settle=False)
+        # v3.23.1: go2rtc's one-second exited-immediately check and the JS
+        # mirror (which waits for it to bind) were the whole second start-up
+        # spent. Nothing else here needs either — only live.html reads the two
+        # files, and the previous boot's copies stay in place meanwhile — so
+        # both run on this thread and the plugin is ready a second sooner.
+        threading.Thread(target=self._go2rtc_boot_bg,
+                         name="dashboards-go2rtc-mirror", daemon=True).start()
         self._start_weather_thread()
         self._start_offpath_workers()
         self._start_stamp_thread()
@@ -5237,7 +5278,12 @@ class Plugin(indigo.PluginBase):
             try:
                 payload = producer()
             except Exception as exc:   # never let one bad job end a worker
-                self.logger.warning(f"[offpath] {key} failed: {exc}")
+                # A producer that has already reported its own failure marks
+                # the exception, so one fault is one line, not two (v3.23.1).
+                if getattr(exc, "_dash_logged", False):
+                    self.logger.debug(f"[offpath] {key} failed: {exc}")
+                else:
+                    self.logger.warning(f"[offpath] {key} failed: {exc}")
                 with st["lock"]:
                     st["fail"][key] = (time.time(), str(exc))
             else:
@@ -5316,6 +5362,10 @@ class Plugin(indigo.PluginBase):
                 self.logger.debug(msg + " — upstream plugin has no such path (optional)")
             else:
                 self.logger.warning(msg)
+            try:
+                exc._dash_logged = True     # the off-path worker need not repeat it
+            except Exception:
+                pass
             raise
 
     def handleSigenApi(self, action, dev=None, callerWaitingForResult=True):

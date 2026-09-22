@@ -9,6 +9,8 @@ Every release, newest first. The three most recent also appear under **What's ne
 [README](https://github.com/Highsteads/Dashboards#whats-new); this page is the whole record.
 Dates are day-month-year.
 
+**3.23.1** (22-Sep-2026) - **The plugin is ready about a second sooner after a restart, and a slow Sigenergy answer is logged once instead of twice.** At start-up the plugin used to spend a second waiting to be sure the video service had not fallen over, then copied two small files the live camera page needs. Both now happen in the background, so everything else, including the camera snapshots, starts straight away. And when SigenEnergyManager was too busy to answer, the log carried two amber lines for the one fault; it now carries one. Nothing you can see on the pages changes.
+
 **3.23.0** (22-Sep-2026) - **A reading tile that shows a time now says it the way a person would.** A favourite reading whose value is a bare date and time, such as the doorbell's last ring, used to show it raw as 2026-09-22 13:00:30. It now reads "1pm today", "4:15pm yesterday", "Monday at 9:30am", or the date for anything older than a week. It is worked out each time the page refreshes, so "today" becomes "yesterday" overnight on its own. Every other reading shows exactly as before.
 
 **3.22.1** (22-Sep-2026) - **The copy of every page kept for the Domio app is gone.** Domio has been removed from this house for good, so the plugin no longer carries the code that copied the dashboards into Domio's folder at every start. It had already been doing nothing since Domio was uninstalled. Nothing you can see changes.
