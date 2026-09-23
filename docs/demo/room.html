@@ -1,0 +1,1796 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta name="indigo-page-name" content="Room">
+    <meta name="indigo-page-icon" content="house.fill">
+    <meta name="indigo-page-description" content="Shared room template — Lights, Motion, Radiators, Windows">
+    
+    <!-- iOS / macOS Web App (File → Add to Dock on Mac, Share → Add to Home Screen on iPhone). -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Dashboards">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#5856d6">
+    <link rel="apple-touch-icon" sizes="180x180" href="/public/dashboards/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="/public/dashboards/apple-touch-icon-167.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="/public/dashboards/apple-touch-icon-152.png">
+    <link rel="apple-touch-icon-precomposed" href="/public/dashboards/apple-touch-icon.png">
+    <title>Room · Dashboards</title>
+    <link rel="stylesheet" href="dashboards-theme.css">
+    <link rel="stylesheet" href="dashboards-controls.css">
+    <style>
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: var(--font-ui);
+            background: var(--bg); color: var(--text);
+            padding: max(80px, calc(72px + env(safe-area-inset-top))) 0 max(32px, env(safe-area-inset-bottom));
+            min-height: 100vh; -webkit-overflow-scrolling: touch;
+        }
+        /* ── 3-column topbar ── */
+        .bottombar {
+            position: sticky; bottom: 0; z-index: 10;
+            background: var(--card-bg);
+            border-top: 1px solid var(--border);
+            box-shadow: 0 -1px 3px rgba(0,0,0,0.08);
+            padding: 8px max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left));
+            padding-bottom: max(8px, env(safe-area-inset-bottom));
+            margin-top: 16px;
+        }
+        .bottombar-inner {
+            text-align: center;
+            max-width: 900px; margin: 0 auto;
+            font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums;
+            line-height: 1.4;
+        }
+        .container {
+            max-width: 900px; margin: 0 auto;
+            padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
+        }
+
+        .section-header {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 12px; margin: 16px 4px 8px;
+        }
+        .section-title {
+            font-size: 13px; color: var(--text-secondary);
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .section-action {
+            font-size: 12px; font-weight: 600;
+            color: var(--accent);
+            background: transparent;
+            border: 1px solid var(--accent);
+            border-radius: var(--r-pill);
+            padding: 5px 14px;
+            cursor: pointer;
+            min-height: 28px;
+            font-family: inherit;
+            transition: background .15s, color .15s;
+        }
+        .section-action:hover { background: rgba(88,86,214,0.10); }
+        .section-action.is-on  { background: var(--accent); color: #fff; }
+        .section-action:disabled { opacity: 0.5; cursor: default; }
+        @media (prefers-color-scheme: dark) {
+            .section-action:hover { background: rgba(125,122,255,0.18); }
+        }
+        .detail-row {
+            display: flex; justify-content: space-between; align-items: baseline;
+            gap: 12px;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 13px;
+        }
+        .detail-row:last-child { border-bottom: none; }
+        .detail-key { color: var(--text-secondary); flex-shrink: 0; }
+        .detail-val { color: var(--text); font-weight: 500; font-variant-numeric: tabular-nums; text-align: right; word-break: break-word; }
+        .detail-group-title {
+            font-size: 11px; color: var(--text-secondary);
+            text-transform: uppercase; letter-spacing: 0.5px;
+            margin: 12px 0 6px;
+        }
+        .raw-toggle {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--accent);
+            padding: 8px 14px;
+            border-radius: var(--r-md);
+            font-size: 13px; font-weight: 500;
+            cursor: pointer;
+            margin-top: 14px;
+            font-family: inherit;
+        }
+        .raw-toggle:hover { background: var(--bg); }
+        .raw-json {
+            max-height: 320px; overflow: auto;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: var(--r-sm);
+            padding: 10px 12px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 11px; line-height: 1.45;
+            margin-top: 10px;
+            white-space: pre;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+            gap: 12px;
+        }
+        .light-head {
+            display: flex; align-items: center; justify-content: space-between; gap: 8px;
+        }
+        .light-name { font-size: 15px; font-weight: 600; flex: 1; min-width: 0; }
+        .light-state { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+        .light-state.heater-on { color: var(--amber); font-weight: 600; }
+
+        .brightness-row {
+            display: flex; align-items: center; gap: 10px;
+        }
+
+        /* State-driven door tile (v2.86.0). Same colour language as the hub's
+           garage favourite: red standing open, blue in travel, amber stuck,
+           quiet default when closed. A door that cannot be read stays quiet
+           and shows an em dash — an unknown door must never paint as a
+           confident "Closed". */
+        .door-state-open   { background: var(--bad);    border-color: var(--bad);    color: #fff; }
+        .door-state-opening,
+        .door-state-closing,
+        .door-state-moving { background: var(--accent); border-color: var(--accent); color: #fff; }
+        .door-state-stuck  { background: var(--warn);   border-color: var(--warn);   color: #fff; }
+        .door-state-open .light-name,   .door-state-open .light-state,
+        .door-state-opening .light-name, .door-state-opening .light-state,
+        .door-state-closing .light-name, .door-state-closing .light-state,
+        .door-state-moving .light-name,  .door-state-moving .light-state,
+        .door-state-stuck .light-name,   .door-state-stuck .light-state,
+        .door-state-open .door-label,   .door-state-open .door-status,
+        .door-state-opening .door-label, .door-state-opening .door-status,
+        .door-state-closing .door-label, .door-state-closing .door-status,
+        .door-state-moving .door-label,  .door-state-moving .door-status,
+        .door-state-stuck .door-label,   .door-state-stuck .door-status { color: #fff; }
+        .door-btn[disabled] { opacity: .55; cursor: default; }
+        .presets {
+            display: flex; gap: 6px; flex-wrap: wrap;
+            margin-top: 2px;
+        }
+        .preset-chip {
+            display: inline-flex; align-items: center; gap: 6px;
+            background: var(--bg); color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: var(--r-pill);
+            padding: 5px 10px; font-size: 12px; font-weight: 500;
+            cursor: pointer; font-family: inherit;
+            min-height: 28px;
+            transition: background .15s, border-color .15s;
+        }
+        .preset-chip:hover { background: var(--card-bg); border-color: var(--accent); }
+        .preset-icon { font-size: 14px; }
+        .preset-swatch {
+            display: inline-block; width: 14px; height: 14px; border-radius: 50%;
+            border: 1px solid var(--border);
+        }
+        .preset-more { color: var(--accent); }
+
+        /* Modal */
+        .modal[hidden] { display: none !important; }
+        .modal {
+            position: fixed; inset: 0; z-index: 100;
+            display: flex; align-items: center; justify-content: center;
+            padding: 16px;
+        }
+        .modal-backdrop {
+            position: absolute; inset: 0;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+        }
+        .modal-card {
+            position: relative; z-index: 1;
+            background: var(--card-bg); color: var(--text);
+            border-radius: var(--r-lg); box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+            width: 100%; max-width: 380px;
+            display: flex; flex-direction: column;
+            overflow: hidden;
+        }
+        .modal-head {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+        .modal-head h2 { margin: 0; font-size: 17px; font-weight: 600; }
+        .modal-close {
+            background: transparent; border: none; cursor: pointer;
+            font-size: 22px; line-height: 1; color: var(--text-secondary);
+            width: 32px; height: 32px; border-radius: var(--r-sm);
+            font-family: inherit;
+        }
+        .modal-close:hover { background: var(--bg); color: var(--text); }
+        .modal-body { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+        .mode-tabs {
+            display: flex; gap: 6px;
+            background: var(--bg); border-radius: var(--r-md); padding: 4px;
+        }
+        .mode-tab {
+            flex: 1; background: transparent; border: none; cursor: pointer;
+            padding: 8px 12px; font-size: 14px; font-weight: 500;
+            color: var(--text-secondary); border-radius: var(--r-sm); font-family: inherit;
+            min-height: 36px;
+        }
+        .mode-tab.is-active {
+            background: var(--card-bg); color: var(--text);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+        }
+        .modal-label {
+            display: flex; flex-direction: column; gap: 8px;
+            font-size: 13px; color: var(--text-secondary);
+        }
+        #ct-slider { width: 100%; height: 36px; }
+        .ct-display {
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 12px; color: var(--text-secondary);
+            font-variant-numeric: tabular-nums;
+        }
+        .ct-current { font-size: 16px; font-weight: 600; color: var(--text); }
+        #rgb-picker {
+            width: 100%; height: 56px; padding: 0; border: 1px solid var(--border);
+            border-radius: var(--r-md); background: var(--bg); cursor: pointer;
+        }
+        .rgb-preview {
+            display: flex; align-items: center; gap: 10px;
+            font-size: 13px; color: var(--text-secondary);
+        }
+        .rgb-preview-swatch {
+            width: 28px; height: 28px; border-radius: 50%;
+            border: 1px solid var(--border);
+        }
+        .modal-actions {
+            padding: 12px 16px;
+            border-top: 1px solid var(--border);
+            display: flex; gap: 10px; justify-content: flex-end;
+        }
+        .modal-btn {
+            padding: 8px 18px; border-radius: var(--r-md); cursor: pointer;
+            font-size: 14px; font-weight: 600; font-family: inherit;
+            min-height: 36px;
+            border: 1px solid var(--border);
+            background: var(--card-bg); color: var(--text);
+        }
+        .modal-btn:hover { background: var(--bg); }
+        .modal-btn-primary {
+            background: var(--accent); color: #fff; border-color: var(--accent);
+        }
+        .modal-btn-primary:hover { background: var(--accent); opacity: 0.9; }
+        .brightness-row .pct {
+            font-size: 12px; color: var(--text-secondary);
+            min-width: 36px; text-align: right; font-variant-numeric: tabular-nums;
+        }
+        input[type="range"].brightness {
+            flex: 1; height: 32px; -webkit-appearance: none; appearance: none;
+            background: linear-gradient(to right, var(--accent) 0%, var(--off-color) 0%);
+            border-radius: var(--r-lg); outline: none;
+        }
+        input[type="range"].brightness::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none;
+            width: 26px; height: 26px; border-radius: 50%;
+            background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+            cursor: pointer;
+        }
+
+        /* ── Motion cards ── */
+        /* Pulse-door action button (Garage Door etc.). Lifted unchanged from
+           garage.html so the visual stays identical. */
+        .door-btn {
+            width: 100%;
+            padding: 14px;
+            border-radius: var(--r-md);
+            border: none;
+            background: var(--accent); color: #fff;
+            font-size: 16px; font-weight: 600;
+            cursor: pointer; font-family: inherit;
+            min-height: 48px;
+            transition: opacity .15s, background .15s;
+        }
+        .door-btn:hover { opacity: 0.9; }
+        .door-btn:active { background: var(--accent); opacity: 0.7; }
+        .door-btn:disabled { opacity: 0.5; cursor: default; }
+
+        /* Camera tile for the optional per-room cam (e.g. Inside Garage on
+           the Garage page). 16:9 stills, click to open the main cameras page.
+           Sizing rule:
+             - On phones (~390px viewport): cells shrink to ~33% so 3 fit
+               across when a room has 3 cameras (e.g. Garden has Back Garden
+               + Patio + Back Door). For 2-cell rooms (camera + door) they
+               just take 50% each, which is plenty wide.
+             - On desktops: the 220px cap kicks in so cells stay at a
+               sensible size and the grid wraps as needed for more tiles.
+           `auto-fit` packs cells without leaving empty slots. */
+        .camera-grid { grid-template-columns: repeat(auto-fit, minmax(min(33%, 220px), 1fr)); }
+        /* Door-in-camera-grid: door tile renders inside the same grid as the
+           camera so they appear at the same width side-by-side. Height
+           matches the camera frame's 16:9 aspect for visual parity. */
+        .door-card-compact {
+            background: var(--card-bg); border-radius: var(--r-md); overflow: hidden;
+            box-shadow: var(--shadow);
+            display: flex; flex-direction: column;
+        }
+        .door-card-compact.is-open .door-status { color: var(--accent); font-weight: 600; }
+        .door-card-compact .door-status-frame {
+            aspect-ratio: 16 / 9; background: var(--card-bg);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 6px; padding: 12px;
+        }
+        .door-card-compact .door-label  { font-size: 14px; color: var(--text-secondary); }
+        .door-card-compact .door-status { font-size: 28px; }
+        .door-card-compact .door-btn    { border-radius: 0; margin: 0; }
+
+        /* Read-only "Appliances" tile — live wattage + cycle state pill.
+           Visual style matches the motion-card to fit alongside in mobile
+           grids, but with a small pill in place of the dot. */
+        .appliance-card {
+            background: var(--card-bg); border-radius: var(--r-md);
+            padding: 14px 16px; box-shadow: var(--shadow);
+            display: flex; flex-direction: column; gap: 6px;
+        }
+        .appliance-head {
+            display: flex; align-items: center; justify-content: space-between; gap: 12px;
+        }
+        .appliance-name { font-size: 15px; font-weight: 600; }
+        .appliance-pill {
+            font-size: 12px; padding: 3px 10px; border-radius: var(--r-pill);
+            background: var(--off-color); color: var(--text-secondary);
+        }
+        .appliance-pill.running { background: var(--accent); color: #fff; }
+        .appliance-pill.ready   { background: #ff9f0a; color: #fff; }
+        .appliance-meta {
+            display: flex; justify-content: space-between;
+            font-size: 12px; color: var(--text-secondary);
+        }
+        .appliance-watts { font-size: 13px; }
+        .appliance-watts.live { color: var(--text); font-weight: 600; }
+        .camera-card {
+            background: var(--card-bg); border-radius: var(--r-md); overflow: hidden;
+            box-shadow: var(--shadow); cursor: pointer;
+            display: flex; flex-direction: column;
+        }
+        .camera-frame {
+            position: relative; background: #000; aspect-ratio: 16 / 9; overflow: hidden;
+        }
+        .camera-frame img {
+            width: 100%; height: 100%; object-fit: cover; display: block;
+            pointer-events: none;
+        }
+
+        .motion-card {
+            background: var(--card-bg); border-radius: var(--r-md); padding: 14px 16px;
+            box-shadow: var(--shadow);
+            display: flex; align-items: center; justify-content: space-between; gap: 12px;
+        }
+        .motion-card.active { border-left: 3px solid var(--warn); }
+        .motion-info { flex: 1; min-width: 0; }
+        .motion-name { font-size: 14px; font-weight: 600; }
+        .motion-state { font-size: 12px; color: var(--text-secondary); margin-top: 2px; font-variant-numeric: tabular-nums; }
+        /* Environment sensor tile — continuous values (temperature + humidity). */
+        .env-card {
+            background: var(--card-bg); border-radius: var(--r-md); padding: 14px 16px;
+            box-shadow: var(--shadow);
+        }
+        .env-info { min-width: 0; }
+        .env-name { font-size: 14px; font-weight: 600; }
+        .env-readouts {
+            margin-top: 4px;
+            font-size: 14px;
+            font-variant-numeric: tabular-nums;
+            color: var(--text);
+            display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px;
+        }
+        .env-temp { font-size: 22px; font-weight: 700; color: var(--accent); }
+        .env-humidity { color: var(--text-secondary); }
+        .env-sep { color: var(--text-secondary); }
+        .env-meta { color: var(--text-secondary); font-size: 12px; margin-left: 4px; }
+        .motion-dot {
+            width: 14px; height: 14px; border-radius: 50%;
+            background: var(--off-color);
+            flex-shrink: 0;
+        }
+        .motion-card.active .motion-dot {
+            background: var(--warn);
+            box-shadow: 0 0 0 4px rgba(255,149,0,0.18);
+            animation: motion-pulse 1.6s ease-in-out infinite;
+        }
+        @keyframes motion-pulse {
+            0%, 100% { opacity: 1; }
+            50%      { opacity: 0.55; }
+        }
+
+        .loading { text-align: center; padding: 60px 20px; color: var(--text-secondary); }
+        .spinner {
+            width: 24px; height: 24px; border: 3px solid var(--off-color);
+            border-top-color: var(--accent); border-radius: 50%;
+            animation: spin 0.8s linear infinite; margin: 0 auto 12px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+    </style>
+    <link rel="stylesheet" href="dashboards-chrome.css">
+</head>
+<body>
+    <!-- Colour picker modal — shared by the chip "More…" and the card-body tap. -->
+    <div id="color-modal" class="modal" hidden>
+        <div class="modal-backdrop" onclick="closeColorPicker()"></div>
+        <div class="modal-card" role="dialog" aria-labelledby="color-modal-title">
+            <header class="modal-head">
+                <h2 id="color-modal-title">Colour Lamp</h2>
+                <button class="modal-close" aria-label="Close" onclick="closeColorPicker()">×</button>
+            </header>
+            <div class="modal-body">
+                <div class="mode-tabs">
+                    <button class="mode-tab" id="tab-white" onclick="setMode('white')">White</button>
+                    <button class="mode-tab" id="tab-color" onclick="setMode('color')">Colour</button>
+                </div>
+                <div id="white-panel" class="mode-panel">
+                    <label class="modal-label">
+                        Temperature
+                        <input type="range" id="ct-slider" min="2200" max="6500" step="100" oninput="onCtInput()">
+                    </label>
+                    <div class="ct-display">
+                        <span>2200K · warm</span>
+                        <span class="ct-current" id="ct-value">3000K</span>
+                        <span>6500K · cool</span>
+                    </div>
+                </div>
+                <div id="color-panel" class="mode-panel" hidden>
+                    <label class="modal-label">
+                        Pick a colour
+                        <input type="color" id="rgb-picker" oninput="onRgbInput()">
+                    </label>
+                    <div class="rgb-preview">
+                        <span class="rgb-preview-swatch" id="rgb-swatch"></span>
+                        <span id="rgb-hex">#ffffff</span>
+                    </div>
+                </div>
+            </div>
+            <footer class="modal-actions">
+                <button class="modal-btn" onclick="closeColorPicker()">Cancel</button>
+                <button class="modal-btn modal-btn-primary" onclick="applyColorSelection()">Apply</button>
+            </footer>
+        </div>
+    </div>
+
+    <!-- Device details modal — opened from the ⓘ button on any tile. -->
+    <div id="details-modal" class="modal" hidden>
+        <div class="modal-backdrop" onclick="closeDeviceDetails()"></div>
+        <div class="modal-card" role="dialog" aria-labelledby="details-modal-title">
+            <header class="modal-head">
+                <h2 id="details-modal-title">Device</h2>
+                <button class="modal-close" aria-label="Close" onclick="closeDeviceDetails()">×</button>
+            </header>
+            <div class="modal-body">
+                <div id="details-curated"></div>
+                <button class="raw-toggle" onclick="toggleRawDetails()" id="raw-toggle-btn">Show raw JSON</button>
+                <pre class="raw-json" id="details-raw" hidden></pre>
+            </div>
+            <footer class="modal-actions">
+                <button class="modal-btn" onclick="closeDeviceDetails()">Close</button>
+            </footer>
+        </div>
+    </div>
+
+    <header class="topbar">
+        <div class="hdr-left">
+            <a class="nav-btn" href="index.html">&larr; Home</a>
+        </div>
+        <div class="hdr-center">
+            <h1>Room</h1>
+            <span class="topbar-status">Updated <span id="ts">—</span> · Next refresh <span id="cdwn">—</span>s</span>
+        </div>
+        <div class="hdr-right">
+            <button class="nav-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Back to top">↑ Top</button>
+        </div>
+    </header>
+    <div class="container">
+        <!-- Cameras render ONCE into this sibling so the 5s device-state poll
+             (which wholesale-replaces #content) does not restart their
+             picture timers every cycle. -->
+        <div id="cameras-section"></div>
+        <div id="content">
+            <div class="loading"><div class="spinner"></div><p>Connecting…</p></div>
+        </div>
+    </div>
+
+    <script src="config.js" onerror="window.INDIGO_CONFIG_MISSING=true"></script>
+    <script src="dashboards-auth.js"></script>
+    <script src="dashboards-ui.js"></script>
+    <script src="dashboards-gate.js"></script>
+    <script src="dashboard.js"></script>
+    <script src="dashboards-action.js"></script>
+    <script src="dashboards-controls.js"></script>
+    <script src="capabilities.js"></script>
+    <script>
+    // ── Refresh status: drives Updated / Next refresh in both top + bottom bar.
+    const POLL_INTERVAL_MS = 3000;
+    let _lastUpdate = 0;
+    function _pad(n) { return String(n).padStart(2, "0"); }
+    function markRefreshed() {
+        _lastUpdate = Date.now();
+        tickRefreshStatus();
+    }
+    function tickRefreshStatus() {
+        let tsStr = "—";
+        if (_lastUpdate) {
+            const d = new Date(_lastUpdate);
+            tsStr = _pad(d.getHours()) + ":" + _pad(d.getMinutes()) + ":" + _pad(d.getSeconds());
+        }
+        const elapsedS = _lastUpdate ? (Date.now() - _lastUpdate) / 1000 : 0;
+        const cdwn = Math.max(0, Math.round((POLL_INTERVAL_MS / 1000) - elapsedS));
+        for (const id of ["ts", "ts-bot"]) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = tsStr;
+        }
+        for (const id of ["cdwn", "cdwn-bot"]) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = String(cdwn);
+        }
+    }
+    // "Updated" is stamped by observeAll's onOk hook — every SUCCESSFUL
+    // poll, changed or not — never by a blind timer that keeps counting
+    // through a total outage (the v2.67.0 cameras lesson).
+    // Tick the display every second so the countdown actually counts down.
+    setInterval(tickRefreshStatus, 1000);
+
+    // ── Shared room template ───────────────────────────────────
+    // Which room this page is showing is decided by the ?room= URL parameter
+    // (default: first room in rooms.json). The Sets below start empty and get
+    // populated when rooms.json loads — _initRoomFromConfig() runs before the
+    // first render() call.
+    const ROOM_NAME    = new URLSearchParams(location.search).get("room") || "";
+    let   LIGHT_IDS    = new Set();
+    let   MOTION_IDS   = new Set();
+    let   RADIATOR_IDS = new Set();
+    let   WINDOW_IDS   = new Set();
+    let   TV_IDS       = new Set();        // populated from rooms.json `tv` list (Living Room etc.)
+    let   PLUG_IDS     = new Set();        // rooms.json `plugs` list — mains sockets, toggleable (v2.32.0)
+    let   FIRE_IDS     = new Set();        // rooms.json `fire` list — the living room fire, toggleable (v2.85.0)
+    // Lights the room's bulk "All On / All Off" must LEAVE ALONE — the room's
+    // main light, typically. It still renders as its own tile and is still
+    // switchable on its own; it is simply not part of the group.
+    //
+    // This was a single MAIN_LIGHT_ID pinned to -1 and commented "unused in
+    // shared template", left over from the per-room pages. Both the label and
+    // the command filtered on it, so the mechanism LOOKED present in two
+    // places and had never once excluded anything: -1 matches no device. A
+    // Set, filled from the room config, so a room can spare more than one.
+    let   MAIN_LIGHT_IDS = new Set();
+    // Devices whose onOffState is a BELIEF, not a reading — the living room
+    // fire is a one-way RF relay, so if it is lit from its own handset Indigo
+    // still says off. They get a vote in the COMMAND but never in a DECISION
+    // derived from state (v2.90.0).
+    let   OPEN_LOOP_IDS = new Set();
+    let   SENSOR_IDS   = new Set();         // continuous-value sensors (temp+humidity)
+    let   ROOM_CAMERAS = [];                // [{host,name}, …] for this room (may be empty)
+    let   ROOM_DOORS   = [];                // [{label,relayIds,pulseMs,statusContactId,openWhenContactOnState}, …]
+    let   ROOM_APPLIANCES = [];             // [{label,monitorId,cycleId}, …] for read-only Appliances section
+
+    function lightSupportsColour(d) {
+        return d.supportsRGB === true
+            || d.supportsWhiteTemperature === true
+            || d.supportsColor === true;
+    }
+    // v2.94.0: the presets now live in the PLUGIN and arrive in config.js, so
+    // the button a preset draws and the commands it sends come from one table.
+    // The literals below are only the fallback for a page being served beside
+    // an older plugin that publishes no colourPresets — drawing no buttons at
+    // all would be a worse answer than drawing the two that have always
+    // existed. Applying one sends the KEY, never these values, so the server
+    // stays the authority even when this fallback is what drew the button.
+    const COLOUR_PRESETS = (window.INDIGO_CONFIG || {}).colourPresets || {
+        warm:  { label: "Warm white", icon: "cloudsun", mode: "white", whiteTemperature: 2700, brightness: 100 },
+        movie: { label: "Movie",      icon: "film", mode: "color", redLevel: 100, greenLevel: 35, blueLevel: 8, brightness: 18 },
+    };
+    // rooms.json arrives PRE-SORTED by the server — alphabetical unless the
+    // room config supplies a sortOrder for a section. Every section keeps
+    // that order; re-sorting locale-alphabetically here (as all sections
+    // except lights did until v2.72.0) silently discarded sortOrder.
+    let SECTION_ORDER = {};
+    function orderIndex(section, d) {
+        const arr = SECTION_ORDER[section] || [];
+        const i = arr.indexOf(d.id);
+        return i < 0 ? arr.length : i;
+    }
+    const bySection = (section) => (a, b) =>
+        (orderIndex(section, a) - orderIndex(section, b)) || a.name.localeCompare(b.name);
+
+    // Fetch the rooms.json (same-origin, written by the plugin) and populate
+    // the device-ID Sets for the current room before the first render() call.
+    async function _initRoomFromConfig() {
+        const r = await fetch("rooms.json?t=" + Date.now(), { cache: "no-store" });
+        if (!r.ok) throw new Error("rooms.json " + r.status);
+        const cfg = await r.json();
+        let room = ROOM_NAME;
+        if (!cfg.rooms[room]) {
+            room = Object.keys(cfg.rooms).sort()[0];
+        }
+        const r0 = cfg.rooms[room] || {};
+        // Every section normalised — a room entry missing (say) `lights`
+        // used to kill the whole page via [...undefined].
+        const sec = k => Array.isArray(r0[k]) ? r0[k] : [];
+        LIGHT_IDS    = new Set(sec("lights"));
+        MOTION_IDS   = new Set(sec("motion"));
+        RADIATOR_IDS = new Set(sec("radiators"));
+        WINDOW_IDS   = new Set(sec("windows"));
+        SENSOR_IDS   = new Set(sec("sensors"));
+        TV_IDS       = new Set(sec("tv"));
+        PLUG_IDS     = new Set(sec("plugs"));
+        OPEN_LOOP_IDS = new Set(sec("openLoop"));
+        MAIN_LIGHT_IDS = new Set(sec("mainLight"));
+        FIRE_IDS     = new Set(sec("fire"));
+        SECTION_ORDER = {
+            lights:    sec("lights"),
+            tv:        sec("tv"),
+            plugs:     sec("plugs"),
+            fire:      sec("fire"),
+            motion:    sec("motion"),
+            radiators: sec("radiators"),
+            windows:   sec("windows"),
+            sensors:   sec("sensors"),
+        };
+        ROOM_CAMERAS = Array.isArray(r0.cameras) ? r0.cameras : [];
+        ROOM_DOORS   = Array.isArray(r0.doors)   ? r0.doors   : [];
+        // Each entry: { label, monitorId (Shelly plug for live W), cycleId
+        // (ApplianceMonitor virtual for idle/running cycle state) }. Pair
+        // lookup happens at render time against the live device list.
+        ROOM_APPLIANCES = Array.isArray(r0.appliances) ? r0.appliances : [];
+        document.title = `${room} · Dashboards`;
+        const h1 = document.querySelector(".topbar h1");
+        if (h1) h1.textContent = room;
+        window.__ROOM_NAME = room;
+        // Render the cameras (and any pulse-door tiles) ONCE into the same
+        // grid — cameras have no device-state dependence so the 5s render()
+        // cycle never touches the camera frame. The door tiles
+        // get re-rendered IN PLACE into per-door slots below, so the camera
+        // picture keeps going while door status / button label still update.
+        renderRoomCameras();
+        return room;
+    }
+
+    // Indigo's REST API requires setHeatSetpoint `value` to be an integer
+    // — half-degree values are rejected with HTTP 400. So step in 1°C.
+
+    let indigo = null;
+
+    if (!IndigoAPI.isConfigured()) {
+        location.href = "index.html";
+    } else {
+        start();
+    }
+
+    async function start() {
+        indigo = new IndigoAPI();
+        DashTile.bind(indigo);
+        indigo.onAuthFailure(() => {
+            IndigoAPI.clearConfig();
+            location.href = "index.html";
+        });
+        // Load rooms.json BEFORE we start polling devices — otherwise the
+        // first render() runs with empty Sets and shows an empty page until
+        // the second poll arrives.
+        try {
+            await _initRoomFromConfig();
+        } catch (e) {
+            document.getElementById("content").innerHTML =
+                `<div class="loading"><p style="color:var(--bad)">
+                Could not load rooms.json — is the Dashboards plugin running?<br>
+                <small>${String(e)}</small></p></div>`;
+            return;
+        }
+        // Load the device capability catalog (non-blocking) — controlFor uses it
+        // to pick the right control per device; falls back to live class inference
+        // until it's ready, so the first render is never blocked on it.
+        // Guarded: a failed capabilities.js load used to strand the page on
+        // the boot spinner before observeAll ever started.
+        try {
+            if (window.Capabilities && typeof Capabilities.load === "function") {
+                Capabilities.load("catalog.json");
+            }
+        } catch (e) { console.warn("capabilities load failed", e); }
+        indigo.observeAll(d => render(d), POLL_INTERVAL_MS, undefined, markRefreshed);
+    }
+
+    function formatWhen(iso) { return DashUI.ago(iso); }   // v3.28.0: one wording, rounding down
+
+    function render(devices) {
+        window.__lastDevices = devices;  // camera-grid rebuilds and the modals read this
+        // Feed any in-flight door watch from the poll we already ran. observeAll
+        // only calls render on CHANGE, so DashAction's own timer is the backstop
+        // for the elapsed counter and the timeout.
+        try { DashAction.tick(devices); } catch (e) { console.warn("action watch", e); }
+        const lights    = devices.filter(d => LIGHT_IDS.has(d.id)).sort(bySection("lights"));
+        const tv        = devices.filter(d => TV_IDS.has(d.id)).sort(bySection("tv"));
+        const plugs     = devices.filter(d => PLUG_IDS.has(d.id)).sort(bySection("plugs"));
+        const fire      = devices.filter(d => FIRE_IDS.has(d.id)).sort(bySection("fire"));
+        const motion    = devices.filter(d => MOTION_IDS.has(d.id)).sort(bySection("motion"));
+        const radiators = devices.filter(d => RADIATOR_IDS.has(d.id)).sort(bySection("radiators"));
+        const windows   = devices.filter(d => WINDOW_IDS.has(d.id)).sort(bySection("windows"));
+        const sensors   = devices.filter(d => SENSOR_IDS.has(d.id)).sort(bySection("sensors"));
+
+        const tvOnCount = tv.filter(d => DashTile.isOn(d.onState)).length;
+        const tvAllOn   = tv.length > 0 && tvOnCount === tv.length;
+
+        let html = "";
+
+        // NOTE: Cameras are rendered ONCE in _initRoomFromConfig into a
+        // separate sibling element (#cameras-section), not here, so a 5s poll
+        // never blanks them.
+
+        // Pulse-style doors (e.g. Garage Door). Status is derived from a
+        // contact sensor declared per door in DASHBOARDS_ROOM_EXTRAS; tap →
+        // briefly turns the wired relays on then off.
+        // Render-target depends on layout:
+        //   - If the room ALSO has a camera, door slots are placed inside
+        //     #cameras-section (set up once in _initRoomFromConfig), so the
+        //     camera and door tile sit side-by-side. We fill those slots
+        //     in-place each render — the camera frame stays untouched.
+        //   - If the room has no camera, the door renders as its own
+        //     section in #content like any other (old behaviour).
+        if (ROOM_DOORS.length) {
+            const doorSlots = document.querySelectorAll("#cameras-section .door-slot");
+            if (doorSlots.length) {
+                doorSlots.forEach((slot, i) => {
+                    const door = ROOM_DOORS[i];
+                    if (door) slot.innerHTML = renderDoorTile(door, devices, true);
+                });
+            } else {
+                html += renderSectionHeader(ROOM_DOORS.length > 1 ? "Doors" : "Door");
+                html += '<div class="grid">' +
+                        ROOM_DOORS.map(door => renderDoorTile(door, devices)).join("") +
+                        '</div>';
+            }
+        }
+
+        if (lights.length) {
+            // "All On / All Off" applies to every light except the main light.
+            const others      = lights.filter(d => !MAIN_LIGHT_IDS.has(d.id));
+            // An unreadable device must not decide the button. Left in, the
+            // fire's permanently-"off" belief meant this never once read
+            // "All Off" while the fire was lit from its handset — so the one
+            // press that would have turned it off was never on offer.
+            const readable    = others.filter(d => !OPEN_LOOP_IDS.has(d.id));
+            const allOthersOn = readable.length > 0 && readable.every(d => DashTile.isOn(d.onState));
+            const lbl = allOthersOn ? "All Off" : "All On";
+            html += renderSectionHeader(
+                "Lights",
+                `<button class="section-action${allOthersOn ? ' is-on' : ''}" onclick="toggleLights()">${lbl}</button>`
+            );
+            html += '<div class="grid">' + lights.map(renderLight).join("") + '</div>';
+        }
+
+        if (tv.length) {
+            // Label states what the CLICK does: toggleTv turns everything OFF
+            // whenever anything is on (partial included), else everything on.
+            const someOn = tvOnCount > 0;
+            const lbl = someOn ? "All Off" : "All On";
+            const cls = tvAllOn ? "is-on" : "";
+            html += renderSectionHeader(
+                "TV",
+                `<button class="section-action ${cls}" onclick="toggleTv()">${lbl}</button>`
+            );
+            html += '<div class="grid">' + tv.map(renderLight).join("") + '</div>';
+        }
+
+        // Plugs & Sockets (v2.32.0): mains sockets pinned via roomExtras
+        // `plugs`. Same toggleable tile as Lights, own header, deliberately
+        // NO bulk All On/Off — blanket-switching sockets is riskier than
+        // lights (a freezer or router could be on one).
+        if (plugs.length) {
+            html += renderSectionHeader(plugs.length > 1 ? "Plugs & Sockets" : "Plug");
+            html += '<div class="grid">' + plugs.map(renderLight).join("") + '</div>';
+        }
+
+        // Fire (v2.85.0): the living room fire, pinned via roomExtras `fire`.
+        // Same toggleable tile as Lights/TV/Plugs, own header, and no bulk
+        // control — there is one of them. Kept out of `lights` on purpose so a
+        // lit fire cannot read as "1 light on" on the hub tile.
+        // NB the fire is an RF relay. Since Broadlink RF 1.4.0 its state follows
+        // the plug it runs on, and fireSubtitle() says whether the heater is
+        // running; with no reading it falls back to the last command sent.
+        if (fire.length) {
+            html += renderSectionHeader("Fire");
+            html += '<div class="grid">' + fire.map(renderLight).join("") + '</div>';
+        }
+
+        if (motion.length) {
+            html += renderSectionHeader("Motion");
+            html += '<div class="grid">' + motion.map(renderMotion).join("") + '</div>';
+        }
+
+        if (sensors.length) {
+            html += renderSectionHeader("Sensors");
+            html += '<div class="grid">' + sensors.map(renderEnvSensor).join("") + '</div>';
+        }
+
+        if (radiators.length) {
+            html += renderSectionHeader("Heating");
+            html += '<div class="grid">' + radiators.map(d => DashTile.zone.render(d, { name: _stripRoomPrefix(d.name).replace(/ Radiator$/, ""), info: true })).join("") + '</div>';
+        }
+
+        // Appliances: read-only paired tiles for things like the washing
+        // machine and tumble dryer. Each entry pairs a Shelly power meter
+        // (live W) with an ApplianceMonitor cycle state. The pair lookup
+        // happens here against the live devices array.
+        if (ROOM_APPLIANCES.length) {
+            html += renderSectionHeader(ROOM_APPLIANCES.length > 1 ? "Appliances" : "Appliance");
+            html += '<div class="grid">' +
+                    ROOM_APPLIANCES.map(a => renderAppliance(a, devices)).join("") +
+                    '</div>';
+        }
+
+        // Windows & Doors: always render every contact in the room. Each
+        // tile shows live Open/Closed state via renderMotion (it uses the
+        // device's onState the same way motion sensors do). The section is
+        // suppressed only when the room has no contacts at all.
+        if (windows.length) {
+            html += renderSectionHeader("Windows & Doors");
+            // The SECTION decides the wording, not the device name — a PIR
+            // called "Back Door Motion" read Open/Closed in the motion list.
+            html += '<div class="grid">' + windows.map(d => renderMotion(d, { on: "Open", off: "Closed" })).join("") + '</div>';
+        }
+
+        // A full rebuild severs a brightness slider mid-drag — skip this
+        // render and let the next poll repaint after release (v2.95.3).
+        if (window._sliderDragging) return;
+        document.getElementById("content").innerHTML = html;
+        // Repaint any in-flight door takeover onto the buttons just rebuilt —
+        // a door watch outlives many of these 3 s renders.
+        DashAction.repaint();
+    }
+
+    function renderSectionHeader(title, actionHtml) {
+        return `<div class="section-header"><span class="section-title">${escapeHtml(title)}</span>${actionHtml || ""}</div>`;
+    }
+
+    function renderLight(d) {
+        // Control type comes from the device capability catalog (declarative),
+        // falling back to the class-string regex only until the catalog loads.
+        const cap      = (window.Capabilities && Capabilities.loaded) ? Capabilities.controlFor(d) : null;
+        // A colour lamp is a dimmer too (v2.95.1). The catalog ranks "color"
+        // above "dimmer" as the PRIMARY control, and reading only that
+        // stripped the brightness slider off every Zigbee bulb in the house —
+        // the whole z2mLight profile is colour-capable — and labelled them
+        // "relay". Dimmability is a separate fact from which control leads.
+        const isDimmer = cap ? (cap.control === "dimmer" || cap.control === "color")
+                             : /Dimmer/.test(d.class || "");
+        const onState  = DashTile.isOn(d.onState);
+        const bri      = d.brightness != null ? parseInt(d.brightness) : (onState ? 100 : 0);
+        const fillPct  = isDimmer ? bri : (onState ? 100 : 0);
+        const sliderBg = `linear-gradient(to right, var(--accent) ${fillPct}%, var(--off-color) ${fillPct}%)`;
+        // The catalog knows which relays meter — surface live watts on those
+        // (e.g. Shelly PM plugs) instead of a bare "On · relay".
+        const watts     = (d.states && d.states.powerWatts != null) ? Math.round(parseFloat(d.states.powerWatts)) : null;
+        const showPower = !!cap && cap.annotations.indexOf("power") >= 0 && watts != null && !isNaN(watts);
+        // Keyed on what the DEVICE publishes, not on which section it sits in:
+        // the living room fire is configured into Lights (so "All Off" reaches
+        // it), not into the Fire section, and a FIRE_IDS test never matched it.
+        const fireLine = fireSubtitle(d);
+        const subtitle = fireLine ? fireLine.text : isDimmer
+            ? (onState ? `${bri}% · dimmer` : "Off · dimmer")
+            : (onState ? (showPower ? `On · ${watts} W` : "On · relay") : "Off · relay");
+        const stateCls = fireLine && fireLine.heater ? " heater-on" : "";
+
+        const sliderHtml = isDimmer ? `
+            <div class="brightness-row" onclick="event.stopPropagation()">
+                <input type="range" class="brightness" min="0" max="100"
+                       onpointerdown="window._sliderDragging = true"
+                       onpointerup="window._sliderDragging = false"
+                       onpointercancel="window._sliderDragging = false"
+                       value="${bri}" data-id="${d.id}"
+                       style="${sliderBg.replace(/"/g,'&quot;')}"
+                       oninput="DashTile.slide(this)"
+                       onchange="DashTile.slideCommit(this)">
+                <span class="pct" id="pct-${d.id}">${bri}%</span>
+            </div>` : "";
+
+        // Colour-capable lamps get preset chips and a card-level click handler
+        // that opens the full colour picker modal. Detection is by capability
+        // flags, NOT by hardcoded device ID — so any new colour lamp gets
+        // these controls automatically.
+        const isColourLamp = lightSupportsColour(d);
+        const currentColour = colorSwatchCss(d);
+        const chipsHtml = isColourLamp ? `
+            <div class="presets" onclick="event.stopPropagation()">
+                ${Object.entries(COLOUR_PRESETS).map(([key, p]) => `
+                    <button class="preset-chip" onclick="applyPreset('${key}', ${d.id})">
+                        <span class="preset-icon" data-icon="${escapeHtml(p.icon || "")}"></span>${escapeHtml(p.label)}
+                    </button>`).join("")}
+                <button class="preset-chip preset-more" onclick="openColorPicker(${d.id})">
+                    <span class="preset-swatch" style="background:${currentColour}"></span>More…
+                </button>
+            </div>` : "";
+
+        const cardAttrs = isColourLamp
+            ? `role="button" tabindex="0" onclick="openColorPicker(${d.id})" onkeydown="if(event.target!==this)return;if(event.key==='Enter'||event.key===' '){event.preventDefault();openColorPicker(${d.id})}"`
+            : "";
+
+        return `
+            <div class="light-card ${onState ? 'on' : ''} ${isColourLamp ? 'is-colour' : ''}" data-dsh-act-key="device:${d.id}" ${cardAttrs}>
+                <div class="light-head">
+                    <div class="head-text">
+                        <div class="name-row">
+                            <div class="light-name">${escapeHtml(prettyLightName(d.name))}</div>
+                            <button class="info-btn" aria-label="Details"
+                                    onclick="event.stopPropagation(); openDeviceDetails(${d.id})">&#9432;</button>
+                        </div>
+                        <div class="light-state${stateCls}">${escapeHtml(subtitle)}</div>
+                    </div>
+                    <label class="toggle" onclick="event.stopPropagation()">
+                        <input type="checkbox" data-id="${d.id}" ${onState ? 'checked' : ''}
+                               onchange="DashTile.toggle(this)">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                ${sliderHtml}
+                ${chipsHtml}
+            </div>`;
+    }
+
+    // The fire's line under its name (v3.21.0). Broadlink RF 1.4.0 reads the
+    // fire's plug and publishes measuredState (on/off/unknown), measuredWatts,
+    // heavyLoad (the heater is running) and feedbackStatus. Returns null when
+    // the relay publishes none of that, so an older plugin keeps the ordinary
+    // relay wording. The v2 API can hand a custom boolean back as the string
+    // "True"/"False", so heavyLoad is compared as text, never by truthiness —
+    // the string "False" is truthy. Only a Broadlink RF relay with a meter
+    // publishes measuredState, and the only one is the fire, hence the words.
+    function fireSubtitle(d) {
+        const s = d.states || {};
+        const measured = String(s.measuredState == null ? "" : s.measuredState).toLowerCase();
+        if (!measured) return null;
+        const status = String(s.feedbackStatus || "");
+        const heavy  = String(s.heavyLoad).toLowerCase() === "true";
+        const w      = parseFloat(s.measuredWatts);
+        const watts  = isFinite(w) ? `${Math.round(w).toLocaleString("en-GB")} W` : "";
+        if (status.indexOf("Waiting for on") === 0)  return { text: "Turning on…",  heater: false };
+        if (status.indexOf("Waiting for off") === 0) return { text: "Turning off…", heater: false };
+        if (status.indexOf("Did not turn") === 0) {
+            return { text: `Did not respond · ${measured === "on" ? "still on" : "still off"}`, heater: heavy };
+        }
+        if (measured === "on") {
+            return heavy ? { text: `Heater on · ${watts}`, heater: true }
+                         : { text: `Flame only · ${watts}`, heater: false };
+        }
+        if (measured === "off") return { text: "Off", heater: false };
+        // "unknown": the plug cannot be read, so all we have is the last code sent.
+        return { text: DashTile.isOn(d.onState) ? "On · not confirmed" : "Off · not confirmed", heater: false };
+    }
+
+    function colorSwatchCss(d) {
+        const s = d.states || {};
+        const mode = s.colorMode || "";
+        if (mode.includes("temp")) {
+            // Approximate Kelvin to RGB for the swatch indicator.
+            const k = parseFloat(s.colorTemp || s.whiteTemperature || 3000);
+            return kelvinToCss(k);
+        }
+        // Default to RGB mode swatch from current redLevel/greenLevel/blueLevel.
+        const r = Math.round(parseFloat(d.redLevel   || s.redLevel   || 0) * 2.55);
+        const g = Math.round(parseFloat(d.greenLevel || s.greenLevel || 0) * 2.55);
+        const b = Math.round(parseFloat(d.blueLevel  || s.blueLevel  || 0) * 2.55);
+        if (r + g + b === 0) return "var(--off-color)";
+        return `rgb(${r},${g},${b})`;
+    }
+
+    function kelvinToCss(k) {
+        // Crude Kelvin -> RGB approximation, good enough for a swatch.
+        k = Math.max(1000, Math.min(40000, k)) / 100;
+        let r, g, b;
+        if (k <= 66) {
+            r = 255;
+            g = 99.4708025861 * Math.log(k) - 161.1195681661;
+        } else {
+            r = 329.698727446 * Math.pow(k - 60, -0.1332047592);
+            g = 288.1221695283 * Math.pow(k - 60, -0.0755148492);
+        }
+        if (k >= 66)      b = 255;
+        else if (k <= 19) b = 0;
+        else              b = 138.5177312231 * Math.log(k - 10) - 305.0447927307;
+        r = Math.max(0, Math.min(255, Math.round(r)));
+        g = Math.max(0, Math.min(255, Math.round(g)));
+        b = Math.max(0, Math.min(255, Math.round(b)));
+        return `rgb(${r},${g},${b})`;
+    }
+
+    // Pick the right on/off wording for a state-only sensor tile based on
+    // what the device is. Water/leak → Wet/Dry; contact/window/door → Open/Closed;
+    // everything else → Motion/Clear (presence sensors, generic z2mSensors etc.).
+    function _motionWording(d) {
+        const name = d.name || "";
+        const typ  = d.deviceTypeId || "";
+        if (/\b(water|leak)\b/i.test(name)) {
+            return { on: "Wet",  off: "Dry"    };
+        }
+        if (typ === "z2mContactSensor" || typ === "zwContactSensorType"
+            || /\b(contact|window|door)\b/i.test(name)) {
+            return { on: "Open", off: "Closed" };
+        }
+        return { on: "Motion", off: "Clear" };
+    }
+
+    // Three-valued (v2.95.3): true, false, or UNKNOWN. A window contact that
+    // never reported, is disabled for a battery change, or whose plugin has
+    // stopped used to paint a confident "Closed" — the None == False trap.
+    function renderMotion(d, wording) {
+        const on = DashTile.state(d.onState);
+        const why = d.enabled === false ? "disabled"
+                  : (d.errorState || "").trim() ? "error"
+                  : on === null ? "no reading" : "";
+        const active = !why && on === true;
+        const w = wording || _motionWording(d);
+        const stateTxt = why ? `— · ${why}` : (active ? w.on : w.off);
+        return `
+            <div class="motion-card ${active ? 'active' : ''}${why ? ' unknown' : ''}">
+                <div class="motion-info">
+                    <div class="name-row">
+                        <div class="motion-name">${escapeHtml(prettyMotionName(d.name))}</div>
+                        <button class="info-btn" aria-label="Details"
+                                onclick="event.stopPropagation(); openDeviceDetails(${d.id})">&#9432;</button>
+                    </div>
+                    <div class="motion-state">
+                        ${escapeHtml(stateTxt)} · ${escapeHtml(formatWhen(d.lastChanged))}
+                    </div>
+                </div>
+                <div class="motion-dot"></div>
+            </div>`;
+    }
+
+    // Continuous-value environment sensor — temperature + humidity (+ battery
+    // if reported). Different shape from the binary motion tile; uses a small
+    // two-line read-out with the values prominently shown.
+    function renderEnvSensor(d) {
+        const s = d.states || {};
+        const temp = parseFloat(s.temperature);
+        const hum  = parseFloat(s.humidity);
+        const batt = parseInt(s.battery);
+        const volt = parseFloat(s.voltage);
+        const humStr  = isFinite(hum)  ? `${hum.toFixed(0)}%`   : null;
+        const battStr = isFinite(batt) && batt < 100 ? `· ${I("battery")} ${batt}%` : "";
+        // Primary read-out: temperature for an environment sensor, or voltage
+        // for a voltage-only monitor (e.g. a Shelly UNI ADC watching a 12 V
+        // car battery — it reports `voltage` / `voltage.ui` and no temp+humidity).
+        let primaryStr = "—";
+        if (isFinite(temp)) {
+            primaryStr = `${temp.toFixed(1)}°C`;
+        } else if (isFinite(volt)) {
+            primaryStr = s["voltage.ui"] || `${volt.toFixed(2)} V`;
+        }
+        return `
+            <div class="env-card">
+                <div class="env-info">
+                    <div class="name-row">
+                        <div class="env-name">${escapeHtml(prettyMotionName(d.name))}</div>
+                        <button class="info-btn" aria-label="Details"
+                                onclick="event.stopPropagation(); openDeviceDetails(${d.id})">&#9432;</button>
+                    </div>
+                    <div class="env-readouts">
+                        <span class="env-temp">${escapeHtml(primaryStr)}</span>
+                        ${humStr ? `<span class="env-sep">·</span><span class="env-humidity">${humStr} humidity</span>` : ""}
+                        ${battStr ? `<span class="env-meta">${battStr}</span>` : ""}
+                    </div>
+                </div>
+            </div>`;
+    }
+
+    // Read-only appliance tile. Flexible by device pairing:
+    //   - `monitorId` only (relay or plug): pill is On/Off from onState;
+    //     wattage shown if the device exposes powerWatts (Shelly PM); the
+    //     last-cycle meta line is suppressed when no cycleId is paired.
+    //     Used for things like the En Suite Floor Heating Switch — a status
+    //     indicator with no toggle.
+    //   - `cycleId` only (ApplianceMonitor virtual): pill is the cycle
+    //     state (Idle / Running / Door open) and the last-cycle meta line
+    //     shows duration / peak / kWh.
+    //   - Both paired (typical washer / dryer): pill = cycle state,
+    //     wattage = live W from the Shelly plug, meta = last-cycle stats.
+    // Wattage is bolded when ≥ 1 W (i.e. the device is actually drawing).
+    function renderAppliance(spec, devices) {
+        const mon   = devices.find(d => d.id === spec.monitorId);
+        const cyc   = devices.find(d => d.id === spec.cycleId);
+        const mst   = (mon || {}).states || {};
+        const cst   = (cyc || {}).states || {};
+
+        // Pill — cycle state takes priority; falls back to monitor on/off.
+        const cycleState = (cst.cycleState || "").toString().toLowerCase();
+        let pillCls = "", pillTxt = "—";
+        if (cycleState) {
+            pillCls =
+                cycleState === "running"   ? "running" :
+                cycleState === "doorready" ? "ready"   : "";
+            pillTxt =
+                cycleState === "running"   ? "Running"   :
+                cycleState === "doorready" ? "Door open" :
+                cycleState === "idle"      ? "Idle"      :
+                cycleState.charAt(0).toUpperCase() + cycleState.slice(1);
+        } else if (mon && mon.onState != null) {
+            const on = DashTile.isOn(mon.onState);
+            pillCls  = on ? "running" : "";
+            pillTxt  = on ? "On" : "Off";
+        }
+
+        // Wattage — only if the monitor device exposes powerWatts.
+        const watts = parseFloat(mst.powerWatts);
+        const hasWatts = isFinite(watts);
+        const wattsStr = hasWatts ? `${watts.toFixed(0)} W` : "";
+        const live     = hasWatts && watts >= 1.0;
+
+        // Last-cycle summary only if we have a cycle device.
+        const lastM    = parseFloat(cst.lastCycleMinutes);
+        const lastKwh  = parseFloat(cst.lastCycleEnergyKwh);
+        const lastPk   = parseFloat(cst.lastCyclePeakWatts);
+        const lastCost = parseFloat(cst.lastCycleCostGbp);
+        const lastParts = [];
+        if (isFinite(lastM)   && lastM   > 0) lastParts.push(`${lastM.toFixed(0)} min`);
+        if (isFinite(lastPk)  && lastPk  > 0) lastParts.push(`peak ${lastPk.toFixed(0)} W`);
+        if (isFinite(lastKwh) && lastKwh > 0) lastParts.push(`${lastKwh.toFixed(2)} kWh`);
+        if (isFinite(lastCost) && lastCost > 0) lastParts.push(`£${lastCost.toFixed(2)}`);
+        const lastLine = lastParts.length ? `Last cycle · ${lastParts.join(" · ")}` : "";
+
+        // Suppress the meta row entirely if there's nothing useful to show.
+        const hasMeta = hasWatts || lastLine;
+        const metaHtml = hasMeta
+            ? `<div class="appliance-meta">
+                   <span class="appliance-watts ${live ? "live" : ""}">${escapeHtml(wattsStr)}</span>
+                   <span>${escapeHtml(lastLine)}</span>
+               </div>`
+            : "";
+
+        return `
+            <div class="appliance-card">
+                <div class="appliance-head">
+                    <div class="appliance-name">${escapeHtml(spec.label || "Appliance")}</div>
+                    <span class="appliance-pill ${pillCls}">${escapeHtml(pillTxt)}</span>
+                </div>
+                ${metaHtml}
+            </div>`;
+    }
+
+
+    // Stills that cross-fade from frame to frame (v3.36.0). This page used to
+    // open a live MJPEG stream per camera wherever a bandwidth probe said the
+    // link could carry it — three at once on the Drive page. Live video is
+    // one tap away on the Cameras page, which is what the tile opens. The
+    // stills come from /public, which anything that could load this page can
+    // fetch, so they cannot fail for want of bandwidth.
+    const ROOM_STILL_MS = 3000;
+    const _roomStillTimers = [];
+    function _roomStillSrc(host) { return `cam-${host}.jpg?_t=${Date.now()}`; }
+    function _startRoomStill(img) {
+        if (!img || img.dataset.polling === "1") return;
+        const card = img.closest("[data-cam-host]");
+        if (!card) return;
+        img.dataset.polling = "1";
+        const host = card.dataset.camHost;
+        const swap = () => {
+            if (document.hidden || !img.isConnected) return;
+            const url = _roomStillSrc(host);
+            if (window.DashUI && DashUI.swapImage) { DashUI.swapImage(img, url).catch(() => {}); return; }
+            const next = new Image();
+            next.crossOrigin = "anonymous";
+            next.onload = () => { img.src = next.src; };
+            next.src = url;
+        };
+        _roomStillTimers.push(setInterval(swap, ROOM_STILL_MS));
+    }
+
+    function renderRoomCamera(cam) {
+        // No name/IP caption — tap target is the frame itself, which feels
+        // less cluttered and gives more vertical room for the picture.
+        // The `alt` attribute still carries the name for screen readers.
+        // Host/name travel as data attributes, never inside an inline JS
+        // string — a quote or backslash in a configured camera name would
+        // otherwise break out of the onclick string (escapeHtml guards HTML
+        // context only, not JS-in-attribute context).
+        return `
+            <div class="camera-card" data-cam-host="${escapeHtml(cam.host)}" onclick="openRoomCamera(this.dataset.camHost)">
+                <div class="camera-frame">
+                    <img crossorigin="anonymous" alt="${escapeHtml(cam.name)}" src="${_roomStillSrc(cam.host)}">
+                </div>
+            </div>`;
+    }
+
+    // Build the camera + door grid, once per room load. The door SLOTS are
+    // re-filled in place by the 5 s render cycle.
+    function renderRoomCameras() {
+        const camEl = document.getElementById("cameras-section");
+        const hasCam  = ROOM_CAMERAS.length > 0;
+        const hasDoor = ROOM_DOORS.length > 0;
+        if (!camEl || !(hasCam || hasDoor)) return;
+        let cells = "";
+        if (hasCam)  cells += ROOM_CAMERAS.map(renderRoomCamera).join("");
+        if (hasDoor) cells += ROOM_DOORS
+            .map((d, i) => `<div class="door-slot" data-door-idx="${i}"></div>`)
+            .join("");
+        const header = hasCam && hasDoor
+            ? (ROOM_CAMERAS.length > 1 || ROOM_DOORS.length > 1
+                    ? "Cameras & Doors" : "Camera & Door")
+            : hasCam
+                ? "Camera" + (ROOM_CAMERAS.length > 1 ? "s" : "")
+                : "Door"   + (ROOM_DOORS.length   > 1 ? "s" : "");
+        camEl.innerHTML = renderSectionHeader(header) +
+            '<div class="grid camera-grid">' + cells + '</div>';
+        _roomStillTimers.forEach(clearInterval);
+        _roomStillTimers.length = 0;
+        camEl.querySelectorAll(".camera-frame img").forEach(_startRoomStill);
+        // The door slots are filled in place by the 5 s device render, which
+        // is also what knows the contact states — so a rebuild leaves them
+        // empty for at most one cycle rather than duplicating that logic here.
+        if (window.__lastDevices) { try { render(window.__lastDevices); } catch (e) { /* next tick */ } }
+    }
+
+    // Click handler — opens the cameras page focused on this cam. The cameras
+    // page already has all the focus / pause / snapshot machinery.
+    function openRoomCamera(host) {
+        location.href = `cameras.html?focus=${encodeURIComponent(host)}`;
+    }
+
+    // Pulse-door tile. status text comes from the configured contact sensor:
+    //   contact onState === openWhenContactOnState  →  "Open"   else "Closed".
+    // Tile uses the existing light-card colour to indicate Open (warm) vs
+    // Closed (off), and a single big action button below.
+    // Pulse-door cooldown (v2.37.0): the room re-renders every 3s poll, which
+    // rebuilds the door button and would drop an in-flight disabled state +
+    // its cooldown timeout, letting the user re-trigger mid-pulse. Track the
+    // cooldown in a module-level set keyed by the door's relays so the button
+    // renders disabled across re-renders until the cooldown clears.
+    const _pulseCooldown = new Set();
+    function _doorBtn(relayJson, pulse, action, door, status) {
+        // No relay to pulse (v3.25.0): the button can do nothing, so it is
+        // disabled and says what is missing. Two rooms sat like this for
+        // weeks, showing "Press to Activate" over a press that did nothing.
+        if (relayJson === "[]") {
+            return `<button class="door-btn" disabled title="No opener relay is set for this door in Settings">Not set up</button>`;
+        }
+        const cooling = _pulseCooldown.has(relayJson);
+        // The door's own contact is what confirms the press worked, so carry
+        // enough of it on the button for pulseDoor to build a watch: which
+        // sensor, and which onState means open.
+        const cid  = (door && door.statusContactId) || 0;
+        const ows  = (door && door.openWhenContactOnState) ? 1 : 0;
+        return `<button class="door-btn" data-pulse="${pulse}" data-relays='${relayJson}'`
+            + ` data-contact="${cid}" data-open-on="${ows}" data-status="${escapeHtml(status || "")}"`
+            + ` data-dsh-act-key="door:${escapeHtml(relayJson)}"`
+            + (cooling ? " disabled" : "")
+            + ` onclick="pulseDoor(this)">${escapeHtml(cooling ? "Wait…" : action)}</button>`;
+    }
+
+    // Last SETTLED state per door device, so "moving" can be named as
+    // Opening… or Closing… rather than a bare "Moving…". Mirrors the hub's
+    // _doorLast; a door opened mid-travel is honestly neutral.
+    const _doorLast = new Map();
+
+    // State-driven door tile (v2.86.0) — used when the door config carries a
+    // `deviceId`. It reads the GarageDoor plugin's own doorState instead of
+    // re-deriving the answer from a relay and one contact sensor, which is the
+    // whole reason that plugin exists: it is the only thing that can say
+    // "moving" or "stuck", and two raw contacts cannot. The press fires the
+    // configured action group, and both plugin actions are idempotent, so a
+    // ≤3 s-stale tile can only ever no-op — never reverse the door.
+    function renderStateDoorTile(door, devices, compact) {
+        const did = Number(door.deviceId);
+        const d   = devices.find(x => x.id === did);
+        const raw = (d && d.states) ? d.states[door.state || "doorState"] : undefined;
+        let t = { key: "unknown", label: "—", intent: null };
+        if (window.DashAction && DashAction.doorTile) {
+            t = DashAction.doorTile(raw, _doorLast.get(did));
+        }
+        const settled = (raw == null) ? "" : String(raw).trim().toLowerCase();
+        if (settled === "open" || settled === "closed") _doorLast.set(did, settled);
+
+        const label  = door.label || (d && d.name) || "Door";
+        const action = t.intent === "open"  ? "Press to Open"
+                     : t.intent === "close" ? "Press to Close"
+                     :                        t.label;
+        const actId  = t.intent === "open" ? Number(door.openAction || 0)
+                     : t.intent === "close" ? Number(door.closeAction || 0)
+                     : 0;
+        // No intent, or no action group configured for it, means the button
+        // does nothing — so it is disabled rather than left looking live.
+        const dead = !t.intent || !actId;
+        const btn =
+            `<button class="door-btn" data-door-action="${actId}"` +
+            ` data-dsh-act-key="door:dev:${did}"` +
+            ` data-door-title="${escapeHtml(label)}"` +
+            (dead ? " disabled" : "") +
+            ` onclick="pressStateDoor(this)">${escapeHtml(action)}</button>`;
+
+        if (compact) {
+            return `
+                <div class="door-card-compact door-state-${t.key}">
+                    <div class="door-status-frame">
+                        <div class="door-label">${escapeHtml(label)}</div>
+                        <div class="door-status">${escapeHtml(t.label)}</div>
+                    </div>
+                    ${btn}
+                </div>`;
+        }
+        return `
+            <div class="light-card is-colour door-state-${t.key}">
+                <div class="light-head">
+                    <div class="head-text">
+                        <div class="name-row">
+                            <div class="light-name">${escapeHtml(label)}</div>
+                        </div>
+                        <div class="light-state">${escapeHtml(t.label)}</div>
+                    </div>
+                </div>
+                ${btn}
+            </div>`;
+    }
+
+    async function pressStateDoor(btn) {
+        if (!btn || btn.disabled) return;
+        const actionId = Number(btn.dataset.doorAction || 0);
+        if (!actionId) return;
+        const key  = btn.dataset.dshActKey || ("door:" + actionId);
+        const spec = DashAction.watchSpec(actionId);
+        await DashAction.run({
+            api: indigo, key, actionId,
+            // Door theme: blue in-flight veil, and holdDone 0 clears it the
+            // moment travel confirms — the tile turning red or white IS the
+            // confirmation, so a lingering veil would only argue with it.
+            spec: spec ? Object.assign({}, spec, { theme: "door", holdDone: 0 }) : null,
+            title: btn.dataset.doorTitle || "Door"
+        });
+    }
+
+    function renderDoorTile(door, devices, compact) {
+        // A door backed by a real door DEVICE is state-driven; anything still
+        // configured the old way keeps the relay-pulse tile below.
+        if (door && door.deviceId) return renderStateDoorTile(door, devices, compact);
+        const contact = devices.find(d => d.id === door.statusContactId);
+        let status = "Unknown";
+        // A contact that cannot report leaves the door Unknown (v2.95.3).
+        if (contact && contact.enabled !== false && !(contact.errorState || "").trim()
+                && DashTile.state(contact.onState) !== null) {
+            const onState = DashTile.state(contact.onState);
+            const isOpen = onState === !!door.openWhenContactOnState;
+            status = isOpen ? "Open" : "Closed";
+        }
+        const isOpen = (status === "Open");
+        const action = status === "Closed" ? "Press to Open"
+                     : status === "Open"   ? "Press to Close"
+                     :                       "Press to Activate";
+        // Drop relays that no longer exist. A retired device left in the config
+        // fails its turnOff, which pulseDoor reads as a relay stuck ENERGISED —
+        // so a stale id cries wolf on every single press and buries the warning
+        // that matters. (Live case: the Gen1 Shelly retired 08-Jun-2026 sat in
+        // both the Garage and Hall door configs.)
+        const known = new Set(devices.map(d => d.id));
+        const allRelays = (door.relayIds || []);
+        const relays = allRelays.filter(id => known.has(id));
+        if (relays.length !== allRelays.length) {
+            console.warn("renderDoorTile: ignoring relay id(s) with no device —",
+                allRelays.filter(id => !known.has(id)), "on", door.label || "door");
+        }
+        const relayJson = JSON.stringify(relays);
+        const pulse     = parseInt(door.pulseMs || 1500, 10);
+        const label     = door.label || "Door";
+
+        // Compact form: lives next to a camera in #cameras-section. Uses
+        // 16:9 aspect ratio so its height matches the adjacent camera tile.
+        if (compact) {
+            return `
+                <div class="door-card-compact ${isOpen ? 'is-open' : ''}">
+                    <div class="door-status-frame">
+                        <div class="door-label">${escapeHtml(label)}</div>
+                        <div class="door-status">${escapeHtml(status)}</div>
+                    </div>
+                    ${_doorBtn(relayJson, pulse, action, door, status)}
+                </div>`;
+        }
+        // Full-width form: rendered in #content when the room has no camera.
+        return `
+            <div class="light-card is-colour ${isOpen ? 'on' : ''}">
+                <div class="light-head">
+                    <div class="head-text">
+                        <div class="name-row">
+                            <div class="light-name">${escapeHtml(label)}</div>
+                        </div>
+                        <div class="light-state">${escapeHtml(status)}</div>
+                    </div>
+                </div>
+                ${_doorBtn(relayJson, pulse, action, door, status)}
+            </div>`;
+    }
+
+    // Build a watch from the door's own configured contact: pulse, then wait
+    // for that sensor to reach the OPPOSITE of where it started. Returns null
+    // when the door has no contact configured or its state is unknown, in
+    // which case DashAction just reports the pulse was sent.
+    function _doorWatch(btn) {
+        const cid = parseInt(btn.dataset.contact || "0", 10);
+        const status = btn.dataset.status || "";
+        if (!cid || (status !== "Open" && status !== "Closed")) return null;
+        const openOn = btn.dataset.openOn === "1";
+        const wantOpen = (status === "Closed");          // pressing reverses it
+        return {
+            timeoutSec: 45,
+            workingText: wantOpen ? "Opening…" : "Closing…",
+            timeoutText: "No confirmation — check the door",
+            rules: [
+                { when: [{ id: cid, state: "onState", is: (wantOpen === openOn) }],
+                  phase: "done", text: wantOpen ? "Open" : "Closed" },
+                { when: [], phase: "working",
+                  text: wantOpen ? "Opening…" : "Closing…" }
+            ]
+        };
+    }
+
+    async function pulseDoor(btn) {
+        if (!btn || btn.disabled) return;
+        const key   = btn.dataset.relays || "[]";
+        const ids   = JSON.parse(key);
+        const pulse = parseInt(btn.dataset.pulse || "1500", 10);
+        if (!ids.length || _pulseCooldown.has(key)) return;
+        // Mark cooldown in the module-level set so it survives the 3s re-render
+        // (a rebuilt button reads this and renders disabled).
+        _pulseCooldown.add(key);
+        btn.disabled = true;
+
+        // The relay work is unchanged — DashAction only owns the reporting, so
+        // the safety-critical turnOff retry below still runs exactly as before.
+        const exec = async () => {
+            await Promise.allSettled(ids.map(id => indigo.turnOn(id).catch(() => {})));
+            await new Promise(r => setTimeout(r, pulse));
+            // The OFF half is the safety-critical one — a failed turnOff
+            // leaves a momentary door relay ENERGISED. Retry each failure
+            // once, and if any still fails, say so instead of pretending.
+            let failed = (await Promise.all(
+                ids.map(id => indigo.turnOff(id).then(() => null).catch(() => id))
+            )).filter(id => id != null);
+            if (failed.length) {
+                await new Promise(r => setTimeout(r, 1000));
+                failed = (await Promise.all(
+                    failed.map(id => indigo.turnOff(id).then(() => null).catch(() => id))
+                )).filter(id => id != null);
+            }
+            if (failed.length) {
+                console.error("pulseDoor: turnOff failed twice for", failed);
+                throw new Error("Relay stuck ON — check it!");
+            }
+        };
+
+        try {
+            await DashAction.run({
+                key, exec,
+                spec: _doorWatch(btn),
+                title: "Door",
+                sentText: "Pulsed"
+            });
+        } finally {
+            // Cooldown so the user can't re-trigger before contact sensors update.
+            // Clearing the set lets the next render restore the live button label.
+            setTimeout(() => { _pulseCooldown.delete(key); }, 1500);
+        }
+    }
+
+    // Strip the room-name prefix (set by _initRoomFromConfig) so e.g.
+    // "Garage Strip Lights" → "Strip Lights". Falls back to the original
+    // name if no prefix matches.
+    function _stripRoomPrefix(name) {
+        const room = window.__ROOM_NAME || "";
+        if (room && name.startsWith(room + " ")) {
+            return name.slice(room.length + 1);
+        }
+        return name;
+    }
+    // Strip vendor/IP cruft so e.g. "Garage Strip Lights Shelly 1 192.168.1.99"
+    // → "Strip Lights". Order matters: kill the trailing IP first, then any
+    // remaining "Shelly N" / "Gen4" tail, then plain "Plug".
+    function prettyLightName(name) {
+        return _stripRoomPrefix(name)
+            .replace(/ \d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/, "")     // strip trailing IPv4
+            .replace(/ Shelly( \d+)?$/i, "")                          // strip " Shelly 1"
+            .replace(/ Gen\s*\d+$/i, "")                              // strip " Gen4"
+            .replace(/ Plug$/, "");                                    // strip " Plug"
+    }
+    function prettyMotionName(name) {
+        // Strip the room prefix and any trailing " Contact Sensor" / " Sensor".
+        // Works for "Kitchen Left Presence Sensor" → "Left Presence",
+        // "Kitchen Temperature And Humidity Sensor" → "Temperature And Humidity",
+        // "Kitchen Window Contact Sensor" → "Window".
+        // Also strip a trailing IPv4 and a " Shelly UNI" / " Shelly N" tail so a
+        // raw monitor name like "Qashqai Battery Shelly UNI 192.168.1.125"
+        // reads as "Qashqai Battery" on the tile.
+        return _stripRoomPrefix(name)
+            .replace(/ \d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/, "")
+            .replace(/ Shelly( UNI| \d+)?$/i, "")
+            .replace(/ Contact Sensor$/i, "")
+            .replace(/ Sensor$/i, "");
+    }
+
+    // ── Device details modal ─────────────────────────────────
+    function openDeviceDetails(deviceId) {
+        const dev = (window.__lastDevices || []).find(d => d.id === deviceId);
+        if (!dev) return;
+        document.getElementById("details-modal-title").textContent = dev.name || "Device";
+        document.getElementById("details-curated").innerHTML = renderCuratedDetails(dev);
+        document.getElementById("details-raw").textContent = JSON.stringify(dev, null, 2);
+        document.getElementById("details-raw").hidden = true;
+        document.getElementById("raw-toggle-btn").textContent = "Show raw JSON";
+        document.getElementById("details-modal").hidden = false;
+        document.addEventListener("keydown", _onDetailsKey);
+    }
+    function closeDeviceDetails() {
+        document.getElementById("details-modal").hidden = true;
+        document.removeEventListener("keydown", _onDetailsKey);
+    }
+    function _onDetailsKey(e) {
+        if (e.key === "Escape") closeDeviceDetails();
+    }
+    function toggleRawDetails() {
+        const raw = document.getElementById("details-raw");
+        const btn = document.getElementById("raw-toggle-btn");
+        raw.hidden = !raw.hidden;
+        btn.textContent = raw.hidden ? "Show raw JSON" : "Hide raw JSON";
+    }
+    function _detailRow(k, v) {
+        const safeK = escapeHtml(String(k));
+        const safeV = escapeHtml(String(v == null || v === "" ? "—" : v));
+        return `<div class="detail-row"><span class="detail-key">${safeK}</span><span class="detail-val">${safeV}</span></div>`;
+    }
+    function _detailGroup(title) {
+        return `<div class="detail-group-title">${escapeHtml(title)}</div>`;
+    }
+    function renderCuratedDetails(d) {
+        const cls = (d.class || "").replace("indigo.", "");
+        const s = d.states || {};
+        let out = "";
+        // Identity
+        out += _detailGroup("Identity");
+        out += _detailRow("Name", d.name);
+        out += _detailRow("Type", cls);
+        out += _detailRow("Model", d.model);
+        out += _detailRow("Device ID", d.id);
+        out += _detailRow("Plugin", (d.pluginId || "").replace(/^com\./, ""));
+        // Status & timing
+        out += _detailGroup("Status");
+        if (d.onState != null) out += _detailRow("On state", d.onState ? "On" : "Off");
+        if (d.errorState)      out += _detailRow("Error", d.errorState);
+        out += _detailRow("Last changed", formatWhen(d.lastChanged));
+        if (s.availability)    out += _detailRow("Availability", s.availability);
+        // Type-specific
+        if (/Dimmer/.test(cls)) {
+            out += _detailGroup("Dimmer");
+            if (d.brightness != null) out += _detailRow("Brightness", d.brightness + "%");
+            if (s.colorMode)          out += _detailRow("Colour mode", s.colorMode);
+            if (s.colorTemp || s.whiteTemperature) {
+                out += _detailRow("Colour temp", (s.colorTemp || s.whiteTemperature) + " K");
+            }
+            if (d.redLevel != null && (d.redLevel || d.greenLevel || d.blueLevel)) {
+                out += _detailRow("RGB level", `${Math.round(d.redLevel)}/${Math.round(d.greenLevel)}/${Math.round(d.blueLevel)}`);
+            }
+            const caps = [];
+            if (d.supportsRGB) caps.push("RGB");
+            if (d.supportsWhiteTemperature) caps.push("Colour temp");
+            if (d.supportsOnState) caps.push("On/off");
+            if (caps.length) out += _detailRow("Capabilities", caps.join(", "));
+        } else if (/Relay/.test(cls)) {
+            const opt = (k, suffix) => { if (s[k] != null) out += _detailRow(k.replace(/([A-Z])/g, " $1").replace(/^./, c => c.toUpperCase()), s[k] + (suffix || "")); };
+            // Shelly plugs expose energy data — show when present.
+            out += _detailGroup("Power");
+            opt("powerWatts", " W");
+            opt("currentAmps", " A");
+            opt("voltage", " V");
+            opt("energyKwhToday", " kWh");
+            opt("energyKwhMonth", " kWh");
+            opt("deviceTempC", " °C");
+        } else if (/Thermostat/.test(cls)) {
+            out += _detailGroup("Thermostat");
+            const cur = (function() {
+                for (const v of [s.temperatureInput1, s.temperature, d.displayStateValRaw]) {
+                    const n = parseFloat(v);
+                    if (!isNaN(n) && n > -50 && n < 100) return n;
+                }
+                return null;
+            })();
+            if (cur != null) out += _detailRow("Current temp", cur.toFixed(1) + " °C");
+            if (d.setpointHeat != null) out += _detailRow("Setpoint (heat)", d.setpointHeat + " °C");
+            if (s["valve-position"] != null) out += _detailRow("Valve position", s["valve-position"] + "%");
+            if (d.hvacMode) out += _detailRow("HVAC mode", d.hvacMode.replace(/^indigo\.kHvacMode\./, ""));
+            if (d.hvacHeaterIsOn != null) out += _detailRow("Heater on", d.hvacHeaterIsOn ? "Yes" : "No");
+        } else if (/Sensor/.test(cls)) {
+            out += _detailGroup("Sensor");
+            if (s.battery != null)     out += _detailRow("Battery", s.battery + "%");
+            if (d.batteryLevel != null) out += _detailRow("Battery level", d.batteryLevel + "%");
+            if (s.linkQuality != null) out += _detailRow("Link quality", s.linkQuality + " / 255");
+            if (s.temperature != null) out += _detailRow("Temperature", s.temperature + " °C");
+            if (s.humidity != null)    out += _detailRow("Humidity", s.humidity + "%");
+            if (s.illuminance != null) out += _detailRow("Illuminance", s.illuminance + " lux");
+        }
+        return out;
+    }
+
+    // ── Colour picker (modal) ─────────────────────────────────
+    // Remember the device the modal is editing + last-known UI state.
+    let _activeLampId   = null;
+    let _lastColourState = { mode: "white", ct: 3000, hex: "#ffaa55" };
+    let _pickerMode = "white";
+
+    // ONE request (v2.94.0). This used to be three ordered commands fired from
+    // here — turn on, brightness, colour — each swallowed by an empty catch. A
+    // phone that locked or lost signal between them left the lamp half-set and
+    // nothing said so. The plugin now runs the sequence and reports each step,
+    // so a failure arrives as a thrown error and can be shown.
+    async function applyPreset(key, deviceId) {
+        if (!key || !deviceId) return;
+        try {
+            await indigo.applyColour(deviceId, { preset: key });
+        } catch (e) {
+            console.error("colour preset failed", e);
+            DashAction.note("device:" + deviceId, "error",
+                            "Failed — " + ((e && e.message) || "no response"));
+        }
+    }
+
+    function openColorPicker(deviceId) {
+        if (!deviceId) return;
+        _activeLampId = deviceId;
+        // Seed picker from the device's last known state.
+        const dev = (window.__lastDevices || []).find(d => d.id === deviceId);
+        if (!dev) return;
+        document.getElementById("color-modal-title").textContent = prettyLightName(dev.name);
+
+        const s   = dev.states || {};
+        const mode = (s.colorMode || "").includes("temp") ? "white" : "color";
+        const ct   = Math.round(parseFloat(s.colorTemp || s.whiteTemperature || 3000));
+        // Null-coalescing, not ||: a lamp showing pure blue has redLevel 0,
+        // which is falsy, and the picker opened magenta (v2.95.3).
+        const _lvl = (a, b, dflt) => { const v = a != null ? a : b; const n = parseFloat(v); return isFinite(n) ? n : dflt; };
+        const r    = Math.round(_lvl(dev.redLevel, s.redLevel, 0) * 2.55);
+        const g    = Math.round(_lvl(dev.greenLevel, s.greenLevel, 0) * 2.55);
+        const b    = Math.round(_lvl(dev.blueLevel,  s.blueLevel,  0) * 2.55);
+        const hex  = "#" + [r, g, b].map(v => v.toString(16).padStart(2, "0")).join("");
+        _lastColourState = { mode, ct: Math.max(2200, Math.min(6500, ct)), hex };
+
+        setMode(mode);
+        document.getElementById("ct-slider").value = _lastColourState.ct;
+        document.getElementById("ct-value").textContent = _lastColourState.ct + "K";
+        document.getElementById("rgb-picker").value = _lastColourState.hex;
+        updateRgbPreview(_lastColourState.hex);
+
+        const modal = document.getElementById("color-modal");
+        modal.hidden = false;
+        // Trap Escape to close
+        document.addEventListener("keydown", _onModalKey);
+    }
+
+    function closeColorPicker() {
+        document.getElementById("color-modal").hidden = true;
+        document.removeEventListener("keydown", _onModalKey);
+    }
+
+    function _onModalKey(e) {
+        if (e.key === "Escape") closeColorPicker();
+    }
+
+    function setMode(mode) {
+        _pickerMode = mode;
+        document.getElementById("tab-white").classList.toggle("is-active", mode === "white");
+        document.getElementById("tab-color").classList.toggle("is-active", mode === "color");
+        document.getElementById("white-panel").hidden = mode !== "white";
+        document.getElementById("color-panel").hidden = mode !== "color";
+    }
+
+    function onCtInput() {
+        const v = parseInt(document.getElementById("ct-slider").value);
+        document.getElementById("ct-value").textContent = v + "K";
+    }
+
+    function onRgbInput() {
+        const hex = document.getElementById("rgb-picker").value;
+        updateRgbPreview(hex);
+    }
+
+    function updateRgbPreview(hex) {
+        document.getElementById("rgb-swatch").style.background = hex;
+        document.getElementById("rgb-hex").textContent = hex.toUpperCase();
+    }
+
+    // The picker's own apply, likewise ONE request (v2.94.0): it was turn-on
+    // followed by set-colour, and the same interruption left a lamp switched on
+    // wearing the previous colour. No brightness is sent — the picker
+    // deliberately leaves brightness where the user had it.
+    async function applyColorSelection() {
+        const id = _activeLampId;
+        if (!id) { closeColorPicker(); return; }
+        let levels;
+        if (_pickerMode === "white") {
+            // whiteTemperature only. Hue handles the white/colour mode switch.
+            levels = { whiteTemperature: parseInt(document.getElementById("ct-slider").value) };
+        } else {
+            const hex = document.getElementById("rgb-picker").value;
+            // 0-255 -> 0-100 levels
+            levels = {
+                redLevel:   Math.round(parseInt(hex.slice(1, 3), 16) / 2.55),
+                greenLevel: Math.round(parseInt(hex.slice(3, 5), 16) / 2.55),
+                blueLevel:  Math.round(parseInt(hex.slice(5, 7), 16) / 2.55),
+            };
+        }
+        try {
+            await indigo.applyColour(id, levels);
+        } catch (e) {
+            // A failed command used to strand the modal open with an
+            // unhandled rejection — close it and say so instead.
+            console.error("colour command failed", e);
+            DashAction.note("device:" + id, "error",
+                            "Failed — " + ((e && e.message) || "no response"));
+        } finally {
+            closeColorPicker();
+        }
+    }
+
+    async function toggleLights() {
+        // Smart toggle: if every READABLE non-main light is on, turn ALL off.
+        // Otherwise turn ALL on. Decided from the rendered DOM so the action
+        // matches what the user is looking at — and it must use the same rule
+        // as the label above, or the button would say one thing and do another.
+        const ids = Array.from(LIGHT_IDS).filter(id => !MAIN_LIGHT_IDS.has(id));
+        const deciders = ids.filter(id => !OPEN_LOOP_IDS.has(id));
+        // Decide from the SAME population the label used (v2.95.3): the
+        // devices in the feed. The label read the feed and this read the DOM,
+        // so a configured light missing from the feed flipped "All Off" into
+        // turning everything on.
+        const feed = (typeof window !== "undefined" && Array.isArray(window.__lastDevices)) ? window.__lastDevices : null;
+        const present = feed ? deciders.map(id => feed.find(d => d.id === id)).filter(Boolean) : [];
+        const allOn = feed
+            ? (present.length > 0 && present.every(d => DashTile.isOn(d.onState)))
+            : (deciders.length > 0 && deciders.every(id => {      // no feed yet: the rendered toggles
+                const cb = document.querySelector(`.toggle input[data-id="${id}"]`);
+                return cb && cb.checked;
+            }));
+        const fn = allOn ? "turnOff" : "turnOn";
+        // Belt and braces: the command goes to EVERY id, including the ones
+        // already believed to be in that state and including the unreadable
+        // ones. Sending an off to something already off costs nothing, and it
+        // is the only way to be sure about a device that cannot be read.
+        await Promise.allSettled(ids.map(id => indigo[fn](id).catch(() => {})));
+    }
+
+    async function toggleTv() {
+        // Smart toggle: if any TV device is on, turn ALL off; else turn ALL on.
+        // Decide based on the latest rendered DOM toggle state (matches what the user sees).
+        const ids = Array.from(TV_IDS);
+        const anyOn = ids.some(id => {
+            const cb = document.querySelector(`.toggle input[data-id="${id}"]`);
+            return cb && cb.checked;
+        });
+        const fn = anyOn ? "turnOff" : "turnOn";
+        await Promise.allSettled(ids.map(id => indigo[fn](id).catch(() => {})));
+    }
+
+    // A pointerup that lands outside the slider never reaches its own handler;
+    // without this a stuck flag would freeze every render for good.
+    window.addEventListener("pointerup", () => { window._sliderDragging = false; });
+    window.addEventListener("pointercancel", () => { window._sliderDragging = false; });
+
+    function escapeHtml(t) { return DashUI.esc(t); }   // v3.25.0: escapes quotes too
+    </script>
+
+    <footer class="bottombar">
+        <div class="bottombar-inner">
+            Updated <span id="ts-bot">—</span> · Next refresh <span id="cdwn-bot">—</span>s
+        </div>
+    </footer>
+
+    <script>
+const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
+
+    </script>
+
+<script src="dashboards-icons.js"></script>
+<script src="a11y.js"></script>
+
+<script src="standalone-nav.js"></script>
+</body>
+</html>

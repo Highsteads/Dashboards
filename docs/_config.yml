@@ -36,8 +36,7 @@ footer_content: >-
   © 2026 CliveS · MIT licence · Built with Claude Code.
   The pictures are a real house, captured through a proxy that rewrites every address on the way.
 
-# Static files served as-is
+# Static files served as-is. demo/ is the working demo (tools/build_demo_site.sh):
+# its pages carry no front matter, so Jekyll copies them through untouched.
 include:
   - screenshots
-exclude:
-  - demo

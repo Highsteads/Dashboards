@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta name="indigo-page-name" content="Dashboards">
+    <meta name="indigo-page-icon" content="house.fill">
+    <meta name="indigo-page-description" content="Home dashboards hub">
+    
+    <!-- iOS / macOS Web App (File → Add to Dock on Mac, Share → Add to Home Screen on iPhone). -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Dashboards">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#5856d6">
+    <link rel="apple-touch-icon" sizes="180x180" href="/public/dashboards/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="/public/dashboards/apple-touch-icon-167.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="/public/dashboards/apple-touch-icon-152.png">
+    <link rel="apple-touch-icon-precomposed" href="/public/dashboards/apple-touch-icon.png">
+    <title>Menu</title>
+    <link rel="stylesheet" href="dashboards-theme.css">
+    <link rel="stylesheet" href="dashboards-tiles.css">
+    <style>
+        body { font-family: var(--font-ui); background: var(--bg); color: var(--text);
+               padding: max(80px, calc(72px + env(safe-area-inset-top))) 0
+                        max(32px, env(safe-area-inset-bottom)); margin: 0; }
+        .container { padding: 0 max(16px, env(safe-area-inset-right))
+                              0 max(16px, env(safe-area-inset-left)); }
+        .menu-empty { max-width: 900px; margin: 0 auto; color: var(--text-secondary); }
+        .menu-sec { max-width: 900px; margin: 0 auto 18px; }
+        .menu-sec-title { font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+                          color: var(--text-secondary); margin: 0 2px 8px; }
+    </style>
+<link rel="stylesheet" href="dashboard-refresh.css">
+<link rel="stylesheet" href="dashboards-chrome.css">
+</head>
+<body class="menu-page">
+    <header class="topbar">
+        <div class="hdr-left">
+            <a class="nav-btn" href="index.html">&larr; Home</a>
+        </div>
+        <div class="hdr-center">
+            <h1 id="menu-title">Menu</h1>
+            <span class="topbar-status" id="menu-sub">Every page</span>
+        </div>
+        <div class="hdr-right">
+            <a class="nav-btn" id="menu-switch" href="menu.html?g=rooms">Rooms &rarr;</a>
+        </div>
+    </header>
+    <div class="container">
+        <main class="grid" id="grid"></main>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="dashboards-auth.js"></script>
+    <script src="dashboards-ui.js"></script>
+    <script src="dashboards-icons.js"></script>
+    <script src="a11y.js"></script>
+    <script>
+    /* Section menus (v2.88.0). House, Rooms and Tools used to sit open on the
+       hub as three stacked walls of tiles. They are navigation, not status, so
+       they now live here behind one tile each and the hub keeps only what it is
+       actually for: the greeting, the favourites and Energy · Now.
+
+       No API key and no device poll — every tile is a link. That is the point:
+       this page costs one small request whether you are at home or on 5G. */
+    "use strict";
+
+    /* v3.33.0: the menu asks the questions people come with, on one page,
+       instead of two catch-all walls ("House" and "Tools") of ten tiles each.
+       Each tile: [href, title, description, card class, icon, needs]. A tile
+       whose `needs` is unmet is dropped (see tileHidden). */
+    const SECTIONS = [
+        { key: "now", title: "Right now", tiles: [
+            ["active.html",   "Active",   "What is on",                        "active",   "bolt"],
+            ["scenes.html",   "Scenes",   "Run an action group",               "scenes",   "scenes"],
+            ["heating.html",  "Heating",  "Zones, schedules, boost",           "heating",  "thermo"],
+            ["cameras.html",  "Cameras",  "Every camera, live",                "cameras",  "camera"],
+            ["ecowitt.html",  "Weather",  "The weather station",               "",         "cloudsun"],
+        ]},
+        { key: "energy", title: "Energy", tiles: [
+            ["energy.html",   "Energy",   "Solar, battery, grid, when to run it", "energy", "bolt", "sigen"],
+            ["cost.html",     "Cost",     "Bills, export, solar savings",      "cost",     "money", "sigen"],
+        ]},
+        { key: "history", title: "What happened", tiles: [
+            ["timeline.html", "Timeline", "Replay a day, nights, charts, diary", "",       "clock"],
+        ]},
+        { key: "wrong", title: "Is anything wrong?", tiles: [
+            ["system-health.html", "System", "Server, plugins, devices, automation", "system", "system"],
+            ["alerts.html",   "Alerts",   "Errors in the log",                 "",         "bell"],
+            ["wifi.html",     "WiFi",     "Access points \u00b7 health",       "wifi",     "wifi"],
+            ["mains.html",    "Mains",    "Every 240 V meter and its trust",   "energy",   "bolt"],
+        ]},
+        { key: "setup", title: "Setup", tiles: [
+            ["settings.html", "Settings", "Cameras, favourites, rooms",        "settings", "gear"],
+        ]},
+    ];
+
+    /* Room names must map to an icon that exists in dashboards-icons.js, or the
+       tile wears an empty square. Same map the hub used. */
+    const ROOM_ICONS = [
+        [/bed/i, "bed"], [/kitchen/i, "kitchen"], [/dining/i, "dining"],
+        [/bath|en ?suite|shower|wc|toilet/i, "bath"], [/garage/i, "garage"],
+        [/hall|landing|stair/i, "hall"], [/conservatory/i, "conservatory"],
+        [/garden|patio|yard/i, "plant"], [/drive/i, "car"],
+        [/living|lounge|sitting|snug/i, "lounge"], [/utility|laundry/i, "laundry"],
+        [/office|study/i, "clipboard"],
+    ];
+    const roomIcon = n => (ROOM_ICONS.find(([re]) => re.test(n)) || [null, "house"])[1];
+
+    const esc = s => DashUI.esc(s);   // v3.25.0: one shared escape
+
+    function tile(href, title, desc, cls, icon) {
+        const ic = (window.DashIcons && DashIcons.has(icon)) ? DashIcons.svg(icon) : "";
+        return `<a class="card ${cls ? "card-" + cls : ""}" href="${esc(href)}">
+            <div class="card-icon">${ic}</div>
+            <div class="card-title">${esc(title)}</div>
+            <div class="card-desc">${desc}</div>
+        </a>`;
+    }
+
+    /* Custom links live with Tools — they are the same kind of thing, and the
+       hub no longer has a tile wall to put them in. */
+    function customLinkTiles() {
+        const links = (window.INDIGO_CONFIG || {}).customLinks || [];
+        return links.filter(l => l && l.title && l.url)
+            // Scheme guard, same as the hub's: only http(s) or a same-origin path.
+            .filter(l => /^https?:\/\//i.test(String(l.url)) || String(l.url).startsWith("/"))
+            .map(l => `<a class="card card-link" href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">
+                <div class="card-icon">${window.DashIcons ? (DashIcons.has(l.icon) ? DashIcons.svg(l.icon) : DashIcons.svg("link")) : ""}</div>
+                <div class="card-title">${esc(l.title)}</div>
+                <div class="card-desc">External</div></a>`).join("");
+    }
+
+    async function roomTiles() {
+        let rooms = {};
+        try {
+            const r = await fetch((sessionStorage.getItem("dash_demo") ? "demo-data/rooms.json" : "rooms.json") + "?t=" + Date.now(), { cache: "no-store" });
+            if (r.ok) rooms = (await r.json()).rooms || {};
+        } catch (_) { /* fall through to the empty note */ }
+        // Living Room first, then the rest alphabetically (v2.97.0) — it is
+        // the room opened most and a strict alphabet put it sixth.
+        const FIRST = ["living room"];
+        const rank  = n => { const i = FIRST.indexOf(String(n).toLowerCase()); return i < 0 ? FIRST.length : i; };
+        const names = Object.keys(rooms).sort((a, b) =>
+            (rank(a) - rank(b)) || a.localeCompare(b));
+        if (!names.length) {
+            return `<div class="menu-empty">No rooms found — check your Indigo device folders.</div>`;
+        }
+        return names.map(n => {
+            const s = rooms[n] || {};
+            const bits = [];
+            if ((s.lights || []).length)  bits.push((s.lights).length + " lights");
+            if ((s.motion || []).length)  bits.push("motion");
+            if ((s.windows || []).length) bits.push((s.windows).length + " windows");
+            return tile("room.html?room=" + encodeURIComponent(n), n,
+                        esc(bits.join(" \u00b7 ") || "\u2014"), "room", roomIcon(n));
+        }).join("");
+    }
+
+    /* A tile for a page that needs something optional is dropped when config.js
+       says it is absent: SigenEnergyManager for Energy and Cost (v3.13.0). Not
+       silent: the hub says which plugin is missing. Several needs join with "+". */
+    function tileHidden(t, cfgM) {
+        cfgM = cfgM || {};
+        return String(t[5] || "").split("+").filter(Boolean).some(need =>
+            (need === "sigen" && cfgM.sigenAvailable === false));
+    }
+
+    function sectionHtml(sec, cfgM) {
+        const tiles = sec.tiles.filter(t => !tileHidden(t, cfgM)).map(t => tile(...t.slice(0, 5))).join("")
+                    + (sec.key === "setup" ? customLinkTiles() : "");
+        if (!tiles) return "";
+        return `<section class="menu-sec" aria-labelledby="sec-${sec.key}">
+            <h2 class="menu-sec-title" id="sec-${sec.key}">${esc(sec.title)}</h2>
+            <div class="grid">${tiles}</div></section>`;
+    }
+
+    (async () => {
+        // ?g=rooms is the rooms list. Anything else, including the old
+        // ?g=house and ?g=tools bookmarks, is the one menu.
+        const g = new URLSearchParams(location.search).get("g");
+        const main = document.getElementById("grid");
+        if (g === "rooms") {
+            document.getElementById("menu-title").textContent = document.title = "Rooms";
+            document.getElementById("menu-sub").textContent = "Every room";
+            const sw = document.getElementById("menu-switch");
+            sw.href = "menu.html"; sw.innerHTML = "Menu &rarr;";
+            main.classList.add("grid");
+            main.innerHTML = await roomTiles();
+        } else {
+            document.getElementById("menu-title").textContent = document.title = "Menu";
+            main.classList.remove("grid");
+            const cfgM = window.INDIGO_CONFIG || {};
+            main.innerHTML = SECTIONS.map(sec => sectionHtml(sec, cfgM)).join("");
+        }
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360">
+  <rect width="640" height="360" fill="#1c1c2e"/>
+  <text x="320" y="170" fill="#8884d8" font-family="-apple-system,sans-serif"
+        font-size="28" font-weight="600" text-anchor="middle">Camera feed</text>
+  <text x="320" y="205" fill="#666" font-family="-apple-system,sans-serif"
+        font-size="16" text-anchor="middle">(live video on a real install)</text>
+</svg>

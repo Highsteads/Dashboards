@@ -1,0 +1,1 @@
+{"ok": true, "generated": 1790177986.871207, "insights": [{"kind": "battery", "level": "note", "icon": "battery", "title": "Dining Room Temperature and Humidity Sensor battery falling fast", "detail": "58% a week ago, 46% now \u2014 about 26 days left at this rate.", "deviceId": 562364728}], "checked": {"batteries": 58, "sensors": 32, "rooms": 2, "devices": 11}}

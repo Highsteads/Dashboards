@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<!--
+  Filename:    demo.html
+  Description: Demo mode entry point (v2.3.0). Sets the session demo flag and
+               heads to the hub — every page then runs from the canned
+               fixtures in demo-data/ with a gentle state simulator. No
+               Indigo server or credentials needed; this is what powers the
+               hosted GitHub Pages showcase.
+  Author:      CliveS & Claude Fable 5
+  Date:        11-06-2026
+  Version:     1.0
+-->
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboards — Demo</title>
+</head>
+<body style="background:#000">
+    <script>
+        sessionStorage.setItem("dash_demo", "1");
+        location.replace("index.html");
+    </script>
+    <noscript>This demo needs JavaScript enabled.</noscript>
+    <script src="a11y.js"></script>
+</body>
+</html>

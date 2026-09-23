@@ -6,6 +6,9 @@ nav_order: 26
 
 # Demo — `demo.html`
 
+**Try it online: [highsteads.github.io/Dashboards/demo/](https://highsteads.github.io/Dashboards/demo/demo.html)**
+— every page, running in your browser from sample data, with nothing to install.
+
 Three lines that do the work:
 
 ```html
@@ -30,5 +33,13 @@ none of this is your house. Tap to exit."
 - The fixtures are a separate data set, generated from a real house by `tools/make_demo_fixtures.py`
   and sanitised on the way: addresses, hardware identifiers, credentials of every kind and a
   household name are all placeholders. A test in the repository keeps them that way.
-- Demo mode forces every optional feature on, so it shows the Energy, Cost and Laundry pages
-  whatever plugins this server has.
+- Demo mode forces every optional feature on, so it shows the Energy and Cost pages and the When
+  to run it card whatever plugins this server has.
+- The plugin's own endpoints (energy, the Timeline, System health, the meters) answer from canned
+  files in `demo-data/api/` too, so a demo opened on a real install never mixes that house's
+  readings into the made-up ones. `tools/make_demo_api.py` captures them from a live server and
+  cuts them down: the Timeline keeps its lights, heating and energy lanes but not presence or
+  doors, the Nights view is left out altogether, account figures and outage history are blanked,
+  and the activity diary and error log are invented rather than captured.
+- The online copy is `docs/demo/`, built by `tools/build_demo_site.sh`. A test fails when it falls
+  behind the pages, so it cannot quietly go stale.
