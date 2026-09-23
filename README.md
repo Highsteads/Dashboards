@@ -8,7 +8,7 @@ Browser dashboards for [Indigo Domotics](https://www.indigodomo.com/), built for
 wall, a phone in your pocket and a Mac on the desk. No app to install, no cloud account,
 nothing leaving the house.
 
-<img src="https://img.shields.io/badge/version-3.36.0-5856d6" alt="Version 3.36.0">
+<img src="https://img.shields.io/badge/version-3.37.0-5856d6" alt="Version 3.37.0">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-21-0a84ff" alt="21 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
@@ -21,7 +21,7 @@ nothing leaving the house.
 
 ---
 
-**Version:** 3.36.0
+**Version:** 3.37.0
 
 **Documentation:** **[highsteads.github.io/Dashboards](https://highsteads.github.io/Dashboards/)** —
 getting started, configuration, a page of notes for every one of the 21 pages, cameras, remote
@@ -66,11 +66,11 @@ with a gentle state simulator, touching no live devices.
 The three most recent releases, word for word. Every release before these is in
 **[the version history](docs/changelog.md)**, which the documentation site also carries.
 
+**3.37.0** (23-Sep-2026) - **One set of device tiles, and two heating fixes that came out of it.** The room, Active and Heating pages each carried their own copy of the on/off rule, the switch and brightness handling and the heating zone tile, and the copies had drifted apart. They now share one. Two things you can see: on a room page the heating zone now notices when a radiator is calling for heat (it looked in only one of the two places a RAMSES zone reports it), and a setpoint change there is now checked a couple of seconds later and put back, with a message, if the heating plugin did not take it, as the Heating page already did. Both pages now show humidity, valve opening and when each radiator was last heard. On the hub, a favourite whose device is disabled in Indigo now looks greyed out and does not flash when tapped. The pages share one tile stylesheet instead of four copies.
+
 **3.36.0** (23-Sep-2026) - **Live camera video is WebRTC now, and MJPEG is gone.** The live tiles on the Cameras page play the camera's own video, relayed by go2rtc with no re-encoding: about a third of the data the old MJPEG streams used (six live tiles measured about 1 MB/s here, against 3 MB/s before), and on a slow connection a tile drops a frame rather than falling further and further behind. The server no longer runs an ffmpeg process for every camera being watched, and the page no longer ties up one of the browser's six connections per tile. A tile that cannot hold its video drops to stills and tries again later, as before. Pausing a live tile now keeps the frame you were looking at. The room pages show stills that cross-fade like the hub's, and a tap opens the Cameras page with that camera live. You still need ffmpeg, which go2rtc uses for the still pictures, and port 8555 has to be reachable for live video.
 
 **3.35.0** (23-Sep-2026) - **The hub is shorter, and one chip tells you whether anything needs you.** The greeting card now opens with a chip that reads All well, or says how many things need a look. Tap it and the list opens in place: devices reporting an error, batteries running low (named, when there are only a few), errors in the Indigo log, cameras that have stopped answering, and anything Home Insights finds out of the ordinary, each linking to the page with the detail. It replaces the low-battery and in-error chips, the Insights card and the log banner, which said the same things in four places. The camera strip no longer streams: it shows stills that cross-fade from one frame to the next, which reads as moving at a fraction of the data, and live video is a tap away on the Cameras page. The weather card stops repeating the conditions, today's range and the sun times that the greeting card already shows.
-
-**3.34.0** (23-Sep-2026) - **Energy is slimmer, and the Carbon and Laundry pages are one card on it.** The new When to run it card puts the cheapest time to run each metered appliance (with its finish-by buttons) beside how clean the grid is now and over the next day. Each half hides when it has nothing to say: laundry without its companion script, carbon when its region is switched off. The old Carbon and Laundry addresses land on the card. Energy lost what it said twice or three times: the Today's summary tiles (every figure was already in the hero, the energy flow or the battery tiles), the second copy of the dawn reserve on the battery card, the power chart that drew the same half-hour slots as the history chart (whose 24 h, 48 h and 7 day buttons it now carries), and the energy replay, which the Timeline page does better. Today is now one column: the solar card, then the day's energy flow.
 
 ## A look around
 

@@ -892,7 +892,7 @@
   /* Tiles that look like buttons but do nothing when pressed: a reading, a
      door already moving or in an unknown state, a lock with nothing to do,
      and anything the action veil has already taken over. */
-  var INERT_SEL = '.fav-reading, .fav-door-opening, .fav-door-closing, ' +
+  var INERT_SEL = '.fav-reading, .fav-tile.off-line, .fav-door-opening, .fav-door-closing, ' +
                   '.fav-door-moving, .fav-door-unknown, .fav-door-unlocked, ' +
                   '.dsh-act-sending, .dsh-act-working, [aria-disabled="true"], :disabled';
   /* Controls whose clicks are not taps on a tile: typing and sliders. */

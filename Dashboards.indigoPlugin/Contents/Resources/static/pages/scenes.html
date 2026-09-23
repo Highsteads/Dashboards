@@ -64,16 +64,7 @@
             min-height: 58px;
         }
         .scene-btn:active { transform: scale(.97); }
-        .scene-btn.running {
-            border-color: var(--accent); color: var(--accent);
-            pointer-events: none;
-        }
-        .scene-btn.done {
-            border-color: var(--on-color); color: var(--on-color);
-        }
-        .scene-btn.failed {
-            border-color: var(--err); color: var(--err);
-        }
+        /* Sending, done and failed are drawn by DashAction's cover (data-dsh-act-key). */
         .empty, .loading {
             color: var(--text-secondary); text-align: center;
             padding: 48px 16px; font-size: 15px;

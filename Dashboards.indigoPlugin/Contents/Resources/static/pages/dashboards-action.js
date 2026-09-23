@@ -674,6 +674,7 @@
   var API = {
     run: run,
     note: note,
+    truthy: truthy,
     tick: tick,
     repaint: repaint,
     decorate: decorate,

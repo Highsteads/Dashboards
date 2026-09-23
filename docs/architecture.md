@@ -31,7 +31,9 @@ The shared scripts, in the order a page loads them:
 | `dashboard.js` | The device cache: one fetch of everything, then only the devices the `changedSince` endpoint says have moved |
 | `capabilities.js` | Which control each device gets, from a capability catalogue |
 | `dashboards-action.js` | Control buttons: run the action, take the button over, watch the device states until the thing has really happened. Its rule evaluator is a pure function driven by `tests/test_action_watch.mjs` |
-| `dashboards-ui.js` | Link classification, the idle guard, the stream budget, and the other pieces several pages share |
+| `dashboards-controls.js`, `dashboards-controls.css` | The device tiles the room, Active, Heating and weather pages share: the one on/off rule, the toggle and brightness handlers (each toggle confirmed from the device), the heating zone tile with its read-back setpoint buttons, and their styles. Needs `dashboards-action.js` loaded first. Driven by `tests/test_dash_tile.mjs` |
+| `dashboards-ui.js` | Link classification, the idle guard, the camera cross-fade (`swapImage`), the tap guard, and the other pieces several pages share |
+| `when-to-run.js` | The Energy page's When to run it card: the laundry plan and grid carbon |
 | `energy-calc.js` | The arithmetic shared by the Energy and Cost pages — unit formatting, the daily energy allocation behind the Sankey, the half-hourly balance, the rolling money sums. DOM-free, so `tests/test_energy_cost.mjs` can drive it |
 | `a11y.js`, `dashboards-icons.js`, `standalone-nav.js`, `sw.js` | Accessibility polish, the icon set, keeping links inside the home-screen app, and the service worker that raises notifications |
 | `chart.umd.min.js` | [Chart.js](https://www.chartjs.org) (MIT), bundled so charts work with no internet |

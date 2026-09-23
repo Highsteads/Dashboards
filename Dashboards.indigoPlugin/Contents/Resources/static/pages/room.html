@@ -22,6 +22,7 @@
     <link rel="apple-touch-icon-precomposed" href="/public/dashboards/apple-touch-icon.png">
     <title>Room · Dashboards</title>
     <link rel="stylesheet" href="dashboards-theme.css">
+    <link rel="stylesheet" href="dashboards-controls.css">
     <style>
         
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -78,30 +79,6 @@
         @media (prefers-color-scheme: dark) {
             .section-action:hover { background: rgba(125,122,255,0.18); }
         }
-
-        /* ── ⓘ info button + details modal ── */
-        .name-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            min-width: 0;
-        }
-        .name-row > :first-child {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .info-btn {
-            width: 24px; height: 24px;
-            border: none; background: transparent;
-            color: var(--text-secondary); font-size: 16px;
-            cursor: pointer; padding: 0; border-radius: 50%;
-            display: inline-flex; align-items: center; justify-content: center;
-            opacity: 0.55; line-height: 1;
-            transition: opacity .15s, background .15s, color .15s;
-            font-family: inherit;
-        }
-        .info-btn:hover { opacity: 1; background: var(--bg); color: var(--text); }
         .detail-row {
             display: flex; justify-content: space-between; align-items: baseline;
             gap: 12px;
@@ -145,39 +122,12 @@
             grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
             gap: 12px;
         }
-        /* Colour-capable lamps span 2 columns so their preset-chip row
-           (Warm white · Movie · More…) fits without wrapping. On a 1-column
-           grid (iPhone SE) `span 2` clamps to the available track count
-           and just fills the row — no special case needed. */
-        .light-card.is-colour { grid-column: span 2; }
-
-        /* ── Light cards ── */
-        .light-card {
-            background: var(--card-bg); border-radius: var(--r-lg); padding: 14px 16px;
-            box-shadow: var(--shadow);
-            display: flex; flex-direction: column; gap: 10px;
-        }
-        .light-card.on { border-left: 3px solid var(--on-color); }
         .light-head {
             display: flex; align-items: center; justify-content: space-between; gap: 8px;
         }
         .light-name { font-size: 15px; font-weight: 600; flex: 1; min-width: 0; }
         .light-state { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
         .light-state.heater-on { color: var(--amber); font-weight: 600; }
-        .toggle { position: relative; width: 51px; height: 31px; flex-shrink: 0; cursor: pointer; }
-        .toggle input { opacity: 0; width: 0; height: 0; }
-        .toggle .slider {
-            position: absolute; inset: 0; background: var(--off-color);
-            border-radius: var(--r-pill); transition: background 0.25s;
-        }
-        .toggle .slider::before {
-            content: ""; position: absolute; width: 27px; height: 27px;
-            left: 2px; bottom: 2px; background: white; border-radius: 50%;
-            transition: transform 0.25s; box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-        }
-        .toggle input:checked + .slider { background: var(--on-color); }
-        .toggle input:checked + .slider::before { transform: translateX(20px); }
-        .toggle input:disabled + .slider { opacity: 0.5; }
 
         .brightness-row {
             display: flex; align-items: center; gap: 10px;
@@ -204,12 +154,6 @@
         .door-state-moving .door-label,  .door-state-moving .door-status,
         .door-state-stuck .door-label,   .door-state-stuck .door-status { color: #fff; }
         .door-btn[disabled] { opacity: .55; cursor: default; }
-
-        /* ── Colour-lamp extras: chips on card, full-screen picker modal ── */
-        .light-card.is-colour { cursor: pointer; }
-        .light-card.is-colour:focus-visible {
-            outline: 2px solid var(--accent); outline-offset: 2px;
-        }
         .presets {
             display: flex; gap: 6px; flex-wrap: wrap;
             margin-top: 2px;
@@ -462,40 +406,6 @@
             50%      { opacity: 0.55; }
         }
 
-        /* ── Radiator cards (mirror heating.html) ── */
-        .zone {
-            background: var(--card-bg); border-radius: var(--r-lg); padding: 14px 16px;
-            box-shadow: var(--shadow);
-            display: flex; flex-direction: column; gap: 10px;
-        }
-        .zone.heating { border-left: 3px solid var(--warn); }
-        .zone-head {
-            display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;
-        }
-        .zone-name { font-size: 15px; font-weight: 600; }
-        .zone-flame { font-size: 16px; opacity: 0; transition: opacity 0.3s; }
-        .zone-flame.on { opacity: 1; }
-        .temps { display: flex; align-items: baseline; gap: 12px; }
-        .cur-temp { font-size: 32px; font-weight: 700; line-height: 1; }
-        .cur-temp.cold { color: #007aff; }
-        .cur-temp.warm { color: var(--warn); }
-        .cur-temp.hot  { color: var(--bad); }
-        .cur-unit { font-size: 16px; color: var(--text-secondary); font-weight: 500; }
-        .setpoint {
-            display: flex; align-items: center; justify-content: space-between;
-            background: var(--bg); border-radius: var(--r-md); padding: 6px 8px;
-        }
-        .setpoint-label { font-size: 12px; color: var(--text-secondary); }
-        .setpoint-val { font-size: 16px; font-weight: 600; min-width: 50px; text-align: center; }
-        .setpoint-btn {
-            width: 36px; height: 36px; border-radius: var(--r-md);
-            border: none; background: var(--off-color); color: var(--text);
-            font-size: 18px; font-weight: 600; cursor: pointer;
-        }
-        .setpoint-btn:active { background: var(--accent); color: white; }
-        .setpoint-btn:disabled { opacity: 0.5; }
-        .zone-meta { font-size: 12px; color: var(--text-secondary); display: flex; gap: 12px; flex-wrap: wrap; justify-content: space-between; }
-
         .loading { text-align: center; padding: 60px 20px; color: var(--text-secondary); }
         .spinner {
             width: 24px; height: 24px; border: 3px solid var(--off-color);
@@ -597,6 +507,7 @@
     <script src="dashboards-gate.js"></script>
     <script src="dashboard.js"></script>
     <script src="dashboards-action.js"></script>
+    <script src="dashboards-controls.js"></script>
     <script src="capabilities.js"></script>
     <script>
     // ── Refresh status: drives Updated / Next refresh in both top + bottom bar.
@@ -747,13 +658,8 @@
 
     // Indigo's REST API requires setHeatSetpoint `value` to be an integer
     // — half-degree values are rejected with HTTP 400. So step in 1°C.
-    const SETPOINT_MIN    = 8;   // RAMSES TRVs clamp at 8°C — 5 was silently raised by the plugin
-    const SETPOINT_MAX    = 28;
-    const PENDING_TIMEOUT = 4000;
 
     let indigo = null;
-    const pending = new Map();           // device id -> { v, t }
-    const debounceTimers = {};
 
     if (!IndigoAPI.isConfigured()) {
         location.href = "index.html";
@@ -763,6 +669,7 @@
 
     async function start() {
         indigo = new IndigoAPI();
+        DashTile.bind(indigo);
         indigo.onAuthFailure(() => {
             IndigoAPI.clearConfig();
             location.href = "index.html";
@@ -792,38 +699,6 @@
         indigo.observeAll(d => render(d), POLL_INTERVAL_MS, undefined, markRefreshed);
     }
 
-    function getCurrentTemp(d) {
-        const s = d.states || {};
-        const cand = [s.temperatureInput1, s.temperature, d.displayStateValRaw];
-        for (const v of cand) {
-            const n = parseFloat(v);
-            if (!isNaN(n) && n > -50 && n < 100) return n;
-        }
-        return null;
-    }
-    function getSetpoint(d) {
-        if (d.setpointHeat != null) return parseFloat(d.setpointHeat);
-        const s = d.states || {};
-        const n = parseFloat(s.setpointHeat);
-        return isNaN(n) ? null : n;
-    }
-    function isHeating(d) {
-        const s = d.states || {};
-        const valve = parseFloat(s["valve-position"] || s.valvePosition || 0);
-        const heaterOn = (d.hvacHeaterIsOn === true) || /heat/i.test(d.hvacMode || "");
-        const cur = getCurrentTemp(d);
-        const sp = getSetpoint(d);
-        if (!isNaN(valve) && valve > 0) return true;
-        if (heaterOn && cur != null && sp != null && cur < sp - 0.2) return true;
-        return false;
-    }
-    function tempClass(t) {
-        if (t == null) return "";
-        if (t < 16) return "cold";
-        if (t < 21) return "";
-        if (t < 24) return "warm";
-        return "hot";
-    }
     function formatWhen(iso) { return DashUI.ago(iso); }   // v3.28.0: one wording, rounding down
 
     function render(devices) {
@@ -841,7 +716,7 @@
         const windows   = devices.filter(d => WINDOW_IDS.has(d.id)).sort(bySection("windows"));
         const sensors   = devices.filter(d => SENSOR_IDS.has(d.id)).sort(bySection("sensors"));
 
-        const tvOnCount = tv.filter(d => d.onState === true).length;
+        const tvOnCount = tv.filter(d => DashTile.isOn(d.onState)).length;
         const tvAllOn   = tv.length > 0 && tvOnCount === tv.length;
 
         let html = "";
@@ -883,7 +758,7 @@
             // "All Off" while the fire was lit from its handset — so the one
             // press that would have turned it off was never on offer.
             const readable    = others.filter(d => !OPEN_LOOP_IDS.has(d.id));
-            const allOthersOn = readable.length > 0 && readable.every(d => d.onState === true);
+            const allOthersOn = readable.length > 0 && readable.every(d => DashTile.isOn(d.onState));
             const lbl = allOthersOn ? "All Off" : "All On";
             html += renderSectionHeader(
                 "Lights",
@@ -938,7 +813,7 @@
 
         if (radiators.length) {
             html += renderSectionHeader("Heating");
-            html += '<div class="grid">' + radiators.map(renderZone).join("") + '</div>';
+            html += '<div class="grid">' + radiators.map(d => DashTile.zone.render(d, { name: _stripRoomPrefix(d.name).replace(/ Radiator$/, ""), info: true })).join("") + '</div>';
         }
 
         // Appliances: read-only paired tiles for things like the washing
@@ -987,7 +862,7 @@
         // "relay". Dimmability is a separate fact from which control leads.
         const isDimmer = cap ? (cap.control === "dimmer" || cap.control === "color")
                              : /Dimmer/.test(d.class || "");
-        const onState  = d.onState === true;
+        const onState  = DashTile.isOn(d.onState);
         const bri      = d.brightness != null ? parseInt(d.brightness) : (onState ? 100 : 0);
         const fillPct  = isDimmer ? bri : (onState ? 100 : 0);
         const sliderBg = `linear-gradient(to right, var(--accent) ${fillPct}%, var(--off-color) ${fillPct}%)`;
@@ -1012,8 +887,8 @@
                        onpointercancel="window._sliderDragging = false"
                        value="${bri}" data-id="${d.id}"
                        style="${sliderBg.replace(/"/g,'&quot;')}"
-                       oninput="onSlider(this)"
-                       onchange="onSliderCommit(this)">
+                       oninput="DashTile.slide(this)"
+                       onchange="DashTile.slideCommit(this)">
                 <span class="pct" id="pct-${d.id}">${bri}%</span>
             </div>` : "";
 
@@ -1051,7 +926,7 @@
                     </div>
                     <label class="toggle" onclick="event.stopPropagation()">
                         <input type="checkbox" data-id="${d.id}" ${onState ? 'checked' : ''}
-                               onchange="onToggle(this)">
+                               onchange="DashTile.toggle(this)">
                         <span class="slider"></span>
                     </label>
                 </div>
@@ -1087,7 +962,7 @@
         }
         if (measured === "off") return { text: "Off", heater: false };
         // "unknown": the plug cannot be read, so all we have is the last code sent.
-        return { text: d.onState === true ? "On · not confirmed" : "Off · not confirmed", heater: false };
+        return { text: DashTile.isOn(d.onState) ? "On · not confirmed" : "Off · not confirmed", heater: false };
     }
 
     function colorSwatchCss(d) {
@@ -1145,13 +1020,8 @@
     // Three-valued (v2.95.3): true, false, or UNKNOWN. A window contact that
     // never reported, is disabled for a battery change, or whose plugin has
     // stopped used to paint a confident "Closed" — the None == False trap.
-    function _threeState(v) {
-        if (v === true || v === "True" || v === "true") return true;
-        if (v === false || v === "False" || v === "false") return false;
-        return null;
-    }
     function renderMotion(d, wording) {
-        const on = _threeState(d.onState);
+        const on = DashTile.state(d.onState);
         const why = d.enabled === false ? "disabled"
                   : (d.errorState || "").trim() ? "error"
                   : on === null ? "no reading" : "";
@@ -1242,7 +1112,7 @@
                 cycleState === "idle"      ? "Idle"      :
                 cycleState.charAt(0).toUpperCase() + cycleState.slice(1);
         } else if (mon && mon.onState != null) {
-            const on = mon.onState === true;
+            const on = DashTile.isOn(mon.onState);
             pillCls  = on ? "running" : "";
             pillTxt  = on ? "On" : "Off";
         }
@@ -1284,61 +1154,6 @@
             </div>`;
     }
 
-    function renderZone(d) {
-        const cur = getCurrentTemp(d);
-        const actualSp = getSetpoint(d);
-        let sp = actualSp;
-        if (pending.has(d.id)) {
-            const p = pending.get(d.id);
-            if (Date.now() - p.t < PENDING_TIMEOUT) sp = p.v;
-            else pending.delete(d.id);
-        }
-        const heating = isHeating(d);
-        const tempStr = cur == null ? "—" : cur.toFixed(1);
-        const spStr   = sp  == null ? "—" : sp.toFixed(1);
-        const tCls    = tempClass(cur);
-        const s_      = d.states || {};
-        const valve   = parseFloat(s_["valve-position"] || s_.valvePosition || 0);
-        const valveStr = (isNaN(valve) || valve <= 0) ? "" : `valve ${valve.toFixed(0)}%`;
-        const hvacOff = /off/i.test(d.hvacMode || "");
-        // Binary status: actively heating, fully closed, or system-off.
-        // (Raw d.hvacMode reads "indigo.kHvacMode.Heat" for every RAMSES TRV — useless.)
-        const radStatus = hvacOff ? "Off" : (heating ? "Heating" : "Valve Closed");
-        // Humidity from the thermostat itself (Z-Wave thermostats expose this
-        // under humidityInput1 — non-standard so the auto-classifier doesn't
-        // pick it up). When present, surface inline so the zone tile doubles
-        // as a temp+humidity readout (e.g. En Suite Floor Heating Thermostat).
-        const humidity = parseFloat((d.states || {}).humidityInput1);
-        const humStr   = [isFinite(humidity) ? `${humidity.toFixed(0)}% RH` : "", valveStr].filter(Boolean).join(" · ");
-        const canBump = sp != null;
-        const disabledAttr = canBump ? "" : "disabled";
-        return `
-            <div class="zone ${heating ? 'heating' : ''}">
-                <div class="zone-head">
-                    <div class="name-row">
-                        <div class="zone-name">${escapeHtml(_stripRoomPrefix(d.name).replace(/ Radiator$/, ''))}</div>
-                        <button class="info-btn" aria-label="Details"
-                                onclick="event.stopPropagation(); openDeviceDetails(${d.id})">&#9432;</button>
-                    </div>
-                    <div class="zone-flame ${heating ? 'on' : ''}">${I("flame")}</div>
-                </div>
-                <div class="temps">
-                    <div class="cur-temp ${tCls}">${tempStr}<span class="cur-unit">°C</span></div>
-                </div>
-                <div class="setpoint">
-                    <button class="setpoint-btn" onclick="bumpSetpoint(${d.id}, -1)" aria-label="Decrease" ${disabledAttr}>−</button>
-                    <div>
-                        <div class="setpoint-label">Setpoint</div>
-                        <div class="setpoint-val" id="sp-${d.id}" data-sp="${actualSp == null ? '' : actualSp}">${spStr}°</div>
-                    </div>
-                    <button class="setpoint-btn" onclick="bumpSetpoint(${d.id}, 1)" aria-label="Increase" ${disabledAttr}>+</button>
-                </div>
-                <div class="zone-meta">
-                    <span>${radStatus}</span>
-                    ${humStr ? `<span>${escapeHtml(humStr)}</span>` : ""}
-                </div>
-            </div>`;
-    }
 
     // Stills that cross-fade from frame to frame (v3.36.0). This page used to
     // open a live MJPEG stream per camera wherever a bandwidth probe said the
@@ -1536,8 +1351,8 @@
         let status = "Unknown";
         // A contact that cannot report leaves the door Unknown (v2.95.3).
         if (contact && contact.enabled !== false && !(contact.errorState || "").trim()
-                && _threeState(contact.onState) !== null) {
-            const onState = _threeState(contact.onState);
+                && DashTile.state(contact.onState) !== null) {
+            const onState = DashTile.state(contact.onState);
             const isOpen = onState === !!door.openWhenContactOnState;
             status = isOpen ? "Open" : "Closed";
         }
@@ -1929,7 +1744,7 @@
         const feed = (typeof window !== "undefined" && Array.isArray(window.__lastDevices)) ? window.__lastDevices : null;
         const present = feed ? deciders.map(id => feed.find(d => d.id === id)).filter(Boolean) : [];
         const allOn = feed
-            ? (present.length > 0 && present.every(d => d.onState === true))
+            ? (present.length > 0 && present.every(d => DashTile.isOn(d.onState)))
             : (deciders.length > 0 && deciders.every(id => {      // no feed yet: the rendered toggles
                 const cb = document.querySelector(`.toggle input[data-id="${id}"]`);
                 return cb && cb.checked;
@@ -1958,71 +1773,6 @@
     // without this a stuck flag would freeze every render for good.
     window.addEventListener("pointerup", () => { window._sliderDragging = false; });
     window.addEventListener("pointercancel", () => { window._sliderDragging = false; });
-
-    async function onToggle(el) {
-        el.disabled = true;
-        const id = parseInt(el.dataset.id);
-        const expected = el.checked;
-        try { await indigo.toggle(id); _confirmToggle(el, id, expected); }
-        catch { el.checked = !el.checked; }
-        setTimeout(() => { el.disabled = false; }, 500);
-    }
-
-    // A toggle is CONFIRMED from the device, not assumed (v2.95.3). A device
-    // whose communication is disabled, or whose plugin has stopped, swallows
-    // the command without an error — the switch used to stay flipped for ever.
-    function _confirmToggle(el, id, expected) {
-        setTimeout(async () => {
-            try {
-                const d = await indigo.getDevice(id);
-                if (d && typeof d.onState === "boolean" && d.onState !== expected) {
-                    el.checked = d.onState;
-                    console.warn(`toggle ${id}: no confirmation from the device`);
-                    try { if (window.DashAction) DashAction.note("device:" + id, "timeout", "No confirmation — check it"); } catch (_) {}
-                }
-            } catch (_) { /* the next poll repaints from the server anyway */ }
-        }, 4000);
-    }
-
-    function onSlider(el) {
-        const pct = parseInt(el.value);
-        el.style.background = `linear-gradient(to right, var(--accent) ${pct}%, var(--off-color) ${pct}%)`;
-        const lbl = document.getElementById(`pct-${el.dataset.id}`);
-        if (lbl) lbl.textContent = pct + "%";
-    }
-
-    function onSliderCommit(el) {
-        const id = parseInt(el.dataset.id);
-        const value = parseInt(el.value);
-        clearTimeout(debounceTimers[id]);
-        debounceTimers[id] = setTimeout(async () => {
-            try { await indigo.setBrightness(id, value); } catch {}
-        }, 300);
-    }
-
-    async function bumpSetpoint(id, dir) {
-        const el = document.getElementById("sp-" + id);
-        if (!el) return;
-        const actual = parseFloat(el.dataset.sp);
-        if (isNaN(actual)) return;
-        const baseline = pending.has(id) ? pending.get(id).v : actual;
-        // Integer-only steps (Indigo REST API rejects fractional setpoints).
-        let next;
-        if (baseline % 1 === 0) {
-            next = baseline + dir;
-        } else {
-            next = dir > 0 ? Math.ceil(baseline) : Math.floor(baseline);
-        }
-        next = Math.max(SETPOINT_MIN, Math.min(SETPOINT_MAX, next));
-        pending.set(id, { v: next, t: Date.now() });
-        el.textContent = next.toFixed(0) + "°";
-        try {
-            await indigo.setHeatSetpoint(id, next);
-        } catch (e) {
-            pending.delete(id);
-            el.textContent = actual.toFixed(1) + "°";
-        }
-    }
 
     function escapeHtml(t) { return DashUI.esc(t); }   // v3.25.0: escapes quotes too
     </script>

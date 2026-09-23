@@ -33,6 +33,12 @@ function extractFn(s, name) {
 }
 
 const ctx = vm.createContext({ console });
+ctx.window = ctx;
+// The page reads on/off through the shared tile module (v3.37.0): load the
+// real one, and the real DashAction reader it borrows.
+for (const f of ["dashboards-action.js", "dashboards-controls.js"]) {
+    vm.runInContext(fs.readFileSync(path.join(path.dirname(PAGE), f), "utf8"), ctx);
+}
 vm.runInContext(extractFn(src, "fireSubtitle"), ctx);
 const line = (states, onState = false) =>
     vm.runInContext(`fireSubtitle(${JSON.stringify({ onState, states })})`, ctx);

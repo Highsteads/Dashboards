@@ -22,6 +22,7 @@
     <link rel="apple-touch-icon-precomposed" href="/public/dashboards/apple-touch-icon.png">
     <title>Active Devices</title>
     <link rel="stylesheet" href="dashboards-theme.css">
+    <link rel="stylesheet" href="dashboards-controls.css">
     <style>
         
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -75,21 +76,6 @@
         .device-name { font-size: 16px; font-weight: 500; }
         .device-state { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
         .device-controls { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-
-        .toggle { position: relative; width: 51px; height: 31px; flex-shrink: 0; cursor: pointer; }
-        .toggle input { opacity: 0; width: 0; height: 0; }
-        .toggle .slider {
-            position: absolute; inset: 0; background: var(--off-color);
-            border-radius: var(--r-pill); transition: background 0.25s;
-        }
-        .toggle .slider::before {
-            content: ""; position: absolute; width: 27px; height: 27px;
-            left: 2px; bottom: 2px; background: white; border-radius: 50%;
-            transition: transform 0.25s; box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-        }
-        .toggle input:checked + .slider { background: var(--on-color); }
-        .toggle input:checked + .slider::before { transform: translateX(20px); }
-        .toggle input:disabled + .slider { opacity: 0.5; }
         .brightness {
             width: 80px; height: 32px; -webkit-appearance: none; appearance: none;
             background: linear-gradient(to right, var(--accent) 0%, var(--off-color) 0%);
@@ -145,6 +131,7 @@
     <!-- v3.25.0: _confirmToggle reports "No confirmation" through DashAction,
          which this page never loaded, so the message could not appear. -->
     <script src="dashboards-action.js"></script>
+    <script src="dashboards-controls.js"></script>
     <script>
     // ── Refresh status: drives Updated / Next refresh in both top + bottom bar.
     const POLL_INTERVAL_MS = 3000;
@@ -179,7 +166,6 @@
     let indigo = null;
     let currentFilter = "all";
     let lastDevices = [];
-    const debounceTimers = {};
 
     if (!IndigoAPI.isConfigured()) {
         location.href = "index.html";
@@ -189,6 +175,7 @@
 
     function start() {
         indigo = new IndigoAPI();
+        DashTile.bind(indigo);
         indigo.onAuthFailure(() => { IndigoAPI.clearConfig(); location.href = "index.html"; });
         document.querySelectorAll("#filters .filter-pill").forEach(b => {
             b.addEventListener("click", () => setFilter(b.dataset.filter));
@@ -262,7 +249,7 @@
 
         // Total live draw across every metered switchable device that's on — the
         // house's switchable load right now (independent of the category filter).
-        const onDevices = base.filter(d => d.onState === true);
+        const onDevices = base.filter(d => DashTile.isOn(d.onState));
         const totalW = onDevices.reduce((a, d) => a + (getWatts(d) || 0), 0);
         const header = `<div class="active-total">${I("bolt")} <b>${fmtW(totalW)}</b> drawn now · ${onDevices.length} on</div>`;
 
@@ -289,7 +276,7 @@
     function renderRow(d) {
         const isDimmer = /Dimmer/.test(d.class || "");
         const w = getWatts(d);
-        const wStr = (d.onState === true && w != null && w >= 0.5) ? ` · ${fmtW(w)}` : "";
+        const wStr = (DashTile.isOn(d.onState) && w != null && w >= 0.5) ? ` · ${fmtW(w)}` : "";
         const slider = isDimmer ? `
             <input type="range" class="brightness" min="0" max="100"
                    onpointerdown="window._sliderDragging = true"
@@ -297,8 +284,8 @@
                    onpointercancel="window._sliderDragging = false"
                    value="${d.brightness != null ? d.brightness : 100}"
                    data-id="${d.id}"
-                   oninput="onSlider(this)"
-                   onchange="onSliderCommit(this)">` : "";
+                   oninput="DashTile.slide(this)"
+                   onchange="DashTile.slideCommit(this)">` : "";
         return `
             <div class="device-row" data-dsh-act-key="device:${d.id}">
                 <div class="device-info">
@@ -308,8 +295,8 @@
                 <div class="device-controls">
                     ${slider}
                     <label class="toggle">
-                        <input type="checkbox" data-id="${d.id}" ${d.onState ? "checked" : ""}
-                               onchange="onToggle(this)">
+                        <input type="checkbox" data-id="${d.id}" ${DashTile.isOn(d.onState) ? "checked" : ""}
+                               onchange="DashTile.toggle(this)">
                         <span class="slider"></span>
                     </label>
                 </div>
@@ -320,45 +307,6 @@
     // without this a stuck flag would freeze every render for good.
     window.addEventListener("pointerup", () => { window._sliderDragging = false; });
     window.addEventListener("pointercancel", () => { window._sliderDragging = false; });
-
-    async function onToggle(el) {
-        el.disabled = true;
-        const id = parseInt(el.dataset.id);
-        const expected = el.checked;
-        try { await indigo.toggle(id); _confirmToggle(el, id, expected); }
-        catch { el.checked = !el.checked; }
-        setTimeout(() => { el.disabled = false; }, 500);
-    }
-
-    // A toggle is CONFIRMED from the device, not assumed (v2.95.3). A device
-    // whose communication is disabled, or whose plugin has stopped, swallows
-    // the command without an error — the switch used to stay flipped for ever.
-    function _confirmToggle(el, id, expected) {
-        setTimeout(async () => {
-            try {
-                const d = await indigo.getDevice(id);
-                if (d && typeof d.onState === "boolean" && d.onState !== expected) {
-                    el.checked = d.onState;
-                    console.warn(`toggle ${id}: no confirmation from the device`);
-                    try { if (window.DashAction) DashAction.note("device:" + id, "timeout", "No confirmation — check it"); } catch (_) {}
-                }
-            } catch (_) { /* the next poll repaints from the server anyway */ }
-        }, 4000);
-    }
-
-    function onSlider(el) {
-        const pct = parseInt(el.value);
-        el.style.background = `linear-gradient(to right, var(--accent) ${pct}%, var(--off-color) ${pct}%)`;
-    }
-
-    function onSliderCommit(el) {
-        const id = parseInt(el.dataset.id);
-        const value = parseInt(el.value);
-        clearTimeout(debounceTimers[id]);
-        debounceTimers[id] = setTimeout(async () => {
-            try { await indigo.setBrightness(id, value); } catch {}
-        }, 300);
-    }
 
     function escapeHtml(t) { return DashUI.esc(t); }   // v3.25.0: escapes quotes too
     </script>

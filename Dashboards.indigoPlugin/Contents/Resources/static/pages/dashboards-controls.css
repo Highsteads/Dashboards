@@ -1,0 +1,48 @@
+/* Filename:    dashboards-controls.css
+ * Description: The device tiles shared by the room, Active, Heating and weather pages
+ *              (v3.37.0): light and switch cards, the on/off toggle, the heating zone
+ *              tile and its setpoint buttons. Each page used to carry its own copy of
+ *              these rules inline. A page may still add to them in its own <style>,
+ *              which comes after this sheet and so wins.
+ * Author:      CliveS & Claude Opus 5.5
+ * Date:        23-09-2026
+ * Version:     1.0
+ */
+
+.name-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.name-row > :first-child { flex: 1; min-width: 0; }
+.info-btn { width: 24px; height: 24px; border: none; background: transparent; color: var(--text-secondary); font-size: 16px; cursor: pointer; padding: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; opacity: 0.55; line-height: 1; transition: opacity .15s, background .15s, color .15s; font-family: inherit; }
+.info-btn:hover { opacity: 1; background: var(--bg); color: var(--text); }
+.light-card.is-colour { grid-column: span 2; }
+.light-card { background: var(--card-bg); border-radius: var(--r-lg); padding: 14px 16px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 10px; }
+.light-card.on { border-left: 3px solid var(--on-color); }
+.toggle { position: relative; width: 51px; height: 31px; flex-shrink: 0; cursor: pointer; }
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle .slider { position: absolute; inset: 0; background: var(--off-color); border-radius: var(--r-pill); transition: background 0.25s; }
+.toggle .slider::before { content: ""; position: absolute; width: 27px; height: 27px; left: 2px; bottom: 2px; background: white; border-radius: 50%; transition: transform 0.25s; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+.toggle input:checked + .slider { background: var(--on-color); }
+.toggle input:checked + .slider::before { transform: translateX(20px); }
+.toggle input:disabled + .slider { opacity: 0.5; }
+.light-card.is-colour { cursor: pointer; }
+.light-card.is-colour:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.zone { background: var(--card-bg); border-radius: var(--r-lg); padding: 14px 16px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 10px; }
+.zone.heating { border-left: 3px solid var(--warn); }
+.zone-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.zone-name { font-size: 15px; font-weight: 600; }
+.zone-flame { font-size: 16px; opacity: 0; transition: opacity 0.3s; }
+.zone-flame.on { opacity: 1; }
+.temps { display: flex; align-items: baseline; gap: 12px; }
+.cur-temp { font-size: 32px; font-weight: 700; line-height: 1; }
+.cur-temp.cold { color: #007aff; }
+.cur-temp.warm { color: var(--warn); }
+.cur-temp.hot { color: var(--bad); }
+.cur-unit { font-size: 16px; color: var(--text-secondary); font-weight: 500; }
+.setpoint { display: flex; align-items: center; justify-content: space-between; background: var(--bg); border-radius: var(--r-md); padding: 6px 8px; }
+.setpoint-label { font-size: 12px; color: var(--text-secondary); }
+.setpoint-val { font-size: 16px; font-weight: 600; min-width: 50px; text-align: center; }
+.setpoint-btn { width: 36px; height: 36px; border-radius: var(--r-md); border: none; background: var(--off-color); color: var(--text); font-size: 18px; font-weight: 600; cursor: pointer; }
+.setpoint-btn:active { background: var(--accent); color: white; }
+.setpoint-btn:disabled { opacity: 0.5; }
+.zone-meta { font-size: 12px; color: var(--text-secondary); display: flex; gap: 6px 12px; flex-wrap: wrap; }
+.zone-meta .trv-age { color: var(--text-secondary); }
+.zone-meta .trv-age.stale { color: var(--warn); font-weight: 600; }

@@ -27,6 +27,18 @@ import vm from "node:vm";
 import { fileURLToPath } from "node:url";
 import { check, done } from "./lib/check.mjs";
 
+function realTruthy() {
+    const src = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "..",
+        "Dashboards.indigoPlugin", "Contents", "Resources", "static", "pages", "dashboards-action.js"), "utf8");
+    const start = src.indexOf("function truthy(");
+    let depth = 0;
+    for (let j = src.indexOf("{", start); j < src.length; j++) {
+        if (src[j] === "{") depth++;
+        else if (src[j] === "}" && --depth === 0) return new Function(src.slice(start, j + 1) + "\nreturn truthy;")();
+    }
+    throw new Error("truthy not found");
+}
+
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PAGE = path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
                        "Resources", "static", "pages", "index.html");
@@ -52,7 +64,8 @@ const ctx = vm.createContext({
     window: { INDIGO_CONFIG: { favourites: [] } },
     escapeAttr: s => String(s == null ? "" : s).replace(/&/g, "&amp;")
         .replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"),
-    DashAction: { repaint: () => {} },
+    // The REAL on/off reader: the tile reads state through it (v3.37.0).
+    DashAction: { repaint: () => {}, truthy: realTruthy() },
     DashIcons: { has: () => false, svg: () => "" },
 });
 vm.runInContext(extractFn(src, "spokenWhen"), ctx);   // v3.23.0 helper the reading tile calls

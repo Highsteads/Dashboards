@@ -52,6 +52,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_cost_rate_tiers.mjs` | Contract tests for the Cost page's Rates tiles. |
 | `test_dash_message.mjs` | Contract test for DashUI.message (v3.28.0) — the one way a page |
 | `test_dash_poll.mjs` | Contract test for DashUI.poll (v3.28.0): one polling loop for |
+| `test_dash_tile.mjs` | One tile system (v3.37.0). Runs the shipped dashboards-controls.js |
 | `test_demo_fixture_is_sanitised.py` | The demo fixture (demo-data/devices.json) is a snapshot of a |
 | `test_docs_site.py` | The documentation site (docs/, GitHub Pages) and the README |
 | `test_door_tile.mjs` | Contract test for the hub's state-driven door favourite — |

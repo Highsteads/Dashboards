@@ -104,6 +104,9 @@
         .fav-tile.fav-roomlink .fav-state { color: var(--accent); }
         .fav-tile.on { border-color: var(--on-color); }
         .fav-tile.busy { opacity: 0.55; }
+        /* Disabled in Indigo: frozen state, and a tap only explains why. */
+        .fav-tile.off-line { opacity: 0.5; }
+        .fav-tile.off-line .fav-state { font-style: italic; }
         .fav-name { font-size: 14px; font-weight: 600; line-height: 1.2;
             display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
             overflow: hidden; }
@@ -1611,7 +1614,7 @@
         const readable = contacts.filter(d => d.enabled !== false && !(d.errorState || "").trim()
                                            && typeof d.onState === "boolean");
         const unreadable = contacts.length - readable.length;
-        const open = readable.filter(d => d.onState === true)
+        const open = readable.filter(d => DashAction.truthy(d.onState) === true)
                              .sort((a, b) => (Date.parse(b.lastChanged || 0) || 0) - (Date.parse(a.lastChanged || 0) || 0));
         if (!open.length) {
             el.innerHTML = `<h3>Doors & Windows</h3>
@@ -1766,12 +1769,13 @@
             // the field looked broken. With no label the live name still shows,
             // so an untouched favourite keeps following Indigo renames.
             const name = f.label || (d && d.name) || ("#" + f.id);
-            const on = !!(d && d.onState === true);
+            const st = d ? DashAction.truthy(d.onState) : null;
+            const on = st === true;
             // A disabled device's state is frozen and a tap would be swallowed;
             // a device with no boolean state cannot be "Off" (v2.95.3).
             const dead = !!(d && d.enabled === false);
             const stateTxt = !d ? "—" : dead ? "Disabled"
-                           : (typeof d.onState !== "boolean" ? "—" : (on ? "On" : "Off"));
+                           : (st === true ? "On" : st === false ? "Off" : "—");
             return `<button class="fav-tile${on ? " on" : ""}${dead ? " off-line" : ""}" data-fav-type="device" data-fav-id="${escapeAttr(f.id)}" data-fav-dead="${dead ? 1 : 0}" data-dsh-act-key="device:${escapeAttr(f.id)}">
                 <span class="fav-name">${escapeAttr(name)}</span>
                 <span class="fav-state">${stateTxt}</span></button>`;

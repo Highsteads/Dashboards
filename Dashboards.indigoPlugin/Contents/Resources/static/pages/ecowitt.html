@@ -22,6 +22,7 @@
     <link rel="apple-touch-icon-precomposed" href="/public/dashboards/apple-touch-icon.png">
     <title>Ecowitt Weather</title>
     <link rel="stylesheet" href="dashboards-theme.css">
+    <link rel="stylesheet" href="dashboards-controls.css">
     <style>
         
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -60,30 +61,6 @@
             font-size: 13px; color: var(--text-secondary);
             text-transform: uppercase; letter-spacing: 0.5px;
         }
-
-        /* ── ⓘ info button + details modal ── */
-        .name-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            min-width: 0;
-        }
-        .name-row > :first-child {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .info-btn {
-            width: 24px; height: 24px;
-            border: none; background: transparent;
-            color: var(--text-secondary); font-size: 16px;
-            cursor: pointer; padding: 0; border-radius: 50%;
-            display: inline-flex; align-items: center; justify-content: center;
-            opacity: 0.55; line-height: 1;
-            transition: opacity .15s, background .15s, color .15s;
-            font-family: inherit;
-        }
-        .info-btn:hover { opacity: 1; background: var(--bg); color: var(--text); }
         .detail-row {
             display: flex; justify-content: space-between; align-items: baseline;
             gap: 12px;
@@ -166,25 +143,10 @@
             font-size: 18px; color: var(--accent);
             transition: transform 0.4s ease-out;
         }
-
-        /* Colour-capable lamps span 2 columns so their preset-chip row
-           (Warm white · Movie · More…) fits without wrapping. On a 1-column
-           grid (iPhone SE) `span 2` clamps to the available track count
-           and just fills the row — no special case needed. */
-
-        /* ── Light cards ── */
-        .light-card {
-            background: var(--card-bg); border-radius: var(--r-lg); padding: 14px 16px;
-            box-shadow: var(--shadow);
-            display: flex; flex-direction: column; gap: 10px;
-        }
-        .light-card.on { border-left: 3px solid var(--on-color); }
         .light-head {
             display: flex; align-items: center; justify-content: space-between; gap: 8px;
         }
         .light-name { font-size: 15px; font-weight: 600; flex: 1; min-width: 0; }
-        .toggle { position: relative; width: 51px; height: 31px; flex-shrink: 0; cursor: pointer; }
-        .toggle input { opacity: 0; width: 0; height: 0; }
 
         /* ── Colour-lamp extras: chips on card, full-screen picker modal ── */
 

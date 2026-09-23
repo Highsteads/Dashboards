@@ -22,6 +22,7 @@
     <link rel="apple-touch-icon-precomposed" href="/public/dashboards/apple-touch-icon.png">
     <title>Heating</title>
     <link rel="stylesheet" href="dashboards-theme.css">
+    <link rel="stylesheet" href="dashboards-controls.css">
     <style>
         
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -56,40 +57,6 @@
             grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
             gap: 12px;
         }
-        .zone {
-            background: var(--card-bg); border-radius: var(--r-lg); padding: 14px 16px;
-            box-shadow: var(--shadow);
-            display: flex; flex-direction: column; gap: 10px;
-        }
-        .zone.heating { border-left: 3px solid var(--warn); }
-        .zone-head {
-            display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;
-        }
-        .zone-name { font-size: 15px; font-weight: 600; }
-        .zone-flame { font-size: 16px; opacity: 0; transition: opacity 0.3s; }
-        .zone-flame.on { opacity: 1; }
-        .temps {
-            display: flex; align-items: baseline; gap: 12px;
-        }
-        .cur-temp { font-size: 32px; font-weight: 700; line-height: 1; }
-        .cur-temp.cold { color: #007aff; }
-        .cur-temp.warm { color: var(--warn); }
-        .cur-temp.hot  { color: var(--bad); }
-        .cur-unit { font-size: 16px; color: var(--text-secondary); font-weight: 500; }
-        .setpoint {
-            display: flex; align-items: center; justify-content: space-between;
-            background: var(--bg); border-radius: var(--r-md); padding: 6px 8px;
-        }
-        .setpoint-label { font-size: 12px; color: var(--text-secondary); }
-        .setpoint-val { font-size: 16px; font-weight: 600; min-width: 50px; text-align: center; }
-        .setpoint-btn {
-            width: 36px; height: 36px; border-radius: var(--r-md);
-            border: none; background: var(--off-color); color: var(--text);
-            font-size: 18px; font-weight: 600; cursor: pointer;
-        }
-        .setpoint-btn:active { background: var(--accent); color: white; }
-        .setpoint-btn:disabled { opacity: 0.5; }
-        .zone-meta { font-size: 12px; color: var(--text-secondary); display: flex; gap: 12px; flex-wrap: wrap; }
         .loading { text-align: center; padding: 60px 20px; color: var(--text-secondary); }
 
         /* v2.18.0 — whole-house heating summary */
@@ -106,8 +73,6 @@
             margin-top: 1px; line-height: 1.25; }
         .h-mlab { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
         .h-stale { margin-top: 10px; color: var(--warn); font-size: 13px; font-weight: 600; }
-        .zone-meta .trv-age { color: var(--text-secondary); }
-        .zone-meta .trv-age.stale { color: var(--warn); font-weight: 600; }
         .spinner {
             width: 24px; height: 24px; border: 3px solid var(--off-color);
             border-top-color: var(--accent); border-radius: 50%;
@@ -217,6 +182,8 @@
         })();
     </script>
     <script src="dashboard.js"></script>
+    <script src="dashboards-action.js"></script>
+    <script src="dashboards-controls.js"></script>
     <script>
     // ── Refresh status: drives Updated / Next refresh in both top + bottom bar.
     const POLL_INTERVAL_MS = 3000;
@@ -278,12 +245,8 @@
 
     // Indigo's REST API requires setHeatSetpoint `value` to be an integer
     // — half-degree values are rejected with HTTP 400. So step in 1°C.
-    const SETPOINT_MIN    = 8;   // RAMSES TRVs clamp at 8°C — 5 was silently raised
-    const SETPOINT_MAX    = 28;
-    const PENDING_TIMEOUT = 4000;
 
     let indigo = null;
-    const pending = new Map();  // device id -> setpoint we just sent
 
     if (!IndigoAPI.isConfigured()) {
         location.href = "index.html";
@@ -293,6 +256,7 @@
 
     function start() {
         indigo = new IndigoAPI();
+        DashTile.bind(indigo);
         indigo.onAuthFailure(() => {
             IndigoAPI.clearConfig();
             location.href = "index.html";
@@ -300,51 +264,10 @@
         indigo.observeAll(d => render(d), POLL_INTERVAL_MS, undefined, markRefreshed);
     }
 
-    function getCurrentTemp(d) {
-        const s = d.states || {};
-        const cand = [s.temperatureInput1, s.temperature, d.displayStateValRaw];
-        for (const v of cand) {
-            const n = parseFloat(v);
-            if (!isNaN(n) && n > -50 && n < 100) return n;
-        }
-        return null;
-    }
-    function getSetpoint(d) {
-        if (d.setpointHeat != null) return parseFloat(d.setpointHeat);
-        const s = d.states || {};
-        const n = parseFloat(s.setpointHeat);
-        return isNaN(n) ? null : n;
-    }
-    function isHeating(d) {
-        const s = d.states || {};
-        const valve = parseFloat(s["valve-position"] || s.valvePosition || 0);
-        const hv = s.hvacHeaterIsOn !== undefined ? s.hvacHeaterIsOn : d.hvacHeaterIsOn;
-        const heaterOn = hv === true || hv === 1 || String(hv).toLowerCase() === "true";
-        const cur = getCurrentTemp(d);
-        const sp = getSetpoint(d);
-        if (!isNaN(valve) && valve > 0) return true;
-        if (heaterOn && cur != null && sp != null && cur < sp - 0.2) return true;
-        return false;
-    }
-    function tempClass(t) {
-        if (t == null) return "";
-        if (t < 16) return "cold";
-        if (t < 21) return "";
-        if (t < 24) return "warm";
-        return "hot";
-    }
-
-    // v2.18.0 — per-TRV radio freshness. RAMSES TRVs report `lastSeen` as a
-    // "YYYY-MM-DD HH:MM:SS" local string; a TRV that's dropped off the radio
-    // stops updating it (the failure mode behind the June gateway outage).
-    function getLastSeen(d) {
-        const v = (d.states || {}).lastSeen;
-        if (!v) return null;
-        const t = Date.parse(String(v).replace(" ", "T"));
-        return isNaN(t) ? null : t;
-    }
-    function fmtAge(ms) { return DashUI.ago(ms); }   // v3.28.0: one wording, rounding down
-    const TRV_STALE_MS = 3 * 3600 * 1000;   // flag a TRV unheard for > 3 hours
+    // The zone tile and its helpers are shared with the room pages (v3.37.0).
+    const getCurrentTemp = DashTile.zone.currentTemp;
+    const getLastSeen    = DashTile.zone.lastSeen;
+    const TRV_STALE_MS   = DashTile.zone.TRV_STALE_MS;
     function cleanZoneName(s) { return String(s || "").replace(/\s+(Radiator|Thermostat)$/i, ""); }
 
     // Whole-house summary: zones actually calling for heat (hvacHeaterIsOn — the
@@ -396,99 +319,8 @@
         document.getElementById("content").innerHTML =
             houseSummaryCard(zones, devices) +
             '<div class="grid">' +
-            zones.map(d => renderZone(d)).join("") +
+            zones.map(d => DashTile.zone.render(d)).join("") +
             '</div>';
-    }
-
-    function renderZone(d) {
-        const cur = getCurrentTemp(d);
-        const actualSp = getSetpoint(d);
-        let sp = actualSp;
-        if (pending.has(d.id)) {
-            const p = pending.get(d.id);
-            if (Date.now() - p.t < PENDING_TIMEOUT) sp = p.v;
-            else pending.delete(d.id);
-        }
-        const heating = isHeating(d);
-        const tempStr = cur == null ? "—" : cur.toFixed(1);
-        const spStr   = sp  == null ? "—" : sp.toFixed(1);
-        const tCls    = tempClass(cur);
-        const hvacOff = /off/i.test(d.hvacMode || "");
-        // Binary status: is the radiator actually heating right now, or closed?
-        // (hvacMode is just the system's heat/cool/off setting and is invariably
-        // "Heat" for these zones — not useful info, so we hide it unless Off.)
-        const radStatus = hvacOff ? "Off" : (heating ? "Heating" : "Valve Closed");
-        const ls = getLastSeen(d);
-        const lsStale = ls != null && (Date.now() - ls) > TRV_STALE_MS;
-        const lsStr = ls != null
-            ? `<span class="trv-age${lsStale ? ' stale' : ''}">· ${lsStale ? I('warn') + ' ' : ''}heard ${fmtAge(Date.now() - ls)}</span>`
-            : "";
-        const canBump = sp != null;
-        const disabledAttr = canBump ? "" : "disabled";
-        return `
-            <div class="zone ${heating ? 'heating' : ''}">
-                <div class="zone-head">
-                    <div class="zone-name">${escapeHtml(d.name)}</div>
-                    <div class="zone-flame ${heating ? 'on' : ''}">${I("flame")}</div>
-                </div>
-                <div class="temps">
-                    <div class="cur-temp ${tCls}">${tempStr}<span class="cur-unit">°C</span></div>
-                </div>
-                <div class="setpoint">
-                    <button class="setpoint-btn" onclick="bumpSetpoint(${d.id}, -1)" aria-label="Decrease" ${disabledAttr}>−</button>
-                    <div>
-                        <div class="setpoint-label">Setpoint</div>
-                        <div class="setpoint-val" id="sp-${d.id}" data-sp="${actualSp == null ? '' : actualSp}">${spStr}°</div>
-                    </div>
-                    <button class="setpoint-btn" onclick="bumpSetpoint(${d.id}, 1)" aria-label="Increase" ${disabledAttr}>+</button>
-                </div>
-                <div class="zone-meta">
-                    <span>${radStatus}</span> ${lsStr}
-                </div>
-            </div>`;
-    }
-
-    async function bumpSetpoint(id, dir) {
-        const el = document.getElementById("sp-" + id);
-        if (!el) return;
-        // Source of truth for current setpoint is data-sp (the device's actual reported value).
-        const actual = parseFloat(el.dataset.sp);
-        if (isNaN(actual)) return;
-        // Allow chained clicks: current pending value (if any) becomes the new base.
-        const baseline = pending.has(id) ? pending.get(id).v : actual;
-        // Integer-only steps: round in the click direction so a half-degree
-        // baseline lands on the nearest sensible integer (17.5 + → 18, 17.5 − → 17).
-        let next;
-        if (baseline % 1 === 0) {
-            next = baseline + dir;
-        } else {
-            next = dir > 0 ? Math.ceil(baseline) : Math.floor(baseline);
-        }
-        next = Math.max(SETPOINT_MIN, Math.min(SETPOINT_MAX, next));
-        if (next === baseline) return;             // at the clamp: nothing to send
-        pending.set(id, { v: next, t: Date.now() });
-        el.textContent = next.toFixed(0) + "°";
-        try {
-            await indigo.setHeatSetpoint(id, next);
-            // Read it BACK (v2.95.3): a stopped heating plugin swallows the
-            // command without an error, and the tile used to show the new
-            // number as if it had landed.
-            setTimeout(async () => {
-                try {
-                    const d = await indigo.getDevice(id);
-                    const sp = getSetpoint(d);
-                    if (sp != null && Math.abs(sp - next) >= 0.5) {
-                        pending.delete(id);
-                        el.textContent = sp.toFixed(1) + "°";
-                        const t = document.getElementById("evo-toast");
-                        if (t) { t.textContent = "Setpoint not accepted — is the heating plugin running?"; t.className = "ctrl-toast err"; }
-                    }
-                } catch (_) {}
-            }, 2500);
-        } catch (e) {
-            pending.delete(id);
-            el.textContent = actual.toFixed(1) + "°";
-        }
     }
 
     // The plugin's OWN allowlisted proxy (handleEvoHomeAction → EvoHomeControl
