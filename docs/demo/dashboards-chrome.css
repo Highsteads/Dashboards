@@ -60,14 +60,14 @@ a, button, input, select, textarea { -webkit-tap-highlight-color: transparent; }
     --border-soft: #dfe5eb; --shadow: 0 2px 5px #172b4d04, 0 8px 28px #172b4d05;
     --r-lg: 20px; --r-xl: 24px;
     /* Energy's deeper status colours (energy-refresh.css), readable on white. */
-    --on-color: #267347; --good: #267347; --ok: #267347; --solar: #956000;
+    --on-color: #267347; --good: #267347; --ok: #267347; --solar-text: #956000;
     --warn: #995900; --bad: #bb3029;
 }
 @media (prefers-color-scheme: dark) {
     :root {
         --bg: #11151b; --card-bg: #1b222b; --card-bg-alt: #242e39; --text: #f1f5fa;
         --text-secondary: #bac5d1; --text-muted: #a8b5c4; --border-soft: #35404d;
-        --on-color: #81d5a5; --good: #81d5a5; --ok: #81d5a5; --solar: #ffca70;
+        --on-color: #81d5a5; --good: #81d5a5; --ok: #81d5a5; --solar-text: #ffca70;
         --warn: #ffc378; --bad: #ff9a92; --accent: #b0acff;
     }
 }

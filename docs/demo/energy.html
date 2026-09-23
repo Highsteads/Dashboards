@@ -188,7 +188,7 @@ svg{max-width:100%}
 .money-link:active{transform:translateY(1px)}
 .grid-import{color:var(--grid-imp)}
 .grid-export{color:var(--grid-exp)}
-.solar-c{color:var(--solar)}
+.solar-c{color:var(--solar-text)}
 .home-c{color:var(--home-load)}
 
 .chart-wrap{position:relative;height:220px}
@@ -220,12 +220,12 @@ svg{max-width:100%}
 .pvs-name{font-size:12px;font-weight:600}
 .pvs-bar{height:8px;border-radius:4px;background:var(--card-bg-alt);
   border:1px solid var(--border-soft);overflow:hidden}
-.pvs-bar span{display:block;height:100%;border-radius:4px;background:var(--solar,#f5a623)}
+.pvs-bar span{display:block;height:100%;border-radius:4px;background:var(--solar,#d98e04)}
 .pvs-w{font-size:12px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums}
 .pvs-sub{font-size:11px;color:var(--text-secondary);text-align:right;font-variant-numeric:tabular-nums}
 .pvs-fingerprint{font-size:11px;color:var(--text-secondary);margin:8px 0 0;line-height:1.4}
 @media(max-width:600px){.pvs-row{grid-template-columns:52px 1fr 64px 90px;gap:6px}}
-.solar-big{font-size:30px;font-weight:700;color:var(--solar);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.solar-big{font-size:30px;font-weight:700;color:var(--solar-text);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
 .self-suff-bar{height:6px;background:var(--off-color);border-radius:3px;margin-top:8px;overflow:hidden}
 .self-suff-fill{height:100%;background:var(--solar);border-radius:3px;transition:width .5s}
 
@@ -418,7 +418,7 @@ h1 .dsh-icon {width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;
       </div>
       <div class="hs-tile" data-help-title="Solar today" data-help="Total generated since midnight, with the bias-corrected forecast for the whole day.">
         <div class="hs-lab">Solar today</div>
-        <div class="hs-val" id="hs-pv" style="color:var(--solar)">&#8212;</div>
+        <div class="hs-val" id="hs-pv" style="color:var(--solar-text)">&#8212;</div>
         <div class="hs-sub" id="hs-pv-sub">forecast &#8212;</div>
         <div class="hs-bar"><div class="hs-fill" id="hs-pv-bar" style="width:0%;background:var(--solar)"></div></div>
       </div>
@@ -755,9 +755,9 @@ function renderSankey(summary, chg, dis) {
   // Sources (left): Solar, Battery discharge, Grid import.
   // Sinks (right): Battery charge, Home load, Grid export.
   const sources = [
-    { key: 'solar', name: 'SOLAR',   val: f.pv,  col: cssVar('--solar', '#f5a623') },
-    { key: 'bat',   name: 'BATTERY', val: haveBat ? f.dis : 0, col: cssVar('--bat', '#34c759') },
-    { key: 'grid',  name: 'GRID',    val: f.imp, col: cssVar('--grid-imp', '#ff3b30') },
+    { key: 'solar', name: 'SOLAR',   val: f.pv,  col: cssVar('--solar', '#d98e04') },
+    { key: 'bat',   name: 'BATTERY', val: haveBat ? f.dis : 0, col: cssVar('--bat', '#1f8a5c') },
+    { key: 'grid',  name: 'GRID',    val: f.imp, col: cssVar('--grid-imp', '#e5352b') },
   ].filter(n => n.val > 0.01);
   /* Whatever a source cannot be matched to a sink is drawn as its own node
      rather than quietly shortening the ribbons. On a typical day it is the
@@ -766,9 +766,9 @@ function renderSankey(summary, chg, dis) {
      leaving it and nothing on the page explained why. */
   const lossVal = haveBat ? f.loss : 0;
   const sinks = [
-    { key: 'batc',  name: 'BATTERY', val: haveBat ? f.chg : 0, col: cssVar('--bat', '#34c759') },
-    { key: 'load',  name: 'LOAD',    val: f.home, col: cssVar('--home-load', '#af52de') },
-    { key: 'gride', name: 'GRID',    val: f.exp,  col: cssVar('--grid-exp', '#0a84ff') },
+    { key: 'batc',  name: 'BATTERY', val: haveBat ? f.chg : 0, col: cssVar('--bat', '#1f8a5c') },
+    { key: 'load',  name: 'LOAD',    val: f.home, col: cssVar('--home-load', '#b8409e') },
+    { key: 'gride', name: 'GRID',    val: f.exp,  col: cssVar('--grid-exp', '#0a6fe0') },
     { key: 'loss',  name: 'LOSSES',  val: lossVal, col: cssVar('--text-muted', '#98989d') },
   ].filter(n => n.val > 0.01);
 
@@ -1191,7 +1191,7 @@ function update(d) {
   if (batW < -30) batState = 'Discharging';
   const socCol = !socKnown ? cssVar('--muted', '#8e8e93')
                : soc >= 60 ? cssVar('--on-color', '#34c759')
-               : soc >= 30 ? cssVar('--solar', '#f5a623')
+               : soc >= 30 ? cssVar('--solar', '#d98e04')
                            : cssVar('--bad', '#ff3b30');
 
   /* hero flow diagram — one call now; the module owns the drawing, the
@@ -1440,7 +1440,7 @@ function renderSolarProgress() {
     if (typical) {
       const upper = p.expected.map(pt => ({ m: pt.m, kwh: pt.kwh * (1 + typical.fraction) }));
       const lower = p.expected.slice().reverse().map(pt => ({ m: pt.m, kwh: Math.max(0, pt.kwh * (1 - typical.fraction)) }));
-      out += `<polygon points="${line(upper.concat(lower))}" fill="var(--solar,#f5a623)" fill-opacity=".12"/>`;
+      out += `<polygon points="${line(upper.concat(lower))}" fill="var(--solar,#d98e04)" fill-opacity=".12"/>`;
     }
     out += `<polyline points="${line(p.expected)}" fill="none" stroke="var(--text-muted,#98989d)" stroke-width="1.6" stroke-dasharray="5,4"/>`;
     const end = p.expected[p.expected.length - 1];
@@ -1454,9 +1454,9 @@ function renderSolarProgress() {
     } else rangeNote.style.display = 'none';
   }
   if (p.actual.length > 1) {
-    out += `<polyline points="${line(p.actual)}" fill="none" stroke="var(--solar,#f5a623)" stroke-width="2.6" stroke-linejoin="round"/>`;
+    out += `<polyline points="${line(p.actual)}" fill="none" stroke="var(--solar,#d98e04)" stroke-width="2.6" stroke-linejoin="round"/>`;
     const tip = p.actual[p.actual.length - 1];
-    out += `<circle cx="${x(tip.m).toFixed(1)}" cy="${y(tip.kwh).toFixed(1)}" r="3.4" fill="var(--solar,#f5a623)"/>`;
+    out += `<circle cx="${x(tip.m).toFixed(1)}" cy="${y(tip.kwh).toFixed(1)}" r="3.4" fill="var(--solar,#d98e04)"/>`;
   }
   svg.innerHTML = out;
 
@@ -1663,14 +1663,14 @@ let currentRange = 24;
    because the OS theme can change while the page is open. */
 function chartColours() {
   return {
-    soc:   cssVar('--bat',       '#34c759'),
-    pv:    cssVar('--solar',     '#f5a623'),
-    imp:   cssVar('--grid-imp',  '#ff3b30'),
-    exp:   cssVar('--grid-exp',  '#0a84ff'),
-    home:  cssVar('--home-load', '#af52de'),
-    bat:   cssVar('--bat',       '#34c759'),
+    soc:   cssVar('--bat',       '#1f8a5c'),
+    pv:    cssVar('--solar',     '#d98e04'),
+    imp:   cssVar('--grid-imp',  '#e5352b'),
+    exp:   cssVar('--grid-exp',  '#0a6fe0'),
+    home:  cssVar('--home-load', '#b8409e'),
+    bat:   cssVar('--bat',       '#1f8a5c'),
     /* Battery charge is a sink; tint it so it reads apart from discharge. */
-    batIn: cssVar('--bat-in',    '#1a8f3c'),
+    batIn: cssVar('--bat-in',    '#0d4f33'),
   };
 }
 

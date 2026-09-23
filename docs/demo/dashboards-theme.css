@@ -53,38 +53,37 @@
     /* ── semantic energy colours ──
        Change these here and every chart, ribbon and flow leg follows.
 
-       Measured under Viénot/Brettel simulation with CIEDE2000. Solar against
-       battery was the worst pair on the board and the one that matters most,
-       since they sit next to each other on the flow diagram, in the Sankey and
-       in every chart:
+       Re-stepped in 3.42.0 so all five can be told apart by a colour-blind
+       reader, measured with the dataviz palette validator (OKLab, Machado
+       CVD simulation) across EVERY pair, not just neighbours, because these
+       five meet in every combination on the flow diagram and the Sankey:
 
-                          light            dark
-         before      protan  5.4       protan  2.9      both a clear fail
-         after       protan 33.4       protan 21.9
+                      worst pair, any CVD       contrast on the card
+         light  before  red vs solar  3.6        solar was a text brown
+         light  after   9.2 (target 8)           solar 2.6, labelled everywhere
+         dark   before  blue vs home  4.3
+         dark   after   8.5                      all >= 3:1
 
-       SOLAR IS UNCHANGED. Only the battery green moved, from a bright mint to
-       a deeper sea green, which does the whole job: under protanopia amber and
-       mint converge to nearly the same olive, and darkening one of them is the
-       one move that separates them. It also fixes a readability problem nobody
-       had noticed — the old mint was contrast 2.22 on a white card, below the
-       3.0 that large bold text needs, and it is 6.56 now.
+       The "before" is what the pages really showed: dashboards-chrome.css
+       overrode --solar with a dark brown chosen for readable TEXT, and that
+       brown sat 3.6 from import red under protanopia. Text now has its own
+       token, --solar-text, and --solar stays a series colour. Rule: text
+       wears a text token, never a series colour.
 
-       Nothing else regressed: the worst remaining pair went 8.8 -> 11.0. Two
-       faults are deliberately NOT fixed. Green versus red cannot be fixed at
-       all — it is the defining confusion of deuteranopia, so position and
-       labels have to carry it, and on the flow diagram and Sankey they do.
-       Export blue versus home purple (deutan 5.0) needs home to become a
-       raspberry #a02261, which is a bigger change of identity than the fault
-       warrants while both are labelled wherever they appear. */
-    --solar:          #f5a623;
-    --bat:            #2c6850;
-    --bat-in:         #1a8f3c;   /* charging — darker than --bat so the charge
+       Identities kept: amber sun, green battery, red import, blue export,
+       purple home (nudged towards magenta so it parts from blue). The status
+       colours (--on-color, --bad, --warn) are separate on purpose and are
+       never reused for a series. */
+    --solar:          #d98e04;
+    --solar-text:     #956000;   /* solar figures and labels, readable on white */
+    --bat:            #1f8a5c;
+    --bat-in:         #0d4f33;   /* charging — darker than --bat so the charge
                                     and discharge bars read apart */
-    --bat-chg:        #0a84ff;   /* flow-diagram battery leg, charging */
-    --bat-dis:        #ff3b30;   /* flow-diagram battery leg, discharging */
-    --grid-imp:       #ff3b30;
-    --grid-exp:       #0a84ff;
-    --home-load:      #af52de;
+    --bat-chg:        #0a6fe0;   /* flow-diagram battery leg, charging */
+    --bat-dis:        #e5352b;   /* flow-diagram battery leg, discharging */
+    --grid-imp:       #e5352b;
+    --grid-exp:       #0a6fe0;
+    --home-load:      #b8409e;
     --chart-bill:     #ba7517;
     --chart-export:   #34c759;
     --move:           #34a0d6;   /* timeline: movement lane */
@@ -153,14 +152,15 @@
         --shadow:         0 1px 3px rgba(0,0,0,0.4);
         --shadow-hover:   0 8px 24px rgba(0,0,0,0.55);
 
-        --solar:          #ffb340;
-        --bat:            #409677;
-        --bat-in:         #1e7a35;
-        --bat-chg:        #0a84ff;
-        --bat-dis:        #ff453a;
-        --grid-imp:       #ff453a;
-        --grid-exp:       #0a84ff;
-        --home-load:      #bf5af2;
+        --solar:          #c77912;
+        --solar-text:     #ffca70;
+        --bat:            #27a36c;
+        --bat-in:         #7fd3a6;   /* charging — lighter than --bat on dark */
+        --bat-chg:        #2f8cff;
+        --bat-dis:        #d02c30;
+        --grid-imp:       #d02c30;
+        --grid-exp:       #2f8cff;
+        --home-load:      #d25bc0;
         --chart-bill:     #d4622e;
         --chart-export:   #30d158;
         --move:           #64d2ff;

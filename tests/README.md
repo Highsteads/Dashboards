@@ -60,6 +60,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_door_tile.mjs` | Contract test for the hub's state-driven door favourite — |
 | `test_energy_alert_bar.mjs` | Node contract test for energy.html's alert bar. Extracts the |
 | `test_energy_cost.mjs` | Node contract test for energy-calc.js — the shared arithmetic |
+| `test_energy_palette.py` | The five semantic energy colours (3.42.0). They were re-stepped |
 | `test_energy_soc.mjs` | Node contract test for energy.html's handling of an UNKNOWN |
 | `test_escape_helpers.mjs` | DashUI.esc escapes all five characters that matter, DashUI.ago |
 | `test_event_log_quiet.py` | The Indigo event log is shared by every plugin on the server and |

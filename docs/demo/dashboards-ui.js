@@ -508,12 +508,12 @@
        load and the dots stayed on the light palette in dark mode. */
     function palette() {
       return {
-        pv:      cssVar('--solar',     '#f5a623'),
-        home:    cssVar('--home-load', '#af52de'),
-        gridImp: cssVar('--grid-imp',  '#ff3b30'),
-        gridExp: cssVar('--grid-exp',  '#0a84ff'),
-        batChg:  cssVar('--bat-chg',   '#0a84ff'),
-        batDis:  cssVar('--bat-dis',   '#ff3b30'),
+        pv:      cssVar('--solar',     '#d98e04'),
+        home:    cssVar('--home-load', '#b8409e'),
+        gridImp: cssVar('--grid-imp',  '#e5352b'),
+        gridExp: cssVar('--grid-exp',  '#0a6fe0'),
+        batChg:  cssVar('--bat-chg',   '#0a6fe0'),
+        batDis:  cssVar('--bat-dis',   '#e5352b'),
         idle:    cssVar('--text-muted', '#98989d'),
       };
     }
@@ -597,7 +597,7 @@
       el.node_pv.style.color   = C.pv;
       el.node_home.style.color = C.home;
       el.node_grid.style.color = Math.abs(gridW) >= DEADBAND_W ? gridCol : C.gridExp;
-      el.node_bat.style.color  = cssVar('--bat', '#34c759');
+      el.node_bat.style.color  = cssVar('--bat', '#1f8a5c');
 
       /* legs — paths run node -> hub, so `inward` true means power arriving */
       setLeg('pv',   pvW,   C.pv,    true);
@@ -629,7 +629,7 @@
         var circ = 2 * Math.PI * G.ringR;
         var pct = Math.max(0, Math.min(100, soc));
         el.ring.style.stroke = pct >= 60 ? cssVar('--on-color', '#34c759')
-                             : pct >= 30 ? cssVar('--solar', '#f5a623')
+                             : pct >= 30 ? cssVar('--solar', '#d98e04')
                                          : cssVar('--bad', '#ff3b30');
         tweenNumber(el.ring, pct, {
           apply: function (e, v) {
@@ -693,7 +693,7 @@
     var barW = colW * 0.7;
     var y = function (k) { return H - padB - (k / maxY) * (H - padT - padB); };
 
-    var solar = cssVar('--solar', '#f5a623');
+    var solar = cssVar('--solar', '#d98e04');
     var grid = cssVar('--border-soft', '#e5e5ea');
     var muted = cssVar('--text-secondary', '#86868b');
     var ink = cssVar('--text', '#1d1d1f');
@@ -783,7 +783,7 @@
                      '" text-anchor="middle" class="fcb-empty">No forecast yet</text>';
       return;
     }
-    var pastCol = cssVar('--solar', '#f5a623');
+    var pastCol = cssVar('--solar', '#d98e04');
     var nowCol  = cssVar('--accent', '#5856d6');
     var maxK = Math.max.apply(null, entries.map(function (e) { return Number(e[1]) || 0; }).concat([0.1]));
     var curHr = opts.hour == null ? new Date().getHours() : opts.hour;

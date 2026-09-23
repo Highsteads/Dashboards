@@ -50,9 +50,9 @@
 .energy-page .chart-wrap canvas { border-radius:8px; }
 .energy-page #sol-prog-svg { margin-top:12px; }
 /* Measured contrast for small status text and numeric summaries. */
-.energy-page { --on-color:#267347; --good:#267347; --ok:#267347; --solar:#956000; --warn:#995900; --bad:#bb3029; }
+.energy-page { --on-color:#267347; --good:#267347; --ok:#267347; --solar-text:#956000; --warn:#995900; --bad:#bb3029; }
 .energy-page #bat-state,.energy-page #action-badge { color:var(--text)!important; }
 .energy-page .wow-delta.bad { color:var(--bad); }
-@media(prefers-color-scheme:dark){ .energy-page { --on-color:#81d5a5; --good:#81d5a5; --ok:#81d5a5; --solar:#ffca70; --warn:#ffc378; --bad:#ff9a92; } }
+@media(prefers-color-scheme:dark){ .energy-page { --on-color:#81d5a5; --good:#81d5a5; --ok:#81d5a5; --solar-text:#ffca70; --warn:#ffc378; --bad:#ff9a92; } }
 .energy-page #hs-soc { color:var(--text)!important; }
 @media(prefers-color-scheme:dark){ .energy-page { --accent:#b0acff; } }

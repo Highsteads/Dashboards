@@ -320,7 +320,7 @@ function drawEnergy(){
   if (solar){ const last = pts.filter(p=>p.pv!=null).slice(-1)[0]; const first=pts.filter(p=>p.pv!=null)[0];
     solar = "M"+X(first.m).toFixed(1)+" 62 " + solar.replace(/^M/,"L") + "L"+X(last.m).toFixed(1)+" 62 Z"; }
   pts.forEach(p=>{ if(p.soc!=null){ socline += (socline?"L":"M") + X(p.m).toFixed(1) + " " + socY(p.soc).toFixed(1) + " "; }});
-  const sol = getComputedStyle(document.documentElement).getPropertyValue("--solar").trim()||"#f5a623";
+  const sol = getComputedStyle(document.documentElement).getPropertyValue("--solar").trim()||"#d98e04";
   const soc = getComputedStyle(document.documentElement).getPropertyValue("--soc").trim()||"#34c759";
   svg.innerHTML =
     (solar?`<path d="${solar}" fill="${sol}" fill-opacity="0.28"/>`:"") +
@@ -365,7 +365,7 @@ function setPlayhead(min){
   const e = energyAt(playMin);
   if (e){
     if (e.soc!=null) chips.push(`<span class="nchip"><b style="color:var(--soc)">${I("battery")} ${e.soc}%</b></span>`);
-    if (e.pv!=null)  chips.push(`<span class="nchip"><b style="color:var(--solar)">${I("sun")} ${e.pv>=1000?(e.pv/1000).toFixed(1)+" kW":e.pv+" W"}</b></span>`);
+    if (e.pv!=null)  chips.push(`<span class="nchip"><b style="color:var(--solar-text)">${I("sun")} ${e.pv>=1000?(e.pv/1000).toFixed(1)+" kW":e.pv+" W"}</b></span>`);
   }
   if (!chips.length) chips.push('<span class="nchip dim">Quiet, nothing active</span>');
   document.getElementById("now-chips").innerHTML = chips.join("");
