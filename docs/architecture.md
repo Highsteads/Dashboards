@@ -79,6 +79,9 @@ bandwidth watch. They live in `scripts/` in the repo with their own tests and a 
 into Indigo's `Python Scripts` folder and the plugin picks them up on its next tick — no restart. At
 startup it logs one line naming whichever are missing. Each is optional; a page whose script is
 absent says so, and two of them are lighting automations for one house that you may not want at all.
+If the Script Ticker plugin is running on the same server, Dashboards leaves the scripts to it and
+takes them back within half a minute of it stopping; a laundry deadline change then asks Script
+Ticker to replan, so the scheduler never runs in two places at once.
 
 ## Logging
 

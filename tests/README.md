@@ -112,6 +112,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_rtt_estimator.mjs` | Contract test for the estimator inside DashUI.probeRtt — which |
 | `test_save_config.py` | Contract test for Plugin.handleSaveDashboardsConfig — the settings |
 | `test_saving_session_banner.mjs` | Contract test for the Octopus Saving Session banner on the |
+| `test_script_ticker_handover.py` | v3.31.0 — while the Script Ticker plugin is RUNNING, Dashboards |
 | `test_scripts_match_live.py` | The companion scripts this repo ships in scripts/ must be the |
 | `test_security.py` | Regression tests for the /public credential-leak fixes — the |
 | `test_settings_fav_passthrough.mjs` | Contract test for the settings editor carrying favourites it |

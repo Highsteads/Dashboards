@@ -12,6 +12,11 @@ restart needed). At startup it logs one line naming whichever are missing.
 All seven are optional — the dashboards work without any of them; two of them
 are lighting automations for one house that you may not want at all.
 
+If a plugin called Script Ticker (`com.clives.indigoplugin.scriptticker`, the
+one this house uses) is running on the same server, Dashboards leaves all seven
+to it and runs them itself again within half a minute of it stopping, so a
+script is never skipped and never run by both.
+
 `Appliance_Scheduler.py` is the one exception to "copy one file": it needs
 `appliance_planner.py` beside it, which holds the thinking. Copy both. Their
 test suite (`test_appliance_planner.py`) sits alongside them here and is run by

@@ -91,6 +91,7 @@ def test_one_failing_task_does_not_starve_the_others(monkeypatch):
     p._run_fp300_config_watch = lambda: None
     p._run_night_lights_sweep = lambda: ran.__setitem__("sweep", ran["sweep"] + 1)
     p._run_drive_lights_sun = lambda: None
+    p._ticker_running = lambda: False       # Dashboards runs the scripts itself
     # Three ticks, then the stop flag — sleep() raises StopThread on the fourth.
     ticks = {"n": 0}
     def fake_sleep(_s):

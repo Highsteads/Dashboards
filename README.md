@@ -8,7 +8,7 @@ Browser dashboards for [Indigo Domotics](https://www.indigodomo.com/), built for
 wall, a phone in your pocket and a Mac on the desk. No app to install, no cloud account,
 nothing leaving the house.
 
-<img src="https://img.shields.io/badge/version-3.30.0-5856d6" alt="Version 3.30.0">
+<img src="https://img.shields.io/badge/version-3.31.0-5856d6" alt="Version 3.31.0">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-26-0a84ff" alt="26 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
@@ -21,7 +21,7 @@ nothing leaving the house.
 
 ---
 
-**Version:** 3.30.0
+**Version:** 3.31.0
 
 **Documentation:** **[highsteads.github.io/Dashboards](https://highsteads.github.io/Dashboards/)** —
 getting started, configuration, a page of notes for every one of the 26 pages, cameras, remote
@@ -66,6 +66,8 @@ with a gentle state simulator, touching no live devices.
 
 The three most recent releases, word for word. Every release before these is in
 **[the version history](docs/changelog.md)**, which the documentation site also carries.
+
+**3.31.0** (23-Sep-2026) - **The companion scripts can be run by a separate plugin.** If the Script Ticker plugin (the one this house uses) is running on the same server, Dashboards leaves the seven companion scripts to it, and runs them itself again within half a minute of it stopping, so a script is never skipped and never run twice. Changing a laundry deadline asks Script Ticker to replan, so the planner never runs in two places at once. The Test Dashboards Setup menu item says which of the two is running them. Nothing changes on a server without Script Ticker. The plugin's status report for Claude also stopped saying the settings came from the old store on every install; it now names the settings file.
 
 **3.30.0** (23-Sep-2026) - **The plugin's code is split into parts, so it is easier to work on. Nothing you can see changes.** The main file had grown to over 8,000 lines. Four features now live in files of their own beside it: the history charts and timeline, the Mains and Meter pages, Home Insights, and the Carbon page. That takes the main file down to about 6,000 lines. Each part checks its own names when the code is linted, so a slip in one of them is caught before it ships rather than when a page asks for it.
 

@@ -20,7 +20,7 @@
 #              stream connection fails.
 # Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.30.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
 # Date:        23-09-2026
-# Version:     3.30.0
+# Version:     3.31.0
 #
 # Version history: docs/changelog.md (what each release does, for users) and
 # `git log` (why, for developers). The per-version engineering notes that sat
@@ -134,7 +134,7 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION = "3.30.0"
+PLUGIN_VERSION = "3.31.0"
 # Pages are mirrored into Web Assets/public/dashboards/ so IWS serves them
 # WITHOUT HTTP Basic Auth. Indigo only treats the global /public/ namespace
 # as anonymous — per-plugin `public/` subfolders still require auth.
@@ -948,6 +948,39 @@ class Plugin(CarbonMixin, InsightsMixin, MainsMixin, HistoryMixin, indigo.Plugin
 
         self._activity(f"Synced {copied} of {len(sources)} asset(s) to {dst}")
         return copied
+
+    # Script Ticker (v3.31.0): a small plugin that runs the companion scripts
+    # on its own. While it is RUNNING Dashboards leaves them to it; the moment
+    # it is not (stopped, crashed, never installed) Dashboards runs them
+    # itself, so a script is never left unrun and never run by both.
+    _TICKER_PLUGIN_ID = "com.clives.indigoplugin.scriptticker"
+
+    def _ticker_running(self):
+        """isRunning(), not isEnabled(): a ticker that is enabled but has
+        crashed runs nothing, and that is exactly when Dashboards must step
+        back in. A ticker mid-restart reads as not running for a few seconds,
+        which costs at most one extra run of each script."""
+        try:
+            p = indigo.server.getPlugin(self._TICKER_PLUGIN_ID)
+            return bool(p and p.isInstalled() and p.isRunning())
+        except Exception:
+            return False
+
+    def _note_ticker(self):
+        """Tick task (every 30 s): who runs the companion scripts. Logs only a
+        change, and says nothing on an install that has never had the ticker."""
+        now_elsewhere = self._ticker_running()
+        was = getattr(self, "_scripts_elsewhere", None)
+        self._scripts_elsewhere = now_elsewhere
+        if was is None and not now_elsewhere:
+            return now_elsewhere
+        if now_elsewhere and not was:
+            log("[Scripts] Script Ticker is running the companion scripts, so Dashboards "
+                "is leaving them to it")
+        elif was and not now_elsewhere:
+            log("[Scripts] Script Ticker is not running, so Dashboards is running the "
+                "companion scripts again")
+        return now_elsewhere
 
     def _plugin_present(self, plugin_id):
         """Installed AND enabled. Not isRunning(): a plugin mid-restart would
@@ -3146,8 +3179,9 @@ class Plugin(CarbonMixin, InsightsMixin, MainsMixin, HistoryMixin, indigo.Plugin
         Driving it from here rather than an Indigo schedule is deliberate — the
         IOM can create a schedule but cannot set its ACTION STEP, so a scripted
         schedule would sit there running nothing. The cost is that the watch
-        stops if this plugin is disabled; add a UI schedule alongside if you
-        want it independent (the script's flock + state make a double-run safe).
+        stops if this plugin is disabled, unless Script Ticker is running it
+        instead (v3.31.0), or a UI schedule runs it alongside (the script's
+        flock + state make a double-run safe).
         """
         self._tick_script("logwatch")
         self._check_log_watch_alive()
@@ -3362,6 +3396,29 @@ class Plugin(CarbonMixin, InsightsMixin, MainsMixin, HistoryMixin, indigo.Plugin
             f"lines above; nothing downstream (Pushover, the Alerts page, the triage "
             f"feed) will notice a new error until it runs again.")
 
+    def _tick_companions(self, step, last, t0):
+        """Run whichever companion scripts are due (the loop's own schedule).
+        Only called while Script Ticker is not running them (v3.31.0)."""
+        if t0 - last["presence"] > PRESENCE_REFRESH_SECONDS:
+            step("presence watch", self._run_presence_watch)
+            last["presence"] = t0
+        if t0 - last["logwatch"] > LOG_WATCH_REFRESH_SECONDS:
+            step("log watch", self._run_log_error_watch)           # hourly event-log error watch
+            last["logwatch"] = t0
+        if t0 - last["fp300"] > FP300_WATCH_REFRESH_SECONDS:
+            step("FP300 watch", self._run_fp300_config_watch)     # hourly config-drift watch
+            last["fp300"] = t0
+        if t0 - last["laundry"] > LAUNDRY_REFRESH_SECONDS:
+            step("laundry plan", self._run_appliance_scheduler)
+            last["laundry"] = t0
+        if t0 - last["reflectorbw"] > REFLECTOR_BW_REFRESH_SECONDS:
+            step("reflector meter", self._run_reflector_bandwidth_watch)
+            last["reflectorbw"] = t0
+        if t0 - last["sweep"] > NIGHT_SWEEP_REFRESH_SECONDS:
+            step("night sweep", self._run_night_lights_sweep)     # 2-min overnight backstop
+            step("drive lights", self._run_drive_lights_sun)      # sunset->sunrise drive lights
+            last["sweep"] = t0
+
     def runConcurrentThread(self):
         """Main background loop. Indigo calls this once after startup; we keep
         looping until self.stopThread is set during shutdown. self.sleep()
@@ -3411,15 +3468,18 @@ class Plugin(CarbonMixin, InsightsMixin, MainsMixin, HistoryMixin, indigo.Plugin
             # to run bare, so one bad value killed the loop before it began).
             step("rooms.json", self._build_rooms_json)
             step("scenes.json", self._build_scenes_json)
-            step("presence watch", self._run_presence_watch)
-            last["presence"] = time.time()
+            step("script ticker check", self._note_ticker)
+            scripts_here = not getattr(self, "_scripts_elsewhere", False)
+            if scripts_here:
+                step("presence watch", self._run_presence_watch)
+                last["presence"] = time.time()
             # One line for every optional script that is not installed
             # (v2.96.0). Five separate lines used to greet every fresh
             # install, two of them about one house's lighting automations.
             try:
                 absent = [v[0] for v in self.COMPANION_SCRIPTS.values()
                           if not os.path.isfile(os.path.join(self._scripts_dir(), v[0]))]
-                if absent:
+                if absent and scripts_here:
                     self.logger.info(f"[Scripts] optional companion scripts not installed: "
                                      f"{', '.join(absent)} — the dashboards work without them; "
                                      f"see scripts/README.md in the repo if you want any")
@@ -3435,28 +3495,14 @@ class Plugin(CarbonMixin, InsightsMixin, MainsMixin, HistoryMixin, indigo.Plugin
                     step("setup-link sweep", self._cleanup_setup_links)
                     step("change-ledger prune", self._prune_change_ledger)
                     step("feature flags", self._refresh_feature_flags)   # an optional plugin came or went
+                    step("script ticker check", self._note_ticker)       # who runs the companion scripts
                     if cameras_on:
                         step("go2rtc supervisor", self._supervise_go2rtc)   # restart a crashed go2rtc
                     last["link"] = t0
-                if t0 - last["presence"] > PRESENCE_REFRESH_SECONDS:
-                    step("presence watch", self._run_presence_watch)
-                    last["presence"] = t0
-                if t0 - last["logwatch"] > LOG_WATCH_REFRESH_SECONDS:
-                    step("log watch", self._run_log_error_watch)           # hourly event-log error watch
-                    last["logwatch"] = t0
-                if t0 - last["fp300"] > FP300_WATCH_REFRESH_SECONDS:
-                    step("FP300 watch", self._run_fp300_config_watch)     # hourly config-drift watch
-                    last["fp300"] = t0
-                if t0 - last["laundry"] > LAUNDRY_REFRESH_SECONDS:
-                    step("laundry plan", self._run_appliance_scheduler)
-                    last["laundry"] = t0
-                if t0 - last["reflectorbw"] > REFLECTOR_BW_REFRESH_SECONDS:
-                    step("reflector meter", self._run_reflector_bandwidth_watch)
-                    last["reflectorbw"] = t0
-                if t0 - last["sweep"] > NIGHT_SWEEP_REFRESH_SECONDS:
-                    step("night sweep", self._run_night_lights_sweep)     # 2-min overnight backstop
-                    step("drive lights", self._run_drive_lights_sun)      # sunset->sunrise drive lights
-                    last["sweep"] = t0
+                if not getattr(self, "_scripts_elsewhere", False):
+                    # Leaving `last` alone while Script Ticker runs them means
+                    # that if it stops, every script is overdue and runs at once.
+                    self._tick_companions(step, last, t0)
                 dt = time.time() - t0
                 self.sleep(max(0.1, tick - dt))
         except self.StopThread:
@@ -3953,6 +3999,11 @@ class Plugin(CarbonMixin, InsightsMixin, MainsMixin, HistoryMixin, indigo.Plugin
         db = self._history_db_path()
         chk("SQL Logger history", os.path.isfile(db),
             db if os.path.isfile(db) else "not found — Graphs, Timeline and Insights need the SQL Logger plugin",
+            optional=True)
+        ticker = self._ticker_running()
+        chk("Script Ticker", ticker,
+            "running — it runs the companion scripts, so Dashboards does not" if ticker
+            else "not running — Dashboards runs the companion scripts itself",
             optional=True)
         scripts_dir = self._scripts_dir()
         for name in (v[0] for v in self.COMPANION_SCRIPTS.values()):
@@ -5771,7 +5822,25 @@ class Plugin(CarbonMixin, InsightsMixin, MainsMixin, HistoryMixin, indigo.Plugin
         return self._evo_reply(reply)
 
     def _replan_laundry(self):
-        """Off-path producer: run the scheduler once and return its plan."""
+        """Off-path producer: run the scheduler once and return its plan.
+
+        While Script Ticker runs the scripts, ask IT to run this one and wait
+        (v3.31.0), so the scheduler never runs in two hosts at once. If the
+        request cannot be made, run it here — a deadline change must replan."""
+        if self._ticker_running():
+            try:
+                reply = indigo.server.getPlugin(self._TICKER_PLUGIN_ID).executeAction(
+                    "runJob", props={"job": "laundry"}, waitUntilDone=True)
+                # The reply crosses hosts as an indigo.Dict, which is NOT a
+                # dict subclass — read it through its mapping methods.
+                reply = dict(reply) if hasattr(reply, "keys") else {}
+                if not reply.get("ok"):
+                    self.logger.debug(f"[Laundry] Script Ticker could not replan: "
+                                      f"{reply.get('error') or 'no reason given'}")
+                return self._read_laundry_plan()
+            except Exception as exc:
+                self.logger.debug(f"[Laundry] Script Ticker did not take the replan ({exc}); "
+                                  f"running it here")
         self._run_appliance_scheduler()
         return self._read_laundry_plan()
 

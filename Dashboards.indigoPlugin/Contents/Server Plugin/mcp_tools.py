@@ -247,9 +247,12 @@ def tool_get_status(plugin, args):
     return {
         "version":       plugin.pluginVersion,
         "dashboardUrl":  plugin._dashboard_url(),
+        # ONE store since v3.27.0: the file, or the defaults until something
+        # saves. cfg_loaded went with the old two-store design, and reading
+        # it here made every status call report "legacy".
         "configSource":  "settings store (dashboards_config.json)"
-                         if getattr(plugin, "cfg_loaded", False)
-                         else "IndigoSecrets.py / PluginConfig (legacy, never saved from Settings)",
+                         if os.path.isfile(plugin._config_store_path())
+                         else "defaults (nothing saved from the Settings page yet)",
         "roomFolders": {
             "configured": rooms["configured"],
             "source":     rooms["source"],
@@ -267,7 +270,8 @@ def tool_get_status(plugin, args):
             "backend":     str((plugin.pluginPrefs or {}).get("historyBackend") or "sqlite"),
             "sqliteFound": os.path.isfile(db),
         },
-        "companionScripts": {"present": present, "missing": missing},
+        "companionScripts": {"present": present, "missing": missing,
+                             "runBy": "Script Ticker" if plugin._ticker_running() else "Dashboards"},
         "pluginLog": _log_path(plugin),
         # Which optional plugins are present (v3.13.0) — the answer to "why is
         # there no Energy page": the pages hide themselves when this is false.

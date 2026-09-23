@@ -181,12 +181,13 @@ def test_get_status_shape(monkeypatch, tmp_path):
     scripts = tmp_path / "Python Scripts"
     scripts.mkdir()
     (scripts / "Presence_Watch.py").write_text("# stub", encoding="utf-8")
+    p._ticker_running = lambda: False
     out = call(p, "get_status")
     assert out["status"] == "ok"
     r = out["result"]
     assert r["version"] == "3.12.0"
     assert r["dashboardUrl"].endswith("/public/dashboards/index.html")
-    assert "legacy" in r["configSource"]
+    assert "defaults" in r["configSource"]          # nothing saved from Settings yet
     assert r["roomFolders"]["source"] == "built-in defaults"
     assert r["roomFolders"]["existInIndigo"] == 3          # Kitchen, Hall, Garage exist
     assert "Bathroom" in r["roomFolders"]["missing"]
@@ -195,6 +196,7 @@ def test_get_status_shape(monkeypatch, tmp_path):
     assert r["history"] == {"backend": "sqlite", "sqliteFound": False}
     assert "Presence_Watch.py" in r["companionScripts"]["present"]
     assert "Log_Error_Watch.py" in r["companionScripts"]["missing"]
+    assert r["companionScripts"]["runBy"] == "Dashboards"
     assert r["pluginLog"].endswith(os.path.join("Logs", PLUGIN_ID, "plugin.log"))
 
 

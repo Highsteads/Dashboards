@@ -14,8 +14,11 @@
 #              trigger until 14-09-2026 and had never once run, so on 27-08 there
 #              was nothing downstream to stop it. This closes that gap.
 # Author:      CliveS & Claude Opus 5
-# Date:        07-09-2026 + UK Time Now
-# Version:     1.6
+# Date:        23-09-2026 + UK Time Now
+# Version:     1.7
+#
+# v1.7 (23-09-2026) — the gap warning no longer names Dashboards as the thing that
+#   runs this: the Script Ticker plugin does now, and Dashboards only when it is not.
 #
 # v1.6 (21-09-2026) — THE FIRE IS NO LONGER RE-SENT WHEN ITS PLUG SAYS IT IS
 #   OFF. Broadlink RF 1.4.0 lets Fire On/Off read the Living Room Fire Plug, and
@@ -766,7 +769,8 @@ def main():
     if gap_min is not None and gap_min > MAX_GAP_MINUTES:
         log(f"{int(gap_min)} minutes since the last sweep (limit {MAX_GAP_MINUTES}) — "
             f"discarding every streak, because nothing observed that gap. "
-            f"The Dashboards plugin ticks this every 2 minutes; was it stopped?",
+            f"Script Ticker (or Dashboards, when Script Ticker is not running) runs this "
+            f"every 2 minutes; was it stopped?",
             level="WARNING")
         streaks = {}
         state["fire_asserted_at"] = None
