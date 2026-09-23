@@ -26,21 +26,15 @@ and battery state of charge with what it is doing.
 
 **Today.** A Sankey of where every kWh since midnight came from and went, with a note stating the
 round-trip loss and warning that the two sides disagree by that amount, because the split is a best
-fit to the daily totals and not a metered figure. Beside it, power metrics — solar, home, grid and
-state of charge on one chart with 24 h / 48 h / 7 d buttons; grid is signed, import positive.
+fit to the daily totals and not a metered figure. It sits under the solar card, full width.
 
-**Today's summary.** Plain tiles: generated, used, imported, exported, peak and minimum state of
-charge, charged into and discharged from the battery.
-
-**Battery.** A ring for state of charge, what it is doing now in kW, the projected dawn state of
-charge with a viability verdict, and a 24 h sparkline. Then a grid of tiles: state of health, pack
+**Battery.** A ring for state of charge, what it is doing now in kW, and a 24 h sparkline with the
+day's low and high. Then a grid of tiles: state of health, pack
 temperature with the cell spread, pack balance, grid frequency and voltage banded against the
 statutory range (the limit comes from the plugin, never hardcoded), inverter temperature, PV
 insulation resistance shown with no verdict because the manufacturer's threshold is not public,
-the inverter's own alarm state, cell voltage, today's charge and discharge, and the dawn reserve.
-A tile that cannot know does not appear. Then the **battery fleet**: every battery in the house, the
-house pack by percentage and any vehicle monitors from the configuration by voltage, with a
-frozen-reading check.
+the inverter's own alarm state, cell voltage, and today's charge and discharge. A tile that cannot
+know does not appear. The dawn reserve is on the Manager card.
 
 **Money.** Saved today from solar and battery against what a grid-only day would have cost, with
 import paid, export earned and net grid, and a link across to the [Cost](cost.md) page for the full
@@ -61,10 +55,29 @@ the projected dawn state of charge and the reasoning in the plugin's own words; 
 tomorrow's rate and direction; and the system card — connection, VPP state, storm watch, export
 lockout, and a short log of recent grid events.
 
+**When to run it** (from 3.34.0, when the Carbon and Laundry pages merged into it). Two halves:
+
+- *Laundry.* For each metered appliance, one sentence ("Put the washing machine on now and it
+  should finish about 4:31pm"), deadline chips (noon, 2pm, 4pm, 7pm, 10pm, no deadline) that replan
+  it on the spot, a sun / battery / grid bar for the recommended run, and, folded away, every half
+  hour to the deadline (said once when they all cost the same). The machine's own measured cycle is
+  named underneath, "not the manual". Needs the `Appliance_Scheduler.py` companion script, which
+  finds every enabled ApplianceMonitor device and measures each machine from its own history; a
+  machine needs about five logged cycles first. Nothing here switches a machine on.
+- *Grid carbon.* The advice (run now, wait, any time) with its reason, grid carbon for your region
+  with a plain-English band, the cleanest half hour in the next day, a 24-hour forecast chart, and,
+  folded away, the live generation mix and how the advice is worked out: spare solar first, then a
+  clean grid, then the cleanest window in the next 16 hours. Great Britain only, from the free UK
+  Carbon Intensity API; switch it off under Configure.
+
+Each half hides itself when it has nothing to say, and the card goes when both do. The old
+`carbon.html` and `laundry.html` addresses land here.
+
 **Environment.** Lifetime CO₂ avoided, expressed several ways.
 
 **History.** Energy per half-hour as a stacked chart above and below the axis — supplied above, used
-below. Then daily totals for the last 30 days, then week on week against the previous week and the
+below — with 24 h / 48 h / 7 d buttons. To replay a day minute by minute, use the
+[Timeline](timeline.md) page. Then daily totals for the last 30 days, then week on week against the previous week and the
 same week last year (the year-on-year column stays empty until a full year exists, and says so).
 
 **Records.** Export sync — the plugin's own reading against the supplier's, day by day, with the
@@ -77,7 +90,9 @@ SigenEnergyManager's data API. It is a proxy rather than a direct call so the pa
 home as well as on the LAN — the browser never needs to reach the energy plugin itself. The path is
 allow-listed and the upstream host is fixed.
 
-The stacked hourly chart is the exception: it reads `solarStringHours`, which integrates per-hour
+The When to run it card reads `laundryPlan` (and `laundryDeadline` for a chip) and `carbonAdvisor`,
+which caches the carbon data for ten minutes server-side. The stacked hourly chart is the other
+exception: it reads `solarStringHours`, which integrates per-hour
 per-array kWh out of the SQL Logger history, PK-ranged and cached, and returns null for an hour with
 no samples so the page falls back rather than inventing zeros.
 
@@ -88,11 +103,12 @@ no samples so the page falls back rather than inventing zeros.
 - Half-hourly history every 5 minutes.
 - Daily totals every 30 minutes.
 - The lifetime and records blocks hourly.
+- When to run it every minute, and on demand when a deadline chip is tapped.
 
 ## What you can do here
 
-Nothing — it is entirely read-only. Control of the battery lives in the energy plugin itself. The
-only interactions are the chart range buttons and the link to the Cost page.
+Nearly nothing: control of the battery lives in the energy plugin itself. The interactions are the
+chart range buttons, the laundry deadline chips and the link to the Cost page.
 
 ## Worth knowing
 

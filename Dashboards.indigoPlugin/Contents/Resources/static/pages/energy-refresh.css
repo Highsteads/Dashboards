@@ -43,7 +43,6 @@
  .energy-page .soc-pct { font-size:24px; }
 }
 .energy-page .grid2 { align-items:start; }
-@media(min-width:761px){ .energy-page .energy-today-grid > :first-child { grid-row:span 2; } }
 .energy-page .grid2:has(> :only-child) { grid-template-columns:1fr; }
 .energy-page .sk-note,.energy-page .sol-score,.energy-page .sol-range-note { font-size:12px; line-height:1.6; }
 .energy-page .soc-ring-wrap svg { overflow:visible; }

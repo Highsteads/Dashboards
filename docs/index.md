@@ -40,7 +40,7 @@ subscription and nothing else.
 | **[Getting started](getting-started.md)** | What you need, how to install it, and how a browser gets paired |
 | **[Configuration](configuration.md)** | The Settings page, the Configure dialog, cameras, rooms and every config key |
 | **[Using the dashboards](using.md)** | What moves, what you can tap, the live dot, PIN and guest access |
-| **[Every page](pages/index.md)** | One page of notes for each of the 23 pages — what is on it, where the numbers come from, what you can do |
+| **[Every page](pages/index.md)** | One page of notes for each of the 21 pages — what is on it, where the numbers come from, what you can do |
 | **[Cameras](cameras.md)** | How H.264 becomes a picture in an `<img>` tag, and what it costs on a slow link |
 | **[Remote access](remote-access.md)** | Tailscale, the ports, guest devices, and why the reflector is treated as somebody else's money |
 | **[Claude Code and MCP tools](claude-code.md)** | What Claude Code adds, what an MCP server adds on top, and the tools the plugin offers to any Indigo MCP server |
@@ -70,11 +70,11 @@ run between the sun, the battery, the house and the grid in the direction the en
 reverse when the battery turns round. Below it: battery state, tariff, forecast, per-array
 generation against a dashed forecast line, and the day's totals.
 
-<img src="screenshots/cost.png" width="49%" alt="The Cost page"> <img src="screenshots/carbon.png" width="49%" alt="The Carbon page">
+<img src="screenshots/cost.png" width="860" alt="The Cost page">
 
 **What it costs and what it costs the planet.** Bill-exact daily electricity and gas, standing
-charges, export earnings and week-on-week comparisons. Carbon is live national grid intensity with
-a plain-English verdict on whether now is a good time to run a load.
+charges, export earnings and week-on-week comparisons. On the Energy page, When to run it says when
+to put the washing on for the least money, and how clean the grid is now and over the next day.
 
 <img src="screenshots/timeline.png" width="860" alt="The Timeline page">
 

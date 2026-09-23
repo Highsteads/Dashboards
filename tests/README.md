@@ -85,7 +85,6 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_idle_guard.mjs` | Contract test for DashUI.idleGuard, DashUI.lanUrl and the |
 | `test_immediate_numbers.mjs` | Numeric readings update synchronously, while graphical callbacks may animate. |
 | `test_laundry_deadline.py` | Contract test for the Laundry page's deadline validation. |
-| `test_laundry_page.mjs` | Contract test for laundry.html's own logic — the freshness readout, the |
 | `test_laundry_replan_offpath.py` | A laundry deadline replans on the off-path pool, not on IWS's |
 | `test_legacy_config_import.py` | One settings store (v3.27.0). A first start with no |
 | `test_link_class.mjs` | Contract test for DashUI.linkClass / measuredClass — how the |
@@ -141,3 +140,4 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_vpp_card.mjs` | Contract tests for the Cost page's Grid events (Axle VPP) card. |
 | `test_weather_thread_restart.py` | A Configure save that restarts the weather thread while a fetch |
 | `test_webrtc_route.py` | Contract tests for the WHEP signalling forward (v2.68.0) — |
+| `test_when_to_run.mjs` | The "When to run it" card on the Energy page (v3.34.0), which |

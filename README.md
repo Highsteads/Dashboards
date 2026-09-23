@@ -8,9 +8,9 @@ Browser dashboards for [Indigo Domotics](https://www.indigodomo.com/), built for
 wall, a phone in your pocket and a Mac on the desk. No app to install, no cloud account,
 nothing leaving the house.
 
-<img src="https://img.shields.io/badge/version-3.33.0-5856d6" alt="Version 3.33.0">
+<img src="https://img.shields.io/badge/version-3.34.0-5856d6" alt="Version 3.34.0">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
-<img src="https://img.shields.io/badge/pages-23-0a84ff" alt="23 pages">
+<img src="https://img.shields.io/badge/pages-21-0a84ff" alt="21 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
 
 <br><br>
@@ -21,10 +21,10 @@ nothing leaving the house.
 
 ---
 
-**Version:** 3.33.0
+**Version:** 3.34.0
 
 **Documentation:** **[highsteads.github.io/Dashboards](https://highsteads.github.io/Dashboards/)** —
-getting started, configuration, a page of notes for every one of the 23 pages, cameras, remote
+getting started, configuration, a page of notes for every one of the 21 pages, cameras, remote
 access, troubleshooting, and the full version history. This README is the short version.
 
 ### Jump to
@@ -67,11 +67,11 @@ with a gentle state simulator, touching no live devices.
 The three most recent releases, word for word. Every release before these is in
 **[the version history](docs/changelog.md)**, which the documentation site also carries.
 
+**3.34.0** (23-Sep-2026) - **Energy is slimmer, and the Carbon and Laundry pages are one card on it.** The new When to run it card puts the cheapest time to run each metered appliance (with its finish-by buttons) beside how clean the grid is now and over the next day. Each half hides when it has nothing to say: laundry without its companion script, carbon when its region is switched off. The old Carbon and Laundry addresses land on the card. Energy lost what it said twice or three times: the Today's summary tiles (every figure was already in the hero, the energy flow or the battery tiles), the second copy of the dawn reserve on the battery card, the power chart that drew the same half-hour slots as the history chart (whose 24 h, 48 h and 7 day buttons it now carries), and the energy replay, which the Timeline page does better. Today is now one column: the solar card, then the day's energy flow.
+
 **3.33.0** (23-Sep-2026) - **Timeline is now the one page for the house's history, and the menu asks the questions you came with.** Timeline gained three tabs beside its day replay: Nights (the presence sensors night by night, which was the Presence page), Chart (graph anything the SQL Logger records, which was the Graphs page) and Diary (locks, doors, leaks and restarts from the event log, which was on the Activity page). Tap a device name in the day replay to chart it. The Nights view now draws every room the presence script watches, not two named rooms. The automation list from the Activity page (what is coming up, what is switched off, who holds a door code) moved to the System page. The old Presence, Graphs and Activity addresses still work and open the right view. The menu is now one page, grouped as Right now, Energy, What happened, Is anything wrong? and Setup, with the rooms a tap away, and it has the same top bar as every other page. Pages and tabs that need a companion script hide when that script is not installed, and a new test fails if any page is left with nothing linking to it.
 
 **3.32.0** (23-Sep-2026) - **More of the plugin's code is split into parts. Nothing you can see changes.** The cameras, the settings store, copying the pages into place, the System Health page and the companion-script runner now live in files of their own, and the settings every part shares sit in one small file. The main file goes from about 6,000 lines to under 3,000.
-
-**3.31.0** (23-Sep-2026) - **The companion scripts can be run by a separate plugin.** If the Script Ticker plugin (the one this house uses) is running on the same server, Dashboards leaves the seven companion scripts to it, and runs them itself again within half a minute of it stopping, so a script is never skipped and never run twice. Changing a laundry deadline asks Script Ticker to replan, so the planner never runs in two places at once. The Test Dashboards Setup menu item says which of the two is running them. Nothing changes on a server without Script Ticker. The plugin's status report for Claude also stopped saying the settings came from the old store on every install; it now names the settings file.
 
 ## A look around
 
@@ -92,12 +92,13 @@ dots run between the sun, the battery, the house and the grid in the direction t
 going, and reverse when the battery turns round. Below it: battery state, tariff, forecast,
 per-array generation against a dashed forecast line, and the day's totals.
 
-<img src="docs/screenshots/cost.png" width="49%" alt="Cost"> <img src="docs/screenshots/laundry.png" width="49%" alt="Laundry">
+<img src="docs/screenshots/cost.png" width="860" alt="Cost">
 
 **What it costs, and when to put the washing on.** Bill-exact daily electricity and gas, standing
-charges, export earnings and week-on-week comparisons. Laundry works out when to run each metered
-appliance from the solar forecast, the house's own measured load and the live half-hourly prices —
-and tells you plainly when it makes no difference.
+charges, export earnings and week-on-week comparisons. The Energy page's When to run it card works
+out when to run each metered appliance from the solar forecast, the house's own measured load and
+the live half-hourly prices — and tells you plainly when it makes no difference — beside how clean
+the grid is now and over the next day.
 
 <img src="docs/screenshots/timeline.png" width="860" alt="Timeline">
 
@@ -122,10 +123,8 @@ file — no build step, no framework, no bundler — and every one has [a page o
 | **[Room](docs/pages/room.md)** `room.html?room=Name` | One room end to end — lights and sockets with real controls, blinds, sensors, cameras, doors |
 | **[Active](docs/pages/active.md)** `active.html` | Everything currently on, across the whole house |
 | **[Scenes](docs/pages/scenes.md)** `scenes.html` | Every Indigo action group as a button, each reporting what actually happened |
-| **[Energy](docs/pages/energy.md)** `energy.html` | The whole solar and battery picture. Needs SigenEnergyManager, and hides itself without it |
+| **[Energy](docs/pages/energy.md)** `energy.html` | The whole solar and battery picture, and when to run the washing (cheapest) and anything else (cleanest grid). Needs SigenEnergyManager, and hides itself without it |
 | **[Cost](docs/pages/cost.md)** `cost.html` | What the house costs to run, from bill-exact economics. Needs SigenEnergyManager |
-| **[Carbon](docs/pages/carbon.md)** `carbon.html` | How dirty the grid is now and over the next day, and when to run a load. Needs nothing |
-| **[Laundry](docs/pages/laundry.md)** `laundry.html` | When to run each metered appliance so it costs the least. Advisory only. Needs SigenEnergyManager |
 | **[Mains](docs/pages/mains.md)** `mains.html` | Every mains meter and how far each one disagrees with the others |
 | **[Meter](docs/pages/meter.md)** `meter.html?id=N` | One meter in detail — live reading, rank, seven-day offset, history |
 | **[Timeline](docs/pages/timeline.md)** `timeline.html` | Everything recorded: a day replayed, presence night by night, a chart of any state, and the house diary |

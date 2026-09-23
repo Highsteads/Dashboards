@@ -240,13 +240,6 @@ svg{max-width:100%}
 @media (prefers-color-scheme: dark){.action-overflow{color:#a3e635}}
 .reason{font-size:11.5px;color:var(--text-secondary);line-height:1.5;margin-top:8px;word-break:break-word;white-space:pre-line}
 .decision-trace{font-size:12px;line-height:1.45;margin-top:10px;padding:8px 10px;border-left:3px solid var(--solar);background:var(--card-bg-alt);border-radius:0 8px 8px 0}
-.replay-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px}
-.replay-controls input{flex:1;min-width:150px;accent-color:var(--solar)}
-.replay-readout{font-size:12px;color:var(--text-secondary);font-variant-numeric:tabular-nums;margin-top:8px}
-.replay-flow{display:inline-block;color:var(--solar);font-weight:700;margin-right:5px}
-.replay-flow.playing{animation:replay-pulse .8s ease-in-out infinite}
-@keyframes replay-pulse{50%{transform:translateX(4px);opacity:.45}}
-@media(prefers-reduced-motion:reduce){.replay-flow.playing{animation:none}}
 .dawn-ok{color:var(--on-color)}
 .dawn-warn{color:var(--bad)}
 .tariff-rate{font-size:28px;font-weight:700;color:var(--warn);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
@@ -331,6 +324,53 @@ a,button,input,select,textarea{-webkit-tap-highlight-color:transparent}
 }
 
 h1 .dsh-icon {width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;opacity:.85}
+/* v3.34.0: the When to run it card (laundry + grid carbon). */
+.when-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+@media(max-width:760px){.when-grid{grid-template-columns:1fr}}
+#when-fresh.stale{color:var(--warn)}
+#when-card .wr-head{font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
+#when-card .wr-appl+.wr-appl{margin-top:16px;padding-top:14px;border-top:1px solid var(--border-soft)}
+#when-card .wr-verdict{font-size:17px;font-weight:700;letter-spacing:-.01em;line-height:1.3}
+#when-card .wr-detail{font-size:12.5px;color:var(--text-secondary);margin-top:3px;line-height:1.4}
+#when-card .wr-sub{font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.6px;margin-top:12px}
+#when-card .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+#when-card .chips button{font:inherit;font-size:12.5px;padding:6px 12px;border-radius:999px;cursor:pointer;
+  border:1px solid var(--border);background:var(--card-bg);color:var(--text);transition:background .2s,border-color .2s,color .2s}
+#when-card .chips button:hover:not(:disabled){border-color:var(--accent)}
+#when-card .chips button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+#when-card .chips button:disabled{opacity:.5;cursor:default}
+#when-card .split{display:flex;gap:2px;height:12px;border-radius:6px;overflow:hidden;margin:8px 0 6px}
+#when-card .split span{display:block;transition:width .5s cubic-bezier(.2,.8,.2,1)}
+#when-card .split .s{background:var(--on-color)}#when-card .split .b{background:var(--accent)}#when-card .split .g{background:var(--warn-color,#ff9f0a)}
+#when-card .legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--text-secondary)}
+#when-card .legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px}
+#when-card details{margin-top:10px}#when-card summary{cursor:pointer;font-size:12.5px;font-weight:600;color:var(--accent)}
+#when-card .slot{display:grid;grid-template-columns:52px 1fr auto;gap:10px;align-items:center;padding:3px 0;font-size:12px;font-variant-numeric:tabular-nums}
+#when-card .slot .t{color:var(--text-secondary)}
+#when-card .slot .track{height:8px;border-radius:5px;background:var(--border);overflow:hidden;opacity:.55}
+#when-card .slot .fill{height:100%;border-radius:5px;background:var(--warn-color,#ff9f0a)}
+#when-card .slot.free .fill{background:var(--on-color)}#when-card .slot.pick{font-weight:600}#when-card .slot.pick .t{color:var(--accent)}
+#when-card .slot .p{color:var(--text-secondary);min-width:44px;text-align:right}
+#when-card .wr-carbon-head{display:flex;gap:10px;align-items:flex-start}
+#when-card .wr-tag{flex:none;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;margin-top:2px;
+  background:rgba(52,199,89,.14);color:var(--on-color)}
+#when-card .wr-tag.wait{background:rgba(255,149,0,.15);color:var(--warn)}
+#when-card .wr-tag.neutral{background:var(--track);color:var(--text-secondary)}
+#when-card .wr-gauges{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+#when-card .wr-gauge{flex:1;min-width:130px;background:var(--card-bg-alt);border-radius:var(--r-md);padding:10px 12px}
+#when-card .wr-gauge .l{font-size:11px;color:var(--text-secondary)}
+#when-card .wr-gauge .v{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:2px}
+#when-card .wr-gauge .u{font-size:11px;font-weight:600;color:var(--text-secondary)}
+#when-card .wr-gauge .idx{display:inline-block;font-size:11px;font-weight:700;padding:1px 8px;border-radius:999px;margin-top:4px;text-transform:capitalize}
+#when-card .wr-chart{position:relative;height:130px;margin-top:10px}
+#when-card .mixrow{display:flex;align-items:center;gap:10px;font-size:12px;padding:3px 0}
+#when-card .mixrow .ml{width:70px;color:var(--text-secondary);text-transform:capitalize}
+#when-card .mixrow .mt{flex:1;height:7px;background:var(--track);border-radius:5px;overflow:hidden}
+#when-card .mixrow .mf{height:100%;border-radius:5px}
+#when-card .mixrow .mv{width:44px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+#when-card .note{font-size:11.5px;color:var(--text-muted);margin-top:8px;line-height:1.5}
+/* v3.34.0: Today is one column: the solar card, then the day's energy flow. */
+.energy-today{display:flex;flex-direction:column;gap:12px}
 </style>
 <link rel="stylesheet" href="dashboards-chrome.css">
 <link rel="stylesheet" href="dashboard-refresh.css">
@@ -398,7 +438,7 @@ h1 .dsh-icon {width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;
 
   <!-- ═══ TODAY ═══ -->
   <div class="sec-label">Today</div>
-  <div class="grid2 energy-today-grid">
+  <div class="energy-today">
       <!-- v2.97.0: Generation & forecast moved above Today's energy flow —
            what the roof did today is the question this page is opened for,
            and it was four cards down. The Battery fleet card was removed in
@@ -456,31 +496,7 @@ h1 .dsh-icon {width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;
       <div class="sk-note" id="sk-note"></div>
     </section>
 
-    <section class="card">
-      <h2 data-help-title="Power metrics" data-help="Average power in each half-hour slot over the selected window: solar (amber), home load (purple), grid (blue below zero = exporting, red above = importing) and battery SOC (green line, right axis).">Power metrics <span class="h2sub">&#8212; kW &amp; SOC</span></h2>
-      <div class="chart-tabs" id="pm-tabs">
-        <button class="chart-tab active" data-range="24">24h</button>
-        <button class="chart-tab" data-range="48">48h</button>
-        <button class="chart-tab" data-range="168">7d</button>
-      </div>
-      <div class="chart-wrap"><canvas id="chart-power"></canvas></div>
-    </section>
   </div>
-
-  <!-- Today summary tiles -->
-  <section class="card">
-    <h2 data-help-title="Today's summary" data-help="Running totals since local midnight, from the inverter's lifetime delta registers. Resets at 00:00 UK time.">Today&#8217;s summary</h2>
-    <div class="mtiles">
-      <div class="mtile"><div class="mt-lab">PV generated</div><div class="mt-val solar-c" id="sum-pv">&#8212;</div><div class="mt-sub">kWh</div></div>
-      <div class="mtile"><div class="mt-lab">Home used</div><div class="mt-val home-c" id="sum-home">&#8212;</div><div class="mt-sub">kWh</div></div>
-      <div class="mtile"><div class="mt-lab">Grid import</div><div class="mt-val grid-import" id="sum-imp">&#8212;</div><div class="mt-sub">kWh</div></div>
-      <div class="mtile"><div class="mt-lab">Grid export</div><div class="mt-val grid-export" id="sum-exp">&#8212;</div><div class="mt-sub">kWh</div></div>
-      <div class="mtile"><div class="mt-lab">Peak SOC</div><div class="mt-val" id="sum-peak">&#8212;</div><div class="mt-sub">today</div></div>
-      <div class="mtile"><div class="mt-lab">Min SOC</div><div class="mt-val" id="sum-min">&#8212;</div><div class="mt-sub">today</div></div>
-      <div class="mtile"><div class="mt-lab">Charged</div><div class="mt-val" id="sum-chg">&#8212;</div><div class="mt-sub">into battery</div></div>
-      <div class="mtile"><div class="mt-lab">Discharged</div><div class="mt-val" id="sum-dis">&#8212;</div><div class="mt-sub">from battery</div></div>
-    </div>
-  </section>
 
   <!-- ═══ BATTERY ═══ -->
   <div class="sec-label">Battery</div>
@@ -501,7 +517,6 @@ h1 .dsh-icon {width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;
         </div>
         <div class="bat-side">
           <div class="bat-state idle" id="bat-state">&#8212;</div>
-          <div class="bat-line" id="bat-dawn">&#8212;</div>
           <div class="spark-wrap"><svg id="spark-soc" viewBox="0 0 200 40" preserveAspectRatio="none"></svg></div>
           <div class="spark-cap" id="spark-soc-cap">&#8212;</div>
         </div>
@@ -577,6 +592,16 @@ h1 .dsh-icon {width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;
     </section>
   </div>
 
+  <!-- ═══ WHEN TO RUN IT (v3.34.0: was the Carbon and Laundry pages) ═══ -->
+  <div class="sec-label" id="when-label">When to run it</div>
+  <section class="card" id="when-card">
+    <h2 data-help-title="When to run it" data-help="The cheapest time to run each metered appliance before the deadline you choose, from its own measured cycles, the solar forecast, the battery and the tariff; and how clean the grid is now and over the next day. The laundry half needs the Appliance_Scheduler.py companion script; the carbon half covers Great Britain and can be switched off under Configure.">When to run it <span class="h2sub" id="when-fresh"></span></h2>
+    <div class="when-grid">
+      <div id="when-laundry"><p class="note">Working out the best time&#8230;</p></div>
+      <div id="when-carbon"><p class="note">Reading the grid&#8230;</p></div>
+    </div>
+  </section>
+
   <!-- ═══ ENVIRONMENT ═══ -->
   <div class="sec-label">Environment</div>
   <section class="card env-card">
@@ -596,16 +621,13 @@ h1 .dsh-icon {width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;
   <!-- ═══ HISTORY ═══ -->
   <div class="sec-label">History</div>
   <section class="card">
-    <h2 data-help-title="Energy history" data-help="Half-hourly energy per slot over the selected window. Above the line is where the power came from: solar, the battery and the grid. Below it is where it went: the house, into the battery, and out to the grid. The two roughly cancel in every slot.">Energy per half-hour</h2>
-    <div class="chart-wrap"><canvas id="chart-energy"></canvas></div>
-  </section>
-  <section class="card" id="energy-replay-card" style="display:none">
-    <h2 data-help-title="Energy replay" data-help="Step through the same half-hour slots shown in the history chart. Playback is manual and stops when this tab is hidden; it is an explainer, not a prediction.">Energy replay</h2>
-    <div class="replay-controls">
-      <button type="button" class="chart-tab" id="replay-play">Play</button>
-      <input id="replay-slider" type="range" min="0" max="0" value="0" aria-label="Energy history slot">
+    <h2 data-help-title="Energy history" data-help="Half-hourly energy per slot over the selected window. Above the line is where the power came from: solar, the battery and the grid. Below it is where it went: the house, into the battery, and out to the grid. The two roughly cancel in every slot. To replay a day minute by minute, use the Timeline page.">Energy per half-hour</h2>
+    <div class="chart-tabs" id="pm-tabs">
+      <button class="chart-tab active" data-range="24">24h</button>
+      <button class="chart-tab" data-range="48">48h</button>
+      <button class="chart-tab" data-range="168">7d</button>
     </div>
-    <div class="replay-readout" id="replay-readout">Waiting for history&#8230;</div>
+    <div class="chart-wrap"><canvas id="chart-energy"></canvas></div>
   </section>
   <section class="card">
     <h2 data-help-title="Daily totals" data-help="Per-day totals for the last 30 days: solar, export, import, home. Spot cloudy stretches at a glance.">Daily totals <span class="h2sub">&#8212; last 30 days</span></h2>
@@ -645,6 +667,7 @@ h1 .dsh-icon {width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;
 <script src="dashboards-auth.js"></script>
 <script src="dashboards-gate.js"></script>
 <script src="dashboard.js"></script>
+<script src="when-to-run.js"></script>
 
 <script>
 /* ════════════════════════════════════════════════════════════════
@@ -1269,24 +1292,7 @@ function update(d) {
   const bs = document.getElementById('bat-state');
   bs.textContent = batState + (batState !== 'Idle' ? ' · ' + fmtKw(Math.abs(batW)) : '');
   bs.className = 'bat-state ' + batState.toLowerCase();
-  if (d.decision) {
-    const dv = d.decision.dawn_viable;
-    const el = document.getElementById('bat-dawn');
-    el.textContent = 'Dawn: ' + (d.decision.soc_at_dawn_kwh != null ? d.decision.soc_at_dawn_kwh.toFixed(1) + ' kWh projected' : '—')
-      + (dv ? ' · viable' : ' · needs import');
-    el.style.color = dv ? '' : 'var(--warn)';
-  }
 
-  /* today summary tiles */
-  setText('sum-pv', s.pv_kwh != null ? s.pv_kwh.toFixed(1) : '—');
-  setText('sum-home', s.home_kwh != null ? s.home_kwh.toFixed(1) : '—');
-  setText('sum-imp', s.import_kwh != null ? s.import_kwh.toFixed(2) : '—');
-  setText('sum-exp', s.export_kwh != null ? s.export_kwh.toFixed(1) : '—');
-  // Peak 0 / min 100 is the rollover reset before the day's first sample —
-  // an impossible ordering, so no sample yet, so no number.
-  const _socOk = s.peak_soc != null && s.min_soc != null && s.peak_soc >= s.min_soc;
-  setText('sum-peak', _socOk ? s.peak_soc + '%' : '—');
-  setText('sum-min', _socOk ? s.min_soc + '%' : '—');
 
   /* sankey — uses charge/discharge from the device poll when available */
   const inv = _findInverter();
@@ -1644,48 +1650,8 @@ function renderEconomics(prefix, econ) {
    meant two tables with different columns claiming to show the same thing. */
 
 /* ════════ charts ════════ */
-let powerChart = null, energyChart = null, dailyChart = null;
+let energyChart = null, dailyChart = null;
 let currentRange = 24;
-let _replaySlots = [], _replayIndex = 0, _replayTimer = null;
-function renderEnergyReplay(slots) {
-  const card = document.getElementById('energy-replay-card');
-  const slider = document.getElementById('replay-slider');
-  const readout = document.getElementById('replay-readout');
-  if (!card || !slider || !readout) return;
-  _replaySlots = Array.isArray(slots) ? slots.filter(s => s && s.t) : [];
-  if (!_replaySlots.length) { card.style.display = 'none'; return; }
-  card.style.display = '';
-  _replayIndex = Math.min(_replayIndex, _replaySlots.length - 1);
-  slider.max = String(_replaySlots.length - 1);
-  slider.value = String(_replayIndex);
-  const s = _replaySlots[_replayIndex];
-  readout.innerHTML = '<span class="replay-flow' + (_replayTimer ? ' playing' : '') + '">→</span>'
-    + esc(fmtT(s.t)) + ' · solar ' + Number(s.pv_kwh || 0).toFixed(2) + ' kWh · home '
-    + Number(s.home_kwh || 0).toFixed(2) + ' kWh · grid '
-    + (Number(s.import_kwh || 0) - Number(s.export_kwh || 0)).toFixed(2) + ' kWh'
-    + (s.soc_end != null ? ' · SOC ' + Number(s.soc_end).toFixed(1) + '%' : '');
-}
-function stopEnergyReplay() {
-  if (_replayTimer) clearInterval(_replayTimer);
-  _replayTimer = null;
-  renderEnergyReplay(_replaySlots);
-}
-function wireEnergyReplay() {
-  const slider = document.getElementById('replay-slider');
-  const play = document.getElementById('replay-play');
-  if (!slider || !play || slider.dataset.wired) return;
-  slider.dataset.wired = '1';
-  slider.addEventListener('input', () => { _replayIndex = Number(slider.value); renderEnergyReplay(_replaySlots); });
-  play.addEventListener('click', () => {
-    if (_replayTimer) { stopEnergyReplay(); play.textContent = 'Play'; return; }
-    play.textContent = 'Pause';
-    _replayTimer = setInterval(() => {
-      _replayIndex = (_replayIndex + 1) % _replaySlots.length;
-      renderEnergyReplay(_replaySlots);
-    }, 850);
-    renderEnergyReplay(_replaySlots);
-  });
-}
 /* Read from the tokens so the charts follow light/dark with everything else —
    these were hardcoded hex, so the charts kept their light-mode colours while
    the page around them switched. Re-read on each draw rather than cached,
@@ -1732,8 +1698,6 @@ async function refreshCharts() {
     if (!r.ok) return;
     const d = await r.json();
     const slots = d.slots || [];
-    renderEnergyReplay(slots);
-    wireEnergyReplay();
     _solSlots = slots;
     renderSolarProgress();
     renderSolarHours();
@@ -1742,38 +1706,14 @@ async function refreshCharts() {
     const socEnd = slots.map(s => s.soc_end);
     // average kW per half-hour slot = kWh × 2
     const pvKw = slots.map(s => (s.pv_kwh || 0) * 2);
-    const homeKw = slots.map(s => (s.home_kwh || 0) * 2);
-    const gridKw = slots.map(s => ((s.import_kwh || 0) - (s.export_kwh || 0)) * 2);   // +import / −export
 
-    /* power metrics chart — skip the full destroy/recreate when nothing
-       changed (the 5-min poll mostly re-sees identical slots; rebuilding
-       re-ran the entry animation and dropped a frame every refresh). */
+    /* Skip the full destroy/recreate when nothing changed: the 5-min poll
+       mostly re-sees identical slots, and a rebuild re-ran the entry animation. */
     const _sig = JSON.stringify([BATTERY_KWH, labels[0], labels[labels.length - 1], socEnd[socEnd.length - 1],
                                  pvKw.length, currentRange, document.documentElement.dataset.theme || ""]);
-    if (window._powerSig === _sig && powerChart) return;
-    window._powerSig = _sig;
+    if (window._energySig === _sig && energyChart) return;
+    window._energySig = _sig;
     const C = chartColours();
-    if (powerChart) powerChart.destroy();
-    powerChart = new Chart(document.getElementById('chart-power'), {
-      type: 'line',
-      data: { labels, datasets: [
-        { label: 'Solar kW', data: pvKw, borderColor: C.pv, backgroundColor: 'rgba(245,166,35,.14)',
-          fill: false, tension: 0.2, pointRadius: 0, borderWidth: 1.8, yAxisID: 'y' },
-        { label: 'Home kW', data: homeKw, borderColor: C.home, backgroundColor: 'rgba(175,82,222,.10)',
-          fill: false, tension: 0.2, pointRadius: 0, borderWidth: 1.8, yAxisID: 'y' },
-        { label: 'Grid kW (+imp/−exp)', data: gridKw, borderColor: C.exp, backgroundColor: 'rgba(10,132,255,.08)',
-          fill: false, tension: 0.2, pointRadius: 0, borderWidth: 1.5, yAxisID: 'y' },
-        { label: 'SOC %', data: socEnd, borderColor: C.soc, borderDash: [5, 4],
-          fill: false, tension: 0.3, pointRadius: 0, borderWidth: 1.6, yAxisID: 'y1' },
-      ] },
-      options: { ...CHART_BASE,
-        scales: {
-          x: CHART_BASE.scales.x,
-          y: { ...CHART_BASE.scales.y, title: { display: true, text: 'kW', color: cssVar('--text-secondary', '#586574') } },
-          y1: { position: 'right', min: 0, max: 100, grid: { display: false },
-                ticks: { color: C.soc }, title: { display: true, text: 'SOC %', color: C.soc } },
-        } }
-    });
 
     /* Half-hourly supply against sinks.
        This used to stack Solar and Export upwards and Home and Import
@@ -2008,12 +1948,8 @@ function renderBattHealth() {
   const inv = _findInverter();
   if (!inv) { el.innerHTML = '<div class="muted">Sigen inverter not found</div>'; return; }
   const st = inv.states;
-  const ds = window.__DEVICES || [];
-  const mgr = ds.find(d => d.states && (d.states.dawnViable !== undefined || d.states.socAtDawn !== undefined));
   const soh = num(st.batterySoh), t = num(st.batteryTempC), tmax = num(st.batteryMaxTempC), tmin = num(st.batteryMinTempC);
   const cell = num(st.batteryCellVoltage), chg = num(st.batteryDailyChargeKwh), dis = num(st.batteryDailyDischargeKwh);
-  const dawnSoc = mgr ? num(mgr.states.socAtDawn) : null;
-  const dawnViable = mgr && String(mgr.states.dawnViable).toLowerCase() === 'true';
   let h = '';
   h += _bhTile('State of health', soh == null ? '—' : soh.toFixed(0) + '%', 'battery SoH', (soh != null && soh < 90) ? 'warn' : 'good');
   h += _bhTile('Pack temp', t == null ? '—' : t.toFixed(1) + '°C',
@@ -2074,7 +2010,6 @@ function renderBattHealth() {
   h += _bhTile('Cell voltage', cell == null ? '—' : cell.toFixed(3) + ' V', 'per cell');
   h += _bhTile('Charged today', chg == null ? '—' : chg.toFixed(1) + ' kWh', 'into battery');
   h += _bhTile('Discharged today', dis == null ? '—' : dis.toFixed(1) + ' kWh', 'from battery');
-  if (dawnSoc != null) h += _bhTile('Dawn reserve', dawnSoc.toFixed(1) + ' kWh', dawnViable ? 'reaches dawn' : 'short of dawn', dawnViable ? 'good' : 'warn');
   el.innerHTML = h;
 }
 
@@ -2113,8 +2048,13 @@ if (window.DashFeatures && DashFeatures.sigenAbsent('Energy')) {
   setInterval(refreshDailyChart, 30 * 60 * 1000);
   setInterval(refreshWeekCompare, 60 * 60 * 1000);
   setInterval(refreshExportSync, 60 * 60 * 1000);
+  // v3.34.0: the Carbon and Laundry pages are one card here now.
+  if (window.WhenToRun) WhenToRun.mount({
+    card: document.getElementById('when-card'), label: document.getElementById('when-label'),
+    laundryEl: document.getElementById('when-laundry'), carbonEl: document.getElementById('when-carbon'),
+    freshEl: document.getElementById('when-fresh') });
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) { stopEnergyReplay(); return; }
+    if (document.hidden) return;
     fetchStatus(); refreshDevices(); refreshCharts(); refreshStringHours();
   });
 }

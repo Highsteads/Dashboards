@@ -24,7 +24,7 @@ const read  = f => fs.readFileSync(path.join(PAGES, f), "utf8");
 const auth  = read("dashboards-auth.js");
 const menu  = read("menu.html");
 const hub   = read("index.html");
-const energy = read("energy.html"), cost = read("cost.html"), laundry = read("laundry.html");
+const energy = read("energy.html"), cost = read("cost.html");
 
 function extractFn(s, name) {
     const start = s.indexOf("function " + name + "(");
@@ -117,17 +117,15 @@ console.log("\nmenu.html — exactly the right tiles go");
     vm.runInNewContext(extractFn(menu, "tileHidden") + "\nglobalThis.__h = tileHidden;", ctx);
     const tiles = sections.flatMap(sec => sec.tiles);
     const hidden = cfg => tiles.filter(t => ctx.__h(t, cfg)).map(t => t[0]).sort();
-    check("absent: energy, cost and laundry are dropped",
-          JSON.stringify(hidden({ sigenAvailable: false })) === JSON.stringify(["cost.html", "energy.html", "laundry.html"]));
+    check("absent: energy and cost are dropped",
+          JSON.stringify(hidden({ sigenAvailable: false })) === JSON.stringify(["cost.html", "energy.html"]));
     check("present: nothing dropped", hidden({ sigenAvailable: true }).length === 0);
     check("no key: nothing dropped", hidden({}).length === 0 && hidden(undefined).length === 0);
-    check("carbon still follows its own region flag",
-          JSON.stringify(hidden({ carbon: false })) === JSON.stringify(["carbon.html"]));
-    check("laundry also needs its script",
-          JSON.stringify(hidden({ scripts: { laundry: false } })) === JSON.stringify(["laundry.html"]));
+    check("carbon and laundry are no longer menu tiles (v3.34.0: a card on Energy)",
+          !tiles.some(t => t[0] === "carbon.html" || t[0] === "laundry.html"));
     const tagged = tiles.filter(t => t.length > 5).map(t => t[0] + ":" + t[5]).sort();
     check("only those tiles carry a needs-key",
-          JSON.stringify(tagged) === JSON.stringify(["carbon.html:carbon", "cost.html:sigen", "energy.html:sigen", "laundry.html:sigen+laundry"]),
+          JSON.stringify(tagged) === JSON.stringify(["cost.html:sigen", "energy.html:sigen"]),
           JSON.stringify(tagged));
     check("the filter is the one the sections use",
           /\.filter\(t => !tileHidden\(t, cfgM\)\)/.test(menu) && /tile\(\.\.\.t\.slice\(0, 5\)\)/.test(menu),
@@ -176,11 +174,12 @@ console.log("\nthe three pages guard their boot");
     const iC = cost.indexOf("DashFeatures.sigenAbsent('Cost')");
     check("cost: after the api-key redirect, before the poll",
           cost.indexOf("location.href = 'index.html'") < iC && iC < cost.indexOf("DashUI.poll(load, POLL_INTERVAL_MS)"));
-    check("laundry: the guarded boot is the only boot",
-          /if \(window\.DashFeatures && DashFeatures\.sigenAbsent\('Laundry'\)\) \{[\s\S]*?\} else \{\s*DashUI\.poll\(load, POLL_MS\);[^\n]*\s*\}/.test(laundry) &&
-          (laundry.match(/^load\(\);$/mg) || []).length === 0);
+    // v3.34.0: laundry is a card on Energy, mounted inside Energy's guarded boot.
+    const iW = energy.indexOf("WhenToRun.mount(");
+    check("the When to run it card only mounts in the guarded boot",
+          iW > iE && energy.lastIndexOf("} else {", iW) > iE);
     check("each page loads the auth shim (where DashFeatures lives)",
-          [energy, cost, laundry].every(p => /<script src="dashboards-auth\.js">/.test(p)));
+          [energy, cost].every(p => /<script src="dashboards-auth\.js">/.test(p)));
 }
 
 done();

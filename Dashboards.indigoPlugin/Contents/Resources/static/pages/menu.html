@@ -82,10 +82,8 @@
             ["ecowitt.html",  "Weather",  "The weather station",               "",         "cloudsun"],
         ]},
         { key: "energy", title: "Energy", tiles: [
-            ["energy.html",   "Energy",   "Solar, battery, grid",              "energy",   "bolt", "sigen"],
+            ["energy.html",   "Energy",   "Solar, battery, grid, when to run it", "energy", "bolt", "sigen"],
             ["cost.html",     "Cost",     "Bills, export, solar savings",      "cost",     "money", "sigen"],
-            ["carbon.html",   "Carbon",   "Grid CO\u2082 \u00b7 best time to run a load", "carbon", "plant", "carbon"],
-            ["laundry.html",  "Laundry",  "When to run the washing machine",   "energy",   "laundry", "sigen+laundry"],
         ]},
         { key: "history", title: "What happened", tiles: [
             ["timeline.html", "Timeline", "Replay a day, nights, charts, diary", "",       "clock"],
@@ -164,17 +162,12 @@
     }
 
     /* A tile for a page that needs something optional is dropped when config.js
-       says it is absent: SigenEnergyManager for Energy, Cost and Laundry
-       (v3.13.0), Carbon when its region is Off, and Laundry without
-       Appliance_Scheduler.py (v3.33.0). Not silent: the hub says which plugin
-       is missing. Several needs join with "+". */
+       says it is absent: SigenEnergyManager for Energy and Cost (v3.13.0). Not
+       silent: the hub says which plugin is missing. Several needs join with "+". */
     function tileHidden(t, cfgM) {
         cfgM = cfgM || {};
-        const scripts = cfgM.scripts || {};
         return String(t[5] || "").split("+").filter(Boolean).some(need =>
-            (need === "sigen"   && cfgM.sigenAvailable === false) ||
-            (need === "carbon"  && cfgM.carbon === false) ||        // region Off: GB-only API
-            (need === "laundry" && scripts.laundry === false));
+            (need === "sigen" && cfgM.sigenAvailable === false));
     }
 
     function sectionHtml(sec, cfgM) {
