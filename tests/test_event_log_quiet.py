@@ -307,29 +307,22 @@ def test_startup_writes_exactly_one_info_line():
 
 @pytest.fixture
 def summary_plugin(monkeypatch):
-    """CAMERAS is a MODULE-level constant the whole suite shares. Set it with
-    monkeypatch, never by assignment, or these tests leave a doctored camera
-    list behind for whatever runs next."""
-    plugin = load_plugin_module()
-
+    """The camera list is plugin state since 3.32.0, so each test's list
+    lives on its own instance and cannot leak into the next test."""
     def build(cameras, user="u", passwd="p", mjpeg=None, go2rtc=None):
         p = bare_plugin()
         p.pluginDisplayName = "Dashboards"
         p.cam_user, p.cam_pass = user, passwd
         p._mjpeg_server, p._go2rtc_proc = mjpeg, go2rtc
-        monkeypatch.setattr(plugin, "CAMERAS", cameras)
+        p.cameras = cameras
         return p
     return build
 
 
-def test_the_camera_list_is_restored_between_tests(summary_plugin):
-    """Guards the fixture itself: a leaked CAMERAS would quietly change what
-    every later test in the run sees."""
-    plugin = load_plugin_module()
-    before = plugin.CAMERAS
-    summary_plugin([{"n": 1}] * 3)
-    assert plugin.CAMERAS == [{"n": 1}] * 3
-    assert before is not plugin.CAMERAS or before == plugin.CAMERAS
+def test_a_bare_instance_has_no_cameras():
+    """The class default an instance built without __init__ falls back on."""
+    p = bare_plugin()
+    assert list(p.cameras) == [] and p.swap_out_host == ""
 
 
 def test_summary_names_what_the_plugin_ended_up_running(summary_plugin):
@@ -525,7 +518,7 @@ def mirrored():
 
     _FILE_MIRROR is MODULE state and logging.getLogger() is process-global, so
     a leaked mirror would quietly attach itself to whatever ran next in the
-    session - the same trap the CAMERAS fixture above exists for.
+    session - the trap the old module-level camera list used to set too.
     """
     plugin = load_plugin_module()
     before = plugin._FILE_MIRROR

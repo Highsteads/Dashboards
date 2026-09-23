@@ -156,7 +156,7 @@ def _arg_str_list(args, name, required=False):
 # ---------------------------------------------------------------------------
 
 def _plugin_module(plugin):
-    """The module plugin.py loaded as (its module-level CAMERAS and helpers)."""
+    """The module plugin.py loaded as (its module-level helpers)."""
     return sys.modules[type(plugin).__module__]
 
 
@@ -183,13 +183,13 @@ def _room_folder_view(plugin):
 
 def _saved_cameras(plugin):
     """The camera list as SAVED. Plugin._effective_config() reports the store
-    once it is in force (v3.12.0) — the running list, module CAMERAS, only
+    once it is in force (v3.12.0) — the running list, plugin.cameras, only
     changes at restart, so after a save it is stale by design."""
     return [dict(c) for c in (plugin._effective_config().get("cameras") or [])]
 
 
 def _running_cameras(plugin):
-    return [dict(c) for c in _plugin_module(plugin).CAMERAS]
+    return [dict(c) for c in plugin.cameras]
 
 
 def _editable_config(plugin):
@@ -236,7 +236,6 @@ def _camera_public(cam):
 def tool_get_status(plugin, args):
     rooms = _room_folder_view(plugin)
     saved = _saved_cameras(plugin)
-    mod = _plugin_module(plugin)
     scripts_dir = plugin._scripts_dir()
     present, missing = [], []
     for entry in plugin.COMPANION_SCRIPTS.values():
@@ -261,7 +260,7 @@ def tool_get_status(plugin, args):
         },
         "cameras": {
             "saved":            len(saved),
-            "running":          len(mod.CAMERAS),
+            "running":          len(plugin.cameras),
             "credentialsSet":   bool(getattr(plugin, "cam_user", "") and getattr(plugin, "cam_pass", "")),
             "go2rtcRunning":    go2rtc is not None and go2rtc.poll() is None,
             "mjpegProxyRunning": getattr(plugin, "_mjpeg_server", None) is not None,

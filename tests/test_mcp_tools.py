@@ -40,8 +40,8 @@ def _folders(names):
 def make_plugin(monkeypatch, tmp_path, store=None, running=None,
                 folders=("Kitchen", "Hall", "Garage")):
     """A bare Plugin wired the way the tools read it: a controllable config
-    store (captured on save), the persist side-effects stubbed, a module
-    CAMERAS list standing in for what is streaming, and a stub Indigo with
+    store (captured on save), the persist side-effects stubbed, a
+    plugin.cameras list standing in for what is streaming, and a stub Indigo with
     the given device folders and a temp install folder."""
     mod = load_plugin_module()
     p = bare_plugin()
@@ -70,8 +70,8 @@ def make_plugin(monkeypatch, tmp_path, store=None, running=None,
     p._build_scenes_json = MagicMock()
     p.cfg_store = dict(store or {})
 
-    monkeypatch.setattr(mod, "CAMERAS", mod._parse_cameras(running or []))
-    monkeypatch.setattr(mod, "SWAP_OUT_HOST", "")
+    p.cameras = mod._parse_cameras(running or [])
+    p.swap_out_host = ""
     ind = sys.modules["indigo"]
     ind.devices.folders = _folders(folders)
     install = tmp_path / "Indigo 2025.2"
@@ -410,7 +410,7 @@ def test_read_log_missing_file_is_not_found(monkeypatch, tmp_path):
 # ── the _effective_config fix ────────────────────────────────────────────
 
 def test_effective_config_reports_saved_cameras_once_the_store_is_in_force(monkeypatch, tmp_path):
-    """Before v3.12.0 this returned module CAMERAS — the list still streaming
+    """Before v3.12.0 this returned the running camera list — the list still streaming
     from BEFORE the last save — so a Settings page reopened after adding a
     camera showed the old list and its next Save deleted the new one."""
     running = [{"host": "10.0.0.5", "name": "Front", "vendor": "dahua"}]

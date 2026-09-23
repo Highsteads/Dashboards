@@ -49,7 +49,7 @@ def _prefs_plugin(monkeypatch):
     p._write_config_js = MagicMock()
     p._stop_weather_thread = MagicMock()
     p._start_weather_thread = MagicMock()
-    monkeypatch.setattr(plugin, "CAMERAS", [])
+    p.cameras = []
     return plugin, p
 
 

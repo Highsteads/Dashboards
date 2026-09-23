@@ -72,7 +72,7 @@ def _drive_loop(monkeypatch, running_by_tick, ticks=3):
     plugin = load_plugin_module()
     p = bare_plugin()
     p.cam_user = p.cam_pass = ""
-    monkeypatch.setattr(plugin, "CAMERAS", [])
+    p.cameras = []
     monkeypatch.setattr(plugin, "log", lambda *a, **k: None)
     ran = {"presence": 0, "logwatch": 0, "sweep": 0, "drive": 0, "rooms": 0}
     bump = lambda k: (lambda: ran.__setitem__(k, ran[k] + 1))   # noqa: E731

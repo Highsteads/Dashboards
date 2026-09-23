@@ -78,7 +78,7 @@ def test_one_failing_task_does_not_starve_the_others(monkeypatch):
     plugin = load_plugin_module()
     p = bare_plugin()
     p.cam_user = p.cam_pass = ""
-    monkeypatch.setattr(plugin, "CAMERAS", [])
+    p.cameras = []
     monkeypatch.setattr(plugin, "log", lambda *a, **k: None)
     ran = {"scenes": 0, "logwatch": 0, "sweep": 0}
     def boom(): raise ValueError("bad roomExtras")

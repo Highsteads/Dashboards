@@ -262,13 +262,6 @@ STAMP_CHANGE_WRITE_GAP  = 1.0     # min gap between deviceUpdated-driven writes
 # covers the stale-verdict window plus the request itself, with margin.
 STAMP_QUIESCE_SECONDS   = 4.0
 
-# Populated at __init__ from IndigoSecrets / PluginConfig. Keep as
-# module-level state so the many existing reference sites below don't need
-# rewriting; __init__ overwrites these in place.
-CAMERAS       = []
-SWAP_OUT_HOST = ""
-
-
 def _safe_int_list(values):
     """Coerce a list to ints, dropping anything unconvertible. The old inline
     guard (`lstrip("-").isdigit()`) passed "--5" and int() then raised, 500ing
@@ -548,6 +541,8 @@ from history_mixin import HistoryMixin  # noqa: E402
 
 
 class Plugin(CarbonMixin, InsightsMixin, MainsMixin, HistoryMixin, indigo.PluginBase):
+    cameras       = ()          # the running camera list; __init__ sets it
+    swap_out_host = ""
 
     def __init__(self, pluginId, pluginDisplayName, pluginVersion, pluginPrefs):
         super().__init__(pluginId, pluginDisplayName, pluginVersion, pluginPrefs)
@@ -583,15 +578,16 @@ class Plugin(CarbonMixin, InsightsMixin, MainsMixin, HistoryMixin, indigo.Plugin
             self.cfg_store = self._import_legacy_config(pluginPrefs)
         store = self.cfg_store
 
-        # Cameras — populate the module-level state so all existing reference
-        # sites (go2rtc config, snapshot pollers, MJPEG proxy, etc.) see the
-        # configured list.
-        global CAMERAS, SWAP_OUT_HOST
-        CAMERAS = _parse_cameras(store.get("cameras") or [])
+        # Cameras (plugin state since 3.32.0; a module global before, which
+        # every test had to monkeypatch and no mixin could see). This is the
+        # RUNNING list: a Settings save changes the store, not this, until
+        # the next restart.
+        self.cameras = _parse_cameras(store.get("cameras") or [])
         # Default swap-out = last entry in the list (the cam most likely to be
         # safe to drop from the live MJPEG pool), unless Settings names one.
         swap_pref = (store.get("swapOutHost") or "").strip()
-        SWAP_OUT_HOST = swap_pref if swap_pref else (CAMERAS[-1]["host"] if CAMERAS else "")
+        self.swap_out_host = swap_pref if swap_pref else (
+            self.cameras[-1]["host"] if self.cameras else "")
 
         self.main_cameras = list(store.get("mainCameras") or [])
         extras = store.get("roomExtras")
@@ -663,8 +659,8 @@ class Plugin(CarbonMixin, InsightsMixin, MainsMixin, HistoryMixin, indigo.Plugin
 
     def _camera_state(self):
         if self.cam_user and self.cam_pass:
-            return f"{len(CAMERAS)} configured (DAHUA_USER/DAHUA_PASS from IndigoSecrets)"
-        return f"{len(CAMERAS)} configured but DAHUA_USER/DAHUA_PASS missing"
+            return f"{len(self.cameras)} configured (DAHUA_USER/DAHUA_PASS from IndigoSecrets)"
+        return f"{len(self.cameras)} configured but DAHUA_USER/DAHUA_PASS missing"
 
     # --------------------------------------------------------
     # Config store (v2.0.0) — dashboards_config.json
@@ -787,7 +783,7 @@ class Plugin(CarbonMixin, InsightsMixin, MainsMixin, HistoryMixin, indigo.Plugin
         """The config as currently in force, regardless of where it came
         from — exactly what the settings editor should show."""
         # v3.12.0: cameras and the swap-out host as SAVED, not as running.
-        # Module CAMERAS / SWAP_OUT_HOST only change at restart, so after a
+        # Module self.cameras / self.swap_out_host only change at restart, so after a
         # save this handed the editor the PRE-save list: reopen Settings, save
         # again, and the camera just added was silently deleted. Once the
         # store is in force it is the truth; the streams catch up at the
@@ -796,8 +792,8 @@ class Plugin(CarbonMixin, InsightsMixin, MainsMixin, HistoryMixin, indigo.Plugin
         if "cameras" in store:
             cams = _parse_cameras(store.get("cameras") or [])
         else:
-            cams = [dict(c) for c in CAMERAS]
-        swap = (store.get("swapOutHost") or "") if "swapOutHost" in store else SWAP_OUT_HOST
+            cams = [dict(c) for c in self.cameras]
+        swap = (store.get("swapOutHost") or "") if "swapOutHost" in store else self.swap_out_host
         out = {
             "cameras":      cams,
             "mainCameras":  list(self.main_cameras),
@@ -1137,9 +1133,9 @@ class Plugin(CarbonMixin, InsightsMixin, MainsMixin, HistoryMixin, indigo.Plugin
         # as static files into the public folder, so credentials never leave
         # the server.
         cam_cfg = {
-            "hosts":          [c["host"] for c in CAMERAS],
-            "names":          {c["host"]: c["name"] for c in CAMERAS},
-            "slugs":          {c["host"]: self._cam_slug(c["name"]) for c in CAMERAS},
+            "hosts":          [c["host"] for c in self.cameras],
+            "names":          {c["host"]: c["name"] for c in self.cameras},
+            "slugs":          {c["host"]: self._cam_slug(c["name"]) for c in self.cameras},
             "imagePattern":   "cam-{host}.jpg",            # snapshot fallback
             # The smaller copy the grid uses. Sent as a separate pattern rather
             # than derived on the page so a future change of naming needs one
@@ -1153,7 +1149,7 @@ class Plugin(CarbonMixin, InsightsMixin, MainsMixin, HistoryMixin, indigo.Plugin
             "go2rtcPort":     GO2RTC_API_PORT,             # WebRTC backend
             "livePoolSize":   LIVE_POOL_SIZE,              # how many cams run live at once
             "mainCameras":    list(self.main_cameras),     # ordered IPs for the index.html mosaic
-            "swapOutHost":    SWAP_OUT_HOST,               # bumped to still when peeking a non-default cam
+            "swapOutHost":    self.swap_out_host,               # bumped to still when peeking a non-default cam
         }
 
         source = self._secrets_state()
@@ -1254,14 +1250,14 @@ class Plugin(CarbonMixin, InsightsMixin, MainsMixin, HistoryMixin, indigo.Plugin
         # v1.20.1: the proxy also serves /bootstrap (LAN/Tailscale-only API-key
         # seed for the dashboard pages), so it now starts even with no cameras
         # configured — camera routes just 404 in that case.
-        cameras_enabled = bool(self.cam_user and self.cam_pass and CAMERAS)
+        cameras_enabled = bool(self.cam_user and self.cam_pass and self.cameras)
         if not cameras_enabled and not self.api_key:
             log("[MJPEG] No cameras configured and no API key — proxy disabled",
                 level="WARNING")
             self._mjpeg_server = None
             return
         if not cameras_enabled:
-            if CAMERAS:
+            if self.cameras:
                 log("[MJPEG] cameras are configured but DAHUA_USER/DAHUA_PASS are not "
                     "set — camera routes disabled, /bootstrap only", level="WARNING")
             else:
@@ -1277,7 +1273,7 @@ class Plugin(CarbonMixin, InsightsMixin, MainsMixin, HistoryMixin, indigo.Plugin
         # transcoded-MJPEG endpoint (mainstream H.264 → MJPEG via ffmpeg) so
         # the picture stays sharp regardless of how the camera's own MJPEG
         # substream is configured. Goodbye Garage shimmer.
-        host_to_slug  = {c["host"]: self._cam_slug(c["name"]) for c in CAMERAS}
+        host_to_slug  = {c["host"]: self._cam_slug(c["name"]) for c in self.cameras}
         allowed_hosts = set(host_to_slug.keys())
         plugin_self   = self
 
@@ -1718,7 +1714,7 @@ class Plugin(CarbonMixin, InsightsMixin, MainsMixin, HistoryMixin, indigo.Plugin
         return os.path.join(self._go2rtc_dir(), "go2rtc.log")
 
     def _write_go2rtc_config(self):
-        """Generate go2rtc.yaml from CAMERAS + DAHUA_USER/PASS. Each camera
+        """Generate go2rtc.yaml from self.cameras + DAHUA_USER/PASS. Each camera
         gets a stream name = sanitised display name; the RTSP URL pulls the
         mainstream so go2rtc can repackage to WebRTC/MSE on demand."""
         import shutil
@@ -1811,7 +1807,7 @@ class Plugin(CarbonMixin, InsightsMixin, MainsMixin, HistoryMixin, indigo.Plugin
         #                   CPU of mainstream.
         sub2_count = 0
         main_count = 0
-        for cam in CAMERAS:
+        for cam in self.cameras:
             slug   = self._cam_slug(cam["name"])
             vendor = cam.get("vendor", "dahua")
             stream = cam.get("stream", CAMERA_DEFAULT_STREAM)
@@ -1834,7 +1830,7 @@ class Plugin(CarbonMixin, InsightsMixin, MainsMixin, HistoryMixin, indigo.Plugin
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write("\n".join(lines) + "\n")
         os.chmod(path, 0o600)        # ensure 0600 even if the file pre-existed
-        self._activity(f"[go2rtc] Wrote config {path} ({len(CAMERAS)} streams: "
+        self._activity(f"[go2rtc] Wrote config {path} ({len(self.cameras)} streams: "
                        f"{main_count} main, {sub2_count} sub2)")
         return path
 
@@ -1862,7 +1858,7 @@ class Plugin(CarbonMixin, InsightsMixin, MainsMixin, HistoryMixin, indigo.Plugin
         # stopped for good. _go2rtc_wanted says whether there is anything to
         # supervise at all; the handle says whether it is currently running.
         self._go2rtc_wanted = False
-        if not CAMERAS:
+        if not self.cameras:
             self._go2rtc_proc = None             # nothing to stream: quiet by design
             return
         if not (self.cam_user and self.cam_pass):
@@ -2183,7 +2179,7 @@ class Plugin(CarbonMixin, InsightsMixin, MainsMixin, HistoryMixin, indigo.Plugin
             from concurrent.futures import ThreadPoolExecutor
             # One worker per camera: they are all blocked on network I/O, so
             # this is wait time overlapped, not CPU contention.
-            workers = max(1, min(len(CAMERAS) or 1, CAMERA_POLL_MAX_WORKERS))
+            workers = max(1, min(len(self.cameras) or 1, CAMERA_POLL_MAX_WORKERS))
             pool = ThreadPoolExecutor(max_workers=workers,
                                       thread_name_prefix="DashSnap")
             self._cam_pool = pool
@@ -2218,7 +2214,7 @@ class Plugin(CarbonMixin, InsightsMixin, MainsMixin, HistoryMixin, indigo.Plugin
         broken (e.g. the Patio 4K returns HTTP 500 directly). Bonus: removes
         the vendor-specific snapshot URL handling — go2rtc does that work."""
         import requests
-        cam  = next((c for c in CAMERAS if c["host"] == host), None)
+        cam  = next((c for c in self.cameras if c["host"] == host), None)
         slug = self._cam_slug((cam or {}).get("name", host))
         url  = (f"http://127.0.0.1:{GO2RTC_API_PORT}/api/frame.jpeg"
                 f"?src={slug}&width={CAMERA_SNAPSHOT_WIDTH}")
@@ -2327,7 +2323,7 @@ class Plugin(CarbonMixin, InsightsMixin, MainsMixin, HistoryMixin, indigo.Plugin
             # A deliberately small, credential-free health summary for the
             # anonymous cameras page.  The raw go2rtc map above has already
             # been sanitised; do not add URLs, exception text or client data.
-            payload["_cameraHealth"] = self._camera_health_payload(CAMERAS, self._cam_state)
+            payload["_cameraHealth"] = self._camera_health_payload(self.cameras, self._cam_state)
             path = os.path.join(self._public_dashboards_dir(), "streams.json")
             self._write_atomic(path, json.dumps(payload).encode("utf-8"))
         except Exception as exc:
@@ -2633,7 +2629,7 @@ class Plugin(CarbonMixin, InsightsMixin, MainsMixin, HistoryMixin, indigo.Plugin
         # when a camera is logically attached to one room's hardware but
         # operationally interesting to another (e.g. the Inside Garage cam
         # also lives on Hall because the Hall has the soft garage-door tile).
-        for cam in CAMERAS:
+        for cam in self.cameras:
             r = cam.get("room")
             if isinstance(r, str):
                 cam_rooms = [r.strip()] if r.strip() else []
@@ -2982,7 +2978,7 @@ class Plugin(CarbonMixin, InsightsMixin, MainsMixin, HistoryMixin, indigo.Plugin
         pool = self._snapshot_pool()
         if pool is None:                      # shutting down
             return
-        for cam in CAMERAS:
+        for cam in self.cameras:
             host = cam["host"]
             # EVERY camera is snapshotted, including any with a live viewer.
             #
@@ -3451,11 +3447,11 @@ class Plugin(CarbonMixin, InsightsMixin, MainsMixin, HistoryMixin, indigo.Plugin
                 log(f"[Poller] {name} recovered")
             return True
 
-        cameras_on = bool(self.cam_user and self.cam_pass and CAMERAS)
+        cameras_on = bool(self.cam_user and self.cam_pass and self.cameras)
         if cameras_on:
-            self._activity(f"[Cameras] Poller started - {len(CAMERAS)} camera(s), "
+            self._activity(f"[Cameras] Poller started - {len(self.cameras)} camera(s), "
                            f"every {CAMERA_POLL_SECONDS}s")
-        elif CAMERAS:
+        elif self.cameras:
             log("[Cameras] cameras are configured but DAHUA_USER/DAHUA_PASS are not set — "
                 "snapshot poller idle", level="WARNING")
         else:
@@ -3971,8 +3967,8 @@ class Plugin(CarbonMixin, InsightsMixin, MainsMixin, HistoryMixin, indigo.Plugin
             fresh = False
         chk("Liveness stamp beating", fresh,
             "" if fresh else "stale/missing — restart gating will not work")
-        chk("Cameras configured", True, f"{len(CAMERAS)} camera(s)")
-        if CAMERAS:
+        chk("Cameras configured", True, f"{len(self.cameras)} camera(s)")
+        if self.cameras:
             proc = getattr(self, "_go2rtc_proc", None)
             chk("go2rtc running", proc is not None and proc.poll() is None,
                 getattr(self, "_go2rtc_bin", GO2RTC_BIN))
@@ -4543,7 +4539,7 @@ class Plugin(CarbonMixin, InsightsMixin, MainsMixin, HistoryMixin, indigo.Plugin
             "plugin_version": getattr(self, "pluginVersion", None) or PLUGIN_VERSION,
             "go2rtc":         bool(go2 is not None and go2.poll() is None),
             "mjpeg_proxy":    bool(mj is not None),
-            "cameras":        len(CAMERAS),
+            "cameras":        len(self.cameras),
         }
 
     def _mac_vitals(self):
@@ -5182,10 +5178,10 @@ class Plugin(CarbonMixin, InsightsMixin, MainsMixin, HistoryMixin, indigo.Plugin
         has to say what the plugin ended up running - which is exactly what
         the nine demoted start-up lines used to convey between them."""
         bits = []
-        if getattr(self, "cam_user", "") and getattr(self, "cam_pass", "") and CAMERAS:
-            bits.append(f"{len(CAMERAS)} camera{'' if len(CAMERAS) == 1 else 's'}")
-        elif CAMERAS:
-            bits.append(f"{len(CAMERAS)} camera(s) configured but no credentials")
+        if getattr(self, "cam_user", "") and getattr(self, "cam_pass", "") and self.cameras:
+            bits.append(f"{len(self.cameras)} camera{'' if len(self.cameras) == 1 else 's'}")
+        elif self.cameras:
+            bits.append(f"{len(self.cameras)} camera(s) configured but no credentials")
         else:
             bits.append("no cameras")
         if getattr(self, "_mjpeg_server", None) is not None:
@@ -5277,7 +5273,7 @@ class Plugin(CarbonMixin, InsightsMixin, MainsMixin, HistoryMixin, indigo.Plugin
             self._start_weather_thread()
         except Exception as exc:
             self.logger.warning(f"[Prefs] weather thread restart failed: {exc}")
-        if (self.cam_user, self.cam_pass) != old_creds and CAMERAS:
+        if (self.cam_user, self.cam_pass) != old_creds and self.cameras:
             self.logger.info("[Prefs] camera credentials changed — go2rtc and the snapshot "
                              "poller pick them up on the next plugin restart")
 
@@ -5676,7 +5672,7 @@ class Plugin(CarbonMixin, InsightsMixin, MainsMixin, HistoryMixin, indigo.Plugin
         clean["customLinks"] = links_clean
 
         # ── persist + apply live ────────────────────────────────────────
-        old_cams = [dict(c) for c in CAMERAS]
+        old_cams = [dict(c) for c in self.cameras]
         try:
             self.cfg_store  = self._save_config_store(clean)
         except Exception as exc:
@@ -5690,10 +5686,10 @@ class Plugin(CarbonMixin, InsightsMixin, MainsMixin, HistoryMixin, indigo.Plugin
         self.favourites   = clean["favourites"]
         self.custom_links = clean["customLinks"]
         # Normalise BOTH sides through _parse_cameras before comparing —
-        # the raw client dicts differ from the normalised CAMERAS list in key
+        # the raw client dicts differ from the normalised self.cameras list in key
         # order/optional keys, so an unchanged save read as "restart needed".
         camera_restart    = (_parse_cameras(clean["cameras"]) != _parse_cameras(old_cams)
-                             or (clean["swapOutHost"] or "") != (SWAP_OUT_HOST or ""))
+                             or (clean["swapOutHost"] or "") != (self.swap_out_host or ""))
         try:
             self._write_config_js()
             self._build_rooms_json()
