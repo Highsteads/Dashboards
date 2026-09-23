@@ -26,7 +26,9 @@ const DIR = path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
 // guest view and deliberately loads as little as it can.
 const EXEMPT = new Set(["demo.html", "setup.html", "guest.html"]);
 
-const pages = fs.readdirSync(DIR).filter(f => f.endsWith(".html")).sort();
+// A page kept only to forward an old address (v3.33.0) loads nothing at all.
+const isRedirect = f => fs.readFileSync(path.join(DIR, f), "utf8").includes('http-equiv="refresh"');
+const pages = fs.readdirSync(DIR).filter(f => f.endsWith(".html") && !isRedirect(f)).sort();
 console.log("\nevery page carries the shared UI library");
 let missing = [];
 for (const f of pages) {

@@ -29,32 +29,28 @@
                         max(32px, env(safe-area-inset-bottom)); margin: 0; }
         .container { padding: 0 max(16px, env(safe-area-inset-right))
                               0 max(16px, env(safe-area-inset-left)); }
-        .menu-head { max-width: 900px; margin: 0 auto 16px; display: flex;
-                     align-items: baseline; gap: 12px; }
-        .menu-title { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; }
-        /* v2.97.0 — the same back button as every other page. This one carried
-           its own style, so the page you reach most often was the page whose
-           Home button looked unlike all the others. DashUI.pressFeedback
-           marks it on tap, like the rest. */
-        .nav-btn {
-            display: inline-flex; align-items: center; gap: 6px;
-            padding: 7px 12px; border-radius: 10px; font-size: 14px; font-weight: 600;
-            background: var(--card-bg); color: var(--text);
-            border: 1px solid var(--border-soft); text-decoration: none; cursor: pointer;
-            font-family: inherit; -webkit-tap-highlight-color: transparent;
-        }
-        .nav-btn:hover { background: var(--bg); border-color: var(--accent); }
-        .menu-back { font-size: 14px; color: var(--accent); text-decoration: none; }
         .menu-empty { max-width: 900px; margin: 0 auto; color: var(--text-secondary); }
+        .menu-sec { max-width: 900px; margin: 0 auto 18px; }
+        .menu-sec-title { font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+                          color: var(--text-secondary); margin: 0 2px 8px; }
     </style>
 <link rel="stylesheet" href="dashboard-refresh.css">
+<link rel="stylesheet" href="dashboards-chrome.css">
 </head>
 <body class="menu-page">
-    <div class="container">
-        <div class="menu-head">
-            <a class="nav-btn menu-back" href="index.html">&larr; Home</a>
-            <h1 class="menu-title" id="menu-title">Menu</h1>
+    <header class="topbar">
+        <div class="hdr-left">
+            <a class="nav-btn" href="index.html">&larr; Home</a>
         </div>
+        <div class="hdr-center">
+            <h1 id="menu-title">Menu</h1>
+            <span class="topbar-status" id="menu-sub">Every page</span>
+        </div>
+        <div class="hdr-right">
+            <a class="nav-btn" id="menu-switch" href="menu.html?g=rooms">Rooms &rarr;</a>
+        </div>
+    </header>
+    <div class="container">
         <main class="grid" id="grid"></main>
     </div>
 
@@ -73,30 +69,37 @@
        this page costs one small request whether you are at home or on 5G. */
     "use strict";
 
-    const GROUPS = {
-        house: { title: "House", tiles: [
+    /* v3.33.0: the menu asks the questions people come with, on one page,
+       instead of two catch-all walls ("House" and "Tools") of ten tiles each.
+       Each tile: [href, title, description, card class, icon, needs]. A tile
+       whose `needs` is unmet is dropped (see tileHidden). */
+    const SECTIONS = [
+        { key: "now", title: "Right now", tiles: [
+            ["active.html",   "Active",   "What is on",                        "active",   "bolt"],
+            ["scenes.html",   "Scenes",   "Run an action group",               "scenes",   "scenes"],
+            ["heating.html",  "Heating",  "Zones, schedules, boost",           "heating",  "thermo"],
+            ["cameras.html",  "Cameras",  "Every camera, live",                "cameras",  "camera"],
+            ["ecowitt.html",  "Weather",  "The weather station",               "",         "cloudsun"],
+        ]},
+        { key: "energy", title: "Energy", tiles: [
             ["energy.html",   "Energy",   "Solar, battery, grid",              "energy",   "bolt", "sigen"],
             ["cost.html",     "Cost",     "Bills, export, solar savings",      "cost",     "money", "sigen"],
-            ["carbon.html",   "Carbon",   "Grid CO\u2082 \u00b7 best time to run a load", "carbon", "plant"],
-            ["cameras.html",  "Cameras",  "IP cameras \u00b7 live &amp; snapshot",  "cameras",  "camera"],
-            ["heating.html",  "Heating",  "Zones, schedules, boost",           "heating",  "thermo"],
-            ["wifi.html",     "WiFi",     "Access points \u00b7 health &amp; audit", "wifi",  "wifi"],
-            ["ecowitt.html",  "Weather",  "Ecowitt station \u00b7 wind \u00b7 rain", "",     "cloudsun"],
-            ["presence.html", "Presence", "Sensor timelines \u00b7 night by night", "presence", "walk"],
-            ["timeline.html", "Timeline", "Doors, windows, movement",          "",         "clock"],
-            ["alerts.html",   "Alerts",   "Log errors \u00b7 notifications",       "",         "bell"],
+            ["carbon.html",   "Carbon",   "Grid CO\u2082 \u00b7 best time to run a load", "carbon", "plant", "carbon"],
+            ["laundry.html",  "Laundry",  "When to run the washing machine",   "energy",   "laundry", "sigen+laundry"],
         ]},
-        tools: { title: "Tools", tiles: [
-            ["active.html",        "Active",   "What is on right now",        "active",   "bolt"],
-            ["scenes.html",        "Scenes",   "Action groups",               "scenes",   "scenes"],
-            ["mains.html",         "Mains",    "Every 240 V meter and its trust", "energy",   "bolt"],
-            ["laundry.html",       "Laundry",  "When to run the washing machine", "energy",   "laundry", "sigen"],
-            ["system-health.html", "System",   "Server, plugins, disk",       "system",   "system"],
-            ["activity.html",      "Activity", "Recent event log",            "activity", "clipboard"],
-            ["settings.html",      "Settings", "Cameras, favourites, rooms",  "settings", "gear"],
+        { key: "history", title: "What happened", tiles: [
+            ["timeline.html", "Timeline", "Replay a day, nights, charts, diary", "",       "clock"],
         ]},
-        rooms: { title: "Rooms", tiles: null },   // built from rooms.json
-    };
+        { key: "wrong", title: "Is anything wrong?", tiles: [
+            ["system-health.html", "System", "Server, plugins, devices, automation", "system", "system"],
+            ["alerts.html",   "Alerts",   "Errors in the log",                 "",         "bell"],
+            ["wifi.html",     "WiFi",     "Access points \u00b7 health",       "wifi",     "wifi"],
+            ["mains.html",    "Mains",    "Every 240 V meter and its trust",   "energy",   "bolt"],
+        ]},
+        { key: "setup", title: "Setup", tiles: [
+            ["settings.html", "Settings", "Cameras, favourites, rooms",        "settings", "gear"],
+        ]},
+    ];
 
     /* Room names must map to an icon that exists in dashboards-icons.js, or the
        tile wears an empty square. Same map the hub used. */
@@ -160,34 +163,46 @@
         }).join("");
     }
 
-    /* A tile for a page that needs an optional plugin carries the plugin's key
-       as a sixth element and is dropped when config.js says the plugin is
-       absent (v3.13.0): Carbon when the region is Off, and Energy, Cost and
-       Laundry without SigenEnergyManager. Not silent — the hub says which
-       plugin is missing. */
+    /* A tile for a page that needs something optional is dropped when config.js
+       says it is absent: SigenEnergyManager for Energy, Cost and Laundry
+       (v3.13.0), Carbon when its region is Off, and Laundry without
+       Appliance_Scheduler.py (v3.33.0). Not silent: the hub says which plugin
+       is missing. Several needs join with "+". */
     function tileHidden(t, cfgM) {
         cfgM = cfgM || {};
-        if (t[0] === "carbon.html" && cfgM.carbon === false) return true;   // region Off: GB-only API
-        if (t[5] === "sigen" && cfgM.sigenAvailable === false) return true;
-        return false;
+        const scripts = cfgM.scripts || {};
+        return String(t[5] || "").split("+").filter(Boolean).some(need =>
+            (need === "sigen"   && cfgM.sigenAvailable === false) ||
+            (need === "carbon"  && cfgM.carbon === false) ||        // region Off: GB-only API
+            (need === "laundry" && scripts.laundry === false));
+    }
+
+    function sectionHtml(sec, cfgM) {
+        const tiles = sec.tiles.filter(t => !tileHidden(t, cfgM)).map(t => tile(...t.slice(0, 5))).join("")
+                    + (sec.key === "setup" ? customLinkTiles() : "");
+        if (!tiles) return "";
+        return `<section class="menu-sec" aria-labelledby="sec-${sec.key}">
+            <h2 class="menu-sec-title" id="sec-${sec.key}">${esc(sec.title)}</h2>
+            <div class="grid">${tiles}</div></section>`;
     }
 
     (async () => {
-        const g = new URLSearchParams(location.search).get("g") || "house";
-        // Own keys only: ?g=constructor is Object.prototype.constructor, truthy
-        // and without tiles, and it used to blank the whole menu (v2.95.3).
-        const def = Object.prototype.hasOwnProperty.call(GROUPS, g) ? GROUPS[g] : GROUPS.house;
-        document.getElementById("menu-title").textContent = def.title;
-        document.title = def.title;
-        const grid = document.getElementById("grid");
+        // ?g=rooms is the rooms list. Anything else, including the old
+        // ?g=house and ?g=tools bookmarks, is the one menu.
+        const g = new URLSearchParams(location.search).get("g");
+        const main = document.getElementById("grid");
         if (g === "rooms") {
-            grid.innerHTML = await roomTiles();
+            document.getElementById("menu-title").textContent = document.title = "Rooms";
+            document.getElementById("menu-sub").textContent = "Every room";
+            const sw = document.getElementById("menu-switch");
+            sw.href = "menu.html"; sw.innerHTML = "Menu &rarr;";
+            main.classList.add("grid");
+            main.innerHTML = await roomTiles();
         } else {
+            document.getElementById("menu-title").textContent = document.title = "Menu";
+            main.classList.remove("grid");
             const cfgM = window.INDIGO_CONFIG || {};
-            grid.innerHTML = def.tiles
-                .filter(t => !tileHidden(t, cfgM))
-                .map(t => tile(...t.slice(0, 5))).join("")
-                           + (g === "tools" ? customLinkTiles() : "");
+            main.innerHTML = SECTIONS.map(sec => sectionHtml(sec, cfgM)).join("");
         }
     })();
     </script>

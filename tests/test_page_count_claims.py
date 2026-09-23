@@ -16,7 +16,8 @@ PAGES = ROOT / "Dashboards.indigoPlugin/Contents/Resources/static/pages"
 
 
 def test_every_page_count_claim_matches_the_bundle():
-    n = len(list(PAGES.glob("*.html")))
+    from conftest import redirect_pages
+    n = len(set(p.name for p in PAGES.glob("*.html")) - redirect_pages(PAGES))   # a redirect is not a page
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     index = (ROOT / "docs/index.md").read_text(encoding="utf-8")
     claims = {

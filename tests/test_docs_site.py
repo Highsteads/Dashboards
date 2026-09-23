@@ -100,7 +100,9 @@ def test_readme_points_at_the_site_and_the_site_at_the_repo():
 # ── every page has notes ────────────────────────────────────────────────
 
 def _shipped_pages():
-    return sorted(p.stem for p in PAGES.glob("*.html"))
+    from conftest import redirect_pages
+    skip = redirect_pages(PAGES)                     # an old address kept only to forward (v3.33.0)
+    return sorted(p.stem for p in PAGES.glob("*.html") if p.name not in skip)
 
 
 def test_the_scan_saw_the_bundle():

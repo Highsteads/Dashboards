@@ -54,7 +54,7 @@ says what is unusual and what the norm was. When there is nothing, it says so, w
 checks it made.
 
 **Log banner.** Appears only when the hourly event-log watch has something live, headed with the
-count and showing the most recent signature. A doorway to the [Activity](activity.md) page.
+count and showing the most recent signature. A doorway to the [Alerts](alerts.md) page.
 
 **Footer.** Last update, the poll cadence, and a *Reset connection* link that clears the stored API
 key from this browser.

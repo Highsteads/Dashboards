@@ -40,7 +40,7 @@ subscription and nothing else.
 | **[Getting started](getting-started.md)** | What you need, how to install it, and how a browser gets paired |
 | **[Configuration](configuration.md)** | The Settings page, the Configure dialog, cameras, rooms and every config key |
 | **[Using the dashboards](using.md)** | What moves, what you can tap, the live dot, PIN and guest access |
-| **[Every page](pages/index.md)** | One page of notes for each of the 26 pages — what is on it, where the numbers come from, what you can do |
+| **[Every page](pages/index.md)** | One page of notes for each of the 23 pages — what is on it, where the numbers come from, what you can do |
 | **[Cameras](cameras.md)** | How H.264 becomes a picture in an `<img>` tag, and what it costs on a slow link |
 | **[Remote access](remote-access.md)** | Tailscale, the ports, guest devices, and why the reflector is treated as somebody else's money |
 | **[Claude Code and MCP tools](claude-code.md)** | What Claude Code adds, what an MCP server adds on top, and the tools the plugin offers to any Indigo MCP server |

@@ -103,12 +103,19 @@ check("DashFeatures is published before the reflector early-return",
     check("...and then the notice is there", /needs the SigenEnergyManager plugin/.test(t.document.main.innerHTML));
 }
 
-console.log("\nmenu.html — exactly the three tiles go");
+console.log("\nmenu.html — exactly the right tiles go");
 {
-    const groups = vm.runInNewContext("(" + extractLiteral(menu, "const GROUPS = {") + ")", {});
+    // v3.33.0: one menu of question sections; SECTIONS is an array literal.
+    const start = menu.indexOf("const SECTIONS = [");
+    let depth = 0, end = -1;
+    for (let j = menu.indexOf("[", start); j < menu.length; j++) {
+        if (menu[j] === "[") depth++;
+        else if (menu[j] === "]") { depth--; if (!depth) { end = j + 1; break; } }
+    }
+    const sections = vm.runInNewContext("(" + menu.slice(menu.indexOf("[", start), end) + ")", {});
     const ctx = {};
     vm.runInNewContext(extractFn(menu, "tileHidden") + "\nglobalThis.__h = tileHidden;", ctx);
-    const tiles = [...groups.house.tiles, ...groups.tools.tiles];
+    const tiles = sections.flatMap(sec => sec.tiles);
     const hidden = cfg => tiles.filter(t => ctx.__h(t, cfg)).map(t => t[0]).sort();
     check("absent: energy, cost and laundry are dropped",
           JSON.stringify(hidden({ sigenAvailable: false })) === JSON.stringify(["cost.html", "energy.html", "laundry.html"]));
@@ -116,10 +123,13 @@ console.log("\nmenu.html — exactly the three tiles go");
     check("no key: nothing dropped", hidden({}).length === 0 && hidden(undefined).length === 0);
     check("carbon still follows its own region flag",
           JSON.stringify(hidden({ carbon: false })) === JSON.stringify(["carbon.html"]));
+    check("laundry also needs its script",
+          JSON.stringify(hidden({ scripts: { laundry: false } })) === JSON.stringify(["laundry.html"]));
     const tagged = tiles.filter(t => t.length > 5).map(t => t[0] + ":" + t[5]).sort();
-    check("only those three tiles carry a needs-key, and it is sigen",
-          JSON.stringify(tagged) === JSON.stringify(["cost.html:sigen", "energy.html:sigen", "laundry.html:sigen"]));
-    check("the filter is the one the grid uses",
+    check("only those tiles carry a needs-key",
+          JSON.stringify(tagged) === JSON.stringify(["carbon.html:carbon", "cost.html:sigen", "energy.html:sigen", "laundry.html:sigen+laundry"]),
+          JSON.stringify(tagged));
+    check("the filter is the one the sections use",
           /\.filter\(t => !tileHidden\(t, cfgM\)\)/.test(menu) && /tile\(\.\.\.t\.slice\(0, 5\)\)/.test(menu),
           "a sixth element must not leak into tile()'s arguments");
 }

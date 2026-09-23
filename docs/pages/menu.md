@@ -8,35 +8,38 @@ nav_order: 2
 
 ![The Menu page](../screenshots/menu.png)
 
-Three grouped lists — House, Rooms, Tools — reached by the hub's own House / Rooms / Tools cards.
-No API key and no device poll: every tile here is a plain link, which is deliberate, because this
-page costs one small request whether you are at home or on 5G.
+Every page on one list, grouped by the question you came with, reached from the hub's Menu card.
+Rooms have their own list, from the hub's Rooms card. No API key and no device poll: every tile is a
+plain link, which is deliberate, because this page costs one small request whether you are at home
+or on 5G.
 
 ```
-menu.html?g=house    (default)
-menu.html?g=rooms
-menu.html?g=tools
+menu.html             the menu
+menu.html?g=rooms     the rooms
 ```
+
+The old `?g=house` and `?g=tools` addresses open the menu.
 
 ## Down the page
 
-**House.** Energy, Cost, Carbon, Cameras, Heating, Wi-Fi, Weather, Presence, Timeline and Alerts,
-each with a one-line subtitle. The three Sigenergy tiles disappear when that plugin is not
-installed, and Carbon follows its own region setting.
+**Right now.** Active, Scenes, Heating, Cameras and Weather.
 
-**Rooms.** Built from `rooms.json` rather than a fixed list, so a room added in Settings appears
-here without touching any HTML. Each tile names how many lights are on, whether there is motion,
-and how many windows are open.
+**Energy.** Energy, Cost, Carbon and Laundry. The Sigenergy tiles disappear when that plugin is not
+installed, Carbon follows its own region setting, and Laundry also needs its companion script.
 
-**Tools.** Active, Scenes, Mains, Laundry, System, Activity, Settings, then any custom links from
-Settings — the same kind of thing as a tool, so they live here rather than needing a wall of tiles
-on the hub.
+**What happened.** Timeline: a day replayed, presence night by night, a chart of anything recorded,
+and the house diary.
 
-**Back to Home.** The only navigation the page itself offers.
+**Is anything wrong?** System, Alerts, Wi-Fi and Mains.
+
+**Setup.** Settings, then any custom links from Settings.
+
+**Rooms** (`?g=rooms`). Built from `rooms.json` rather than a fixed list, so a room added in Settings
+appears without touching any HTML. Each tile names its lights, motion and windows.
 
 ## Where the numbers come from
 
-The House and Tools tiles are a fixed table in the page. Rooms come from `rooms.json`, the same file
+The sections are a fixed table in the page. Rooms come from `rooms.json`, the same file
 every other room-aware page reads.
 
 ## Refresh
@@ -49,7 +52,7 @@ Tap any tile to open that page or room. Nothing else.
 
 ## Worth knowing
 
-- This is the only page that enumerates every room and every tool page.
+- This is the only page that lists every page and every room.
 - A room icon comes from matching the room's name against a small set of patterns (bed, kitchen,
   bathroom, garage, and so on); an unmatched name gets a plain house icon rather than an empty
   square.

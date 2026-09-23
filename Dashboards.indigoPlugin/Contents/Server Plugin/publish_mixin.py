@@ -165,7 +165,22 @@ class PublishMixin:
         return {
             "heatingControls": self._plugin_present(self._EVO_PLUGIN_ID),
             "sigenAvailable":  self._sigen_available(),
+            # v3.33.0: views and cards that draw what a companion script
+            # writes hide when it is not installed, so a new user never
+            # meets an empty page (Timeline's Nights view, the laundry plan).
+            "scripts":         self._companion_scripts_installed(),
         }
+
+    # The companion script each optional view reads, by the key config.js uses.
+    _SCRIPT_FLAGS = {"presence": "Presence_Watch.py", "laundry": "Appliance_Scheduler.py"}
+
+    def _companion_scripts_installed(self):
+        try:
+            base = self._scripts_dir()
+        except Exception:
+            return {k: True for k in self._SCRIPT_FLAGS}   # cannot tell: never hide
+        return {k: os.path.isfile(os.path.join(base, name))
+                for k, name in self._SCRIPT_FLAGS.items()}
 
     def _refresh_feature_flags(self):
         """Tick task (every 30 s): rewrite config.js when an optional plugin
@@ -182,6 +197,11 @@ class PublishMixin:
             if flags.get(key) != last.get(key):
                 self.logger.info(f"[Config] {label} is now "
                                  f"{'present' if flags.get(key) else 'absent'} — "
+                                 f"config.js rewritten so the pages follow")
+        for key, name in self._SCRIPT_FLAGS.items():
+            now_, was = (flags.get("scripts") or {}).get(key), (last.get("scripts") or {}).get(key)
+            if now_ != was:
+                self.logger.info(f"[Config] {name} is now {'installed' if now_ else 'missing'} — "
                                  f"config.js rewritten so the pages follow")
         self._write_config_js()
         return True

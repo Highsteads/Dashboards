@@ -8,9 +8,9 @@ Browser dashboards for [Indigo Domotics](https://www.indigodomo.com/), built for
 wall, a phone in your pocket and a Mac on the desk. No app to install, no cloud account,
 nothing leaving the house.
 
-<img src="https://img.shields.io/badge/version-3.32.0-5856d6" alt="Version 3.32.0">
+<img src="https://img.shields.io/badge/version-3.33.0-5856d6" alt="Version 3.33.0">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
-<img src="https://img.shields.io/badge/pages-26-0a84ff" alt="26 pages">
+<img src="https://img.shields.io/badge/pages-23-0a84ff" alt="23 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
 
 <br><br>
@@ -21,10 +21,10 @@ nothing leaving the house.
 
 ---
 
-**Version:** 3.32.0
+**Version:** 3.33.0
 
 **Documentation:** **[highsteads.github.io/Dashboards](https://highsteads.github.io/Dashboards/)** —
-getting started, configuration, a page of notes for every one of the 26 pages, cameras, remote
+getting started, configuration, a page of notes for every one of the 23 pages, cameras, remote
 access, troubleshooting, and the full version history. This README is the short version.
 
 ### Jump to
@@ -67,11 +67,11 @@ with a gentle state simulator, touching no live devices.
 The three most recent releases, word for word. Every release before these is in
 **[the version history](docs/changelog.md)**, which the documentation site also carries.
 
+**3.33.0** (23-Sep-2026) - **Timeline is now the one page for the house's history, and the menu asks the questions you came with.** Timeline gained three tabs beside its day replay: Nights (the presence sensors night by night, which was the Presence page), Chart (graph anything the SQL Logger records, which was the Graphs page) and Diary (locks, doors, leaks and restarts from the event log, which was on the Activity page). Tap a device name in the day replay to chart it. The Nights view now draws every room the presence script watches, not two named rooms. The automation list from the Activity page (what is coming up, what is switched off, who holds a door code) moved to the System page. The old Presence, Graphs and Activity addresses still work and open the right view. The menu is now one page, grouped as Right now, Energy, What happened, Is anything wrong? and Setup, with the rooms a tap away, and it has the same top bar as every other page. Pages and tabs that need a companion script hide when that script is not installed, and a new test fails if any page is left with nothing linking to it.
+
 **3.32.0** (23-Sep-2026) - **More of the plugin's code is split into parts. Nothing you can see changes.** The cameras, the settings store, copying the pages into place, the System Health page and the companion-script runner now live in files of their own, and the settings every part shares sit in one small file. The main file goes from about 6,000 lines to under 3,000.
 
 **3.31.0** (23-Sep-2026) - **The companion scripts can be run by a separate plugin.** If the Script Ticker plugin (the one this house uses) is running on the same server, Dashboards leaves the seven companion scripts to it, and runs them itself again within half a minute of it stopping, so a script is never skipped and never run twice. Changing a laundry deadline asks Script Ticker to replan, so the planner never runs in two places at once. The Test Dashboards Setup menu item says which of the two is running them. Nothing changes on a server without Script Ticker. The plugin's status report for Claude also stopped saying the settings came from the old store on every install; it now names the settings file.
-
-**3.30.0** (23-Sep-2026) - **The plugin's code is split into parts, so it is easier to work on. Nothing you can see changes.** The main file had grown to over 8,000 lines. Four features now live in files of their own beside it: the history charts and timeline, the Mains and Meter pages, Home Insights, and the Carbon page. That takes the main file down to about 6,000 lines. Each part checks its own names when the code is linted, so a slip in one of them is caught before it ships rather than when a page asks for it.
 
 ## A look around
 
@@ -128,14 +128,11 @@ file — no build step, no framework, no bundler — and every one has [a page o
 | **[Laundry](docs/pages/laundry.md)** `laundry.html` | When to run each metered appliance so it costs the least. Advisory only. Needs SigenEnergyManager |
 | **[Mains](docs/pages/mains.md)** `mains.html` | Every mains meter and how far each one disagrees with the others |
 | **[Meter](docs/pages/meter.md)** `meter.html?id=N` | One meter in detail — live reading, rank, seven-day offset, history |
-| **[Timeline](docs/pages/timeline.md)** `timeline.html` | Any day replayed on one scrubbable timeline |
-| **[Presence](docs/pages/presence.md)** `presence.html` | Per-night presence-sensor timelines, and whether the sensors agreed |
-| **[Activity](docs/pages/activity.md)** `activity.html` | A house diary from the event log, and what the automation is about to do |
-| **[Graphs](docs/pages/history.md)** `history.html` | Time-series charts of any recorded device state |
+| **[Timeline](docs/pages/timeline.md)** `timeline.html` | Everything recorded: a day replayed, presence night by night, a chart of any state, and the house diary |
 | **[Heating](docs/pages/heating.md)** `heating.html` | Every zone, its temperature and its setpoint, with controls |
 | **[Cameras](docs/pages/cameras.md)** `cameras.html` | Every camera as a live stream, tap to enlarge; slows itself on a slow link |
 | **[Weather](docs/pages/ecowitt.md)** `ecowitt.html` | The weather station in full |
-| **[System](docs/pages/system-health.md)** `system-health.html` | The Indigo server's own vitals and a device-health census |
+| **[System](docs/pages/system-health.md)** `system-health.html` | The Indigo server's own vitals, a device-health census, and what the automation is about to do |
 | **[Wi-Fi](docs/pages/wifi.md)** `wifi.html` | Every access point and how hard it is working; tap one for [its own page](docs/pages/wifi-ap.md). Needs UniFiHealth |
 | **[Alerts](docs/pages/alerts.md)** `alerts.html` | Notification rules from your own browser, no third-party service anywhere |
 | **[Settings](docs/pages/settings.md)** `settings.html` | Forms-based configuration — favourites, links, cameras, rooms, scenes, security, raw JSON |

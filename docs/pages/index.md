@@ -6,7 +6,7 @@ has_children: true
 
 # Every page
 
-Twenty-two pages you use, plus five that hold the whole thing together. Every one is a plain HTML
+Eighteen pages you use, plus five that hold the whole thing together. Every one is a plain HTML
 file, and every one reads live Indigo data through the same Bearer-authed API. Each has a page of
 notes here: what is on it, where the numbers come from, how often it refreshes, what you can do,
 and the things worth knowing before you trust it.
@@ -39,19 +39,16 @@ and the things worth knowing before you trust it.
 | [Active](active.md) | `active.html` | Everything currently on, across the whole house |
 | [Scenes](scenes.md) | `scenes.html` | Every Indigo action group as a button, grouped by folder |
 | [Weather](ecowitt.md) | `ecowitt.html` | The weather station in full |
-| [Timeline](timeline.md) | `timeline.html` | Any day replayed on one scrubbable timeline |
-| [Presence](presence.md) | `presence.html` | Per-night presence-sensor timelines, and whether the sensors agreed |
+| [Timeline](timeline.md) | `timeline.html` | Everything recorded: a day replayed, presence night by night, a chart of any state, and the house diary |
 
 ## Keeping watch
 
 | Page | File | What it is for |
 |---|---|---|
-| [Activity](activity.md) | `activity.html` | A house diary from the event log, and what the automation is about to do |
 | [Alerts](alerts.md) | `alerts.html` | Notification rules for this browser, and the server-side error watch |
-| [System health](system-health.md) | `system-health.html` | The Indigo server's own vitals and a device-health census |
+| [System health](system-health.md) | `system-health.html` | The Indigo server's own vitals, a device-health census, and what the automation is about to do |
 | [Wi-Fi](wifi.md) | `wifi.html` | Every access point and how hard it is working. Needs UniFiHealth |
 | [Wi-Fi AP](wifi-ap.md) | `wifi-ap.html?id=N` | One access point in detail |
-| [Graphs](history.md) | `history.html` | Time-series charts of any recorded device state |
 
 ## Setup and access
 

@@ -109,7 +109,9 @@ def test_sigen_available_is_false_not_an_exception_when_the_server_cannot_answer
 def test_feature_flags_come_from_one_builder():
     wire_plugins(sem=(True, True), evo=(True, False))
     p = bare_plugin()
-    assert p._feature_flags() == {"heatingControls": False, "sigenAvailable": True}
+    flags = p._feature_flags()
+    assert {k: flags[k] for k in ("heatingControls", "sigenAvailable")} == {"heatingControls": False, "sigenAvailable": True}
+    assert set(flags["scripts"]) == {"presence", "laundry"}
 
 
 # ── config.js ────────────────────────────────────────────────────────────
@@ -122,7 +124,7 @@ def test_config_js_publishes_the_flag(tmp_path, sem, expected):
     cfg = _config(tmp_path)
     assert cfg["sigenAvailable"] is expected
     assert cfg["heatingControls"] is True
-    assert p._config_js_flags == {"heatingControls": True, "sigenAvailable": expected}
+    assert {k: p._config_js_flags[k] for k in ("heatingControls", "sigenAvailable")} == {"heatingControls": True, "sigenAvailable": expected}
 
 
 def test_tick_rewrites_config_js_only_when_a_flag_flips(tmp_path):
@@ -219,4 +221,24 @@ def test_status_tool_carries_the_feature_flags(monkeypatch, tmp_path):
     wire_plugins(sem=(False, False), evo=(True, True))
     import mcp_tools
     out = json.loads(mcp_tools.dispatch(p, "get_status", {}))["result"]
-    assert out["features"] == {"heatingControls": True, "sigenAvailable": False}
+    assert {k: out["features"][k] for k in ("heatingControls", "sigenAvailable")} == {"heatingControls": True, "sigenAvailable": False}
+    assert set(out["features"]["scripts"]) == {"presence", "laundry"}
+
+
+# ── companion scripts (v3.33.0) ──────────────────────────────────────────
+
+def test_script_flags_follow_the_files(tmp_path):
+    p = bare_plugin()
+    p._scripts_dir = lambda: str(tmp_path)
+    assert p._companion_scripts_installed() == {"presence": False, "laundry": False}
+    (tmp_path / "Presence_Watch.py").write_text("# x", encoding="utf-8")
+    assert p._companion_scripts_installed() == {"presence": True, "laundry": False}
+
+
+def test_script_flags_never_hide_when_the_folder_cannot_be_found():
+    p = bare_plugin()
+
+    def boom():
+        raise RuntimeError("no indigo")
+    p._scripts_dir = boom
+    assert p._companion_scripts_installed() == {"presence": True, "laundry": True}

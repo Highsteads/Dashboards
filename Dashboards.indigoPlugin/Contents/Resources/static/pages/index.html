@@ -438,20 +438,15 @@
              are how you leave this page, so they belong within reach rather
              than under two status cards. -->
         <nav class="grid" id="grid" aria-label="Dashboard sections">
-            <a class="card card-energy" href="menu.html?g=house">
+            <a class="card card-energy" href="menu.html">
                 <div class="card-icon" data-icon="house"></div>
-                <div class="card-title">House</div>
-                <div class="card-desc">Energy, heating, cameras, weather</div>
+                <div class="card-title">Menu</div>
+                <div class="card-desc">Energy, cameras, history, system</div>
             </a>
             <a class="card card-room" href="menu.html?g=rooms">
                 <div class="card-icon" data-icon="lounge"></div>
                 <div class="card-title">Rooms</div>
                 <div class="card-desc">Every room, lights and sensors</div>
-            </a>
-            <a class="card card-system" href="menu.html?g=tools">
-                <div class="card-icon" data-icon="gear"></div>
-                <div class="card-title">Tools</div>
-                <div class="card-desc">Active, scenes, system, settings</div>
             </a>
         </nav>
         <!-- Doors & Windows summary, full-width (Heating glance card removed
@@ -2032,11 +2027,11 @@
         const chips = [];
         if (people.length) {
             for (const p of people.slice(0, 6)) {
-                chips.push(chip("presence.html", p.home ? "good" : "",
+                chips.push(chip("timeline.html", p.home ? "good" : "",
                     `${DashIcons.svg("person")} ${escapeAttr(p.name)} · ${p.home ? "Home" : "Away"}`));
             }
         } else {
-            chips.push(chip("presence.html", "", DashIcons.svg("person") + " No presence devices"));
+            chips.push(chip("timeline.html", "", DashIcons.svg("person") + " No presence devices"));
         }
         chips.push(chip("heating.html", heating ? "warn" : "",
             `${DashIcons.svg("flame")} <span class="pc-num">${heating}</span> zone${heating === 1 ? "" : "s"} heating`));

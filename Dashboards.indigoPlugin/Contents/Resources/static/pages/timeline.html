@@ -1,10 +1,23 @@
 <!DOCTYPE html>
-<html lang="en">
+<!--
+  Filename:    timeline.html
+  Description: The house's recorded history on one page (v3.33.0). Four views:
+               Day    — replay a day: presence, lights, doors, heating, battery
+               Nights — presence-sensor tracks night by night (was presence.html)
+               Chart  — graph any recorded state (was history.html, "Graphs")
+               Diary  — locks, doors, leaks and restarts (was Activity's diary)
+               ?view=nights|chart|diary opens a view; ?view=chart&device=<id>
+               &state=<name> opens a chart. The old page names redirect here.
+  Author:      CliveS & Claude Opus 5.5
+  Date:        23-09-2026
+  Version:     2.0
+-->
+<html lang="en-GB">
 <head>
 <meta charset="UTF-8">
     <meta name="indigo-page-name" content="Timeline">
     <meta name="indigo-page-icon" content="clock.arrow.circlepath">
-    <meta name="indigo-page-description" content="Replay a day of the house — presence, lights, doors, heating and battery on one scrubbable timeline">
+    <meta name="indigo-page-description" content="The house's recorded history: replay a day, presence night by night, chart any state, and the house diary">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Dashboards">
@@ -23,41 +36,50 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-ui);
   font-size:14px;min-height:100vh;-webkit-overflow-scrolling:touch;padding-top:max(80px,calc(72px + env(safe-area-inset-top)))}
 .main{padding:16px;display:flex;flex-direction:column;gap:12px;max-width:1000px;margin:0 auto}
 .card{background:var(--card-bg);border:1px solid var(--border-soft);border-radius: var(--r-xl);padding:16px 18px;box-shadow:var(--shadow)}
+.muted{color:var(--text-secondary)}
 
-/* date bar */
+/* view tabs */
+.tl-tabs{display:flex;gap:4px;padding:4px;background:var(--card-bg-alt);border:1px solid var(--border-soft);
+  border-radius:var(--r-lg);max-width:968px;margin:0 auto;width:calc(100% - 32px);position:relative}
+.tl-tab{flex:1;min-height:36px;border:0;background:transparent;color:var(--text-secondary);font:inherit;
+  font-size:13.5px;font-weight:600;border-radius:var(--r-md);cursor:pointer;position:relative;z-index:1;
+  transition:color .2s ease}
+.tl-tab[aria-selected="true"]{color:var(--text)}
+.tl-tab[hidden]{display:none}
+.tl-tab-ink{position:absolute;top:4px;bottom:4px;left:4px;border-radius:var(--r-md);background:var(--card-bg);
+  box-shadow:0 1px 3px rgba(0,0,0,.12);transition:transform .28s cubic-bezier(.2,.8,.2,1),width .28s cubic-bezier(.2,.8,.2,1)}
+.tl-view[hidden]{display:none}
+.tl-view{display:flex;flex-direction:column;gap:12px;animation:tl-in .22s ease-out}
+@keyframes tl-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+/* ── Day ── */
 .datebar{display:flex;align-items:center;justify-content:center;gap:14px}
 .datebar button{background:var(--card-bg-alt);border:1px solid var(--border-soft);color:var(--accent);width:40px;height:40px;
   border-radius: var(--r-md);font-size:20px;cursor:pointer;font-family:inherit;line-height:1}
 .datebar button:disabled{opacity:.3;cursor:default}
 .datebar .dlab{font-size:17px;font-weight:700;min-width:180px;text-align:center}
 .datebar .today-btn{width:auto;padding:0 14px;font-size:13px;font-weight:600}
-
-/* playhead readout */
 .now-time{font-size:34px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1}
 .now-sub{font-size:12px;color:var(--text-secondary);margin-top:2px}
 .now-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
-.nchip{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;padding:6px 11px;border-radius: var(--r-md);
+.nchip{display:inline-flex;align-items:center;flex-wrap:wrap;gap:6px;font-size:13px;font-weight:600;padding:6px 11px;border-radius: var(--r-md);
   background:var(--card-bg-alt);border:1px solid var(--border-soft);color:var(--text)}
 .nchip.dim{color:var(--text-muted)}
 .nchip .nc-list{font-weight:400;color:var(--text-secondary)}
-
-/* timeline lanes */
+.nchip .nc-dev{font:inherit;font-weight:400;color:var(--text-secondary);background:none;border:0;padding:0;cursor:pointer;
+  text-decoration:underline dotted;text-underline-offset:3px}
+.nchip .nc-dev:hover{color:var(--accent)}
 .tl-wrap{position:relative;user-select:none;touch-action:pan-y}
 .lane{display:grid;grid-template-columns:96px 1fr;align-items:center;gap:10px;margin:9px 0}
 .lane-lab{font-size:12px;font-weight:600;color:var(--text-secondary);text-align:right;line-height:1.2}
 .lane-lab .lane-n{display:block;font-size:10.5px;color:var(--text-muted);font-weight:400}
 .lane-track{position:relative;height:26px;background:var(--track);border-radius: var(--r-sm);overflow:hidden}
-.seg{position:absolute;top:3px;bottom:3px;border-radius:4px;opacity:.9}
-/* energy lane taller with its own svg */
+#view-day .seg{position:absolute;top:3px;bottom:3px;border-radius:4px;opacity:.9}
 .energy-lane .lane-track{height:64px;background:var(--card-bg-alt)}
 #energy-svg{position:absolute;inset:0;width:100%;height:100%}
-/* axis */
 .tl-axis{display:grid;grid-template-columns:96px 1fr;gap:10px;margin-top:4px}
 .axis-marks{position:relative;height:16px;font-size:10px;color:var(--text-muted)}
 .axis-marks span{position:absolute;transform:translateX(-50%);font-variant-numeric:tabular-nums}
-/* playhead */
-.playhead{position:absolute;top:0;bottom:0;width:2px;background:var(--accent);z-index:5;pointer-events:none;left:0}
-.playhead::before{content:"";position:absolute;top:-4px;left:-4px;width:10px;height:10px;border-radius:50%;background:var(--accent)}
 .tl-lanes{position:relative}
 .scrubline{position:absolute;top:0;bottom:16px;width:2px;background:var(--accent);z-index:6;pointer-events:none;
   left:96px;margin-left:10px}
@@ -70,13 +92,82 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-ui);
 .legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:12px;font-size:11px;color:var(--text-secondary)}
 .legend span{display:inline-flex;align-items:center;gap:5px}
 .sw{width:11px;height:11px;border-radius:3px;flex:none}
+
+/* ── Nights ── */
+#view-nights .datepick{display:flex;align-items:center;justify-content:center;gap:14px}
+#view-nights .datepick button{background:var(--card-bg-alt);border:1px solid var(--border-soft);color:var(--accent);width:40px;height:40px;
+  border-radius:var(--r-md);font-size:20px;cursor:pointer;font-family:inherit;line-height:1}
+#view-nights .datepick button:disabled{opacity:.3;cursor:default}
+#view-nights .datepick .lab{font-size:17px;font-weight:700;min-width:130px;text-align:center}
+#view-nights .datepick .sub{font-size:11px;color:var(--text-secondary);text-align:center;margin-top:2px}
+#view-nights .legend{justify-content:center}
+#view-nights .n-rooms{display:flex;flex-direction:column;gap:12px}
+#view-nights .roomhead{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px}
+#view-nights .roomhead h2{font-size:17px;font-weight:700}
+#view-nights .roomhead .win{font-size:12px;color:var(--text-secondary)}
+#view-nights .trow{display:flex;align-items:center;gap:8px;margin:7px 0}
+#view-nights .trow .rlab{width:58px;font-size:12px;color:var(--text-secondary);text-align:right;flex:none}
+#view-nights .trow .rlab.bold{color:var(--text);font-weight:600}
+#view-nights .trk{position:relative;flex:1;height:18px;border-radius:5px;background:var(--track);overflow:hidden}
+#view-nights .trk.big{height:22px}
+#view-nights .seg{position:absolute;top:0;bottom:0;border-radius:3px}
+#view-nights .nowline{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--now);z-index:3}
+#view-nights .future{position:absolute;top:0;bottom:0;right:0;background:var(--card-bg);opacity:.55;z-index:2}
+#view-nights .actstrip{position:relative;flex:1;height:20px}
+#view-nights .abar{position:absolute;bottom:0;background:var(--move);opacity:.5;border-radius:1px}
+#view-nights .axis{display:flex;justify-content:space-between;font-size:10px;color:var(--text-secondary);margin-left:66px;margin-top:2px}
+#view-nights .mgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:14px}
+#view-nights .mc{background:var(--card-bg-alt);border-radius:var(--r-sm);padding:8px 10px}
+#view-nights .mc .l{font-size:11px;color:var(--text-secondary)}
+#view-nights .mc .v{font-size:17px;font-weight:600;margin-top:1px;font-variant-numeric:tabular-nums}
+#view-nights .sens{font-size:12px;color:var(--text-secondary);margin-top:10px;line-height:1.6;font-variant-numeric:tabular-nums}
+#view-nights .sens b{color:var(--text);font-weight:600}
+#view-nights .callout{display:flex;gap:8px;align-items:flex-start;margin-top:10px;padding:9px 11px;border-radius:var(--r-sm);font-size:12.5px;line-height:1.4}
+#view-nights .callout.warn{background:rgba(255,149,0,.14);color:var(--amber)}
+#view-nights .callout.ok{background:rgba(52,199,89,.12);color:var(--on-color)}
+#view-nights .callout.info{background:rgba(120,120,128,.14);color:var(--text-secondary)}
+#view-nights .striplab{font-size:12px;font-weight:600;color:var(--text-secondary);margin:16px 0 6px}
+#view-nights .srow{display:flex;align-items:center;gap:8px;margin:3px 0;cursor:pointer}
+#view-nights .srow .d{width:58px;font-size:11px;color:var(--text-secondary);text-align:right;flex:none}
+#view-nights .srow.sel .d{color:var(--accent);font-weight:700}
+#view-nights .mini{position:relative;flex:1;height:9px;border-radius:3px;background:var(--track);overflow:hidden}
+#view-nights .empty{text-align:center;padding:28px 12px}
+
+/* ── Chart ── */
+#view-chart .pickers{display:grid;grid-template-columns:2fr 1fr;gap:10px}
+#view-chart label{display:block;font-size:12px;font-weight:600;margin-bottom:4px}
+#view-chart input[type=text],#view-chart select{width:100%;padding:9px 11px;border-radius:var(--r-sm);border:1px solid var(--border);
+  background:var(--card-bg-alt);color:var(--text);font-family:inherit;font-size:14px}
+#view-chart .ranges{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+#view-chart .range-chip{background:var(--card-bg-alt);border:1px solid var(--border);color:var(--text);padding:7px 14px;
+  border-radius:var(--r-xl);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .2s,border-color .2s,color .2s}
+#view-chart .range-chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+#view-chart .chart-wrap{position:relative;height:46vh;min-height:280px}
+#view-chart .stats{display:flex;gap:18px;flex-wrap:wrap;margin-top:10px;font-size:13px;color:var(--text-secondary);font-variant-numeric:tabular-nums}
+#view-chart .stats b{color:var(--text)}
+#view-chart .empty{text-align:center;padding:40px 12px}
+
+/* ── Diary ── */
+#view-diary .card-title{font-size:13px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+#view-diary .card-title .pill{font-size:11px;font-weight:600;color:var(--text-secondary)}
+#view-diary .row{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-top:1px solid var(--border);font-size:13px}
+#view-diary .row:first-child{border-top:0}
+#view-diary .row .ic{flex:0 0 18px;text-align:center;font-size:14px;line-height:1.4}
+#view-diary .row .bd{flex:1;min-width:0}
+#view-diary .row .bd .m{line-height:1.35;word-break:break-word}
+#view-diary .row .bd .s{font-size:11.5px;color:var(--text-secondary);margin-top:1px}
+#view-diary .row .rt{flex:0 0 auto;font-size:11.5px;color:var(--text-secondary);font-variant-numeric:tabular-nums;white-space:nowrap}
+#view-diary .cnt{display:inline-block;font-size:11px;font-weight:700;padding:0 6px;border-radius:var(--r-sm);margin-left:6px;background:var(--track);color:var(--text-secondary)}
+
 html{-webkit-text-size-adjust:100%}
 @supports (min-height:100dvh){body{min-height:100dvh}}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){*{transition-duration:.01ms!important;animation-duration:.01ms!important}}
+@media (max-width:600px){#view-chart .pickers{grid-template-columns:1fr}}
 @media (max-width:520px){.main{padding:10px}.now-time{font-size:28px}
   .lane{grid-template-columns:72px 1fr}.lane-lab{font-size:11px}.scrubline{left:72px}
-  .tl-axis{grid-template-columns:72px 1fr}
+  .tl-axis{grid-template-columns:72px 1fr}.tl-tabs{width:calc(100% - 20px)}
+  #view-nights .mgrid{grid-template-columns:repeat(2,1fr)}
 }
 
 h1 .dsh-icon {width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;opacity:.85}
@@ -93,31 +184,44 @@ h1 .dsh-icon {width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;
         <span class="topbar-status" id="status">Loading&#8230;</span>
     </div>
     <div class="hdr-right">
-        <a class="nav-btn" href="presence.html">Presence &rarr;</a>
+        <a class="nav-btn" href="system-health.html">System &rarr;</a>
     </div>
 </header>
 
+<nav class="tl-tabs" role="tablist" aria-label="Timeline views">
+    <span class="tl-tab-ink" aria-hidden="true"></span>
+    <button class="tl-tab" role="tab" data-view="day" aria-selected="true">Day</button>
+    <button class="tl-tab" role="tab" data-view="nights" aria-selected="false">Nights</button>
+    <button class="tl-tab" role="tab" data-view="chart" aria-selected="false">Chart</button>
+    <button class="tl-tab" role="tab" data-view="diary" aria-selected="false">Diary</button>
+</nav>
+
 <main class="main">
-  <section class="card">
-    <div class="datebar">
-      <button id="prev" aria-label="Previous day">&#8249;</button>
-      <div class="dlab" id="dlab">&#8212;</div>
-      <button id="next" aria-label="Next day">&#8250;</button>
-      <button class="today-btn nav-btn" id="today" style="min-height:32px">Today</button>
-    </div>
-  </section>
+  <div class="tl-view" id="view-day" role="tabpanel">
+    <section class="card">
+      <div class="datebar">
+        <button id="prev" aria-label="Previous day">&#8249;</button>
+        <div class="dlab" id="dlab">&#8212;</div>
+        <button id="next" aria-label="Next day">&#8250;</button>
+        <button class="today-btn nav-btn" id="today" style="min-height:32px">Today</button>
+      </div>
+    </section>
 
-  <section class="card">
-    <div class="now-time" id="now-time">&#8212;</div>
-    <div class="now-sub" id="now-sub">Drag across the timeline to replay the day</div>
-    <div class="now-chips" id="now-chips"></div>
-  </section>
+    <section class="card">
+      <div class="now-time" id="now-time">&#8212;</div>
+      <div class="now-sub" id="now-sub">Drag across the timeline to replay the day</div>
+      <div class="now-chips" id="now-chips"></div>
+    </section>
 
-  <section class="card">
-    <div id="tl-body">
-      <div class="loading"><div class="spinner"></div><p>Building the day&#8230;</p></div>
-    </div>
-  </section>
+    <section class="card">
+      <div id="tl-body">
+        <div class="loading"><div class="spinner"></div><p>Building the day&#8230;</p></div>
+      </div>
+    </section>
+  </div>
+  <div class="tl-view" id="view-nights" role="tabpanel" hidden></div>
+  <div class="tl-view" id="view-chart" role="tabpanel" hidden></div>
+  <div class="tl-view" id="view-diary" role="tabpanel" hidden></div>
 </main>
 
 <script src="chart.umd.min.js"></script>
@@ -125,9 +229,13 @@ h1 .dsh-icon {width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;
 <script src="dashboards-auth.js"></script>
     <script src="dashboards-ui.js"></script>
 <script src="dashboards-gate.js"></script>
+<script src="dashboard.js"></script>
+<script src="timeline-views.js"></script>
 <script>
 const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
+const setStatus = (t) => { document.getElementById("status").textContent = t; };
 
+// ── Day ────────────────────────────────────────────────────────────────
 // The server builds a day on a worker (plugin 3.19.0), so the first ask for a
 // day answers 503 + pending; DashUI.message waits for it rather than reporting
 // an error the user cannot act on, and owns the gate, key and timeout (v3.28.0).
@@ -163,13 +271,11 @@ function render(){
 
   const lanes = (DAY.lanes||[]).filter(l => l.devices.length || l.key==="heating");
   const isToday = ymd(selDate) === ymd(new Date());
-  // live "now" cap for today
   const nowMin = isToday ? (new Date().getHours()*60 + new Date().getMinutes()) : 1440;
 
   let h = '<div class="tl-wrap" id="tlwrap"><div class="tl-lanes" id="tllanes">';
   for (const lane of lanes){
     let segs = "";
-    // stack device spans into one lane row (all devices share the row, coloured by lane)
     for (const dev of lane.devices){
       for (const s of dev.spans){
         const x = (s[0]/1440*100), w = ((s[1]-s[0])/1440*100);
@@ -181,21 +287,19 @@ function render(){
       <div class="lane-lab">${esc(lane.label)}<span class="lane-n">${lane.devices.length? lane.devices.length+" active":""}</span></div>
       <div class="lane-track">${segs}</div></div>`;
   }
-  // energy lane
   if (DAY.energy && DAY.energy.points.length){
     h += `<div class="lane energy-lane">
       <div class="lane-lab">Battery &amp; solar<span class="lane-n">SOC / kW</span></div>
       <div class="lane-track"><svg id="energy-svg" viewBox="0 0 1000 64" preserveAspectRatio="none"></svg></div></div>`;
   }
   h += `</div><div class="scrubline" id="scrub" style="display:none"></div></div>`;
-  // axis
   h += '<div class="tl-axis"><div></div><div class="axis-marks">';
   for (let hh=0; hh<=24; hh+=3) h += `<span style="left:${hh/24*100}%">${pad(hh)}</span>`;
   h += '</div></div>';
   h += '<div class="legend">' + lanes.map(l=>`<span><span class="sw" style="background:${l.colour}"></span>${esc(l.label)}</span>`).join("")
      + (DAY.energy&&DAY.energy.points.length?`<span><span class="sw" style="background:var(--soc)"></span>Battery SOC</span><span><span class="sw" style="background:var(--solar)"></span>Solar</span>`:"")
      + '</div>';
-  h += '<div class="hint">Tap or drag anywhere on the timeline to scrub · release to see the house at that moment</div>';
+  h += '<div class="hint">Tap or drag anywhere on the timeline to scrub · tap a name above to chart it</div>';
   body.innerHTML = h;
 
   drawEnergy();
@@ -207,15 +311,12 @@ function drawEnergy(){
   const svg = document.getElementById("energy-svg");
   if (!svg || !DAY.energy) return;
   const pts = DAY.energy.points;
-  // solar area (0..peak) + SOC line (0..100), both across 0..1440 min
   const maxPv = Math.max(1000, ...pts.map(p=>p.pv||0));
   const X = m => (m/1440*1000);
   const socY = v => 62 - (Math.max(0,Math.min(100,v))/100)*60;
   const pvY  = v => 62 - (Math.max(0,v)/maxPv)*60;
   let solar = "", socline = "";
-  pts.forEach((p,i)=>{
-    if (p.pv!=null){ solar += (solar?"L":"M") + X(p.m).toFixed(1) + " " + pvY(p.pv).toFixed(1) + " "; }
-  });
+  pts.forEach(p=>{ if (p.pv!=null){ solar += (solar?"L":"M") + X(p.m).toFixed(1) + " " + pvY(p.pv).toFixed(1) + " "; } });
   if (solar){ const last = pts.filter(p=>p.pv!=null).slice(-1)[0]; const first=pts.filter(p=>p.pv!=null)[0];
     solar = "M"+X(first.m).toFixed(1)+" 62 " + solar.replace(/^M/,"L") + "L"+X(last.m).toFixed(1)+" 62 Z"; }
   pts.forEach(p=>{ if(p.soc!=null){ socline += (socline?"L":"M") + X(p.m).toFixed(1) + " " + socY(p.soc).toFixed(1) + " "; }});
@@ -237,22 +338,15 @@ function setPlayhead(min){
   playMin = Math.max(0, Math.min(1440, min));
   const scrub = document.getElementById("scrub");
   const lanes = document.getElementById("tllanes");
-  if (scrub && lanes){
-    const track = lanes.querySelector(".lane-track");
-    // position within the track column
+  if (scrub && lanes && lanes.querySelector(".lane")){
     const pct = playMin/1440;
     scrub.style.display = "block";
-    scrub.style.left = "";
-    scrub.style.right = "";
-    // the scrubline sits over the track area: use the lane-track's geometry
-    const lane = lanes.querySelector(".lane");
-    const trackEl = lane.querySelector(".lane-track");
+    const trackEl = lanes.querySelector(".lane .lane-track");
     const wrap = document.getElementById("tlwrap").getBoundingClientRect();
     const tr = trackEl.getBoundingClientRect();
     scrub.style.left = (tr.left - wrap.left + pct*tr.width) + "px";
     scrub.style.marginLeft = "0";
   }
-  // readout
   document.getElementById("now-time").textContent = hm(playMin);
   const isToday = ymd(selDate)===ymd(new Date());
   document.getElementById("now-sub").textContent =
@@ -262,8 +356,10 @@ function setPlayhead(min){
   for (const lane of (DAY.lanes||[])){
     const active = lane.devices.filter(d => d.spans.some(s => playMin>=s[0] && playMin<s[1]));
     if (active.length){
-      const names = active.map(d=>shortName(d.name)).slice(0,4).join(", ") + (active.length>4?` +${active.length-4}`:"");
-      chips.push(`<span class="nchip" style="border-color:${lane.colour}66"><b style="color:${lane.colour}">${laneIcon(lane.key)} ${active.length}</b> <span class="nc-list">${esc(names)}</span></span>`);
+      // Each name opens that device on the Chart view (v3.33.0).
+      const names = active.slice(0,4).map(d => `<button class="nc-dev" data-dev="${esc(d.id)}">${esc(shortName(d.name))}</button>`).join(", ")
+                  + (active.length>4?` +${active.length-4}`:"");
+      chips.push(`<span class="nchip" style="border-color:${lane.colour}66"><b style="color:${lane.colour}">${laneIcon(lane.key)} ${active.length}</b> <span class="nc-list">${names}</span></span>`);
     }
   }
   const e = energyAt(playMin);
@@ -271,7 +367,7 @@ function setPlayhead(min){
     if (e.soc!=null) chips.push(`<span class="nchip"><b style="color:var(--soc)">${I("battery")} ${e.soc}%</b></span>`);
     if (e.pv!=null)  chips.push(`<span class="nchip"><b style="color:var(--solar)">${I("sun")} ${e.pv>=1000?(e.pv/1000).toFixed(1)+" kW":e.pv+" W"}</b></span>`);
   }
-  if (!chips.length) chips.push('<span class="nchip dim">Quiet — nothing active</span>');
+  if (!chips.length) chips.push('<span class="nchip dim">Quiet, nothing active</span>');
   document.getElementById("now-chips").innerHTML = chips.join("");
 }
 function laneIcon(k){ return I(k==="presence"?"walk":k==="lights"?"bulb":k==="doors"?"window":k==="heating"?"flame":"") || "●"; }
@@ -282,6 +378,7 @@ function wireScrub(){
   const lanes = document.getElementById("tllanes");
   if (!wrap || !lanes) return;
   const trackEl = lanes.querySelector(".lane-track");
+  if (!trackEl) return;
   let dragging = false;
   const toMin = (clientX) => {
     const tr = trackEl.getBoundingClientRect();
@@ -292,30 +389,110 @@ function wireScrub(){
   wrap.addEventListener("pointermove", e => { if (dragging) onMove(e.clientX); });
   wrap.addEventListener("pointerup",   () => { dragging=false; });
   wrap.addEventListener("pointercancel", () => { dragging=false; });
-  if (!window._tlResizeWired && (window._tlResizeWired = true))   // once, not once per render
+  if (!window._tlResizeWired && (window._tlResizeWired = true))
     window.addEventListener("resize", () => setPlayhead(playMin==null?0:playMin));
 }
 
+let dayLoaded = false;
 async function load(){
-  document.getElementById("status").textContent = "Loading…";
+  setStatus("Loading…");
   document.getElementById("tl-body").innerHTML = '<div class="loading"><div class="spinner"></div><p>Building the day…</p></div>';
   try {
     DAY = await fetchDay(ymd(selDate));
-    playMin = null;   // reset to now/end on a new day
+    playMin = null;
     render();
-    document.getElementById("status").textContent = "Scrub to replay";
+    dayLoaded = true;
+    if (currentView === "day") setStatus("Scrub to replay");
   } catch(e){
-    document.getElementById("tl-body").innerHTML = `<div class="empty">Couldn't load the day — ${esc(e.message)}</div>`;
-    document.getElementById("status").textContent = "Error";
+    document.getElementById("tl-body").innerHTML = `<div class="empty">Couldn't load the day: ${esc(e.message)}</div>`;
+    if (currentView === "day") setStatus("Error");
   }
 }
 
 document.getElementById("prev").addEventListener("click", ()=>{ selDate.setDate(selDate.getDate()-1); load(); });
 document.getElementById("next").addEventListener("click", ()=>{ if (ymd(selDate) < ymd(new Date())){ selDate.setDate(selDate.getDate()+1); load(); } });
 document.getElementById("today").addEventListener("click", ()=>{ selDate = new Date(); load(); });
+document.getElementById("now-chips").addEventListener("click", e => {
+  const b = e.target.closest(".nc-dev");
+  if (b) openChart(parseInt(b.dataset.dev, 10));
+});
+
+// ── Views ──────────────────────────────────────────────────────────────
+const VIEWS = ["day", "nights", "chart", "diary"];
+let currentView = null;
+// Day is the page's own inline view; the other three come from timeline-views.js
+// and are built the first time their tab opens.
+const mounted = {
+  day: { show(){ if (!dayLoaded) load(); else setStatus("Scrub to replay"); }, hide(){} },
+};
+
+// Nights needs Presence_Watch.py. An install without it never sees the tab
+// (v3.33.0), rather than a view that can only say "no data".
+function viewAvailable(v){
+  if (v !== "nights") return true;
+  const s = (window.INDIGO_CONFIG || {}).scripts || {};
+  return s.presence !== false;
+}
+
+function moveInk(){
+  const tab = document.querySelector('.tl-tab[aria-selected="true"]');
+  const ink = document.querySelector(".tl-tab-ink");
+  if (!tab || !ink) return;
+  ink.style.width = tab.offsetWidth + "px";
+  ink.style.transform = `translateX(${tab.offsetLeft - 4}px)`;
+}
+
+function view(name){
+  return mounted[name] || (mounted[name] = TimelineViews[name](document.getElementById("view-" + name), t => {
+    if (currentView === name) setStatus(t);
+  }));
+}
+
+function show(name, keepUrl){
+  if (!VIEWS.includes(name) || !viewAvailable(name)) name = "day";
+  if (currentView && currentView !== name) view(currentView).hide();
+  currentView = name;
+  for (const v of VIEWS){
+    document.getElementById("view-" + v).hidden = (v !== name);
+    const tab = document.querySelector(`.tl-tab[data-view="${v}"]`);
+    tab.setAttribute("aria-selected", v === name ? "true" : "false");
+  }
+  moveInk();
+  try { view(name).show(); }
+  catch (e) { setStatus("This view could not start: " + e.message); console.error(e); }
+  if (!keepUrl){
+    const u = new URL(location.href);
+    u.search = name === "day" ? "" : "?view=" + name;
+    history.replaceState(null, "", u);
+  }
+  if (name === "day" && dayLoaded) requestAnimationFrame(() => setPlayhead(playMin == null ? 0 : playMin));
+}
+
+function openChart(deviceId, state){
+  if (!deviceId) return;
+  show("chart", true);
+  const u = new URL(location.href);
+  u.search = "?view=chart&device=" + deviceId + (state ? "&state=" + encodeURIComponent(state) : "");
+  history.replaceState(null, "", u);
+  try { view("chart").open(deviceId, state); }
+  catch (e) { setStatus("The chart could not start: " + e.message); console.error(e); }
+}
+
+document.querySelector(".tl-tabs").addEventListener("click", e => {
+  const t = e.target.closest(".tl-tab");
+  if (t) show(t.dataset.view);
+});
+window.addEventListener("resize", moveInk);
 
 if (!window.INDIGO_CONFIG || !window.INDIGO_CONFIG.apiKey) location.href = "index.html";
-else load();
+else {
+  document.querySelector('.tl-tab[data-view="nights"]').hidden = !viewAvailable("nights");
+  const qp = new URLSearchParams(location.search);
+  const want = qp.get("view") || "day";
+  const dev = parseInt(qp.get("device"), 10);
+  if (want === "chart" && dev) openChart(dev, qp.get("state"));
+  else show(want, true);
+}
 </script>
 <script src="dashboards-icons.js"></script>
 <script src="a11y.js"></script>

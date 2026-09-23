@@ -106,6 +106,10 @@
     // key reads as true — an upgrade must never hide pages that were there
     // yesterday. heatingControls has always been read raw by the heating page.
     window.INDIGO_CONFIG.sigenAvailable = (cfg.sigenAvailable !== false);
+    // v3.33.0: which companion scripts are installed. Absent from an older
+    // config.js, every one reads as installed, for the same reason.
+    var _sc = (cfg.scripts && typeof cfg.scripts === "object") ? cfg.scripts : {};
+    window.INDIGO_CONFIG.scripts = { presence: _sc.presence !== false, laundry: _sc.laundry !== false };
     window.DashFeatures = { sigen: _dashSigenOn, sigenAbsent: _dashSigenAbsent };
     // REFUSE THE REFLECTOR (v3.1.0). The server refuses the data; this stops
     // the page ASKING, which matters because a page's camera pictures come
@@ -178,6 +182,7 @@
     if (sessionStorage.getItem("dash_demo")) {
         window.INDIGO_CONFIG.apiKey = "demo";
         window.INDIGO_CONFIG.sigenAvailable = true;   // the fixtures carry energy data whatever this server has
+        window.INDIGO_CONFIG.scripts = { presence: true, laundry: true };
         // Demo is UNMARKED data that looks real — on a live install anyone
         // stumbling into demo.html saw plausible-but-fake readings with no
         // sign and no way out. Every page now wears a banner with the exit.

@@ -36,14 +36,22 @@ census* (collapsible; every plugin with its device count and whether it is disab
 is enabled and has crashed shows red as **STOPPED**; one switched off on purpose shows amber as
 **disabled** — because "enabled" alone stays true for a plugin that has crashed.
 
+**Automation** (from 3.33.0, when the Activity page retired). A count of schedules, triggers and how
+many are switched off, then the schedules coming up with how long until each fires, and three
+collapsible lists: triggers watching for problems, everything switched off, and who holds a
+front-door keypad code (PIN digits are scrubbed server-side and never reach the browser). The "off"
+count is worth watching: a disabled trigger is invisible everywhere else until something it should
+have caught goes wrong.
+
 ## Where the data comes from
 
 `systemHealth`, one call, computed server-side — a browser cannot read host statistics. It returns
-the Mac vitals, the history database size, and the device census.
+the Mac vitals, the history database size, and the device census. The Automation card comes from
+`activityFeed`, built from Indigo's schedule and trigger definitions.
 
 ## Refresh
 
-Every 30 s.
+Every 30 s; the Automation card every minute.
 
 ## What you can do here
 

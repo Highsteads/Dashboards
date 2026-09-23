@@ -73,6 +73,15 @@ def load_plugin_module():
     return plugin
 
 
+def redirect_pages(pages_dir):
+    """Pages kept only to forward an old address (v3.33.0): presence.html,
+    history.html and activity.html now open a Timeline view, and so on. They
+    carry no header, no page notes and do not count as pages."""
+    from pathlib import Path
+    return {p.name for p in Path(pages_dir).glob("*.html")
+            if 'http-equiv="refresh"' in p.read_text(encoding="utf-8")}
+
+
 def plugin_source_files():
     """Every module the Plugin class is built from (v3.32.0): plugin.py, the
     *_mixin.py files it inherits, and dash_common.py / dash_util.py. A test

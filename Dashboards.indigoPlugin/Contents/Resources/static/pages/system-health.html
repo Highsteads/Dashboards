@@ -166,6 +166,7 @@ h1 .dsh-icon {width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;
 
 <main class="main">
   <div id="content"><div class="loading"><div class="spinner"></div><p>Connecting&#8230;</p></div></div>
+  <div id="automation"></div>
 </main>
 
 <script src="config.js" onerror="window.INDIGO_CONFIG_MISSING=true"></script>
@@ -193,7 +194,58 @@ function setTs() {
 }
 
 if (!window.INDIGO_CONFIG || !window.INDIGO_CONFIG.apiKey) { location.href = "index.html"; }
-else { DashUI.poll(load, POLL_INTERVAL_MS); }   // v3.28.0: pauses in a hidden tab, never stacks
+else {
+    DashUI.poll(load, POLL_INTERVAL_MS);   // v3.28.0: pauses in a hidden tab, never stacks
+    DashUI.poll(loadAutomation, 60000);
+}
+
+// ── Automation (v3.33.0, moved from the retired Activity page) ─────────
+// What is armed, what watches for problems, what is switched off, and who
+// holds a door code. The Activity page's own errors block went with it: the
+// log watch already has its place on the hub and the Alerts page.
+function inWords(min) {
+    if (min == null || isNaN(min)) return "";
+    if (min < 1) return "now";
+    if (min < 60) return "in " + min + " min";
+    const h = Math.floor(min / 60), m = min % 60;
+    return m ? `in ${h}h ${m}m` : `in ${h}h`;
+}
+async function loadAutomation() {
+    const box = document.getElementById("automation");
+    let d;
+    try { d = await DashUI.message("activityFeed"); }
+    catch (e) { box.innerHTML = ""; return; }
+    const au = (d && d.automation) || {}, c = au.counts || {};
+    const off = (c.schedules_off || 0) + (c.triggers_off || 0);
+    let html = `<div class="sec-label">Automation</div><section class="card"><h2>Schedules and triggers
+        <span class="pill">${c.schedules || 0} schedules · ${c.triggers || 0} triggers${off ? ` · ${off} off` : ""}</span></h2>`;
+    const nxt = au.next || [];
+    html += nxt.length
+        ? nxt.map(s => ditem(s.name, "coming up", `${esc(s.when)} · ${esc(inWords(s.in_min))}`)).join("")
+        : `<div class="empty">No timed schedules armed.</div>`;
+    const w = au.watchers || [];
+    if (w.length) {
+        html += `<details><summary>Watching for problems · ${w.length}</summary>` +
+            w.map(x => ditem(x.name, "trigger", "")).join("") +
+            `<div class="note">Triggers that act when a particular error appears in the log: your safety net.</div></details>`;
+    }
+    const dis = au.disabled || [];
+    if (dis.length) {
+        html += `<details><summary>Switched off · ${dis.length}</summary>` +
+            dis.map(o => ditem(o.name, o.kind, "off")).join("") +
+            `<div class="note">Disabled schedules and triggers. Some will be off on purpose; this list is here so nothing stays off by accident.</div></details>`;
+    }
+    const codes = au.codes || [];
+    if (codes.length) {
+        html += `<details><summary>Door codes · ${codes.length}</summary>` +
+            codes.map(k => {
+                const lbl = (k.label && /[a-z]/i.test(k.label)) ? k.label : "";   // never show a numeric (PIN) label
+                return ditem(lbl && lbl !== k.person ? `${k.person} · ${lbl}` : k.person, "keypad code", "#" + esc(k.slot));
+            }).join("") +
+            `<div class="note">Who holds a front-door keypad code. When a code is used it shows in the diary on the Timeline page.</div></details>`;
+    }
+    box.innerHTML = html + `</section>`;
+}
 
 async function load() {
     try {

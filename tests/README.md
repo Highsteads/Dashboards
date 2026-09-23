@@ -93,6 +93,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_mains_meters.py` | Contract tests for the Mains instrument page's pure helpers |
 | `test_mcp_manifest.py` | The plugin-provided MCP tool contract (v3.12.0), checked from |
 | `test_mcp_tools.py` | Behaviour of the plugin-provided MCP tools (v3.12.0): the |
+| `test_no_orphan_pages.py` | Every page can be reached from another page (v3.33.0). The |
 | `test_no_private_strings.py` | This repository is public. Nothing in it may carry a real |
 | `test_offpath_pool.py` | No /message/ handler may do slow work on the dispatch path. One |
 | `test_page_count_claims.py` | Every place the docs say how many pages the plugin ships agrees |
@@ -134,6 +135,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_tick_script.py` | The shared companion-script runner (v2.95.2) and the poller's |
 | `test_timeline.py` | Contract test for the timeline-replay helpers (v2.40.0): |
 | `test_timeline_carry.py` | The Timeline page's "state at the start of the day" query must |
+| `test_timeline_views.mjs` | Timeline as the one history page (v3.33.0): the four tabs, the |
 | `test_verify_pin.py` | handleVerifyPin — the control-PIN speed bump. Had no tests at |
 | `test_version_consistency.py` | Fails when the version signals disagree — the bundle's |
 | `test_vpp_card.mjs` | Contract tests for the Cost page's Grid events (Axle VPP) card. |

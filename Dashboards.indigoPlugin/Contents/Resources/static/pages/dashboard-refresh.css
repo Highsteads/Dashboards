@@ -50,10 +50,8 @@ a:focus-visible,button:focus-visible { outline:3px solid var(--accent); outline-
 #solar-now .wx-solar-sub,#solar-now .wx-solar-meta { font-size:13px; color:var(--text-secondary); }
 #solar-now .wx-solar-big { color:#956000; }
 .fav-tile.on .fav-state { color:#276745; }
-.menu-head { max-width:none; margin-bottom:26px; gap:20px; }
 body.menu-page .container { margin:auto; }
-body.menu-page .grid { grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); }
-body.menu-page .menu-title { margin:0; font-size:30px; }
+body.menu-page .grid { grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); }
 @media(max-width:700px) { :is(#hub-flow,#flow-mount) .fdg-compact .fdg-lab,:is(#hub-flow,#flow-mount) .fdg-compact .fdg-sub { font-size:12px; } body.menu-page .grid { grid-template-columns:1fr; } body.menu-page .grid .card { display:grid; text-align:left; padding:20px; } body.menu-page .grid .card-title { align-self:end; } }
 @media(prefers-color-scheme:dark) { :is(#hub-flow,#flow-mount) #hub-node-pv .fdg-val,#solar-now .wx-solar-big { fill:#ffca70; color:#ffca70; } :is(#hub-flow,#flow-mount) #hub-node-grid .fdg-val { fill:#72bcff; } :is(#hub-flow,#flow-mount) #hub-node-home .fdg-val { fill:#d5a2ff; } .fav-tile.on .fav-state { color:#81d5a5; } }
 .fav-grid { grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); }
