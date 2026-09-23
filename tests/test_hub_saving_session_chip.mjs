@@ -66,6 +66,7 @@ new Function(`
     ${fn("savingSessionChip")}
     let ROOMS = null;
     ${fn("fireHeaterChip")}
+    let DEVCOUNTS = null; function renderAttention() {}
     ${fn("renderHousePulse")}
     ${fn("_sigen")}
     globalThis.savingSessionChip = savingSessionChip;

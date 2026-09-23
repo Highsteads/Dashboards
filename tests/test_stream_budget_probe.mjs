@@ -31,7 +31,6 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PAGES = path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
                         "Resources", "static", "pages");
 const uiSrc  = fs.readFileSync(path.join(PAGES, "dashboards-ui.js"), "utf8");
-const hubSrc = fs.readFileSync(path.join(PAGES, "index.html"), "utf8");
 
 // A window whose fetch answers with a fixed byte count, taking `msFor(n)` for
 // the nth call. A real Promise throughout — a hand-rolled thenable gets
@@ -135,15 +134,7 @@ console.log("\ndegrading");
           "the stream port is not fronted by it, so no measurement can help");
 }
 
-console.log("\nthe hub spends the whole budget");
-{
-    check("every tile goes live once the budget covers them all",
-          /const liveAll\s*=\s*budget >= hosts\.length;/.test(hubSrc));
-    check("and the strip is re-rendered when the measurement lands",
-          /_liveBudget = n;[\s\S]{0,120}renderCamerasOnce\(\)/.test(hubSrc),
-          "without this the page keeps its conservative first answer for ever");
-    check("a fresh measurement is taken on return to the tab",
-          /DashUI\.forgetBw\(\)[\s\S]{0,120}_applyStreamBudget\(\)/.test(hubSrc));
-}
+// The hub stopped streaming in v3.35.0 (stills only, cross-faded), so it
+// no longer spends a budget; test_hub_lean_away checks it stays that way.
 
 done();

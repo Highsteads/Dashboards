@@ -92,8 +92,8 @@ because nothing else fronts port 8177.
 
 ## The hub strip and the room pages
 
-The hub carries a strip of up to four cameras — the ones marked "main" in the configuration. At home
-the first tile runs live and the rest poll stills. A camera with a `room` in its entry also appears
+The hub carries a strip of up to four cameras — the ones marked "main" in the configuration — as
+stills that cross-fade from frame to frame. It never streams; the Cameras page does that. A camera with a `room` in its entry also appears
 on that room's page; tap it there for the stream at full width.
 
 ## Things worth knowing

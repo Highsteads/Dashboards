@@ -8,20 +8,20 @@ Browser dashboards for [Indigo Domotics](https://www.indigodomo.com/), built for
 wall, a phone in your pocket and a Mac on the desk. No app to install, no cloud account,
 nothing leaving the house.
 
-<img src="https://img.shields.io/badge/version-3.34.0-5856d6" alt="Version 3.34.0">
+<img src="https://img.shields.io/badge/version-3.35.0-5856d6" alt="Version 3.35.0">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-21-0a84ff" alt="21 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
 
 <br><br>
 
-<img src="docs/screenshots/index.png" width="860" alt="The hub — who is home, the heating, the battery, today's carbon, and a strip of live cameras">
+<img src="docs/screenshots/index.png" width="860" alt="The hub — whether anything needs a look, who is home, the heating, the battery and a strip of camera stills">
 
 </div>
 
 ---
 
-**Version:** 3.34.0
+**Version:** 3.35.0
 
 **Documentation:** **[highsteads.github.io/Dashboards](https://highsteads.github.io/Dashboards/)** —
 getting started, configuration, a page of notes for every one of the 21 pages, cameras, remote
@@ -67,11 +67,11 @@ with a gentle state simulator, touching no live devices.
 The three most recent releases, word for word. Every release before these is in
 **[the version history](docs/changelog.md)**, which the documentation site also carries.
 
+**3.35.0** (23-Sep-2026) - **The hub is shorter, and one chip tells you whether anything needs you.** The greeting card now opens with a chip that reads All well, or says how many things need a look. Tap it and the list opens in place: devices reporting an error, batteries running low (named, when there are only a few), errors in the Indigo log, cameras that have stopped answering, and anything Home Insights finds out of the ordinary, each linking to the page with the detail. It replaces the low-battery and in-error chips, the Insights card and the log banner, which said the same things in four places. The camera strip no longer streams: it shows stills that cross-fade from one frame to the next, which reads as moving at a fraction of the data, and live video is a tap away on the Cameras page. The weather card stops repeating the conditions, today's range and the sun times that the greeting card already shows.
+
 **3.34.0** (23-Sep-2026) - **Energy is slimmer, and the Carbon and Laundry pages are one card on it.** The new When to run it card puts the cheapest time to run each metered appliance (with its finish-by buttons) beside how clean the grid is now and over the next day. Each half hides when it has nothing to say: laundry without its companion script, carbon when its region is switched off. The old Carbon and Laundry addresses land on the card. Energy lost what it said twice or three times: the Today's summary tiles (every figure was already in the hero, the energy flow or the battery tiles), the second copy of the dawn reserve on the battery card, the power chart that drew the same half-hour slots as the history chart (whose 24 h, 48 h and 7 day buttons it now carries), and the energy replay, which the Timeline page does better. Today is now one column: the solar card, then the day's energy flow.
 
 **3.33.0** (23-Sep-2026) - **Timeline is now the one page for the house's history, and the menu asks the questions you came with.** Timeline gained three tabs beside its day replay: Nights (the presence sensors night by night, which was the Presence page), Chart (graph anything the SQL Logger records, which was the Graphs page) and Diary (locks, doors, leaks and restarts from the event log, which was on the Activity page). Tap a device name in the day replay to chart it. The Nights view now draws every room the presence script watches, not two named rooms. The automation list from the Activity page (what is coming up, what is switched off, who holds a door code) moved to the System page. The old Presence, Graphs and Activity addresses still work and open the right view. The menu is now one page, grouped as Right now, Energy, What happened, Is anything wrong? and Setup, with the rooms a tap away, and it has the same top bar as every other page. Pages and tabs that need a companion script hide when that script is not installed, and a new test fails if any page is left with nothing linking to it.
-
-**3.32.0** (23-Sep-2026) - **More of the plugin's code is split into parts. Nothing you can see changes.** The cameras, the settings store, copying the pages into place, the System Health page and the companion-script runner now live in files of their own, and the settings every part shares sit in one small file. The main file goes from about 6,000 lines to under 3,000.
 
 ## A look around
 
@@ -118,7 +118,7 @@ file — no build step, no framework, no bundler — and every one has [a page o
 
 | Page | What it is for |
 |---|---|
-| **[Hub](docs/pages/hub.md)** `index.html` | The front page. Who is home, the heating, the battery, today's carbon, a strip of live cameras, your pinned favourites, the solar day so far, and a power-cut banner when there is one |
+| **[Hub](docs/pages/hub.md)** `index.html` | The front page. One chip that says whether anything needs a look, who is home, the heating, your pinned favourites, a strip of camera stills, the battery, the solar day so far, and a power-cut banner when there is one |
 | **[Menu](docs/pages/menu.md)** `menu.html` | Every page in one grouped list, with each room as its own entry |
 | **[Room](docs/pages/room.md)** `room.html?room=Name` | One room end to end — lights and sockets with real controls, blinds, sensors, cameras, doors |
 | **[Active](docs/pages/active.md)** `active.html` | Everything currently on, across the whole house |
@@ -142,8 +142,8 @@ file — no build step, no framework, no bundler — and every one has [a page o
 - **Indigo 2025.2** (Python 3.13, IWS 8176)
 - **UniFiHealth plugin ≥ v0.2.0** for the Wi-Fi detail pages (optional)
 - **EvoHomeControl plugin** for the heating page's boost / force buttons (optional — the panel hides itself when that plugin is not installed; zone temperatures and setpoints work with any thermostat device)
-- **SigenEnergyManager plugin** for the Energy, Cost and Laundry pages and the hub's Energy · Now card (optional — without it the three pages hide themselves, the menu drops their tiles and the hub says in one line which plugin is missing; Carbon and Mains do not need it)
-- **SQL Logger plugin** (ships with Indigo) for the Graphs page, the Timeline and the Home Insights card (optional — not everyone runs it, and everything else works without it, and the pages say so clearly rather than showing empty charts)
+- **SigenEnergyManager plugin** for the Energy page (with its When to run it card), the Cost page and the hub's Energy · Now card (optional — without it those pages hide themselves, the menu drops their tiles and the hub says in one line which plugin is missing; Mains does not need it)
+- **SQL Logger plugin** (ships with Indigo) for the Timeline (with its Chart view) and the hub's Home Insights check (optional — not everyone runs it, and everything else works without it, and the pages say so clearly rather than showing empty charts)
 - **PostgreSQL** (v2.47.0, optional) — if your SQL Logger writes to PostgreSQL rather than the default SQLite, pick the backend under the plugin's Configure. Reads go through the `psql` command-line client, so **Postgres.app** or the `postgresql` client package must be installed. No Python driver is added, so SQLite users install nothing. Use **Plugins → Dashboards → Test History Connection** to check the settings before relying on them
 
 ### Camera grid — both binaries required

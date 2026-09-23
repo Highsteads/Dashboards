@@ -19,18 +19,24 @@ deliberately short: the House, Rooms and Tools tile walls it used to carry moved
 appears once you scroll.
 
 **Greeting card.** A time-of-day greeting, the date, the running build number, and the current
-weather with today's high and low and the sun times. Below that, a row of pills: each person's
-presence, how many heating zones are calling for heat, a "Fire heater on" pill with the watts while
-a fire's heater runs (Broadlink RF 1.4.0 with a power meter), a low-battery or in-error count, and,
-when the energy plugin has one coming, a VPP event pill.
+weather with today's high and low and the sun times. Below that, a row of pills. The first answers
+"does anything need me?": **All well** in green, or "2 things need a look" in amber or red. Tap it
+and the list opens in place — devices reporting an error, batteries running low, errors in the
+Indigo log, cameras that have stopped answering, and anything Home Insights finds out of the
+ordinary — each line linking to the page with the detail. An all-clear says what it checked. After
+it come each person's presence, how many heating zones are calling for heat, a "Fire heater on"
+pill with the watts while a fire's heater runs (Broadlink RF 1.4.0 with a power meter), and, when
+the energy plugin has one coming, a VPP or Saving Session pill.
 
 **Favourites.** One-tap tiles in the order set on the Settings page. A tile is a control (toggles a
 device or runs a scene), a reading (shows a device state and cannot be tapped), a door tile (shows
 the door's state and acts on it), a room shortcut or a group.
 
-**Camera strip.** Up to four tiles from the cameras marked "main". At home the first tile runs live
-and the rest poll stills; over the reflector none of them stream. The page assumes it is remote
-until it can prove otherwise.
+**Camera strip.** Up to four tiles from the cameras marked "main", as stills that cross-fade from
+one frame to the next: every two seconds at home, every three over a VPN and every fifteen over the
+reflector, where the strip also pauses after ten idle minutes. It never streams — live video is one
+tap away on the [Cameras](cameras.md) page. The page assumes it is remote until it can prove
+otherwise.
 
 **Energy · now.** The power-flow diagram — solar, grid, home and battery around a central node, the
 flowing edges showing which way the power is going and how much. Underneath, today's totals and
@@ -40,21 +46,15 @@ today's money. Hidden, with a one-line note saying why, when SigenEnergyManager 
 chart of per-array actuals with a dashed forecast tick on each, and a line giving remaining,
 tomorrow, and how many daylight hours beat their forecast.
 
-**Weather.** Outdoor temperature, today's range, humidity, wind with gust and maximum, rain today,
-pressure, UV index, sunrise and sunset, and the indoor reading.
+**Weather station.** What the local station reads: outdoor temperature, humidity, wind with gust
+and maximum, rain today, pressure, UV index and the indoor reading. Conditions, today's range and
+the sun times are in the greeting card, so this card does not repeat them, and without a station
+of its own it steps aside.
 
 **House / Rooms / Tools.** Three cards, each a doorway into the menu at that group.
 
 **Doors & windows.** Everything currently open, most recent first, with how long it has been that
 way.
-
-**Insights.** Anomalies against the house's own norms — a battery falling fast, a sensor gone
-quiet, a room off its usual temperature, something on far longer than it normally is. Each line
-says what is unusual and what the norm was. When there is nothing, it says so, with the count of
-checks it made.
-
-**Log banner.** Appears only when the hourly event-log watch has something live, headed with the
-count and showing the most recent signature. A doorway to the [Alerts](alerts.md) page.
 
 **Footer.** Last update, the poll cadence, and a *Reset connection* link that clears the stored API
 key from this browser.
@@ -67,15 +67,14 @@ key from this browser.
 | Room list and membership | `rooms.json`, written by the plugin |
 | Weather | `weather.json`, written by the plugin from OpenWeatherMap |
 | Energy, solar, money, VPP | `sigenApi` — the plugin's proxy to SigenEnergyManager |
-| Insights | `homeInsights` |
-| Log banner | `logErrors` — the state file the hourly event-log watch writes |
-| Camera stills and streams | The plugin's own port 8177 |
+| Needs a look | devices from the poll, `logErrors`, `homeInsights`, and the camera health in `streams.json` |
+| Camera stills | The snapshots the plugin writes to `/public/dashboards` |
 
 ## Refresh
 
 - Device summary every 3 s, and only for devices the `changedSince` endpoint says have moved.
 - Energy every 30 s.
-- Insights and the log watch every 5 minutes.
+- Insights and the log watch every 5 minutes; camera health every minute.
 - Weather every 10 minutes.
 - The greeting re-renders every minute so the date rolls over on a page left open overnight.
 

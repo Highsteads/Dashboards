@@ -77,6 +77,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_history_pk_range.py` | Contract test for the PK-range window helpers — the mechanism |
 | `test_history_query.py` | Contract test for Plugin._history_query against a fixture SQL |
 | `test_home_insights.py` | Contract tests for the Home Insights evaluators (v2.42.0) — the |
+| `test_hub_attention.mjs` | The hub's "needs a look" chip (v3.35.0). Devices in error, low |
 | `test_hub_lean_away.mjs` | Contract test for the hub's REGION POLICY (v2.97.0). The light |
 | `test_hub_saving_session_chip.mjs` | Contract test for the Octopus Saving Session chip in the hub's |
 | `test_hub_saving_session_row.mjs` | Contract test for the Octopus Saving Session row on the hub's |

@@ -364,6 +364,9 @@
         .hero-sun { font-size:12.5px; color:var(--text-secondary); text-align:right;
             line-height:1.6; font-variant-numeric:tabular-nums; }
         .hero-sun b { color:var(--text); font-weight:600; }
+        /* Once the sun line wraps under the greeting, right-aligning it
+           leaves it hanging in mid-air. */
+        @media (max-width: 520px) { .hero-sun { text-align:left; } }
         .pulse-row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
         .pulse-chip { display:inline-flex; align-items:center; gap:6px; font-size:13px;
             font-weight:600; padding:6px 11px; border-radius: var(--r-md);
@@ -379,6 +382,22 @@
         .pulse-chip.warn { background:rgba(255,149,0,0.14); border-color:rgba(255,149,0,0.25); color:var(--warn); }
         .pulse-chip.bad  { background:rgba(255,69,58,0.14); border-color:rgba(255,69,58,0.25); color:var(--bad); }
         .pulse-chip .pc-num { font-variant-numeric:tabular-nums; }
+        /* v3.35.0: one chip answers "does anything need me?" and opens a list
+           in place, instead of three cards stacked down the page. */
+        button.pulse-chip { font-family:inherit; cursor:pointer; }
+        button.pulse-chip:active { transform: scale(0.95); }
+        .pulse-chip .att-caret { display:inline-block; transition: transform 0.2s ease; opacity:0.7; }
+        .pulse-chip[aria-expanded="true"] .att-caret { transform: rotate(180deg); }
+        #attention-panel { margin-top:12px; border-top:1px solid var(--border-soft); padding-top:10px; }
+        #attention-panel .att-row { display:flex; gap:10px; align-items:flex-start; padding:7px 4px;
+            border-radius: var(--r-sm, 8px); color:var(--text); text-decoration:none; font-size:13.5px; }
+        #attention-panel a.att-row:hover { background: var(--card-bg-alt); }
+        #attention-panel .att-dot { flex:0 0 8px; height:8px; border-radius:50%; margin-top:6px; background:var(--warn); }
+        #attention-panel .att-row.bad .att-dot { background:var(--bad); }
+        #attention-panel .att-row.info .att-dot { background:var(--accent); }
+        #attention-panel .att-title { font-weight:600; }
+        #attention-panel .att-detail { display:block; color:var(--text-secondary); font-size:12.5px; margin-top:1px; }
+        #attention-panel .att-note { color:var(--text-secondary); font-size:12.5px; padding:4px; }
     </style>
 <link rel="stylesheet" href="dashboards-chrome.css">
 <link rel="stylesheet" href="dashboard-refresh.css">
@@ -411,13 +430,14 @@
                 <div class="hero-sun" id="hero-sun"></div>
             </div>
             <div class="pulse-row" id="pulse-row"></div>
+            <div id="attention-panel" hidden></div>
         </section>
         <!-- Favourites (v2.10.0): one-tap device/scene tiles, pinned at the very
              top. Populated from window.INDIGO_CONFIG.favourites by
              renderFavouritesCard(); hidden when no favourites are configured. -->
         <div id="favourites" class="fav-card" style="display:none"></div>
         <!-- Camera mosaic — rendered ONCE in start() so the 3s poll doesn't
-             tear down the MJPEG connections. Pure visual, no data binding. -->
+             restart every tile timer. Pure visual, no data binding. -->
         <div id="cameras-mosaic"></div>
         <!-- Two-column row: Energy + Weather. Each card updates every 5s
              via loadSummary(). They stack on phones (≤600px). -->
@@ -459,10 +479,6 @@
              temperature, device on longer than normal). Fed by the plugin's
              homeInsights endpoint (15-min server cache); hidden until the
              first successful fetch. -->
-        <div class="dash-row" style="grid-template-columns:1fr;">
-            <div id="insights-card" class="dash-card" style="display:none"></div>
-            <a id="logwatch-card" class="dash-card" href="alerts.html" style="display:none"></a>
-        </div>
         <!-- v2.88.0: House, Rooms and Tools were three stacked walls of tiles
              sitting open on the landing page. They are navigation rather than
              status, so each is now one tile that loads its own page — the same
@@ -570,9 +586,9 @@
         _heavyTimers.push(setInterval(_refreshInsights, 5 * 60 * 1000));
         _refreshLogWatch();
         _heavyTimers.push(setInterval(_refreshLogWatch, 5 * 60 * 1000));
+        _refreshCamHealth();
+        _heavyTimers.push(setInterval(_refreshCamHealth, 60 * 1000));
         renderCamerasOnce();
-        // typeof-guarded: the contract tests eval this function on its own.
-        if (typeof _applyStreamBudget === "function") _applyStreamBudget();
     }
     async function bootCommandCentre() {
         // Load rooms.json once — we need it to find every radiator + contact
@@ -670,16 +686,26 @@
         }
     }
 
-    // ── Home Insights card (v2.42.0) — anomalies vs the house's own norms.
-    // Served from the plugin's 15-min cache, so a 5-minute page poll is cheap.
-    let INSIGHTS = null;
+    // ── Needs a look (v3.35.0) ───────────────────────────────────────────
+    // Devices in error, low batteries, log errors, cameras offline and Home
+    // Insights used to be two chips and two cards spread down the page. They
+    // are one question — does anything need me? — so they are one chip in the
+    // hero, and it opens the list in place. Each source only fills in its
+    // share; renderAttention() puts them together.
+    let INSIGHTS = null;           // homeInsights reply
+    let LOGFEED  = null;           // logErrors feed
+    let CAMHEALTH = null;          // streams.json _cameraHealth
+    let DEVCOUNTS = null;          // {lowBatt, errors} from the device poll
+    let _attOpen = false;          // the list stays open across the 3 s re-render
+    let _attBtn = null;
+
     async function _refreshInsights() {
         if (document.hidden) return;
         try {
             const d = await _msg("homeInsights");
             if (d) {
                 INSIGHTS = d;
-                renderInsightsCard();
+                renderAttention();
                 // First call after a plugin restart answers {building:true}
                 // while the server assembles the norms — check back shortly
                 // rather than waiting a full 5-min poll.
@@ -687,111 +713,147 @@
             }
         } catch (_) { /* insights are optional — never block the hub */ }
     }
-    function renderInsightsCard() {
-        const el = document.getElementById("insights-card");
-        if (!el) return;
-        if (!INSIGHTS || !INSIGHTS.ok || INSIGHTS.building) { el.style.display = "none"; return; }
-        const items = INSIGHTS.insights || [];
-        const c = INSIGHTS.checked || {};
-        const checks = (c.batteries || 0) + (c.sensors || 0) + (c.rooms || 0) + (c.devices || 0);
-        if (!items.length) { el.style.display = "none"; return; }
-        const rows = items.map(i => `
-            <div class="insight-row${i.level === "warn" ? " warn" : ""}">
-                <span class="ins-icon" aria-hidden="true">${DashIcons.has(i.icon) ? DashIcons.svg(i.icon) : escapeAttr(i.icon || "•")}</span>
-                <span class="ins-body">
-                    <span class="ins-title">${escapeAttr(i.title)}</span>
-                    <span class="ins-detail">${escapeAttr(i.detail)}</span>
-                </span>
-            </div>`).join("");
-        el.innerHTML = `<h3>Insights · ${items.length} out of the ordinary</h3>${rows}`;
-        el.style.display = "block";
-    }
 
-    // ── log-error watch chip ────────────────────────────────────────────────
-    // Stays hidden unless the hourly watch has live, unmuted errors to report,
-    // so a healthy log costs the hub nothing. Detail lives on alerts.html.
     async function _refreshLogWatch() {
         if (document.hidden) return;
-        const el = document.getElementById("logwatch-card");
-        if (!el) return;
         try {
             const d = await _msg("logErrors");
             if (!d) return;
-            const feed = (d && d.feed) || {};
-            const errs = feed.errors || 0;
-            if (!errs) { el.style.display = "none"; return; }
-            const worst = (feed.rows || []).filter(x => x.level === "error" && !x.muted)[0];
-            const detail = worst ? `${worst.source} — ${worst.message}` : "";
-            el.innerHTML = `<h3>Log · ${errs} ${errs === 1 ? "error" : "errors"}</h3>
-                <div class="row"><span>${escapeAttr(detail.slice(0, 110))}</span></div>`;
-            el.style.display = "block";
+            LOGFEED = (d && d.feed) || {};
+            renderAttention();
         } catch (_) { /* the watch is optional — never block the hub */ }
     }
 
+    async function _refreshCamHealth() {
+        if (document.hidden) return;
+        if (!((window.CAMERA_CONFIG || {}).mainCameras || []).length) return;
+        try {
+            const r = await fetch("/public/dashboards/streams.json?t=" + Date.now(), { cache: "no-store" });
+            if (!r.ok) return;
+            const data = await r.json();
+            CAMHEALTH = (data && data._cameraHealth) || null;
+            renderAttention();
+        } catch (_) { /* optional */ }
+    }
+
+    /* Pure: everything that needs a look, worst first. Each item is
+       {level: "bad"|"warn"|"info", title, detail, href}. An "info" item is
+       something unusual rather than something wrong, so it is listed but
+       does not turn the chip amber. Kept free of the DOM so the
+       test can feed it every source and read back the words. */
+    function attentionItems(src) {
+        src = src || {};
+        const out = [];
+        const n = (k, one, many) => `${k} ${k === 1 ? one : many}`;
+        const dev = src.devices || {};
+        const errors = dev.errors || 0;
+        const lowBatt = dev.lowBatt || 0;
+        const andJoin = list => list.length > 1 ? list.slice(0, -1).join(", ") + " and " + list[list.length - 1] : (list[0] || "");
+        // Name them while the list is short enough to read at a glance.
+        const named = (names, k) => (names && names.length === k && k <= 3) ? names : null;
+        if (errors) {
+            const nm = named(dev.errNames, errors);
+            out.push({ level: "bad", href: "system-health.html",
+                title: nm && errors === 1 ? `${nm[0]} is reporting an error` : `${n(errors, "device is", "devices are")} reporting an error`,
+                detail: nm && errors > 1 ? andJoin(nm) + "." : "System health says what it reported." });
+        }
+        const feed = src.log || {};
+        const logErrs = feed.errors || 0;
+        if (logErrs) {
+            const worst = (feed.rows || []).filter(x => x.level === "error" && !x.muted)[0];
+            out.push({ level: "bad", href: "alerts.html",
+                title: `${n(logErrs, "error", "errors")} in the Indigo log`,
+                detail: worst ? `${worst.source}: ${String(worst.message || "").slice(0, 110)}` : "Alerts has the detail." });
+        }
+        const health = src.cams || {};
+        const names = src.camNames || {};
+        const offline = Object.keys(health).filter(h => health[h] && health[h].state === "offline");
+        if (offline.length) {
+            const list = offline.map(h => names[h] || h);
+            const joined = list.length > 1 ? list.slice(0, -1).join(", ") + " and " + list[list.length - 1] : list[0];
+            out.push({ level: "bad", href: "cameras.html",
+                title: offline.length === 1 ? `The ${joined} camera is not answering` : `${n(offline.length, "camera", "cameras")} are not answering`,
+                detail: offline.length === 1 ? "No picture for the last three tries." : joined + "." });
+        }
+        if (lowBatt) {
+            const nm = named(dev.lowNames, lowBatt);
+            out.push({ level: "warn", href: "system-health.html",
+                title: nm && lowBatt === 1 ? `The battery in ${nm[0]} is running low` : `${n(lowBatt, "battery is", "batteries are")} running low`,
+                detail: (nm && lowBatt > 1 ? andJoin(nm) + ". " : "") + "Under 20%, or the device says so itself." });
+        }
+        const ins = src.insights;
+        if (ins && ins.ok && !ins.building) {
+            for (const i of (ins.insights || [])) out.push({
+                level: i.level === "warn" ? "warn" : "info", href: "",
+                title: String(i.title || ""), detail: String(i.detail || "") });
+        }
+        return out;
+    }
+
+    function renderAttention() {
+        const row = document.getElementById("pulse-row");
+        const panel = document.getElementById("attention-panel");
+        if (!row || !panel) return;
+        const cc = window.CAMERA_CONFIG || {};
+        const items = attentionItems({ devices: DEVCOUNTS, log: LOGFEED, cams: CAMHEALTH,
+                                       camNames: cc.names || {}, insights: INSIGHTS });
+        const bad = items.some(i => i.level === "bad");
+        const warn = items.some(i => i.level === "warn");
+        const cls = !items.length ? "good" : (bad ? "bad" : (warn ? "warn" : ""));
+        const text = !items.length ? "All well"
+            : `${items.length} ${items.length === 1 ? "thing needs" : "things need"} a look`;
+        // Held here, not looked up: the pulse row is redrawn every 3 s, which
+        // detaches the button, and a fresh one each time would drop keyboard focus.
+        let btn = _attBtn;
+        if (!btn) {
+            btn = document.createElement("button");
+            btn.id = "attention-chip"; btn.type = "button";
+            btn.setAttribute("aria-controls", "attention-panel");
+            btn.addEventListener("click", () => { _attOpen = !_attOpen; renderAttention(); });
+            _attBtn = btn;
+        }
+        btn.className = `pulse-chip ${cls}`;
+        btn.setAttribute("aria-expanded", _attOpen ? "true" : "false");
+        btn.innerHTML = `${DashIcons.svg(items.length ? "warn" : "check")} ${text} <span class="att-caret" aria-hidden="true">▾</span>`;
+        if (row.firstChild !== btn) row.insertBefore(btn, row.firstChild);
+        if (!_attOpen) { panel.hidden = true; return; }
+        const checked = [];
+        if (DEVCOUNTS) checked.push("devices and batteries");
+        if (LOGFEED) checked.push("the Indigo log");
+        if (CAMHEALTH) checked.push("the cameras");
+        if (INSIGHTS && INSIGHTS.ok) checked.push("each device against its usual behaviour");
+        const joined = checked.length > 1 ? checked.slice(0, -1).join(", ") + " and " + checked[checked.length - 1] : (checked[0] || "");
+        panel.innerHTML = items.map(i => {
+            const tag = i.href ? "a" : "div";
+            const href = i.href ? ` href="${i.href}"` : "";
+            return `<${tag} class="att-row ${i.level}"${href}><span class="att-dot" aria-hidden="true"></span>
+                <span><span class="att-title">${escapeAttr(i.title)}</span><span class="att-detail">${escapeAttr(i.detail)}</span></span></${tag}>`;
+        }).join("") + (joined ? `<div class="att-note">${items.length ? "Checked" : "Nothing out of the ordinary in"} ${escapeAttr(joined)}.</div>` : "");
+        panel.hidden = false;
+    }
+
     // ── Camera strip (rendered ONCE) ───────────────────────────
-    // Every tile used to open its own MJPEG stream. Four of them is about
-    // 17 Mbit/s, continuously, on the page you land on — and unlike
-    // cameras.html this had no stall watchdog and no fallback, so on a weak
-    // link it simply sat there.
+    // Stills only, since v3.35.0. The strip used to open a live MJPEG stream
+    // per tile wherever a bandwidth probe said the link could carry it: about
+    // 17 Mbit/s for four tiles, on the page you land on, to show pictures the
+    // size of a stamp. It now polls the snapshots the plugin already writes,
+    // at thumbnail size, and cross-fades each new frame in (DashUI.swapImage)
+    // so a two-second still reads as moving rather than blinking. Live video
+    // is one tap away on the Cameras page.
     //
-    // What we do now depends on how the page was reached (DashUI.linkClass):
-    //   home       every tile live, as before. It is all on the LAN.
-    //   vpn        the FIRST tile stays live; the rest poll the snapshot the
-    //              plugin already writes every 2s. About 4.5 Mbit/s.
-    //   reflector  no tile can stream — the MJPEG port is not fronted by the
-    //              reflector at all — so every tile polls.
-    // The snapshots themselves are now fetched at tile width rather than the
-    // camera's full resolution, which took them from ~124 KB to ~38 KB.
+    //   home       every 2 s — it is all on the LAN
+    //   vpn        every 3 s
+    //   reflector  every 15 s, pausing after ten idle minutes, because
+    //              Indigo's servers carry every byte (v2.96.1)
     let _stripTimers = [];
     let _measuredLink = null;    // set once the link has been timed, not guessed
     let _stripIdle  = false;     // reflector only: pictures paused until a tap (v2.96.1)
     let _stripGuard = null;
-    let _liveBudget = null;      // live tiles this link can carry — MEASURED (v2.97.0)
 
-    /* Measure what the link can carry, then re-render the strip if the answer
-       changed how many tiles stream. THE RE-RENDER IS THE POINT: the strip is
-       built before any measurement exists, so without this it keeps the
-       conservative first answer for the life of the page — which is precisely
-       how a phone sitting in the same room as the cameras showed 3-second
-       stills. Re-runs on return to the tab, because the network may have
-       changed while it was away. */
-    function _applyStreamBudget(delayMs) {
-        if (!window.DashUI || !DashUI.streamBudget) { _liveBudget = 1; return Promise.resolve(); }
-        // Give the page a moment to finish loading first: a probe that runs
-        // while the hub is still fetching devices, thumbnails and the energy
-        // payload measures the queue rather than the link.
-        return new Promise(r => setTimeout(r, delayMs == null ? 1500 : delayMs))
-            .then(() => DashUI.streamBudget()).then(n => {
-            if (n === _liveBudget) return;
-            _liveBudget = n;
-            if (_heavyStarted) renderCamerasOnce();
-        }).catch(() => {});
-    }
-
-    // Live strip tiles release their MJPEG sockets when the tab is hidden —
-    // four streams at ~17 Mbit/s total for a page nobody is looking at — and
-    // reconnect fresh on return. (The still tiles already skip hidden ticks.)
-    const _STRIP_TRANSPARENT_PX =
-        "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
     document.addEventListener("visibilitychange", () => {
-        document.querySelectorAll('#cameras-mosaic img[data-live="1"]').forEach(img => {
-            if (document.hidden) {
-                if (!img.dataset.liveSrc) img.dataset.liveSrc = img.src;
-                img.src = _STRIP_TRANSPARENT_PX;
-            } else if (img.dataset.liveSrc) {
-                img.src = img.dataset.liveSrc.split("?")[0] + "?_t=" + Date.now();
-                delete img.dataset.liveSrc;
-            }
-        });
         if (!document.hidden) {
             loadSummary();
-            if (_heavyStarted) {
-                _refreshInsights(); _refreshLogWatch();
-                // The link may be a different one now — measure again before
-                // trusting the streams the last one could afford.
-                if (window.DashUI && DashUI.forgetBw) DashUI.forgetBw();
-                _applyStreamBudget();
-            }
+            if (_heavyStarted) { _refreshInsights(); _refreshLogWatch(); _refreshCamHealth(); }
         }
     });
 
@@ -799,8 +861,6 @@
         const cfg   = window.CAMERA_CONFIG || {};
         const hosts = cfg.mainCameras || [];
         const names = cfg.names || {};
-        const port  = cfg.mjpegPort || 8177;
-        const path  = cfg.mjpegPath || "/mjpeg/{host}";
         // The thumbnail, not the full picture. These four tiles are the
         // smallest camera images anywhere in the dashboards and this is the
         // landing page, so it is the one place the saving is worth most:
@@ -811,121 +871,74 @@
         const mount = document.getElementById("cameras-mosaic");
         if (!mount || !hosts.length) return;
 
-        // _measuredLink is filled in by the probe below. Until it lands the
-        // address is only a guess, and a LAN address reached over a Tailscale
-        // subnet route is identical to the real thing — believing it opened
-        // four live streams on a mobile connection. So assume REMOTE until the
-        // link has actually been measured: at home that costs one render of
-        // stills, away it costs nothing at all.
-        const guess    = window.DashUI ? DashUI.linkClass() : "home";
-        const link     = _measuredLink || (guess === "home" ? "vpn" : guess);
-        // How many tiles may stream is a question about BANDWIDTH, and it is
-        // answered by measurement (see DashUI.streamBudget). Until that lands
-        // the answer is none, which costs one render of stills at home and
-        // nothing at all away. _liveBudget is filled in by _applyStreamBudget.
-        const budget   = link === "reflector" ? 0 : (_liveBudget == null ? 0 : _liveBudget);
-        // Live only at home. Off-LAN a live tile measured 30 s+ behind while
-        // the stills were 5-8 s behind, because MJPEG queues on a link that
-        // cannot drain it and never recovers — worse than a still on latency
-        // AND on data. See the note in cameras.html setPolicy().
-        const canLive  = budget > 0;
-        const liveAll  = budget >= hosts.length;
-        // Through the reflector every still is carried by Indigo's servers
-        // (v2.96.1): 15 s, and the strip pauses after ten idle minutes.
-        const pollMs   = link === "home" ? 2000 : link === "reflector" ? 15000 : 3000;
+        // _measuredLink is filled in by the probe. Until it lands the address
+        // is only a guess, and a LAN address reached over a Tailscale subnet
+        // route looks identical to the real thing, so assume remote.
+        const guess  = window.DashUI ? DashUI.linkClass() : "home";
+        const link   = _measuredLink || (guess === "home" ? "vpn" : guess);
+        const pollMs = link === "home" ? 2000 : link === "reflector" ? 15000 : 3000;
         if (link === "reflector" && !_stripGuard && window.DashUI && DashUI.idleGuard) {
             _stripGuard = DashUI.idleGuard(10 * 60 * 1000,
                 () => { _stripIdle = true;  mount.classList.add("cam-paused"); },
                 () => { _stripIdle = false; mount.classList.remove("cam-paused");
-                        mount.querySelectorAll('img[data-live="0"]').forEach(img => window._hubSwapIn && window._hubSwapIn(img)); });
+                        mount.querySelectorAll("img[data-host]").forEach(img => window._hubSwapIn && window._hubSwapIn(img)); });
         }
 
         _stripTimers.forEach(clearInterval);
         _stripTimers = [];
 
-        mount.innerHTML = hosts.map((host, i) => {
-            const name   = names[host] || host;
-            const isLive = liveAll || (canLive && i < budget);
-            const src    = isLive
-                ? `${location.protocol}//${location.hostname}:${port}${path.replace("{host}", host)}?_t=${Date.now()}`
-                : `${still.replace("{host}", host)}?_t=${Date.now()}`;
-            // NB the first paint carries an inline onerror as well, because the
-            // refresh handler above cannot run until the first interval fires —
-            // without this a server with no thumbnails shows an empty strip for
-            // a full poll period on the landing page.
-            // The badge only appears when we are NOT on the LAN, so the strip
-            // stays clean at home but a tile that is deliberately refreshing
-            // slowly does not read as a frozen one.
-            const badge = liveAll ? "" :
-                `<span class="cam-badge">${isLive ? "live" : (pollMs / 1000) + "s"}</span>`;
+        mount.innerHTML = hosts.map(host => {
+            const name = names[host] || host;
+            const src  = `${still.replace("{host}", host)}?_t=${Date.now()}`;
+            // NB the first paint carries an inline onerror as well, because
+            // the refresh below cannot run until its first timer fires —
+            // without it a server with no thumbnails shows an empty strip for
+            // a full poll period on the landing page. Away from home a badge
+            // says how often the tile refreshes, so a slow still is not read
+            // as a frozen one.
+            const badge = link === "home" ? "" : `<span class="cam-badge">${pollMs / 1000}s</span>`;
             return `
                 <a class="home-cam" href="cameras.html" title="${escapeAttr(name)}">
                     <div class="home-cam-frame">
                         <img crossorigin="anonymous" alt="${escapeAttr(name)}"
-                             data-host="${escapeAttr(host)}" data-live="${isLive ? 1 : 0}"
+                             data-host="${escapeAttr(host)}"
                              data-full="${escapeAttr(full.replace("{host}", host))}"
-                             onerror="if(window._hubDemoteTile){window._hubDemoteTile(this);}else if(this.dataset.full&&this.src.indexOf(this.dataset.full)<0){this.src=this.dataset.full;}"
+                             onerror="if(this.dataset.full&&this.src.indexOf(this.dataset.full)<0){this.src=this.dataset.full;}"
                              src="${escapeAttr(src)}">
                         ${badge}
                     </div>
                 </a>`;
         }).join("");
 
-        // One timer for the whole strip rather than one per tile — fewer
-        // wake-ups. Each tile decodes its next frame off-screen and only swaps
-        // it in when it is ready: assigning to a visible img.src blanks the
-        // tile for the whole fetch, which is ~5 ms at home but was measured at
-        // 756 ms per snapshot over the reflector, so the strip spent most of
-        // every cycle empty. The requests are also spread across the period
-        // rather than fired together, so they do not queue against the
-        // browser's ~6-connections-per-origin cap.
-        const stills = Array.from(mount.querySelectorAll('img[data-live="0"]'));
-        // A LIVE tile whose stream fails (proxy or go2rtc down) becomes a
-        // polled still with a badge, instead of one frozen frame that looked
-        // live for the rest of the page's life (v2.95.3).
-        window._hubDemoteTile = (img) => {
-            if (!img || !img.isConnected) return;
-            if (img.dataset.live === "1") {
-                img.dataset.live = "0";
-                const frame = img.parentElement;
-                if (frame && !frame.querySelector(".cam-badge")) {
-                    const b = document.createElement("span");
-                    b.className = "cam-badge"; b.textContent = (pollMs / 1000) + "s";
-                    frame.appendChild(b);
-                }
-                _stripTimers.push(setInterval(() => window._hubSwapIn && window._hubSwapIn(img), pollMs));
-            }
-            if (img.dataset.full && img.src.indexOf(img.dataset.full) < 0) img.src = img.dataset.full;
-        };
-        {
-            const swapIn = (img) => {
-                if (document.hidden) return;          // nothing to see; send nothing
-                if (_stripIdle) return;               // reflector, nobody has touched the page in 10 min
-                // The strip is rebuilt on resize/orientation change, so a
-                // pending stagger timer can outlive the tile it was made for.
-                if (!img.isConnected) return;
-                const next = new Image();
-                next.crossOrigin = "anonymous";
-                next.onload = () => { img.src = next.src; };
-                next.onerror = () => {
-                    // A thumbnail that will not load almost certainly is not
-                    // there — the server has nothing to shrink pictures with.
-                    // Fall the whole strip back to the full-size pictures
-                    // rather than leave four empty tiles on the landing page.
-                    // Only ever demotes, so this cannot flap.
-                    if (still !== full) { still = full; swapIn(img); }
-                };
-                next.src = `${still.replace("{host}", img.dataset.host)}?_t=${Date.now()}`;
-            };
-            window._hubSwapIn = swapIn;
-            if (stills.length) stills.forEach((img, i) => {
-                const offset = Math.round(pollMs * (i / stills.length));
-                _stripTimers.push(setTimeout(() => {
-                    swapIn(img);
-                    _stripTimers.push(setInterval(() => swapIn(img), pollMs));
-                }, offset));
+        // One staggered timer per tile, spread across the period so the
+        // requests do not queue against the browser's six-connection cap.
+        const swapIn = (img) => {
+            if (document.hidden) return;          // nothing to see; send nothing
+            if (_stripIdle) return;               // reflector, nobody has touched the page in 10 min
+            // The strip is rebuilt on resize, so a pending stagger timer can
+            // outlive the tile it was made for.
+            if (!img.isConnected) return;
+            const url = `${still.replace("{host}", img.dataset.host)}?_t=${Date.now()}`;
+            const swap = window.DashUI && DashUI.swapImage
+                ? DashUI.swapImage(img, url)
+                : new Promise((ok, bad) => { const n = new Image(); n.onload = () => { img.src = url; ok(true); }; n.onerror = bad; n.src = url; });
+            swap.catch(() => {
+                // A thumbnail that will not load almost certainly is not
+                // there — the server has nothing to shrink pictures with.
+                // Fall the whole strip back to the full-size pictures. Only
+                // ever demotes, so this cannot flap.
+                if (still !== full) { still = full; swapIn(img); }
             });
-        }
+        };
+        window._hubSwapIn = swapIn;
+        const imgs = Array.from(mount.querySelectorAll("img[data-host]"));
+        imgs.forEach((img, i) => {
+            const offset = Math.round(pollMs * (i / imgs.length));
+            _stripTimers.push(setTimeout(() => {
+                swapIn(img);
+                _stripTimers.push(setInterval(() => swapIn(img), pollMs));
+            }, offset));
+        });
     }
     function escapeAttr(s) {
         return String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
@@ -1510,15 +1523,10 @@
             const owm0 = window.__OWM_DATA || null;
             _wxBuilt = false;
             if (owm0) {
-                const hiLo = (Number.isFinite(owm0.today_max) && Number.isFinite(owm0.today_min))
-                    ? `${owm0.today_max.toFixed(0)}° / ${owm0.today_min.toFixed(0)}°` : "";
-                const cond = owm0.now_conditions || owm0.today_summary || "";
-                const sr = _fmtSunTime(owm0.sunrise, owm0.tz_offset), ss = _fmtSunTime(owm0.sunset, owm0.tz_offset);
-                el.innerHTML = `<h3>Weather</h3>
-                    <div class="row"><span>${escapeAttr([cond, hiLo].filter(Boolean).join(" · ") || "—")}</span></div>
-                    <div class="row"><span>${sr ? "Sunrise " + escapeAttr(sr) : ""}${sr && ss ? " · " : ""}${ss ? "Sunset " + escapeAttr(ss) : ""}</span></div>
-                    ${Number.isFinite(owm0.now_uvi) ? `<div class="row"><span>UV ${owm0.now_uvi.toFixed(0)}</span></div>` : ""}
-                    <div class="muted">OpenWeatherMap · no local station</div>`;
+                // v3.35.0: the hero already carries the conditions, today's
+                // range and the sun times, so with no station of its own this
+                // card would only repeat them. It steps aside instead.
+                el.style.display = "none";
             } else {
                 el.innerHTML = `<h3>Weather</h3><div class="muted">No weather source — add an Ecowitt station, or an OpenWeatherMap key and your coordinates under Plugins → Dashboards → Configure.</div>`;
             }
@@ -1556,11 +1564,9 @@
         const pTrend   = _trackPressure(pressure);
         const feelsLike = _windChill(temp, speedMph);
         const owm = window.__OWM_DATA || null;
-        const sunsetStr  = owm  ? _fmtSunTime(owm.sunset,  owm.tz_offset) : null;
-        const sunriseStr = owm  ? _fmtSunTime(owm.sunrise, owm.tz_offset) : null;
-        const todayHi    = owm && isFinite(owm.today_max) ? owm.today_max : null;
-        const todayLo    = owm && isFinite(owm.today_min) ? owm.today_min : null;
-        const conditions = owm && (owm.now_conditions || owm.today_summary) || "";
+        // Conditions, today's range and the sun times are in the hero at the
+        // top of the page (v3.35.0), so this card no longer repeats them.
+        el.style.display = "";
         const uvi        = owm && isFinite(owm.now_uvi) ? owm.now_uvi : null;
         // Compact mode for narrow phone viewports — 4–5 highlight rows
         // only. Drops wind gust/max, rain rate, pressure trend, UV, indoor.
@@ -1569,27 +1575,24 @@
         if (isCompact) {
             _ensureWeatherShell(el);
             document.getElementById('weather-rows').innerHTML = `
-                <h3>Weather${conditions ? ` · ${escapeAttr(conditions)}` : ""}</h3>
+                <h3>Weather station</h3>
                 <div class="row"><span class="key">Outdoor</span><span class="val big">${isFinite(temp) ? temp.toFixed(1) + "°" : "—"}</span></div>
                 ${isFinite(hum) ? `<div class="row"><span class="key">Humidity</span><span class="val">${hum.toFixed(0)}%</span></div>` : ""}
                 ${speedMph != null ? `<div class="row"><span class="key">Wind</span><span class="val">${speedMph.toFixed(0)} mph${dir ? " " + dir : ""}</span></div>` : ""}
-                ${rainDailyMm != null && rainDailyMm > 0 ? `<div class="row"><span class="key">Rain</span><span class="val warn">${rainDailyMm.toFixed(1)} mm</span></div>` : ""}
-                ${(sunriseStr || sunsetStr) ? `<div class="row"><span class="key">Sun</span><span class="val">${sunriseStr || "—"}↑ ${sunsetStr || "—"}↓</span></div>` : ""}`;
+                ${rainDailyMm != null && rainDailyMm > 0 ? `<div class="row"><span class="key">Rain</span><span class="val warn">${rainDailyMm.toFixed(1)} mm</span></div>` : ""}`;
             return;
         }
         _ensureWeatherShell(el);
             document.getElementById('weather-rows').innerHTML = `
-            <h3>Weather${conditions ? ` · ${escapeAttr(conditions)}` : ""}</h3>
+            <h3>Weather station</h3>
             <div class="row"><span class="key">Outdoor</span><span class="val big">${isFinite(temp) ? temp.toFixed(1) + "°C" : "—"}</span></div>
             ${feelsLike != null ? `<div class="row"><span class="key">Feels like</span><span class="val">${feelsLike.toFixed(1)}°C</span></div>` : ""}
-            ${(todayHi != null && todayLo != null) ? `<div class="row"><span class="key">Today</span><span class="val">${todayHi.toFixed(0)}° / ${todayLo.toFixed(0)}°</span></div>` : ""}
             ${isFinite(hum) ? `<div class="row"><span class="key">Humidity</span><span class="val">${hum.toFixed(0)}%</span></div>` : ""}
             ${speedMph != null ? `<div class="row"><span class="key">Wind</span><span class="val">${speedMph.toFixed(0)} mph${dir ? " " + dir : ""}${gustMph ? ` · gust ${gustMph.toFixed(0)}` : ""}${maxGustMph && (!gustMph || maxGustMph > gustMph + 1) ? ` · max ${maxGustMph.toFixed(0)}` : ""}</span></div>` : ""}
             ${rateMm > 0 ? `<div class="row"><span class="key">Rain rate</span><span class="val warn">${rateMm.toFixed(1)} mm/h</span></div>` : ""}
             ${rainDailyMm != null ? `<div class="row"><span class="key">Rain today</span><span class="val ${rainDailyMm > 0 ? "" : "muted"}">${rainDailyMm > 0 ? rainDailyMm.toFixed(1) + " mm" : "dry"}</span></div>` : ""}
             ${isFinite(pressure) ? `<div class="row"><span class="key">Pressure</span><span class="val">${pressure.toFixed(0)} hPa${pTrend ? " " + pTrend.arrow + " " + pTrend.word : ""}</span></div>` : ""}
             ${uvi != null ? `<div class="row"><span class="key">UV index</span><span class="val">${uvi.toFixed(1)}</span></div>` : ""}
-            ${(sunriseStr || sunsetStr) ? `<div class="row"><span class="key">Sun</span><span class="val">${sunriseStr || "—"} ↑ · ${sunsetStr || "—"} ↓</span></div>` : ""}
             ${isFinite(inT) ? `<div class="row"><span class="key">Indoor</span><span class="val">${inT.toFixed(1)}°C${isFinite(inHum) ? " · " + inHum.toFixed(0) + "%" : ""}</span></div>` : ""}`;
     }
 
@@ -2012,15 +2015,17 @@
             .sort((a, b) => a.name.localeCompare(b.name));
         const heating = devices.filter(d => asBool((d.states || {}).hvacHeaterIsOn)).length;
         let lowBatt = 0, errors = 0;
+        const lowNames = [], errNames = [];
         for (const d of devices) {
             if (d.enabled === false) continue;
             const s = d.states || {};
             let pct = null;
             if (typeof d.batteryLevel === "number") pct = d.batteryLevel;
             else if (s.battery != null && !isNaN(parseFloat(s.battery))) pct = parseFloat(s.battery);
-            if (pct != null && pct > 0 && pct < 20) lowBatt++;
-            else if (asBool(s.batteryLow)) lowBatt++;
-            if (d.errorState && d.errorState !== "") errors++;
+            if ((pct != null && pct > 0 && pct < 20) || asBool(s.batteryLow)) {
+                lowBatt++; lowNames.push(String(d.name || ""));
+            }
+            if (d.errorState && d.errorState !== "") { errors++; errNames.push(String(d.name || "")); }
         }
         const chip = (href, cls, inner) =>
             `<a class="pulse-chip ${cls}" href="${href}">${inner}</a>`;
@@ -2037,10 +2042,6 @@
             `${DashIcons.svg("flame")} <span class="pc-num">${heating}</span> zone${heating === 1 ? "" : "s"} heating`));
         const fh = fireHeaterChip(devices, ROOMS);
         if (fh) chips.push(chip(fh.href, "warn", `${DashIcons.svg("flame")} ${escapeAttr(fh.text)}`));
-        if (lowBatt) chips.push(chip("system-health.html", "warn",
-            `${DashIcons.svg("battery")} <span class="pc-num">${lowBatt}</span> low battery`));
-        if (errors)  chips.push(chip("system-health.html", "bad",
-            `${DashIcons.svg("warn")} <span class="pc-num">${errors}</span> in error`));
         // VPP chip (v2.66.0) — replaced the grid-carbon chip, which CliveS does
         // not use. Shown ONLY while an Axle window is announced or running, so
         // the row stays short on the days nothing is happening: an always-on
@@ -2057,7 +2058,9 @@
         // Saving Session chip (v3.16.0) — beside the Axle chip, on the same terms.
         const ss = savingSessionChip((_sigen() && _sigen().octopus_sessions) || null, Date.now());
         if (ss) chips.push(chip("energy.html", ss.cls, `${DashIcons.svg("money")} ${ss.text}`));
+        DEVCOUNTS = { lowBatt, errors, lowNames, errNames };
         el.innerHTML = chips.join("");
+        renderAttention();
     }
 
     // Power-cut / storm banner (v2.18.0): shown only when the cached Sigen data

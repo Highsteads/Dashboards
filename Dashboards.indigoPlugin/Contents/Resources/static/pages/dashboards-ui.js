@@ -14,7 +14,8 @@
  *              repaints on a 3-second poll without tearing down animations.
  * Author:      CliveS & Claude Opus 5 (v1.0); Claude Fable 5 (v1.1); Claude Opus 5.5 (v1.2)
  * Date:        23-09-2026
- * Version:     1.2 (tap guard: a scroll touch never presses a tile, and only
+ * Version:     1.3 (swapImage: camera frames cross-fade instead of cutting);
+ *              1.2 (tap guard: a scroll touch never presses a tile, and only
  *              tiles that do something flash); 1.1 (solarHoursChart — the stacked per-string hourly chart,
  *              shared by the Energy card and the hub's Solar · today block)
  */
@@ -82,6 +83,64 @@
 
   function reducedMotion() {
     return !!(root.matchMedia && root.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }
+
+  /* Swap a camera picture for its next frame WITHOUT the cut (v1.3).
+     The next frame is decoded off-screen first, so the tile is never blank
+     while it downloads, then laid over the old one and faded in. When the
+     fade ends the base image takes the new frame and the overlay goes, so at
+     rest there is only ever one <img> per tile. Reduced motion, or a parent
+     that cannot hold an overlay, gets the plain swap.
+
+     Returns a promise of true (swapped), false (skipped: a fade is still
+     running, the tile has gone, or the page is hidden), and rejects when the
+     frame will not load, so the caller can fall back to another address. */
+  var XFADE_MS = 280;
+  function swapImage(img, src) {
+    return new Promise(function (resolve, reject) {
+      if (!img || !img.isConnected || img._xfading) { resolve(false); return; }
+      var next = new root.Image();
+      if (img.crossOrigin) next.crossOrigin = img.crossOrigin;
+      next.onerror = function () { reject(new Error('frame failed')); };
+      next.onload = function () {
+        if (!img.isConnected) { resolve(false); return; }
+        var parent = img.parentElement;
+        var style = root.getComputedStyle && parent ? root.getComputedStyle(parent) : null;
+        var canOverlay = parent && style && style.position !== 'static';
+        if (reducedMotion() || !canOverlay || !img.getAttribute('src')) {
+          img.src = src; resolve(true); return;
+        }
+        img._xfading = true;
+        var top = doc.createElement('img');
+        top.alt = '';
+        top.setAttribute('aria-hidden', 'true');
+        top.className = 'dash-xfade';
+        top.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:' +
+          (root.getComputedStyle(img).objectFit || 'cover') + ';opacity:0;pointer-events:none;' +
+          'transition:opacity ' + XFADE_MS + 'ms ease;';
+        top.src = next.src;
+        parent.appendChild(top);
+        var finished = false;
+        var finish = function () {
+          if (finished) return;
+          finished = true;
+          img.src = src;
+          // One frame later, so the base has painted the new picture before
+          // the overlay leaves — otherwise the old frame blinks back.
+          root.requestAnimationFrame(function () {
+            if (top.parentNode) top.parentNode.removeChild(top);
+            img._xfading = false;
+            resolve(true);
+          });
+        };
+        top.addEventListener('transitionend', finish);
+        root.setTimeout(finish, XFADE_MS + 150);   // a hidden tab never fires transitionend
+        root.requestAnimationFrame(function () {
+          root.requestAnimationFrame(function () { top.style.opacity = '1'; });
+        });
+      };
+      next.src = src;
+    });
   }
 
   /* Headline numbers update immediately. Custom graphical apply callbacks may tween.
@@ -1230,6 +1289,7 @@
     setText: setText,
     tweenNumber: tweenNumber,
     reducedMotion: reducedMotion,
+    swapImage: swapImage,
     flowDiagram: flowDiagram,
     forecastBars: forecastBars,
     solarHoursChart: solarHoursChart,
