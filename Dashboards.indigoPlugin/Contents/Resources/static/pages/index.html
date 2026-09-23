@@ -338,6 +338,10 @@
             -webkit-tap-highlight-color: transparent;
         }
         .dash-card:active { transform: scale(0.98); }
+        /* v3.24.0 — a dash-card that is not a link (the insights card) does
+           nothing when pressed, so it must not look pressable. */
+        div.dash-card { cursor: default; }
+        div.dash-card:active { transform: none; }
         .dash-card h3 {
             font-size: 12px; font-weight: 700; text-transform: uppercase;
             letter-spacing: 0.6px; color: var(--text-secondary);

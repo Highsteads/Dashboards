@@ -8,10 +8,10 @@ Browser dashboards for [Indigo Domotics](https://www.indigodomo.com/), built for
 wall, a phone in your pocket and a Mac on the desk. No app to install, no cloud account,
 nothing leaving the house.
 
-<img src="https://img.shields.io/badge/version-3.22.1-5856d6" alt="Version 3.22.1">
+<img src="https://img.shields.io/badge/version-3.24.0-5856d6" alt="Version 3.24.0">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-27-0a84ff" alt="27 pages">
-<img src="https://img.shields.io/badge/tests-752%20passing-30d158" alt="752 tests passing">
+<img src="https://img.shields.io/badge/tests-1469%20passing-30d158" alt="1469 tests passing">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
 
 <br><br>
@@ -22,7 +22,7 @@ nothing leaving the house.
 
 ---
 
-**Version:** 3.23.2
+**Version:** 3.24.0
 
 **Documentation:** **[highsteads.github.io/Dashboards](https://highsteads.github.io/Dashboards/)** —
 getting started, configuration, a page of notes for every one of the 27 pages, cameras, remote
@@ -68,11 +68,11 @@ with a gentle state simulator, touching no live devices.
 The three most recent releases, word for word. Every release before these is in
 **[the version history](docs/changelog.md)**, which the documentation site also carries.
 
+**3.24.0** (23-Sep-2026) - **Scrolling on a phone no longer presses the tiles you brush past, and tiles that do nothing no longer flash when touched.** A finger that landed on a switch tile on its way down the page could still switch it, and every tile lit up the moment it was touched, so a scroll looked like a string of presses. A touch now only counts as a press when the finger stays put: one that slides more than a few millimetres, moves the page, or lands while the page is still gliding from a swipe is ignored, before the tile ever sees it. The flash now comes after a press that got through, and only on something that acts, so reading tiles, a door that is already moving and the plain cards stay still. A mouse or keyboard works exactly as before.
+
 **3.23.2** (22-Sep-2026) - **A camera that is off the network now says so in plain words.** When a camera could not be reached, the log said "snapshot failed: unexpected content-type" followed by two quote marks, which told you nothing. It now says "no picture from the camera: go2rtc could not reach it". Nothing else changes.
 
 **3.23.1** (22-Sep-2026) - **The plugin is ready about a second sooner after a restart, and a slow Sigenergy answer is logged once instead of twice.** At start-up the plugin used to spend a second waiting to be sure the video service had not fallen over, then copied two small files the live camera page needs. Both now happen in the background, so everything else, including the camera snapshots, starts straight away. And when SigenEnergyManager was too busy to answer, the log carried two amber lines for the one fault; it now carries one. Nothing you can see on the pages changes.
-
-**3.23.0** (22-Sep-2026) - **A reading tile that shows a time now says it the way a person would.** A favourite reading whose value is a bare date and time, such as the doorbell's last ring, used to show it raw as 2026-09-22 13:00:30. It now reads "1pm today", "4:15pm yesterday", "Monday at 9:30am", or the date for anything older than a week. It is worked out each time the page refreshes, so "today" becomes "yesterday" overnight on its own. Every other reading shows exactly as before.
 
 ## A look around
 

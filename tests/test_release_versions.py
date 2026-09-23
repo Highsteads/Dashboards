@@ -59,6 +59,9 @@ def _tracked():
         # keeps only the newest few under "What's new"); both are tracked, and
         # test_docs_site.py pins the two to the same text.
         _find(CHANGELOG, r'^\*\*([0-9]+(?:\.[0-9]+)+)\*\*', "docs/changelog.md newest entry"),
+        # The shields.io badge at the top of the README. Nothing watched it,
+        # and it sat on 3.22.1 for three releases (found 23-09-2026).
+        _find(README, r'img\.shields\.io/badge/version-([0-9][0-9.]*)-', "README version badge"),
     ]
 
 
@@ -74,7 +77,7 @@ def test_tracked_version_declarations_match():
 def test_the_tracked_scan_is_not_vacuous():
     """A pattern that matches nothing would make the test above pass silently."""
     legs = _tracked()
-    assert len(legs) == 6, legs
+    assert len(legs) == 7, legs
     assert all(v for _, v in legs), legs
 
 

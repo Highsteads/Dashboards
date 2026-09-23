@@ -12,9 +12,10 @@
  *              The diagram builds its SVG ONCE and thereafter writes only
  *              attributes and styles, so it can sit inside a card that
  *              repaints on a 3-second poll without tearing down animations.
- * Author:      CliveS & Claude Opus 5 (v1.0); Claude Fable 5 (v1.1)
- * Date:        13-08-2026
- * Version:     1.1 (solarHoursChart — the stacked per-string hourly chart,
+ * Author:      CliveS & Claude Opus 5 (v1.0); Claude Fable 5 (v1.1); Claude Opus 5.5 (v1.2)
+ * Date:        23-09-2026
+ * Version:     1.2 (tap guard: a scroll touch never presses a tile, and only
+ *              tiles that do something flash); 1.1 (solarHoursChart — the stacked per-string hourly chart,
  *              shared by the Energy card and the hub's Solar · today block)
  */
 
@@ -882,15 +883,68 @@
     });
   }
 
-  /* ---- press feedback (v2.97.0) ---------------------------------------
-     A tap on a phone left nothing behind: :active ends with the finger, and
-     a tile that switches something takes a moment to come back with its new
-     state, so the honest answer to "did that press land?" was "wait and see".
-     One delegated listener marks whatever was pressed for a fifth of a
-     second — long enough to see, short enough not to look stuck. The style
-     is injected from here so every page has it without 20 copies. */
-  var PRESS_SEL = '.fav-tile, .nav-btn, .card, .menu-tile, .menu-back, .door-btn, ' +
-                  '.dash-card, .camera-card, .home-cam, button, .tile';
+  /* ---- tap guard + press feedback (v3.24.0) ----------------------------
+     Two faults on a phone, one cause: the pages reacted to a finger LANDING
+     rather than to a tap.
+       1. A tile that switches something could fire when a finger only
+          brushed it on the way down the page. A short drag, or the touch
+          that stops a page still gliding, can still arrive as a click.
+       2. Every tile flashed the instant it was touched (v2.97.0 marked it on
+          pointerdown), reading tiles included, so scrolling lit the page up
+          and looked like a string of presses.
+     So a click from a finger is now thrown away, before any page handler
+     sees it, when the finger travelled more than TAP_SLOP_PX, when anything
+     scrolled while it was down, or when the page was still gliding from a
+     swipe as it landed. The flash now marks a tap that got through, on an
+     element that actually does something. Mouse and keyboard clicks are
+     never judged: neither of them can be a scroll.
+     The CSS :active shrink on tiles is switched off on touch screens for
+     the same reason — it cannot tell a tap from a scroll either. */
+  var TAP_SLOP_PX      = 10;    // about the browsers' own touch slop
+  var SCROLL_SETTLE_MS = 250;   // a touch this soon after a glide is stopping it
+  var PRESS_SEL = '.fav-tile, .nav-btn, .card, .menu-back, .door-btn, ' +
+                  '.dash-card, .camera-card, .home-cam, button';
+  /* Tiles that look like buttons but do nothing when pressed: a reading, a
+     door already moving or in an unknown state, a lock with nothing to do,
+     and anything the action veil has already taken over. */
+  var INERT_SEL = '.fav-reading, .fav-door-opening, .fav-door-closing, ' +
+                  '.fav-door-moving, .fav-door-unknown, .fav-door-unlocked, ' +
+                  '.dsh-act-sending, .dsh-act-working, [aria-disabled="true"], :disabled';
+  /* Controls whose clicks are not taps on a tile: typing and sliders. */
+  var FIELD_SEL = 'textarea, select, input:not([type="checkbox"]):not([type="radio"])' +
+                  ':not([type="button"]):not([type="submit"])';
+  /* Everything whose :active rule moves, dims or brightens it. On a touch
+     screen those rules fire under a scrolling finger too, so there the
+     confirmed-tap flash stands in for all of them. (A few small buttons also
+     change colour on :active; that part is left alone, since only the page
+     knows what colour to go back to.) */
+  var TOUCH_TILE_SEL = '.fav-tile, .card, .dash-card, .camera-card, .home-cam, ' +
+                       'a.pulse-chip, .scene-btn, .nav-btn, .door-btn, .ctrl-btn, ' +
+                       '.cam-btn, .mcard, .money-link, .back-to-top';
+
+  /* The decision on its own, so a test can drive it without a DOM.
+     p = { travel, scrolledWhileDown, downAt, glideAt } — glideAt is when the
+     last scroll that followed a swipe happened (-Infinity if none). */
+  function isScrollTouch(p) {
+    if (!p) return false;
+    if (p.travel > TAP_SLOP_PX) return true;
+    if (p.scrolledWhileDown) return true;
+    return (p.downAt - p.glideAt) < SCROLL_SETTLE_MS;
+  }
+
+  /* Does pressing this element do anything? A button or link does unless it
+     is marked inert; any other element only when it carries a handler or
+     calls itself a button. "It has a pointer cursor" is not enough — the
+     hub's insights card has one and does nothing. */
+  function isActionable(el) {
+    if (!el || typeof el.matches !== 'function') return false;
+    try { if (el.matches(INERT_SEL)) return false; } catch (e) { return false; }
+    var tag = el.tagName;
+    if (tag === 'BUTTON') return true;
+    if (tag === 'A') return el.hasAttribute('href');
+    return el.hasAttribute('onclick') || el.getAttribute('role') === 'button';
+  }
+
   function pressFeedback() {
     var d = root.document;
     // Presentation only, and it runs on load in every context this file is
@@ -902,19 +956,69 @@
     root.__dashPressWired = true;
     var st = d.createElement('style');
     st.textContent =
+      'html{-webkit-tap-highlight-color:transparent}' +
       '.dash-pressed{transform:scale(.96)!important;' +
       'box-shadow:0 0 0 2px var(--accent,#4da3ff) inset,0 2px 10px rgba(0,0,0,.25)!important;' +
       'filter:brightness(1.12);transition:transform .06s ease-out,box-shadow .06s ease-out!important}' +
+      '@media (hover: none){' + TOUCH_TILE_SEL.split(', ').map(function (s) {
+        return s + ':active';
+      }).join(',') + '{transform:none!important;filter:none!important;opacity:1!important}}' +
       '@media (prefers-reduced-motion: reduce){.dash-pressed{transform:none!important}}';
     d.head.appendChild(st);
-    var clear;
+
+    var press = null;            // the finger currently down, if any
+    var swiped = false;          // the last press ended in a scroll
+    var glideAt = -Infinity;     // last scroll that belongs to that swipe
+    var CAP = { passive: true, capture: true };
+
     d.addEventListener('pointerdown', function (ev) {
+      if (!ev || (ev.pointerType !== 'touch' && ev.pointerType !== 'pen')) { press = null; return; }
+      press = { x: ev.clientX, y: ev.clientY, travel: 0, scrolledWhileDown: false,
+                downAt: Date.now(), glideAt: swiped ? glideAt : -Infinity };
+    }, CAP);
+    d.addEventListener('pointermove', function (ev) {
+      if (!press || !ev) return;
+      var dx = ev.clientX - press.x, dy = ev.clientY - press.y;
+      press.travel = Math.max(press.travel, Math.sqrt(dx * dx + dy * dy));
+    }, CAP);
+    d.addEventListener('pointercancel', function () {
+      // The browser took the gesture for a scroll. No click should follow,
+      // and if one does it is not a tap.
+      if (press) press.scrolledWhileDown = true;
+      swiped = true;
+    }, CAP);
+    d.addEventListener('pointerup', function () {
+      if (press && (press.scrolledWhileDown || press.travel > TAP_SLOP_PX)) swiped = true;
+      else if (press) swiped = false;
+    }, CAP);
+    d.addEventListener('scroll', function () {
+      glideAt = Date.now();
+      if (press) { press.scrolledWhileDown = true; swiped = true; }
+    }, CAP);
+
+    // Registered before the flash, and in the capture phase, so a rejected
+    // click never reaches a page handler, an inline onclick or a link.
+    d.addEventListener('click', function (ev) {
+      var p = press;
+      press = null;
+      if (!p || !ev || !ev.target) return;               // mouse, keyboard, or no press seen
+      if (Date.now() - p.downAt > 5000) return;           // stale — not this click
+      if (ev.target.closest && ev.target.closest(FIELD_SEL)) return;
+      if (!isScrollTouch(p)) return;
+      ev.preventDefault();
+      ev.stopImmediatePropagation();
+    }, { capture: true });
+
+    // One timer PER ELEMENT: a single shared one meant a second tap within
+    // 220 ms cancelled the first tile's clear, leaving it shrunk until pressed
+    // again.
+    d.addEventListener('click', function (ev) {
       var el = ev && ev.target && ev.target.closest && ev.target.closest(PRESS_SEL);
-      if (!el) return;
+      if (!isActionable(el)) return;
       el.classList.add('dash-pressed');
-      clearTimeout(clear);
-      clear = setTimeout(function () { el.classList.remove('dash-pressed'); }, 220);
-    }, { passive: true, capture: true });
+      clearTimeout(el.__dashPressT);
+      el.__dashPressT = setTimeout(function () { el.classList.remove('dash-pressed'); }, 220);
+    }, CAP);
   }
   if (root.document && typeof root.document.addEventListener === 'function') {
     if (root.document.readyState === 'loading') {
@@ -1012,6 +1116,9 @@
     streamBudget: streamBudget,
     forgetBw: forgetBw,
     pressFeedback: pressFeedback,
+    isScrollTouch: isScrollTouch,
+    isActionable: isActionable,
+    TAP_SLOP_PX: TAP_SLOP_PX,
     LIVE_TILE_KBPS: LIVE_TILE_KBPS,
     idleGuard: idleGuard,
     lanUrl: lanUrl,

@@ -18,10 +18,18 @@
 #              again handling Digest auth server-side. The page uses MJPEG
 #              for the live grid and falls back to the still snapshot if a
 #              stream connection fails.
-# Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.23.2); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
-# Date:        22-09-2026
-# Version:     3.23.2
+# Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.24.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
+# Date:        23-09-2026
+# Version:     3.24.0
 #
+# v3.24.0 (23-09-2026): A TAP GUARD FOR PHONES. dashboards-ui.js throws away a
+#   click from a finger that travelled more than 10 px, that scrolled anything
+#   while it was down, or that landed on a page still gliding from a swipe,
+#   before any page handler sees it. The press flash (v2.97.0) now marks a
+#   tap that got through, on an element that does something, instead of every
+#   touch; reading tiles, moving doors and plain cards no longer flash, and
+#   the CSS :active shrink on tiles is off on touch screens. Pages only; no
+#   server change.
 # v3.23.2 (22-09-2026): A PLAIN SNAPSHOT WARNING. When a camera is off the
 #   network go2rtc answers /api/frame.jpeg with an empty 200 and no
 #   Content-Type, which the poller reported as "unexpected content-type ''".
@@ -1197,7 +1205,7 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION = "3.23.2"
+PLUGIN_VERSION = "3.24.0"
 # Pages are mirrored into Web Assets/public/dashboards/ so IWS serves them
 # WITHOUT HTTP Basic Auth. Indigo only treats the global /public/ namespace
 # as anonymous — per-plugin `public/` subfolders still require auth.
