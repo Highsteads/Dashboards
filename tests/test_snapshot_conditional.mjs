@@ -63,7 +63,7 @@ const num = re => { const m = re.exec(code); return m ? Number(m[1]) : null; };
 // different shape could pass. These run the page's own snapshotUrl,
 // wantsFullSize, startStill and clearTileTimers in a sandbox with a fake
 // network and a fake clock, and look at what they actually DO.
-function makeSandbox({ thumbs = true, hidden = false } = {}) {
+function makeSandbox({ thumbs = true, hidden = false, swap = null } = {}) {
     let now = 1_700_000_000_000;
     const timers = [];                 // {id, at, fn}
     let nextId = 1;
@@ -74,6 +74,7 @@ function makeSandbox({ thumbs = true, hidden = false } = {}) {
         const listeners = {};
         return {
             src: "", crossOrigin: "", onload: null, onerror: null,
+            getAttribute(k) { return k === "src" ? this.src : null; },
             addEventListener(t, fn) { (listeners[t] = listeners[t] || []).push(fn); },
             fire(t) { const l = listeners[t] || []; listeners[t] = []; l.forEach(fn => fn()); },
         };
@@ -91,6 +92,7 @@ function makeSandbox({ thumbs = true, hidden = false } = {}) {
         setTimeout: (fn, ms) => { const id = nextId++; timers.push({ id, at: now + (ms || 0), fn }); return id; },
         clearTimeout: id => { const i = timers.findIndex(t => t.id === id); if (i >= 0) timers.splice(i, 1); },
         document: { hidden },
+        window: swap ? { DashUI: { swapImage: swap } } : {},
         URL: { createObjectURL: b => { const u = "blob:" + created.length; created.push(u); return u; },
                revokeObjectURL: u => revoked.push(u) },
         fetch: (url, opts) => new Promise((resolve, reject) => requests.push({ url, opts, resolve, reject })),
@@ -273,6 +275,32 @@ console.log("\nblob lifetime — a frame a second leaks fast if this slips");
     await sb.answer(sb.requests[2], 200, "C");
     sb.img.fire("error");
     check(sb.revoked.includes("blob:2"), "a frame that fails to decode is let go too");
+}
+
+console.log("\nthe cross-fade path keeps the same blob discipline (v3.38.0)");
+{
+    const answers = [];
+    const swap = (img, url) => new Promise((ok, bad) => answers.push({ img, url, ok, bad }));
+    const sb = makeSandbox({ swap });
+    sb.api.startStill("10.0.0.1");
+    await sb.settle();
+    await sb.answer(sb.requests[0], 200, "A");
+    sb.img.fire("load");                         // first frame: no picture yet, so a plain swap
+    check(sb.img.src === "blob:0" && answers.length === 0, "the first frame is shown directly", `${sb.img.src} ${answers.length}`);
+    await sb.advance(1000);
+    await sb.answer(sb.requests[1], 200, "B");
+    check(answers.length === 1 && answers[0].url === "blob:1", "the next one cross-fades");
+    check(sb.revoked.length === 0, "the old frame is held while it fades");
+    answers[0].img.src = "blob:1"; answers[0].ok(true); await sb.settle();
+    check(sb.revoked.includes("blob:0") && !sb.revoked.includes("blob:1"), "and let go once the fade is done");
+    await sb.advance(1000);
+    await sb.answer(sb.requests[2], 200, "C");
+    answers[1].ok(false); await sb.settle();
+    check(sb.revoked.includes("blob:2"), "a frame skipped mid-fade is handed straight back");
+    await sb.advance(1000);
+    await sb.answer(sb.requests[3], 200, "D");
+    answers[2].bad(new Error("x")); await sb.settle();
+    check(sb.revoked.includes("blob:3") && !sb.revoked.includes("blob:1"), "a frame that fails is let go, the shown one kept");
 }
 
 console.log("\na hidden tab spends nothing but keeps its place");

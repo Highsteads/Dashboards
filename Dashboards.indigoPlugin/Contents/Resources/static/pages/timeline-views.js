@@ -285,13 +285,11 @@
                    { label: "min", data: mins, borderWidth: 0, pointRadius: 0, fill: false },
                    { label: prettyState(current.state), data: avg, borderColor: accent, borderWidth: 2, pointRadius: 0,
                      tension: 0.25, fill: false }];
-            if (chart) chart.destroy();
-            chart = new root.Chart($("canvas"), {
+            chart = root.DashUI.chartRender($("canvas"), {
                 type: "line",
                 data: { labels, datasets: series },
                 options: {
                     responsive: true, maintainAspectRatio: false,
-                    animation: root.DashUI.reducedMotion() ? false : { duration: 450, easing: "easeOutCubic" },
                     interaction: { mode: "index", intersect: false },
                     plugins: { legend: { display: false } },
                     scales: {

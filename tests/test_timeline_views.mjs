@@ -98,7 +98,8 @@ console.log("\nChart opens a device from a deep link");
         console, Date, Promise, Object, JSON, Math, String, Number, isFinite, parseFloat,
         document: { documentElement: {} },
         getComputedStyle: () => ({ getPropertyValue: () => "#123456" }),
-        DashUI: { esc: s => String(s == null ? "" : s), reducedMotion: () => true, message: async () => ({}), poll: () => ({ stop() {} }) },
+        DashUI: { esc: s => String(s == null ? "" : s), reducedMotion: () => true, message: async () => ({}), poll: () => ({ stop() {} }),
+                  chartRender: (cv, cfg) => new ctx.Chart(cv, cfg) },
         Chart: function () { this.destroy = () => {}; },
         calls,
     };

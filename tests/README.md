@@ -67,6 +67,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_fav_spoken_when.mjs` | Contract test for spokenWhen() (v3.23.0) — a reading favourite |
 | `test_fire_heater_chip.mjs` | Contract test for the hub's fire-heater chip (index.html |
 | `test_fire_heater_line.mjs` | Contract test for the living room fire's tile line (room.html |
+| `test_flow_motion.mjs` | The power-flow diagram's motion (v3.38.0). The dots used to be |
 | `test_footer_stable_height.mjs` | The cameras page footer must not change height (v2.99.1). |
 | `test_freshness_indicator.mjs` | Contract test for the "not updating" status line on mains.html |
 | `test_getdevices.mjs` | Node contract test for dashboard.js getDevices() delta-merge — |

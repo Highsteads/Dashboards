@@ -120,7 +120,10 @@
           (root.getComputedStyle(img).objectFit || 'cover') + ';opacity:0;pointer-events:none;' +
           'transition:opacity ' + XFADE_MS + 'ms ease;';
         top.src = next.src;
-        parent.appendChild(top);
+        // Straight after the picture, so badges and buttons drawn later in
+        // the tile stay on top of the fade.
+        if (img.insertAdjacentElement) img.insertAdjacentElement('afterend', top);
+        else parent.appendChild(top);
         var finished = false;
         var finish = function () {
           if (finished) return;
@@ -142,6 +145,39 @@
       };
       next.src = src;
     });
+  }
+
+  /* ---- charts that change rather than rebuild (v3.38.0) ----------------
+     Every chart on these pages was destroyed and drawn again on each
+     refresh, so bars regrew from nothing and lines redrew from the left
+     every few minutes. chartRender keeps the chart and hands it the new
+     figures, so each bar or point eases from where it was to where it is.
+     A chart whose shape changed (a different type or number of series) is
+     rebuilt, since there is nothing to ease between. One motion for every
+     chart: 650 ms, easing out, and none at all with reduced motion. */
+  var CHART_MS = 650;
+  function chartAnimation() {
+    return reducedMotion() ? false : { duration: CHART_MS, easing: 'easeOutQuart' };
+  }
+  function chartRender(canvas, config) {
+    var C = root.Chart;
+    if (!C || !canvas || !config) return null;
+    config.options = config.options || {};
+    if (config.options.animation === undefined) config.options.animation = chartAnimation();
+    var old = C.getChart ? C.getChart(canvas) : null;
+    var ds = (config.data && config.data.datasets) || [];
+    if (old && old.config.type === config.type && old.data.datasets.length === ds.length) {
+      old.data.labels = config.data.labels;
+      ds.forEach(function (d, i) {
+        var o = old.data.datasets[i];
+        Object.keys(d).forEach(function (k) { o[k] = d[k]; });
+      });
+      old.options = config.options;
+      old.update();
+      return old;
+    }
+    if (old) old.destroy();
+    return new C(canvas, config);
   }
 
   /* Headline numbers update immediately. Custom graphical apply callbacks may tween.
@@ -265,13 +301,14 @@
            'L' + r1(hub.x - ux * endR) + ' ' + r1(hub.y - uy * endR);
   }
 
-  /* Dashes per second. Flat below 100 W so a trickle still visibly creeps,
-     square-rooted above it so the middle of the range spreads out instead of
-     everything under 2 kW looking the same. */
+  /* How fast the dots travel, in SVG units a second. Square-rooted so the
+     middle of the range spreads out instead of everything under 2 kW looking
+     the same, with a floor so a trickle still visibly creeps. */
   var FLOW_FULL_W = 8000;
-  function flowDuration(watts) {
+  var FLOW_GAP    = 16;      /* one dot every 16 units: must match stroke-dasharray */
+  function flowSpeed(watts) {
     var t = Math.sqrt(Math.min(FLOW_FULL_W, Math.abs(watts)) / FLOW_FULL_W);
-    return (2.2 - 1.75 * t).toFixed(2) + 's';
+    return 7 + 33 * t;
   }
   function flowWidth(watts) {
     var t = Math.sqrt(Math.min(FLOW_FULL_W, Math.abs(watts)) / FLOW_FULL_W);
@@ -307,15 +344,16 @@
     '.fdg-ring-bg{fill:none;stroke:var(--off-color,#d2d2d7);stroke-width:3}',
     '.fdg-ring{fill:none;stroke-width:3;stroke-linecap:round;transition:stroke .4s}',
     '.fdg-track{fill:none;stroke:var(--off-color,#d2d2d7);stroke-width:2;opacity:.5}',
-    '.fdg-flow{fill:none;stroke-linecap:round;stroke-dasharray:9 20;opacity:0;',
-    'animation:fdg-march 1s linear infinite;',
-    'transition:stroke-width .45s ease,opacity .3s ease,stroke .45s ease}',
-    '@keyframes fdg-march{to{stroke-dashoffset:-29}}',
+    /* Round dots rather than dashes, moved frame by frame (see the motion
+       loop in flowDiagram) so a change of power eases the speed instead of
+       jumping the dots, and a reversal slows through a stop. */
+    '.fdg-flow{fill:none;stroke-linecap:round;stroke-dasharray:1 15;opacity:0;',
+    'transition:stroke-width .6s ease,opacity .6s ease,stroke .6s ease}',
     /* Bigger type on a phone: the SVG scales down with the viewport, so the
        17 px value would land around 10 px on a 380 px screen. */
     '@media(max-width:560px){.fdg-val{font-size:23px}.fdg-lab{font-size:13px}',
     '.fdg-sub{font-size:13px}.fdg use{stroke-width:1.4}}',
-    '@media(prefers-reduced-motion:reduce){.fdg-flow{animation:none;stroke-dasharray:none}}',
+    '@media(prefers-reduced-motion:reduce){.fdg-flow{stroke-dasharray:none}}',
     '.fcb-lab{fill:var(--text-muted,#98989d)}',
     '.fcb-empty{fill:var(--text-secondary,#86868b);font-size:13px}',
     '.fcb-axis{stroke:var(--border-soft,#e8e8ed);stroke-width:1}',
@@ -435,20 +473,60 @@
       };
     }
 
+    /* ── the motion loop ──
+       Each leg keeps an offset and a velocity. The velocity eases towards the
+       leg's target every frame, so new figures from a poll change the speed
+       smoothly, and a flow that turns round (the battery going from charging
+       to discharging) slows to a stop and sets off the other way instead of
+       snapping. The old CSS animation could not do either: changing its
+       duration jumped every dot to a new place on each poll. The loop stops
+       when nothing is moving, when the tab is hidden (the browser stops
+       calling it) and for good when the diagram is taken off the page. */
+    var legs = {};
+    var raf = null, lastT = 0;
+    function frame(t) {
+      raf = null;
+      if (!svg.isConnected) return;
+      var dt = lastT ? Math.min(0.1, (t - lastT) / 1000) : 0;
+      lastT = t;
+      var k = 1 - Math.exp(-dt * 3), moving = false;
+      Object.keys(legs).forEach(function (key) {
+        var L = legs[key];
+        L.v += (L.target - L.v) * k;
+        if (Math.abs(L.v) < 0.05 && L.target === 0) L.v = 0;
+        // A leg with somewhere to go counts as moving even before it has
+        // speed: the very first frame has no elapsed time, and treating that
+        // as "at rest" stopped the loop before a single dot moved.
+        if (L.target !== 0) moving = true;
+        if (L.v !== 0) {
+          moving = true;
+          L.off = (L.off + L.v * dt) % FLOW_GAP;
+          L.el.style.strokeDashoffset = L.off.toFixed(2);
+        }
+      });
+      if (moving) raf = root.requestAnimationFrame(frame);
+      else lastT = 0;
+    }
+    function kick() {
+      if (raf || reducedMotion() || !root.requestAnimationFrame) return;
+      raf = root.requestAnimationFrame(frame);
+    }
+
     /* One leg: colour, direction, speed and thickness from the signed watts.
-       `inward` is the direction the path itself was drawn (node -> hub), so a
-       flow going the other way just plays the same animation in reverse. */
+       `inward` is the direction the path itself was drawn (node -> hub); a
+       negative offset velocity carries the dots that way. */
     function setLeg(key, watts, colour, inward) {
       var flow = el['flow_' + key];
       if (!flow) return;
+      var L = legs[key] || (legs[key] = { el: flow, off: 0, v: 0, target: 0 });
       var live = Math.abs(watts) >= DEADBAND_W;
       flow.style.opacity = live ? '1' : '0';
-      if (!live) return;
-      flow.style.stroke = colour;
-      flow.style.strokeWidth = flowWidth(watts);
-      flow.style.animationDirection = inward ? 'normal' : 'reverse';
-      var dur = flowDuration(watts);
-      if (flow.style.animationDuration !== dur) flow.style.animationDuration = dur;
+      L.target = live ? (inward ? -1 : 1) * flowSpeed(watts) : 0;
+      if (live) {
+        flow.style.stroke = colour;
+        flow.style.strokeWidth = flowWidth(watts);
+      }
+      kick();
     }
 
     function fmt(w) {
@@ -516,7 +594,7 @@
       }
     }
 
-    return { el: el.svg, update: update };
+    return { el: el.svg, update: update, _legs: legs };
   }
 
 
@@ -1173,6 +1251,8 @@
     tweenNumber: tweenNumber,
     reducedMotion: reducedMotion,
     swapImage: swapImage,
+    chartAnimation: chartAnimation,
+    chartRender: chartRender,
     flowDiagram: flowDiagram,
     forecastBars: forecastBars,
     solarHoursChart: solarHoursChart,

@@ -1671,7 +1671,7 @@ function chartColours() {
 
 const CHART_BASE = {
   responsive: true, maintainAspectRatio: false,
-  animation: { duration: matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 200 },
+  animation: DashUI.chartAnimation(),
   interaction: { mode: 'index', intersect: false },
   scales: {
     x: { ticks: { color: cssVar('--text-secondary', '#586574'), maxRotation: 0, autoSkipPadding: 20 }, grid: { color: 'rgba(100,116,139,.08)' } },
@@ -1707,8 +1707,8 @@ async function refreshCharts() {
     // average kW per half-hour slot = kWh × 2
     const pvKw = slots.map(s => (s.pv_kwh || 0) * 2);
 
-    /* Skip the full destroy/recreate when nothing changed: the 5-min poll
-       mostly re-sees identical slots, and a rebuild re-ran the entry animation. */
+    /* Skip the update when nothing changed: the 5-min poll mostly re-sees
+       identical slots. When something did, chartRender eases the bars. */
     const _sig = JSON.stringify([BATTERY_KWH, labels[0], labels[labels.length - 1], socEnd[socEnd.length - 1],
                                  pvKw.length, currentRange, document.documentElement.dataset.theme || ""]);
     if (window._energySig === _sig && energyChart) return;
@@ -1726,8 +1726,7 @@ async function refreshCharts() {
        slot. Battery flow comes from the SOC delta, which the slots already
        carry. */
     const bal = DashCalc.buildBalanceSeries(slots, BATTERY_KWH);
-    if (energyChart) energyChart.destroy();
-    energyChart = new Chart(document.getElementById('chart-energy'), {
+    energyChart = DashUI.chartRender(document.getElementById('chart-energy'), {
       type: 'bar',
       data: { labels, datasets: [
         { label: 'Solar',            data: bal.solar,      backgroundColor: C.pv,   stack: 'in' },
@@ -1761,8 +1760,7 @@ async function refreshDailyChart() {
     const records = d.records || [];
     const labels = records.map(r2 => r2.date.slice(5));
     const C = chartColours();
-    if (dailyChart) dailyChart.destroy();
-    dailyChart = new Chart(document.getElementById('chart-daily'), {
+    dailyChart = DashUI.chartRender(document.getElementById('chart-daily'), {
       type: 'bar',
       data: { labels, datasets: [
         { label: 'Solar', data: records.map(r2 => r2.pv_kwh), backgroundColor: C.pv },

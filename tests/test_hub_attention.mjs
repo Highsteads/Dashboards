@@ -170,9 +170,12 @@ console.log("\nDashUI.swapImage cross-fades, and falls back cleanly");
 
     const parent = mkEl("div"); parent.pos = "relative";
     const img = mkEl("img"); img.src = "old.jpg"; img.attrs.src = "old.jpg"; img.parentElement = parent;
+    const badge = mkEl("span"); parent.appendChild(badge);            // drawn after the picture
+    img.insertAdjacentElement = (where, n) => { n.parentNode = parent; parent.children.unshift(n); };
     const p = DashUI.swapImage(img, "new.jpg");
     await new Promise(r => setTimeout(r, 5));
-    checkEq("the next frame is laid over the old one", parent.children.length, 1);
+    checkEq("the next frame is laid over the old one", parent.children.length, 2);
+    check("straight after the picture, under the badge", parent.children[1] === badge);
     checkEq("it starts transparent", parent.children[0].style.cssText.includes("opacity:0"), true);
     checkEq("the old frame is still showing", img.src, "old.jpg");
     const second = await DashUI.swapImage(img, "newer.jpg");
@@ -182,13 +185,13 @@ console.log("\nDashUI.swapImage cross-fades, and falls back cleanly");
     parent.children[0].listeners.transitionend();
     checkEq("the base takes the new frame", img.src, "new.jpg");
     flush();                                  // overlay leaves one frame later
-    checkEq("and the overlay goes, one <img> at rest", parent.children.length, 0);
+    checkEq("and the overlay goes, one <img> at rest", parent.children.length, 1);
     checkEq("resolves true", await p, true);
 
     reduced = true;
     const img2 = mkEl("img"); img2.src = "a.jpg"; img2.attrs.src = "a.jpg"; img2.parentElement = parent;
     checkEq("reduced motion swaps straight away", await DashUI.swapImage(img2, "b.jpg"), true);
-    checkEq("with no overlay", parent.children.length, 0);
+    checkEq("with no overlay", parent.children.length, 1);
     checkEq("and the new frame showing", img2.src, "b.jpg");
 
     loadOk = false; reduced = false;

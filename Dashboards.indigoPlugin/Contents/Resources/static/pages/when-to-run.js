@@ -230,10 +230,9 @@
             const sig = fc.map(e => e.from + e.intensity).join(",");
             if (chart && chartSig === sig && root.Chart.getChart(cv)) return;
             chartSig = sig;
-            const old = root.Chart.getChart(cv); if (old) old.destroy();
             const bestFrom = best && best.from;
             const muted = getComputedStyle(document.documentElement).getPropertyValue("--text-secondary").trim() || "#86868b";
-            chart = new root.Chart(cv.getContext("2d"), {
+            chart = DashUI().chartRender(cv, {
                 type: "bar",
                 data: { labels: fc.map(e => localHM(e.from)), datasets: [{ data: fc.map(e => e.intensity),
                     backgroundColor: fc.map(e => idxColour(e.index)), borderRadius: 3,
@@ -242,7 +241,6 @@
                     categoryPercentage: 1, barPercentage: 0.9 }] },
                 options: {
                     responsive: true, maintainAspectRatio: false,
-                    animation: DashUI().reducedMotion() ? false : { duration: 500, easing: "easeOutCubic" },
                     plugins: { legend: { display: false }, tooltip: { callbacks: {
                         label: it => it.raw + " gCO₂/kWh (" + fc[it.dataIndex].index + ")" } } },
                     scales: {

@@ -983,15 +983,25 @@
                     markRefreshed();
                     if (st.mode !== "still" || st.paused) return;   // mode changed mid-fetch
                     const url = URL.createObjectURL(blob);
-                    const done = () => {
+                    const adopt = () => {
                         // Revoke the PREVIOUS object URL only once the new one is
-                        // decoded, or the tile blanks between the two.
-                        if (st.objUrl) URL.revokeObjectURL(st.objUrl);
+                        // showing, or the tile blanks between the two.
+                        if (st.objUrl && st.objUrl !== url) URL.revokeObjectURL(st.objUrl);
                         st.objUrl = url;
                     };
-                    img.addEventListener("load", done, { once: true });
-                    img.addEventListener("error", () => URL.revokeObjectURL(url), { once: true });
-                    img.src = url;
+                    const ui = window.DashUI;
+                    if (ui && ui.swapImage && img.getAttribute("src")) {
+                        // Cross-fade into the new frame (v3.38.0) rather than
+                        // cutting to it. A frame that arrives mid-fade is
+                        // skipped, and its blob handed straight back.
+                        ui.swapImage(img, url)
+                            .then(ok => { if (ok) adopt(); else URL.revokeObjectURL(url); })
+                            .catch(() => URL.revokeObjectURL(url));
+                    } else {
+                        img.addEventListener("load", adopt, { once: true });
+                        img.addEventListener("error", () => URL.revokeObjectURL(url), { once: true });
+                        img.src = url;
+                    }
                     st.frames = (st.frames || 0) + 1;
                 })
                 .catch(e => { _stillFailed(st, (e && e.name === "AbortError") ? "timed out" : "unreachable"); })
