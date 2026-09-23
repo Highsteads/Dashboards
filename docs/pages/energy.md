@@ -22,7 +22,7 @@ full-width strip under the header says so, and the status pills carry a matching
 days of backup at the current draw, and the inverter's working mode. Solar, grid, home and battery
 each show instantaneous watts and today's running total; the battery also shows percentage and kWh
 stored. Dots travel along each line in the direction the power is going, faster and thicker
-the more there is, easing when it changes and slowing to a stop before a flow turns round. Four tiles under it: self-sufficiency today, solar today against forecast, benefit today,
+the more there is, easing when it changes and slowing to a stop before a flow turns round. Four tiles under it: self-sufficiency today (which says "grid charged the battery" when a night's cheap-rate charge is why it reads low), solar today against forecast, benefit today,
 and battery state of charge with what it is doing.
 
 **Today.** A Sankey of where every kWh since midnight came from and went, with a note stating the

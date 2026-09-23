@@ -410,7 +410,7 @@ h1 .dsh-icon {width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;
     <div id="flow-mount"></div>
 
     <div class="hero-stats">
-      <div class="hs-tile" data-help-title="Self-sufficiency today" data-help="Percentage of today's home consumption met without grid import: (home − import) ÷ home.">
+      <div class="hs-tile" data-help-title="Self-sufficiency today" data-help="Percentage of today's home consumption met without grid import: (home − import) ÷ home. On a day the grid also charges the battery it can supply more than the house used, and this reads low or 0%; the line under it then says so. That energy runs the house later.">
         <div class="hs-lab">Self-sufficiency</div>
         <div class="hs-val" id="hs-ss" style="color:var(--on-color)">&#8212;</div>
         <div class="hs-sub" id="hs-ss-sub">today</div>
@@ -1254,6 +1254,11 @@ function update(d) {
     tweenNumber(document.getElementById('hs-ss'), s.self_suff, { decimals: 1, suffix: '%', duration: 700 });
     const bar = document.getElementById('hs-ss-bar');
     if (bar) bar.style.width = Math.min(100, s.self_suff) + '%';
+    // A low figure on a grid-charged-battery day says why (v3.40.0).
+    const why = DashCalc.selfSuffReason(s);
+    setText('hs-ss-sub', why ? 'today · ' + why.short : 'today');
+    const tile = document.getElementById('hs-ss').closest('.hs-tile');
+    if (tile) tile.title = why ? why.long : '';
   }
   if (s.pv_kwh != null) {
     tweenNumber(document.getElementById('hs-pv'), s.pv_kwh, { decimals: 1, duration: 700 });

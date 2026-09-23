@@ -1011,7 +1011,9 @@
         // Sigen economics/self-suff/optimiser (slow-changing, from the cached API)
         const m = _sigenMoney();
         const benefitStr = (m && m.benefit != null) ? "£" + Number(m.benefit).toFixed(2) : null;
-        const ssStr      = (m && m.selfSuff != null) ? Number(m.selfSuff).toFixed(0) + "%" : null;
+        const ssStr      = (m && m.selfSuff != null)
+            ? Number(m.selfSuff).toFixed(0) + "%" + (m.selfSuffWhy ? ` <span class="muted" title="${escapeAttr(m.selfSuffWhy.long)}">· ${escapeAttr(m.selfSuffWhy.short)}</span>` : "")
+            : null;
         let rateStr = (m && m.rateP != null) ? Number(m.rateP).toFixed(1) + "p" : null;
         if (rateStr && m.tomorrowP != null) {
             const diff = Number(m.tomorrowP) - Number(m.rateP);
@@ -1278,8 +1280,19 @@
                 // than waiting for the next device poll.
                 try { renderWeatherSolar(); } catch (_) { /* optional */ }
             }
-        } catch (_) { /* Sigen data is optional — never blocks the hub */ }
+            _sigenRetries = 0;
+        } catch (e) {
+            // Sigen data is optional — never blocks the hub. But the first ask
+            // after a plugin restart answers "still fetching", and the next
+            // poll is 30 s away, so the money rows sat empty that long. Try
+            // again in 3 s, a few times, then leave it to the poll (v3.40.0).
+            if (e && e.status === 503 && _sigenRetries < 5) {
+                _sigenRetries++;
+                setTimeout(_refreshSigen, 3000);
+            }
+        }
     }
+    let _sigenRetries = 0;
     function _sigenMoney() {
         const d = _sigen();
         if (!d) return null;
@@ -1287,7 +1300,7 @@
         const ts = d.today_summary || {};
         const tar = d.tariff || {};
         const dec = d.decision || {};
-        return { benefit: econ.solar_benefit_gbp, selfSuff: ts.self_suff,
+        return { benefit: econ.solar_benefit_gbp, selfSuff: ts.self_suff, selfSuffWhy: DashCalc.selfSuffReason(ts),
                  rateP: tar.today_p, tomorrowP: tar.tomorrow_p, action: dec.action,
                  // Pack size for the battery's "x kWh stored" line. The Sigen
                  // DEVICE does not expose capacity, only the API does, so this
@@ -1303,7 +1316,9 @@
     async function _refreshOwm() {
         try {
             const r = await fetch("weather.json?t=" + Date.now(), { cache: "no-store" });
-            if (r.ok) window.__OWM_DATA = await r.json();
+            // In demo mode the sample's sun times are a summer day's; the hub
+            // shows today's instead (v3.40.0). A real install is untouched.
+            if (r.ok) window.__OWM_DATA = DashUI.demoWeather(await r.json());
         } catch (_) { /* OWM is optional — never blocks the page */ }
     }
 

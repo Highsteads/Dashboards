@@ -8,7 +8,7 @@ Browser dashboards for [Indigo Domotics](https://www.indigodomo.com/), built for
 wall, a phone in your pocket and a Mac on the desk. No app to install, no cloud account,
 nothing leaving the house.
 
-<img src="https://img.shields.io/badge/version-3.39.1-5856d6" alt="Version 3.39.1">
+<img src="https://img.shields.io/badge/version-3.40.0-5856d6" alt="Version 3.40.0">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-21-0a84ff" alt="21 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
@@ -21,7 +21,7 @@ nothing leaving the house.
 
 ---
 
-**Version:** 3.39.1
+**Version:** 3.40.0
 
 **Documentation:** **[highsteads.github.io/Dashboards](https://highsteads.github.io/Dashboards/)** —
 getting started, configuration, a page of notes for every one of the 21 pages, cameras, remote
@@ -67,11 +67,11 @@ simulator, touching no live devices.
 The three most recent releases, word for word. Every release before these is in
 **[the version history](docs/changelog.md)**, which the documentation site also carries.
 
+**3.40.0** (23-Sep-2026) - **Self-sufficiency says why it is low, and the demo's sun follows the season.** On a day the grid charges the battery overnight, the grid can supply more than the house uses, and self-sufficiency reads 0% on a sunny afternoon. The figure is still counted the same way, but the Energy tile and the hub now add "grid charged the battery", and tapping or hovering gives the numbers: how much came from the grid, how much the house used, and that the stored energy runs the house later. The online demo now works out today's sunrise and sunset instead of showing the summer day its weather sample came from. The screenshots on this page no longer show real people's names or a day's record of who was home: every live page is captured with the names replaced, and the Timeline from the demo. The capture tool also turned out never to have cleaned the plugin's own data (the web server labels those replies differently), and never touched MAC addresses; both are fixed and every screenshot has been retaken. The hub also stops waiting 30 seconds for its money figures after a plugin restart.
+
 **3.39.1** (23-Sep-2026) - **The online demo no longer thinks it came through the Indigo reflector.** Served from GitHub, its address looked like the reflector's, so the demo hub showed the reflector's slow-refresh note. Demo mode fetches nothing from a server, so it now counts as home.
 
 **3.39.0** (23-Sep-2026) - **The demo is back online.** [Try it here](https://highsteads.github.io/Dashboards/demo/demo.html): every page runs in your browser from sample data, with no Indigo server behind it. Demo mode now answers the plugin's own questions (energy, costs, the Timeline, System health, the meters) from sample files as well, so the Energy, Cost, Timeline and System pages work in the demo instead of showing errors, and a demo opened on a real install no longer mixes that house's readings into the made-up ones. The sample data was taken from a real house and cut down before publishing: no record of when anyone was home, no account figures, and an invented activity diary. A test now fails when the online copy falls behind the pages. On the System page, the memory note now gives the Mac's real memory size instead of a stray placeholder.
-
-**3.38.0** (23-Sep-2026) - **Smoother moving pictures.** The dots on the power-flow diagram are now round and glide: when the power changes they speed up or slow down smoothly instead of jumping to new places, and when the battery turns from charging to discharging they slow to a stop and set off the other way. Charts that refresh (the Energy history and daily charts, the Timeline's Chart view and the grid carbon forecast) now ease from their old figures to the new ones instead of being cleared and drawn again, and every chart moves the same way. Still camera pictures on the Cameras page cross-fade from one frame to the next, as the hub and room pages already do. All of it stops if your device is set to reduce motion.
 
 ## A look around
 

@@ -41,5 +41,6 @@ none of this is your house. Tap to exit."
   cuts them down: the Timeline keeps its lights, heating and energy lanes but not presence or
   doors, the Nights view is left out altogether, account figures and outage history are blanked,
   and the activity diary and error log are invented rather than captured.
+- The demo works out today's sunrise and sunset for the north-east of England, so the hub's sun line follows the season rather than the day the weather sample was taken.
 - The online copy is `docs/demo/`, built by `tools/build_demo_site.sh`. A test fails when it falls
   behind the pages, so it cannot quietly go stale.

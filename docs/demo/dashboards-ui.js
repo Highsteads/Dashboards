@@ -147,6 +147,51 @@
     });
   }
 
+  /* ---- demo mode's sun (v3.40.0) --------------------------------------
+     The demo's weather sample was taken on one day, so its sunrise and
+     sunset were that day's for ever: 4:29am and 9:44pm in September. In
+     demo mode the hub works them out for today instead, for a spot in the
+     north-east of England (the region the sample data already names), using
+     the standard sunrise equation. Good to about a minute, which is what
+     the hub shows. */
+  function isDemo() { return (root.INDIGO_CONFIG || {}).apiKey === 'demo'; }
+  var DEMO_LAT = 54.97, DEMO_LON = -1.61;
+  function sunTimes(ms, lat, lon) {
+    var rad = Math.PI / 180;
+    var jd = ms / 86400000 + 2440587.5;
+    var n = Math.round(jd - 2451545.0 - 0.0009 - lon / 360);
+    var jStar = n + 0.0009 - lon / 360;
+    var M = (357.5291 + 0.98560028 * jStar) % 360;
+    var C = 1.9148 * Math.sin(M * rad) + 0.02 * Math.sin(2 * M * rad) + 0.0003 * Math.sin(3 * M * rad);
+    var lam = (M + C + 180 + 102.9372) % 360;
+    var transit = 2451545.0 + jStar + 0.0053 * Math.sin(M * rad) - 0.0069 * Math.sin(2 * lam * rad);
+    var dec = Math.asin(Math.sin(lam * rad) * Math.sin(23.4397 * rad));
+    var cosW = (Math.sin(-0.833 * rad) - Math.sin(lat * rad) * Math.sin(dec)) / (Math.cos(lat * rad) * Math.cos(dec));
+    if (cosW < -1 || cosW > 1) return null;                 /* midnight sun or polar night */
+    var w = Math.acos(cosW) / rad / 360;
+    var toEpoch = function (j) { return Math.round((j - 2440587.5) * 86400); };
+    return { sunrise: toEpoch(transit - w), sunset: toEpoch(transit + w) };
+  }
+  /* UK clocks: BST from 01:00 UTC on the last Sunday of March to 01:00 UTC
+     on the last Sunday of October. Worked out, not looked up, so it needs
+     no time-zone support in the browser. */
+  function ukOffsetSec(ms) {
+    var y = new Date(ms).getUTCFullYear();
+    var lastSun = function (month) {
+      var d = new Date(Date.UTC(y, month + 1, 0, 1));
+      return d.getTime() - d.getUTCDay() * 86400000;
+    };
+    return (ms >= lastSun(2) && ms < lastSun(9)) ? 3600 : 0;
+  }
+  function demoWeather(owm, ms) {
+    if (!owm || !isDemo()) return owm;
+    var now = ms || Date.now();
+    var sun = sunTimes(now, DEMO_LAT, DEMO_LON);
+    var out = Object.assign({}, owm, { tz_offset: ukOffsetSec(now) });
+    if (sun) { out.sunrise = sun.sunrise; out.sunset = sun.sunset; }
+    return out;
+  }
+
   /* ---- charts that change rather than rebuild (v3.38.0) ----------------
      Every chart on these pages was destroyed and drawn again on each
      refresh, so bars regrew from nothing and lines redrew from the left
@@ -1270,6 +1315,10 @@
     tweenNumber: tweenNumber,
     reducedMotion: reducedMotion,
     swapImage: swapImage,
+    isDemo: isDemo,
+    sunTimes: sunTimes,
+    ukOffsetSec: ukOffsetSec,
+    demoWeather: demoWeather,
     chartAnimation: chartAnimation,
     chartRender: chartRender,
     flowDiagram: flowDiagram,

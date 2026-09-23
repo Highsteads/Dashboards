@@ -40,6 +40,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_camera_still_period.mjs` | The cameras page works out a still tile's refresh period in ONE |
 | `test_camera_thumbs.py` | Contract test for the grid thumbnail — the second, smaller copy |
 | `test_camera_webrtc.mjs` | Contract test for the away-from-home WebRTC focused tile |
+| `test_capture_rename.py` | capture_screenshots.py --rename (v1.3): people's names are |
 | `test_carbon_advice.py` | Decision-table test for Plugin._carbon_advice — the run-a-load |
 | `test_carbon_hhmm.py` | _carbon_hhmm — a UTC forecast slot as local HH:MM, with |
 | `test_change_stamp.py` | Contract tests for the v2.70.0 liveness stamp — the tiny |
@@ -120,6 +121,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_script_ticker_handover.py` | v3.31.0 — while the Script Ticker plugin is RUNNING, Dashboards |
 | `test_scripts_match_live.py` | The companion scripts this repo ships in scripts/ must be the |
 | `test_security.py` | Regression tests for the /public credential-leak fixes — the |
+| `test_self_suff_and_demo_sun.mjs` | v3.40.0. (1) A low self-sufficiency figure on a day the grid |
 | `test_settings_fav_passthrough.mjs` | Contract test for the settings editor carrying favourites it |
 | `test_shared_ui_present.mjs` | Every user-facing page must load dashboards-ui.js (v2.97.0). |
 | `test_shutdown_budget.py` | shutdown() must not wait on the snapshot pool. Until 2.95.1 |

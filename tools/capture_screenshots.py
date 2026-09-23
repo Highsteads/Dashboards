@@ -7,7 +7,8 @@
 #              network config.
 # Author:      CliveS & Claude Sonnet 5
 # Date:        10-09-2026
-# Version:     1.2
+# Version:     1.3 (--rename OLD=NEW for people's names; MACs rewritten; header
+#              lookup made case-insensitive — API replies were never being scrubbed)
 #
 # WHY THIS EXISTS
 # The Settings page shows the camera hosts, the router admin link and any
@@ -106,6 +107,21 @@ STREAM_RE = re.compile(r"^/(mjpeg|stream)/")
 BOOTSTRAP_PORT = 8177
 
 
+def header_value(headers, name, default=""):
+    """A response header by name, whatever case the server used."""
+    want = name.lower()
+    for k, v in headers.items():
+        if k.lower() == want:
+            return v
+    return default
+
+
+# A MAC with colon or hyphen separators (v1.3). The proxy only ever rewrote
+# addresses, so the Wi-Fi AP page published the router's real MAC.
+MAC_RE = re.compile(rb"(?<![0-9A-Fa-f:-])(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}(?![0-9A-Fa-f:-])")
+FAKE_MAC_PREFIX = b"02:00:00:00:"
+
+
 class Sanitiser:
     """Maps each real private address to a stable documentation address.
 
@@ -115,11 +131,16 @@ class Sanitiser:
     make an unrelated screenshot wrong.
     """
 
-    def __init__(self):
+    def __init__(self, renames=None):
         self.map = {}
         self.reverse = {}
         self._nets = {}
         self._hosts = {}
+        # --rename OLD=NEW (v1.3): people's names, whole words only, so a
+        # published capture shows "Alex · Home" rather than a real person.
+        self._macs = {}
+        self.renames = [(re.compile(rb"\b" + re.escape(o.encode()) + rb"\b"), n.encode())
+                        for o, n in (renames or [])]
 
     def _fake_for(self, real):
         if real in self.map:
@@ -145,8 +166,31 @@ class Sanitiser:
             return m.group(0)
         return self._fake_for(raw).encode()
 
+    def _mac(self, m):
+        real = m.group(0).lower().replace(b"-", b":")
+        if real.startswith(FAKE_MAC_PREFIX):
+            return m.group(0)
+        if real not in self._macs:
+            n = len(self._macs) + 1
+            self._macs[real] = FAKE_MAC_PREFIX + b"%02x:%02x" % (n // 256, n % 256)
+        return self._macs[real]
+
     def scrub(self, body):
-        return IP_RE.sub(self._sub, body)
+        body = IP_RE.sub(self._sub, body)
+        body = MAC_RE.sub(self._mac, body)
+        for rx, new in self.renames:
+            body = rx.sub(new, body)
+        return body
+
+    def mac_residue(self, body):
+        """Real-looking MACs still present after scrubbing."""
+        return sorted({m.group(0).decode() for m in MAC_RE.finditer(body)
+                       if not m.group(0).lower().replace(b"-", b":").startswith(FAKE_MAC_PREFIX)})
+
+    def name_residue(self, body):
+        """Renamed names still present after scrubbing (the same self-check
+        as residue(), for people rather than addresses)."""
+        return sorted({rx.pattern.decode() for rx, _ in self.renames if rx.search(body)})
 
     def residue(self, body):
         """Private addresses still present AFTER scrubbing.
@@ -331,7 +375,12 @@ def make_handler(upstream, sanitiser, seen_lock, api_key=None, seen_paths=None,
             except Exception as e:                 # upstream down / refused
                 body, status, headers = str(e).encode(), 502, {}
 
-            ctype = headers.get("Content-Type", "")
+            # Case-INSENSITIVE (v1.3). IWS sends "Content-Type" on static
+            # files but "content-type" on every /v2/api and /message/ reply,
+            # so an exact lookup found nothing there and those responses —
+            # device names, states, plugin data — went through unscrubbed
+            # from v1.0 on, self-check included.
+            ctype = header_value(headers, "Content-Type")
             # Only rewrite text. Touching an image or a font would corrupt it,
             # and an address cannot be read off a PNG anyway.
             if sanitise and any(t in ctype
@@ -340,6 +389,8 @@ def make_handler(upstream, sanitiser, seen_lock, api_key=None, seen_paths=None,
                     body = sanitiser.scrub(body)
                     if leaks is not None:
                         leaks.extend(sanitiser.residue(body))
+                        leaks.extend(sanitiser.name_residue(body))
+                        leaks.extend(sanitiser.mac_residue(body))
             # CSS and HTML carry the media queries; the shim goes in the head.
             if scheme and any(t in ctype for t in ("html", "css")):
                 body = scheme_rewrite(body, scheme)
@@ -540,6 +591,10 @@ def main():
                     help="force the page's colour scheme (default: whatever Chrome asks for, "
                          "which is dark). Rewrites the media queries on the way through, so "
                          "the page's own rules are exercised.")
+    ap.add_argument("--rename", action="append", default=[], metavar="OLD=NEW",
+                    help="replace a name, as a whole word, everywhere a response "
+                         "carries it (repeatable). For people's names on the "
+                         "presence chips and in device names.")
     ap.add_argument("--real-time", action="store_true",
                     help="drop --virtual-time-budget, for a page that races a "
                          "wall-clock timer against a real fetch. Virtual time "
@@ -559,7 +614,13 @@ def main():
         sys.exit("--direct cannot sanitise — nothing passes through the proxy. "
                  "Add --no-sanitise if the destination is private.")
 
-    sanitiser = Sanitiser()
+    renames = []
+    for spec in args.rename:
+        if "=" not in spec:
+            sys.exit(f"--rename wants OLD=NEW, got {spec!r}")
+        old, new = spec.split("=", 1)
+        renames.append((old, new))
+    sanitiser = Sanitiser(renames)
     lock = threading.Lock()
     os.makedirs(args.out, exist_ok=True)
     work = os.path.join(args.out, ".capture-tmp")

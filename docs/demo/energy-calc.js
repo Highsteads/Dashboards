@@ -297,6 +297,30 @@
     return Math.max(0, Math.min(100, (homeKwh - (importKwh || 0)) / homeKwh * 100));
   }
 
+  /* ── why self-sufficiency is low (v3.40.0) ──
+     The figure counts every kWh off the grid against what the house used,
+     which is the point of it. But on a tariff that fills the battery from
+     the grid overnight, the grid can supply MORE than the house used in a
+     day, and the figure reads 0% on a sunny afternoon — correct, and no use
+     to anyone without the reason. Returns {short, long} words when a
+     grid-charged battery explains a low figure, or null when it does not.
+     ts: today_summary (home_kwh, import_kwh, battery_charge_kwh, self_suff). */
+  function selfSuffReason(ts) {
+    if (!ts) return null;
+    var home = num(ts.home_kwh), imp = num(ts.import_kwh), chg = num(ts.battery_charge_kwh);
+    var pct = ts.self_suff != null ? num(ts.self_suff) : selfSufficiency(home, imp);
+    if (home == null || imp == null || chg == null || pct == null) return null;
+    if (pct >= 50 || imp < 1 || chg < 1) return null;
+    var r = function (v) { return (Math.round(v * 10) / 10).toFixed(1).replace(/\.0$/, ''); };
+    if (imp >= home) {
+      return { short: 'grid charged the battery',
+               long: 'The grid supplied ' + r(imp) + ' kWh while the house used ' + r(home) +
+                     ' kWh, because it also charged the battery. That energy runs the house later.' };
+    }
+    return { short: 'partly from charging the battery',
+             long: 'Some of the ' + r(imp) + ' kWh from the grid charged the battery, to run the house later.' };
+  }
+
   /* ── solar progress (v1.1): today's cumulative actual vs expected ──
 
      slots         /api/history slots (manager half-hours, local ISO `t`,
@@ -610,6 +634,7 @@
     isoOffset: isoOffset, winSum: winSum, winMoney: winMoney,
     latestStandingP: latestStandingP, latestUnitP: latestUnitP, latestExportP: latestExportP, pctDelta: pctDelta,
     selfSufficiency: selfSufficiency,
+    selfSuffReason: selfSuffReason,
     buildSolarProgress: buildSolarProgress,
     solarTypicalRange: solarTypicalRange,
     buildSolarHours: buildSolarHours,
