@@ -27,32 +27,6 @@
             padding: max(80px, calc(72px + env(safe-area-inset-top))) 0 max(32px, env(safe-area-inset-bottom));
             min-height: 100vh; -webkit-overflow-scrolling: touch;
         }
-        .topbar {
-            position: fixed; top: 0; left: 0; right: 0; z-index: 10;
-            background: var(--card-bg); border-bottom: 1px solid var(--border);
-            box-shadow: var(--shadow);
-            padding: 10px max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left));
-            padding-top: max(10px, env(safe-area-inset-top));
-        }
-        .topbar-inner { max-width: 900px; margin: 0 auto; }
-        .topbar-3col { display: grid; grid-template-columns: 1fr 2fr 1fr; align-items: center; gap: 8px; }
-        .topbar-3col .hdr-left { justify-self: start; display: flex; }
-        .topbar-3col .hdr-right { justify-self: end; display: flex; }
-        .topbar-3col .hdr-center { justify-self: stretch; text-align: center; min-width: 0;
-            display: flex; flex-direction: column; align-items: center; gap: 1px; line-height: 1.15; }
-        .topbar-3col h1 { font-size: 20px; font-weight: 700; margin: 0; letter-spacing: -0.02em;
-            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-        .topbar-status { font-size: 11px; color: var(--text-secondary); font-variant-numeric: tabular-nums;
-            white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
-        .nav-btn {
-            background: var(--card-bg); border: 1px solid var(--border); color: var(--accent);
-            padding: 8px 14px; border-radius: var(--r-md); font-size: 14px; font-weight: 600; cursor: pointer;
-            font-family: inherit; text-decoration: none; display: inline-flex; align-items: center; gap: 4px;
-            min-height: 36px; box-shadow: 0 1px 2px rgba(0,0,0,0.08); white-space: nowrap;
-            transition: transform 0.08s ease-out, background 0.15s, border-color 0.15s;
-        }
-        .nav-btn:hover { background: var(--bg); border-color: var(--accent); }
-        .nav-btn:active { transform: translateY(2px) scale(0.96); background: var(--accent); color: #fff; }
         .container { max-width: 900px; margin: 0 auto;
             padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left)); }
         .bottombar { position: sticky; bottom: 0; z-index: 10; background: var(--card-bg);
@@ -152,15 +126,15 @@
 </head>
 <body>
     <header class="topbar">
-        <div class="topbar-inner topbar-3col">
-            <div class="hdr-left"><a class="nav-btn" href="index.html">&larr; Home</a></div>
-            <div class="hdr-center">
-                <h1>WiFi</h1>
-                <span class="topbar-status">Updated <span id="ts">—</span> · Next <span id="cdwn">—</span>s</span>
-            </div>
-            <div class="hdr-right">
-                <button class="nav-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Top">↑ Top</button>
-            </div>
+        <div class="hdr-left">
+            <a class="nav-btn" href="index.html">&larr; Home</a>
+        </div>
+        <div class="hdr-center">
+            <h1>WiFi</h1>
+            <span class="topbar-status">Updated <span id="ts">—</span> · Next <span id="cdwn">—</span>s</span>
+        </div>
+        <div class="hdr-right">
+            <button class="nav-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Top">↑ Top</button>
         </div>
     </header>
     <div class="container">

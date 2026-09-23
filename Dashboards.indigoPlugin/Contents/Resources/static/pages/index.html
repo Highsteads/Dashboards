@@ -40,91 +40,8 @@
             min-height: 100vh;
             -webkit-overflow-scrolling: touch;
         }
-        .topbar {
-            position: fixed; top: 0; left: 0; right: 0; z-index: 10;
-            background: var(--card-bg);
-            border-bottom: 1px solid var(--border);
-            box-shadow: var(--shadow);
-            padding: 10px max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left));
-            padding-top: max(10px, env(safe-area-inset-top));
-            margin-bottom: 0;
-        }
-        .topbar-inner {
-            display: flex; align-items: center; justify-content: space-between;
-            gap: 10px; flex-wrap: wrap;
-            max-width: 900px; margin: 0 auto;
-        }
-        .topbar h1 { font-size: 18px; font-weight: 600; margin: 0; letter-spacing: -.01em; }
         /* ── 3-column topbar (Back · Title + Updated · Top) ── */
-        .topbar-3col {
-            display: grid;
-            grid-template-columns: 1fr 2fr 1fr;
-            align-items: center;
-            gap: 8px;
-        }
-        .topbar-3col .hdr-left  { justify-self: start; display: flex; }
-        .topbar-3col .hdr-right { justify-self: end;   display: flex; }
-        .topbar-3col .hdr-center {
-            justify-self: stretch;
-            text-align: center;
-            min-width: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 1px;
-            line-height: 1.15;
-        }
-        .topbar-3col h1 {
-            font-size: 20px;
-            font-weight: 700;
-            margin: 0;
-            letter-spacing: -0.02em;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 100%;
-        }
-        .topbar-3col .topbar-status {
-            font-size: 11px;
-            color: var(--text-secondary);
-            font-variant-numeric: tabular-nums;
-            white-space: nowrap;
-            max-width: 100%;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .topbar-status .ts::before {
-            content: '●'; color: var(--on-color); margin-right: 4px;
-            animation: live-pulse 2.4s ease-in-out infinite;
-        }
         @keyframes live-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
-        .nav-btn {
-            background: var(--card-bg);
-            border: 1px solid var(--border);
-            color: var(--accent);
-            padding: 8px 14px;
-            border-radius: var(--r-md);
-            font-size: 14px; font-weight: 600;
-            cursor: pointer;
-            font-family: inherit;
-            text-decoration: none;
-            display: inline-flex; align-items: center; gap: 4px;
-            min-height: 36px;
-            transition: transform 0.08s ease-out, background 0.15s, box-shadow 0.08s, border-color 0.15s;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.08);
-            user-select: none;
-            -webkit-tap-highlight-color: transparent;
-            white-space: nowrap;
-        }
-        .nav-btn:hover  { background: var(--bg); border-color: var(--accent); }
-        .nav-btn:active {
-            transform: translateY(2px) scale(0.96);
-            background: var(--accent); color: #fff;
-            box-shadow: 0 0 0 rgba(0,0,0,0);
-        }
-
-        .hdr-left, .hdr-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-        .topbar-status { font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
         .bottombar {
             position: sticky; bottom: 0; z-index: 10;
             background: var(--card-bg);
@@ -422,7 +339,6 @@
 .reflector-note a { color: inherit; text-decoration: underline; word-break: break-all; }
 #cameras-mosaic.cam-paused .home-cam-frame::after { content: "paused — tap to resume"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.55); color: #fff; font-size: 13px; }
 </style>
-    <link rel="stylesheet" href="dashboards-chrome.css">
 <style>
 
         /* v2.18.0 — power-cut/storm banner; v2.30.0 — hero + linked pulse chips.
@@ -464,19 +380,18 @@
         .pulse-chip.bad  { background:rgba(255,69,58,0.14); border-color:rgba(255,69,58,0.25); color:var(--bad); }
         .pulse-chip .pc-num { font-variant-numeric:tabular-nums; }
     </style>
+<link rel="stylesheet" href="dashboards-chrome.css">
 <link rel="stylesheet" href="dashboard-refresh.css">
 </head>
 <body>
     <header class="topbar">
-        <div class="topbar-inner topbar-3col">
-            <div class="hdr-left"></div>
-            <div class="hdr-center">
-                <h1 id="site-name">Dashboards</h1>
-                <span class="topbar-status"><span class="ts">Updated <span id="ts">—</span></span> · live</span>
-            </div>
-            <div class="hdr-right">
-                <button class="nav-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Back to top">↑ Top</button>
-            </div>
+        <div class="hdr-left"></div>
+        <div class="hdr-center">
+            <h1 id="site-name">Dashboards</h1>
+            <span class="topbar-status"><span class="ts">Updated <span id="ts">—</span></span> · live</span>
+        </div>
+        <div class="hdr-right">
+            <button class="nav-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Back to top">↑ Top</button>
         </div>
     </header>
     <main id="content" class="container">

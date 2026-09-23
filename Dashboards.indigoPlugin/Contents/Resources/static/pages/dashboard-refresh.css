@@ -1,14 +1,9 @@
-/* Home dashboard presentation refresh. No changes to device commands or data. */
+/* Home dashboard presentation refresh. No changes to device commands or data.
+   The top bar, its buttons and the palette now live in dashboards-chrome.css
+   (v3.29.0), shared by every page. */
 :root { --bg:#f3f5f7; --text:#202936; --text-secondary:#586574; --text-muted:#637080; --border-soft:#dfe5eb; --shadow:0 2px 5px #172b4d04,0 8px 28px #172b4d05; --r-lg:20px; --r-xl:24px; }
 body { padding-top:100px; line-height:1.45; }
 .container { max-width:1180px; }
-.topbar { padding-top:14px; padding-bottom:14px; box-shadow:none; }
-.topbar-inner { max-width:1148px; }
-.topbar-3col { grid-template-columns:auto 1fr auto; }
-.topbar-3col .hdr-center { justify-self:start; align-items:flex-start; text-align:left; }
-.topbar-3col h1 { font-size:21px; }
-.topbar-3col .topbar-status { font-size:12px; }
-.nav-btn { min-height:44px; padding:8px 16px; border-radius:12px; box-shadow:none; }
 #hub-hero { max-width:none; padding:26px 28px; margin-bottom:24px; background:var(--card-bg); border:1px solid var(--border-soft); border-radius:24px; box-shadow:var(--shadow); }
 #hero-greet { font-size:clamp(26px,3vw,36px); letter-spacing:-1px; line-height:1.2; }
 #hero-date { margin-top:7px; font-size:15px; }

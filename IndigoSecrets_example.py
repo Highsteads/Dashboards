@@ -125,9 +125,6 @@ LONGITUDE = 0.0
 # ============================
 # Dashboards plugin (optional)
 # Required by: Dashboards plugin (com.clives.indigoplugin.dashboards)
-# SIGEN_DASHBOARD_URL  — URL of an external Sigenergy mini-dashboard reached
-#                        via the "Open Legacy Sigen Dashboard" menu item.
-#                        Leave blank to disable the menu item.
 # DASHBOARDS_* below are READ ONCE, on the first start with no
 #                        dashboards_config.json (Dashboards 3.27.0+), and
 #                        copied into it. After that the dashboards' Settings
@@ -141,7 +138,6 @@ LONGITUDE = 0.0
 #                        DAHUA_PASS (despite the name, those work for
 #                        Hikvision too).
 # ============================
-SIGEN_DASHBOARD_URL = ""
 DASHBOARDS_CAMERAS  = ""  # e.g. '[{"host":"192.168.1.50","name":"Door","vendor":"dahua"}]'
 # DASHBOARDS_HIDDEN_SCENES — action groups hidden from the Scenes page.
 #                        Entries match a group name, a group ID (string), or

@@ -31,86 +31,7 @@
             padding: max(80px, calc(72px + env(safe-area-inset-top))) 0 max(32px, env(safe-area-inset-bottom));
             min-height: 100vh; -webkit-overflow-scrolling: touch;
         }
-        .topbar {
-            position: fixed; top: 0; left: 0; right: 0; z-index: 10;
-            background: var(--card-bg);
-            border-bottom: 1px solid var(--border);
-            box-shadow: var(--shadow);
-            padding: 10px max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left));
-            padding-top: max(10px, env(safe-area-inset-top));
-            margin-bottom: 0;
-        }
-        .topbar-inner {
-            display: flex; align-items: center; justify-content: space-between;
-            gap: 10px; flex-wrap: wrap;
-            max-width: 900px; margin: 0 auto;
-        }
-        .topbar h1 { font-size: 18px; font-weight: 600; margin: 0; letter-spacing: -.01em; }
         /* ── 3-column topbar ── */
-        .topbar-3col {
-            display: grid;
-            grid-template-columns: 1fr 2fr 1fr;
-            align-items: center;
-            gap: 8px;
-        }
-        .topbar-3col .hdr-left  { justify-self: start; display: flex; }
-        .topbar-3col .hdr-right { justify-self: end;   display: flex; }
-        .topbar-3col .hdr-center {
-            justify-self: stretch;
-            text-align: center;
-            min-width: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 1px;
-            line-height: 1.15;
-        }
-        .topbar-3col h1 {
-            font-size: 20px;
-            font-weight: 700;
-            margin: 0;
-            letter-spacing: -0.02em;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 100%;
-        }
-        .topbar-3col .topbar-status {
-            font-size: 11px;
-            color: var(--text-secondary);
-            font-variant-numeric: tabular-nums;
-            white-space: nowrap;
-            max-width: 100%;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .nav-btn {
-            background: var(--card-bg);
-            border: 1px solid var(--border);
-            color: var(--accent);
-            padding: 8px 14px;
-            border-radius: var(--r-md);
-            font-size: 14px; font-weight: 600;
-            cursor: pointer;
-            font-family: inherit;
-            text-decoration: none;
-            display: inline-flex; align-items: center; gap: 4px;
-            min-height: 36px;
-            transition: transform 0.08s ease-out, background 0.15s, box-shadow 0.08s, border-color 0.15s;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.08);
-            user-select: none;
-            -webkit-tap-highlight-color: transparent;
-            white-space: nowrap;
-        }
-        .nav-btn:hover  { background: var(--bg); border-color: var(--accent); }
-        .nav-btn:active {
-            transform: translateY(2px) scale(0.96);
-            background: var(--accent); color: #fff;
-            box-shadow: 0 0 0 rgba(0,0,0,0);
-        }
-
-        .hdr-left, .hdr-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-        .topbar-status { font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
         .bottombar {
             position: sticky; bottom: 0; z-index: 10;
             background: var(--card-bg);
@@ -582,7 +503,6 @@
             animation: spin 0.8s linear infinite; margin: 0 auto 12px;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
-    
 
     </style>
     <link rel="stylesheet" href="dashboards-chrome.css">
@@ -650,17 +570,15 @@
     </div>
 
     <header class="topbar">
-        <div class="topbar-inner topbar-3col">
-            <div class="hdr-left">
-                <a class="nav-btn" href="index.html">&larr; Home</a>
-            </div>
-            <div class="hdr-center">
-                <h1>Room</h1>
-                <span class="topbar-status">Updated <span id="ts">—</span> · Next refresh <span id="cdwn">—</span>s</span>
-            </div>
-            <div class="hdr-right">
-                <button class="nav-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Back to top">↑ Top</button>
-            </div>
+        <div class="hdr-left">
+            <a class="nav-btn" href="index.html">&larr; Home</a>
+        </div>
+        <div class="hdr-center">
+            <h1>Room</h1>
+            <span class="topbar-status">Updated <span id="ts">—</span> · Next refresh <span id="cdwn">—</span>s</span>
+        </div>
+        <div class="hdr-right">
+            <button class="nav-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Back to top">↑ Top</button>
         </div>
     </header>
     <div class="container">

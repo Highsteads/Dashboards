@@ -75,7 +75,6 @@ def config_plugin(tmp_path):
     p.custom_links = []
     p.guest_token = "g"
     p.main_cameras = []
-    p.sigen_legacy_url = ""
     p.lan_ip = "192.168.1.10"
     p.pluginVersion = "0.0.0-test"
     p._load_config_store = lambda: {}

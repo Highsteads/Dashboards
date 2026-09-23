@@ -41,44 +41,6 @@
             padding: max(80px, calc(72px + env(safe-area-inset-top))) 0 max(32px, env(safe-area-inset-bottom));
             min-height: 100vh; -webkit-overflow-scrolling: touch;
         }
-        .topbar {
-            position: fixed; top: 0; left: 0; right: 0; z-index: 10;
-            background: var(--card-bg);
-            border-bottom: 1px solid var(--border);
-            box-shadow: var(--shadow);
-            padding: 10px max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left));
-            padding-top: max(10px, env(safe-area-inset-top));
-        }
-        .topbar-3col {
-            display: grid; grid-template-columns: 1fr 2fr 1fr;
-            align-items: center; gap: 8px;
-            max-width: 900px; margin: 0 auto;
-        }
-        .topbar-3col .hdr-left  { justify-self: start; display: flex; }
-        .topbar-3col .hdr-right { justify-self: end;   display: flex; }
-        .topbar-3col .hdr-center {
-            justify-self: stretch; text-align: center; min-width: 0;
-            display: flex; flex-direction: column; align-items: center;
-            gap: 1px; line-height: 1.15;
-        }
-        .topbar-3col h1 {
-            font-size: 20px; font-weight: 700; margin: 0;
-            letter-spacing: -0.02em; white-space: nowrap;
-            overflow: hidden; text-overflow: ellipsis; max-width: 100%;
-        }
-        .topbar-3col .topbar-status {
-            font-size: 11px; color: var(--text-secondary);
-            font-variant-numeric: tabular-nums; white-space: nowrap;
-            max-width: 100%; overflow: hidden; text-overflow: ellipsis;
-        }
-        .nav-btn {
-            background: var(--card-bg); border: 1px solid var(--border);
-            color: var(--accent); padding: 8px 14px; border-radius: var(--r-md);
-            font-size: 14px; font-weight: 600; cursor: pointer;
-            text-decoration: none; display: inline-flex; align-items: center;
-            font-family: inherit;
-        }
-        .nav-btn:active { background: var(--accent); color: #fff; }
         main { max-width: 900px; margin: 0 auto; padding: 0 16px; }
         .folder { margin-bottom: 24px; }
         .folder h2 {
@@ -126,21 +88,20 @@
             max-width: 86vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
         #toast.show { opacity: 1; }
-    
 
     </style>
     <link rel="stylesheet" href="dashboards-chrome.css">
 </head>
 <body>
     <header class="topbar">
-        <div class="topbar-3col">
-            <div class="hdr-left"><a class="nav-btn" href="index.html">&larr; Home</a></div>
-            <div class="hdr-center">
-                <h1>Scenes</h1>
-                <div class="topbar-status" id="status">Loading&hellip;</div>
-            </div>
-            <div class="hdr-right"></div>
+        <div class="hdr-left">
+            <a class="nav-btn" href="index.html">&larr; Home</a>
         </div>
+        <div class="hdr-center">
+            <h1>Scenes</h1>
+            <div class="topbar-status" id="status">Loading&hellip;</div>
+        </div>
+        <div class="hdr-right"></div>
     </header>
 
     <main id="content"><div class="loading">Loading scenes&hellip;</div></main>

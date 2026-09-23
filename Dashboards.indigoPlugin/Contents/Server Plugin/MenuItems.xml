@@ -6,11 +6,6 @@
         <CallbackMethod>menuOpenDashboards</CallbackMethod>
     </MenuItem>
 
-    <MenuItem id="menuOpenSigenLegacy">
-        <Name>Open Sigenergy Battery Dashboard (legacy)</Name>
-        <CallbackMethod>menuOpenSigenLegacy</CallbackMethod>
-    </MenuItem>
-
     <MenuItem id="menuRegenerateConfig">
         <Name>Regenerate Config + Resync Pages</Name>
         <CallbackMethod>menuRegenerateConfig</CallbackMethod>

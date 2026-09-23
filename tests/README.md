@@ -96,6 +96,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_no_private_strings.py` | This repository is public. Nothing in it may carry a real |
 | `test_offpath_pool.py` | No /message/ handler may do slow work on the dispatch path. One |
 | `test_page_count_claims.py` | Every place the docs say how many pages the plugin ships agrees |
+| `test_page_frame.py` | Every page's top bar matches the Energy page (v3.29.0): one |
 | `test_parse_cameras.py` | Contract test for the module-level _parse_cameras — JSON-string vs |
 | `test_pending_retry_client.mjs` | dashboard.js's _fetch must wait out a "pending" 503 rather than |
 | `test_pin_redaction.py` | Security contract test for Plugin._parse_lock_code_trigger — the |

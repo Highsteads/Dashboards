@@ -21,10 +21,10 @@ from conftest import bare_plugin, load_plugin_module
 def test_prefs_fill_every_credential_when_there_are_no_secrets():
     p = bare_plugin()
     p._resolve_credentials({"indigoUrl": " http://10.0.0.5:8176 ", "indigoApiKey": "k1",
-                            "dahuaUser": "u", "dahuaPass": "pw", "sigenLegacyUrl": "http://x:8179/"}, None)
+                            "dahuaUser": "u", "dahuaPass": "pw"}, None)
     assert p.api_url == "http://10.0.0.5:8176"
     assert p.api_key == "k1" and p.cam_user == "u" and p.cam_pass == "pw"
-    assert p.sigen_legacy_url == "http://x:8179/"
+    assert not hasattr(p, "sigen_legacy_url"), "the legacy Sigen menu item went in v3.29.0"
 
 
 def test_blank_url_means_the_local_server():

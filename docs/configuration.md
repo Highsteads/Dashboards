@@ -27,7 +27,6 @@ There are three places a setting can come from, and one of them wins.
 | Indigo API URL | The REST base URL, e.g. `http://192.168.1.10:8176`. Blank means the local server on port 8176 |
 | Indigo API Key | The Bearer token the plugin uses for its own diagnostics and the guest passthrough. Never written into any public file |
 | Camera User / Password | One set of camera credentials, shared across every camera. Works for Dahua and Hikvision |
-| Sigen Dashboard URL | Optional link to a legacy Sigenergy mini-dashboard, for the matching menu item |
 | Cameras (JSON) | The camera list, for installs that have never saved from Settings — see below |
 | Swap-Out Host | A camera that can replace another in the hub's strip |
 | Hidden Scenes (JSON) | Action-group names or ids to keep off the Scenes page |
@@ -150,7 +149,6 @@ on the Settings page owns them and the keys are no longer read. A hand edit of
 | `DASHBOARDS_MAIN_CAMERAS` | Host addresses for the hub's strip (imported once) |
 | `DASHBOARDS_ROOM_EXTRAS` | The per-room extras dictionary (imported once) |
 | `DASHBOARDS_HIDDEN_SCENES` | Action groups to keep off the Scenes page (imported once) |
-| `SIGEN_DASHBOARD_URL` | The legacy Sigenergy mini-dashboard link |
 | `OWM_API_KEY` / `LATITUDE` / `LONGITUDE` | OpenWeatherMap and your site's coordinates |
 | `HISTORY_PG_HOST` / `_PORT` / `_USER` / `_PASSWORD` / `_DATABASE` | PostgreSQL, when the SQL Logger writes to Postgres |
 

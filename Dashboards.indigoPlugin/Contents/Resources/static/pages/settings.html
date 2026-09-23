@@ -41,24 +41,6 @@
             padding: max(80px, calc(72px + env(safe-area-inset-top))) 0 110px;
             min-height: 100vh;
         }
-        .topbar {
-            position: fixed; top: 0; left: 0; right: 0; z-index: 10;
-            background: var(--card-bg); border-bottom: 1px solid var(--border);
-            box-shadow: var(--shadow);
-            padding: 10px 16px; padding-top: max(10px, env(safe-area-inset-top));
-        }
-        .topbar-3col {
-            display: grid; grid-template-columns: 1fr 2fr 1fr; align-items: center;
-            gap: 8px; max-width: 980px; margin: 0 auto;
-        }
-        .topbar-3col h1 { font-size: 20px; font-weight: 700; text-align: center; }
-        .topbar-status { font-size: 11px; color: var(--text-secondary); text-align: center; }
-        .nav-btn {
-            background: var(--card-bg); border: 1px solid var(--border);
-            color: var(--accent); padding: 8px 14px; border-radius: var(--r-md);
-            font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none;
-            display: inline-flex; font-family: inherit;
-        }
         main { max-width: 980px; margin: 0 auto; padding: 0 16px; }
         .card {
             background: var(--card-bg); border: 1px solid var(--border);
@@ -120,21 +102,29 @@
         #save-msg.ok  { color: var(--on-color); }
         #save-msg.err { color: var(--err); }
         .loading { color: var(--text-secondary); text-align: center; padding: 48px; }
-    
 
-    </style>
+            /* v3.29.0: a favourites row is six columns wide (140 px and 150 px of
+           them fixed) and ran off a phone screen. Below 600 px the picker,
+           label and extras take a line each and the three buttons share one, and a
+           wide table scrolls inside its card rather than the page sideways. */
+        @media (max-width: 600px) {
+            .fav-row { grid-template-columns: auto auto 1fr !important; }
+            .fav-row > :nth-child(-n+3) { grid-column: 1 / -1; }
+            .card > table { display: block; max-width: 100%; overflow-x: auto; }
+        }
+</style>
     <link rel="stylesheet" href="dashboards-chrome.css">
 </head>
 <body>
     <header class="topbar">
-        <div class="topbar-3col">
-            <div><a class="nav-btn" href="index.html">&larr; Home</a></div>
-            <div>
-                <h1>Settings</h1>
-                <div class="topbar-status" id="source">Loading&hellip;</div>
-            </div>
-            <div></div>
+        <div class="hdr-left">
+            <a class="nav-btn" href="index.html">&larr; Home</a>
         </div>
+        <div class="hdr-center">
+            <h1>Settings</h1>
+            <div class="topbar-status" id="source">Loading&hellip;</div>
+        </div>
+        <div class="hdr-right"></div>
     </header>
 
     <main id="content"><div class="loading">Loading configuration&hellip;</div></main>

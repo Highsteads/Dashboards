@@ -1,12 +1,13 @@
 /* Filename:    dashboards-chrome.css
- * Description: The page frame every dashboard page shares (v3.28.0) — the
- *              "Shared Apple/Safari polish" block that sat, pasted, at the end
- *              of seventeen pages' <style>. Each page links this straight
- *              after that <style>, so it still comes last and wins the same
- *              ties it always did. Page-specific rules stay in the page.
+ * Description: The page frame every dashboard page shares. v1.0 (3.28.0):
+ *              the "Shared Apple/Safari polish" block that sat, pasted, at the
+ *              end of seventeen pages' <style>. v1.1 (3.29.0): the top bar,
+ *              its buttons and the colour palette, all taken from the Energy
+ *              page, so every page looks like it. Each page links this
+ *              straight after its own <style>, so these rules come last.
  * Author:      CliveS & Claude Opus 5.5
  * Date:        23-09-2026
- * Version:     1.0
+ * Version:     1.1
  */
 /* ═══ Shared Apple/Safari polish (v2.25.0) ═════════════════
    Appended uniformly across pages: frosted translucent bars, laptop
@@ -40,4 +41,84 @@ a, button, input, select, textarea { -webkit-tap-highlight-color: transparent; }
         animation-duration: 0.01ms !important;
         scroll-behavior: auto !important;
     }
+}
+
+/* ═══ The top bar and colours, matching the Energy page (v3.29.0) ══════════
+   Energy's header, its buttons and dashboard-refresh.css's palette, with the
+   values as they finally apply on that page. Every page's header uses the
+   same markup:
+     <header class="topbar">
+       <div class="hdr-left">…</div>
+       <div class="hdr-center"><h1>…</h1><span class="topbar-status">…</span></div>
+       <div class="hdr-right">…</div>
+     </header>
+   The pages used to carry five to nine drifted versions of these rules.
+   Descendants are wrapped in :where() to keep their specificity low, so a
+   page's own state styling (.topbar-status.stale, say) still wins. */
+:root {
+    --bg: #f3f5f7; --text: #202936; --text-secondary: #586574; --text-muted: #637080;
+    --border-soft: #dfe5eb; --shadow: 0 2px 5px #172b4d04, 0 8px 28px #172b4d05;
+    --r-lg: 20px; --r-xl: 24px;
+    /* Energy's deeper status colours (energy-refresh.css), readable on white. */
+    --on-color: #267347; --good: #267347; --ok: #267347; --solar: #956000;
+    --warn: #995900; --bad: #bb3029;
+}
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #11151b; --card-bg: #1b222b; --card-bg-alt: #242e39; --text: #f1f5fa;
+        --text-secondary: #bac5d1; --text-muted: #a8b5c4; --border-soft: #35404d;
+        --on-color: #81d5a5; --good: #81d5a5; --ok: #81d5a5; --solar: #ffca70;
+        --warn: #ffc378; --bad: #ff9a92; --accent: #b0acff;
+    }
+}
+body { background: var(--bg); color: var(--text); }
+body:has(> header.topbar) { padding-top: 100px; }
+
+header.topbar {
+    display: grid; grid-template-columns: 1fr 2fr 1fr; align-items: center; gap: 8px;
+    box-sizing: border-box; min-height: 74px; margin: 0; max-width: none;
+    padding: 10px max(16px, env(safe-area-inset-right)) 10px max(16px, env(safe-area-inset-left));
+    padding-top: max(10px, env(safe-area-inset-top));
+    position: fixed; top: 0; left: 0; right: 0; z-index: 10;
+    background: var(--card-bg);
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+    border: 0; border-bottom: 1px solid var(--border-soft); border-radius: 0; box-shadow: none;
+}
+:where(header.topbar) .hdr-left { justify-self: start; display: flex; align-items: center; min-width: 0; }
+:where(header.topbar) .hdr-right { justify-self: end; display: flex; align-items: center; gap: 6px; }
+:where(header.topbar) .hdr-center {
+    justify-self: stretch; text-align: center; min-width: 0;
+    display: flex; flex-direction: column; align-items: center; gap: 1px; line-height: 1.15;
+}
+:where(header.topbar) h1 {
+    font-size: 20px; font-weight: 700; margin: 0; letter-spacing: -.02em; line-height: 1.15;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+}
+:where(header.topbar) .topbar-status {
+    font-size: 11px; color: var(--text-secondary); font-variant-numeric: tabular-nums;
+    white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+}
+:where(header.topbar) .topbar-status .ts::before {
+    content: '●'; color: var(--on-color); margin-right: 4px;
+    animation: dash-live-pulse 2.4s ease-in-out infinite;
+}
+@keyframes dash-live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+
+.nav-btn {
+    background: var(--card-bg); border: 1px solid var(--border-soft); color: var(--accent);
+    padding: 8px 16px; border-radius: 12px; font-size: 14px; font-weight: 600; line-height: 1.45;
+    cursor: pointer; font-family: inherit; text-decoration: none;
+    display: inline-flex; align-items: center; gap: 4px; min-height: 44px; box-sizing: border-box;
+    box-shadow: none; white-space: nowrap; user-select: none; -webkit-tap-highlight-color: transparent;
+    transition: transform .08s ease-out, background .15s, border-color .15s;
+}
+.nav-btn:hover { background: var(--card-bg-alt); border-color: var(--accent); }
+.nav-btn:active { transform: translateY(2px) scale(.96); background: var(--accent); color: #fff; }
+
+@media (max-width: 700px) {
+    body:has(> header.topbar) { padding-top: 94px; }
+}
+@media (max-width: 480px) {
+    header.topbar { padding: 8px 12px; padding-top: max(8px, env(safe-area-inset-top)); }
+    :where(header.topbar) h1 { font-size: 15px; }
 }

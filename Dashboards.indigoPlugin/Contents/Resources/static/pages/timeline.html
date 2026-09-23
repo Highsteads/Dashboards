@@ -21,20 +21,6 @@
 html,body{overflow-x:hidden;width:100%;max-width:100vw}
 body{background:var(--bg);color:var(--text);font-family:var(--font-ui);
   font-size:14px;min-height:100vh;-webkit-overflow-scrolling:touch;padding-top:max(80px,calc(72px + env(safe-area-inset-top)))}
-header{display:grid;grid-template-columns:1fr 2fr 1fr;align-items:center;gap:8px;
-  padding:10px max(16px,env(safe-area-inset-right)) 10px max(16px,env(safe-area-inset-left));padding-top:max(10px,env(safe-area-inset-top));
-  position:fixed;top:0;left:0;right:0;z-index:10;background:rgba(249,249,251,0.82);
-  -webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid var(--border-soft)}
-@media (prefers-color-scheme:dark){header{background:rgba(22,22,24,0.80)}}
-.hdr-left{justify-self:start}.hdr-right{justify-self:end}
-.hdr-center{justify-self:stretch;text-align:center;min-width:0;display:flex;flex-direction:column;align-items:center;gap:1px;line-height:1.15}
-header h1{font-size:20px;font-weight:700;letter-spacing:-.02em;white-space:nowrap}
-.topbar-status{font-size:11px;color:var(--text-secondary);white-space:nowrap}
-.nav-btn{background:var(--card-bg);border:1px solid var(--border-soft);color:var(--accent);padding:8px 14px;border-radius: var(--r-md);
-  font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;text-decoration:none;display:inline-flex;align-items:center;gap:4px;
-  min-height:36px;transition:transform .08s ease-out,background .15s,border-color .15s;white-space:nowrap;-webkit-tap-highlight-color:transparent}
-.nav-btn:hover{background:var(--card-bg-alt);border-color:var(--accent)}
-.nav-btn:active{transform:translateY(2px) scale(.96);background:var(--accent);color:#fff}
 .main{padding:16px;display:flex;flex-direction:column;gap:12px;max-width:1000px;margin:0 auto}
 .card{background:var(--card-bg);border:1px solid var(--border-soft);border-radius: var(--r-xl);padding:16px 18px;box-shadow:var(--shadow)}
 
@@ -88,23 +74,27 @@ html{-webkit-text-size-adjust:100%}
 @supports (min-height:100dvh){body{min-height:100dvh}}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){*{transition-duration:.01ms!important;animation-duration:.01ms!important}}
-@media (max-width:520px){
-  header h1{font-size:16px}.main{padding:10px}.now-time{font-size:28px}
+@media (max-width:520px){.main{padding:10px}.now-time{font-size:28px}
   .lane{grid-template-columns:72px 1fr}.lane-lab{font-size:11px}.scrubline{left:72px}
   .tl-axis{grid-template-columns:72px 1fr}
 }
 
-.topbar h1 .dsh-icon,h1 .dsh-icon{width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;opacity:.85}
+h1 .dsh-icon {width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;opacity:.85}
 </style>
+<link rel="stylesheet" href="dashboards-chrome.css">
 </head>
 <body>
-<header>
-  <div class="hdr-left"><a class="nav-btn" href="index.html">&larr; Home</a></div>
-  <div class="hdr-center">
-    <h1><span data-icon="clock"></span> Timeline</h1>
-    <span class="topbar-status" id="status">Loading&#8230;</span>
-  </div>
-  <div class="hdr-right"><a class="nav-btn" href="presence.html">Presence &rarr;</a></div>
+<header class="topbar">
+    <div class="hdr-left">
+        <a class="nav-btn" href="index.html">&larr; Home</a>
+    </div>
+    <div class="hdr-center">
+        <h1><span data-icon="clock"></span> Timeline</h1>
+        <span class="topbar-status" id="status">Loading&#8230;</span>
+    </div>
+    <div class="hdr-right">
+        <a class="nav-btn" href="presence.html">Presence &rarr;</a>
+    </div>
 </header>
 
 <main class="main">

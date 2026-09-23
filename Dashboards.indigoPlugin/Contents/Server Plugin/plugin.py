@@ -18,9 +18,9 @@
 #              again handling Digest auth server-side. The page uses MJPEG
 #              for the live grid and falls back to the still snapshot if a
 #              stream connection fails.
-# Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.28.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
+# Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.29.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
 # Date:        23-09-2026
-# Version:     3.28.0
+# Version:     3.29.0
 #
 # Version history: docs/changelog.md (what each release does, for users) and
 # `git log` (why, for developers). The per-version engineering notes that sat
@@ -99,10 +99,6 @@ try:
 except ImportError:
     DAHUA_PASS = ""
 try:
-    from IndigoSecrets import SIGEN_DASHBOARD_URL
-except ImportError:
-    SIGEN_DASHBOARD_URL = ""
-try:
     from IndigoSecrets import DASHBOARDS_CAMERAS  # JSON-string OR python list
 except ImportError:
     DASHBOARDS_CAMERAS = ""
@@ -164,7 +160,7 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION = "3.28.0"
+PLUGIN_VERSION = "3.29.0"
 # Pages are mirrored into Web Assets/public/dashboards/ so IWS serves them
 # WITHOUT HTTP Basic Auth. Indigo only treats the global /public/ namespace
 # as anonymous — per-plugin `public/` subfolders still require auth.
@@ -608,9 +604,6 @@ class Plugin(indigo.PluginBase):
         # Log level (v2.36.0 — the PluginConfig field existed but was never
         # applied). Guarded coerce; bad/blank value falls back to INFO.
         self._apply_log_level(pluginPrefs.get("logLevel", 20))
-
-        # sigen_legacy_url comes from _resolve_credentials too: empty means
-        # the "Open Legacy Sigen Dashboard" menu item is silently disabled.
 
         # ONE settings store (v3.27.0): dashboards_config.json, written by the
         # Settings page, held in memory as self.cfg_store and read from nowhere
@@ -4089,31 +4082,6 @@ class Plugin(indigo.PluginBase):
                 level="WARNING")
         return True
 
-    def menuOpenSigenLegacy(self, valuesDict=None, typeId=None):
-        """Menu: open the legacy Sigenergy mini-dashboard (configurable URL).
-
-        Resolved from IndigoSecrets.SIGEN_DASHBOARD_URL first, PluginConfig
-        `sigenLegacyUrl` next. If neither is set we log a hint and return —
-        the menu item still exists but is a no-op for users who don't run a
-        Sigen dashboard.
-        """
-        if not self.sigen_legacy_url:
-            log("[Menu] No Sigen dashboard URL configured. Set SIGEN_DASHBOARD_URL "
-                "in IndigoSecrets.py OR fill in Sigen Dashboard URL under Plugins "
-                "-> Dashboards -> Configure.", level="WARNING")
-            return True
-        log(f"[Menu] Legacy Sigen dashboard: {self.sigen_legacy_url}")
-        try:
-            import webbrowser
-            opened = webbrowser.open(self.sigen_legacy_url, new=2)
-            if not opened:
-                log("[Menu] Could not auto-open browser — open the URL above manually",
-                    level="WARNING")
-        except Exception as exc:
-            log(f"[Menu] Browser launch failed ({exc}) — open the URL above manually",
-                level="WARNING")
-        return True
-
     # -----------------------------------------------------------------------
     # EvoHome proxy — hidden HTTP endpoint for the heating dashboard
     # -----------------------------------------------------------------------
@@ -5466,7 +5434,6 @@ class Plugin(indigo.PluginBase):
                          or p("indigoApiKey")).strip()
         self.cam_user = (g("DAHUA_USER") or p("dahuaUser")).strip()
         self.cam_pass = (g("DAHUA_PASS") or p("dahuaPass")).strip()
-        self.sigen_legacy_url = (g("SIGEN_DASHBOARD_URL") or p("sigenLegacyUrl")).strip()
 
     def menuRegenerateConfig(self, valuesDict=None, typeId=None):
         """Menu: re-read IndigoSecrets, rewrite config.js AND re-sync the HTML

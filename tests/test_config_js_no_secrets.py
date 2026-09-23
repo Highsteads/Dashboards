@@ -31,7 +31,6 @@ def _write(tmp_path):
     p.custom_links = []
     p.guest_token = "guest-token-value"
     p.main_cameras = []
-    p.sigen_legacy_url = ""
     p.lan_ip = "192.168.1.10"
     p.pluginVersion = "0.0.0-test"
     p.cfg_store = {"arrayKwp": 14.25}
