@@ -332,17 +332,15 @@ console.log("\nthe bandwidth figure must describe THIS DEVICE");
     const bw = code.slice(code.indexOf("function startBandwidthPoll"));
     check(/_rxBytes\s*\+=\s*blob\.size/.test(code),
           "counts the bytes this page actually downloaded");
-    check(/st\.mode\s*===\s*"live"\)\s*total\s*\+=/.test(bw),
-          "go2rtc's counter is only credited to tiles that really are streaming",
-          "a still tile downloads a small JPEG a second while go2rtc pulls RTSP regardless");
-    // Off-LAN nothing is live, so the whole streams.json poll is dead weight —
-    // one request per second, per phone, for a number nothing reads.
-    check(/anyLive/.test(bw) && /if\s*\(!anyLive\)/.test(bw),
-          "skips the per-second streams.json poll when no tile is live");
-    // Counting the same bytes at both ends of the tick doubled the figure.
-    check((bw.match(/total\s*\+=\s*ownKBs/g) || []).length === 1
-          && (bw.match(/_rxBytes\s*-\s*_rxLast/g) || []).length === 1,
-          "our own bytes are added exactly once per tick");
+    const fnBody = bw.slice(0, bw.indexOf("\n    }\n"));
+    check(!/bytes_recv|_mjpeg|producers/.test(fnBody),
+          "no server-side counter is added to the total at all (v3.36.0)",
+          "every byte this page downloads is already counted on arrival");
+    check(/\(Date\.now\(\) - _healthLastFetch\) > 30000/.test(fnBody),
+          "streams.json is read at most every 30 s, for camera health only");
+    check((fnBody.match(/_rxBytes\s*-\s*_rxLast/g) || []).length === 1
+          && /_setBw\(ownKBs/.test(fnBody),
+          "our own bytes are counted exactly once per tick");
 }
 
 console.log("\na still tile's status dot must reflect the TILE, not the server");

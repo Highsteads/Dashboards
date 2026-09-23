@@ -70,12 +70,12 @@ class HealthMixin:
         """This plugin's own background services (v2.33.0) — the page can then
         say whether the camera pipeline is actually alive, not just assumed."""
         go2 = getattr(self, "_go2rtc_proc", None)
-        mj  = getattr(self, "_mjpeg_server", None)
+        px  = getattr(self, "_proxy_server", None)
         return {
             # Info.plist, which is what Indigo shows (v3.25.0) — the constant can lag it.
             "plugin_version": getattr(self, "pluginVersion", None) or "",
             "go2rtc":         bool(go2 is not None and go2.poll() is None),
-            "mjpeg_proxy":    bool(mj is not None),
+            "proxy":          bool(px is not None),
             "cameras":        len(self.cameras),
         }
 

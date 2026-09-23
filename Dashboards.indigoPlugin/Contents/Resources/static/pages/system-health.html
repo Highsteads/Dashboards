@@ -297,7 +297,7 @@ function render(d) {
     if (loadCls)      issues.push([loadCls, `${I("gear")} Load ${num(l1,2)} on ${cores} cores`]);
     if (errs.length)  issues.push(["bad", `${I("warn")} ${errs.length} device${errs.length===1?"":"s"} in error`]);
     if (lb.length)    issues.push(["warn", `${I("battery")} ${lb.length} low batter${lb.length===1?"y":"ies"}`]);
-    if (svc.cameras && (!svc.go2rtc || !svc.mjpeg_proxy))
+    if (svc.cameras && (!svc.go2rtc || !svc.proxy))
                       issues.push(["warn", `${I("camera")} Camera service down`]);
     const worst = issues.some(i => i[0] === "bad") ? "bad" : issues.length ? "warn" : "good";
     const verdict = worst === "good" ? "All systems healthy"
@@ -395,7 +395,7 @@ function render(d) {
         `<div class="kv"><span>${label}</span><b class="${ok ? "good" : "bad"}">${ok ? okTxt : badTxt}</b></div>`;
     if (svc.cameras) {
         html += svcRow("go2rtc transcoder", svc.go2rtc, "running", "not running");
-        html += svcRow("MJPEG proxy (:8177)", svc.mjpeg_proxy, "listening", "down");
+        html += svcRow("Camera proxy (:8177)", svc.proxy, "listening", "down");
         html += `<div class="kv"><span>Cameras configured</span><b>${svc.cameras}</b></div>`;
     } else {
         html += `<div class="empty">No cameras configured — camera services idle by design.</div>`;

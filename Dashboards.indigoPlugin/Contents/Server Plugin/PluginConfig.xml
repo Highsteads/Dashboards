@@ -164,7 +164,7 @@
 		<Description>Off by default</Description>
 	</Field>
 	<Field id="hlpActivity" type="label" fontSize="mini" alignWithControl="true">
-		<Label>Leave this off and the routine narration - page and asset copies, config.js writes, and the camera poller, MJPEG proxy and go2rtc starting and stopping - is written at Debug, which normally means this plugin's own log file and not the Event Log. Ten to thirteen of them land on every restart, and the Event Log is shared with every other plugin. Tick this while you are setting the plugin up and they go to the Event Log as well. Warnings and errors always go to the Event Log either way, whichever setting you choose.</Label>
+		<Label>Leave this off and the routine narration - page and asset copies, config.js writes, and the camera poller, camera proxy and go2rtc starting and stopping - is written at Debug, which normally means this plugin's own log file and not the Event Log. Ten to thirteen of them land on every restart, and the Event Log is shared with every other plugin. Tick this while you are setting the plugin up and they go to the Event Log as well. Warnings and errors always go to the Event Log either way, whichever setting you choose.</Label>
 	</Field>
 	<Field id="hlpActivityLevel" type="label" fontSize="mini" alignWithControl="true">
 		<Label>This box is not the only switch, so read it together with Log Level below. Log Level sets the lowest level this plugin puts in the Event Log: at Debug the narration goes there whether this box is ticked or not, and at Warning it stays out of the Event Log even when it is ticked. Everything written either way is in this plugin's own log file, at Logs / com.clives.indigoplugin.dashboards / plugin.log.</Label>

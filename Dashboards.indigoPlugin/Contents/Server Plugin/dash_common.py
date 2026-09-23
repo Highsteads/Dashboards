@@ -84,7 +84,7 @@ _COLOUR_LEVEL_KEYS = {
 #   1. IndigoSecrets.DASHBOARDS_CAMERAS (JSON string or list of dicts), or
 #   2. PluginConfig "camerasJson" textfield (JSON list).
 # Each entry must have keys: host, name, vendor ("dahua" or "hikvision").
-# When empty, the camera grid / MJPEG proxy / go2rtc are simply disabled.
+# When empty, the camera grid, WebRTC and go2rtc are simply disabled.
 #
 # Order matters: the first entry is the default "focused" tile on
 # cameras.html — it appears large at the top with the rest as a row of
@@ -98,7 +98,7 @@ CAMERA_POLL_MAX_WORKERS = 9                                # concurrent snapshot
                                                            # overran the 2s interval and each tile only refreshed
                                                            # every ~4.1s (measured); these are all network waits,
                                                            # so overlapping them costs nothing.
-LIVE_POOL_SIZE       = 6                                   # how many cameras run live MJPEG on cameras.html. Browsers cap HTTP/1.1 connections per origin at ~6, so don't exceed that.
+LIVE_POOL_SIZE       = 6                                   # how many cameras run live (WebRTC) on cameras.html at home; the rest poll stills
 CAMERA_HTTP_TIMEOUT  = 15.0                                # per-snapshot timeout (4K snapshots can take 5-10s on busy cams)
 PRESENCE_REFRESH_SECONDS = 300                             # how often to re-run Presence_Watch.py (refreshes presence.json for the Presence tile — live-tonight needs periodic rebuilds)
 LOG_WATCH_REFRESH_SECONDS = 3600                           # how often to re-run Log_Error_Watch.py (hourly by design — it dedupes against its own state file, so a double-run is harmless)
@@ -288,17 +288,17 @@ VENDOR_URLS = {
 # camera by setting `"stream": "main"` in IndigoSecrets.
 CAMERA_DEFAULT_STREAM = "sub2"
 
-# MJPEG proxy: tiny HTTP server bound to this port that streams the camera's
-# multipart/x-mixed-replace response straight to the browser. Same trusted-LAN
-# threat model as /public/dashboards/ — no auth on the proxy itself.
-MJPEG_PROXY_PORT     = 8177
-MJPEG_UPSTREAM_TIMEOUT = 8.0
+# The plugin's own small HTTP server: WebRTC signalling, the API-key and
+# guest bootstraps and the guest read path. LAN and Tailscale sources only;
+# never port-forwarded, never fronted by the reflector. It also carried live
+# MJPEG until v3.36.0.
+PROXY_PORT     = 8177
 
-# go2rtc — WebRTC/low-latency video for live.html. The plugin generates a
+# go2rtc — WebRTC video for the live camera tiles. The plugin generates a
 # config.yaml at startup (RTSP URLs include DAHUA_USER/DAHUA_PASS) and runs
 # go2rtc as a subprocess. Bind addresses:
-#   :1984 — HTTP API + WebRTC signaling (used by the browser)
-#   :8555 — WebRTC media (TCP, served back to the browser)
+#   :1984 — HTTP API, loopback only (signalling reaches it via the :8177 proxy)
+#   :8555 — WebRTC media, UDP and TCP, straight to the browser
 GO2RTC_BIN           = os.path.expanduser("~/bin/go2rtc")
 GO2RTC_API_PORT      = 1984
 # Snapshots are only ever shown in a TILE — the hub's camera strip at ~215px

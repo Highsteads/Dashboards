@@ -14,7 +14,7 @@
 //              regression can never make things worse than v2.64.0).
 // Author:      CliveS & Claude Fable 5
 // Date:        30-07-2026
-// Version:     1.0
+// Version:     2.0 (v3.36.0: WebRTC is the only live mode; the MJPEG floor is gone)
 //
 // Run: node tests/test_camera_webrtc.mjs   (exit 0 = pass)
 
@@ -45,11 +45,11 @@ function fn(name) {
 const countMatches = (hay, re) => (hay.match(re) || []).length;
 
 // ── setPolicy: when may the webrtc slot exist? Executed for real ──
-function runPolicy(cls, rtt, cfgExtra) {
+function runPolicy(cls, rtt, cfgExtra, noRtc) {
     const box = {
         hosts: ["a", "b", "c", "d", "e", "f", "g", "h", "i"],
         cfg: Object.assign({ livePoolSize: 6 }, cfgExtra),
-        window: { RTCPeerConnection: function () {} },
+        window: noRtc ? {} : { RTCPeerConnection: function () {} },
         LINK: null, LIVE_POOL_SIZE: null, DEFAULT_LIVE: null,
         DEFAULT_LIVE_SET: null, LIVE_FOLLOWS_FOCUS: null,
         WEBRTC_FOCUS: null, LAST_RTT: null,
@@ -66,27 +66,32 @@ console.log("\npolicy: the webrtc slot exists ONLY on a measured tunnel link");
 {
     let b = runPolicy("vpn", 245, RTC_CFG);
     check(b.WEBRTC_FOCUS === true && b.LIVE_POOL_SIZE === 0,
-          "measured vpn-far -> webrtc focus, zero MJPEG",
+          "measured vpn-far -> webrtc focus, no pool",
           "this replaces '9 stills' as the 5G experience");
     b = runPolicy("vpn", 116, RTC_CFG);
     check(b.WEBRTC_FOCUS === true && b.LIVE_POOL_SIZE === 0,
-          "measured vpn-near -> webrtc focus too, replacing the single MJPEG tile",
-          "WebRTC drops instead of queueing and costs half the bitrate");
+          "measured vpn-near -> webrtc focus too",
+          "WebRTC drops instead of queueing");
     b = runPolicy("vpn", null, RTC_CFG);
     check(b.WEBRTC_FOCUS === false && b.LIVE_POOL_SIZE === 0,
           "UNMEASURED vpn never opens the webrtc slot",
           "boot's conservative guess must not start any stream, webrtc included");
     b = runPolicy("home", 21, RTC_CFG);
     check(b.WEBRTC_FOCUS === false && b.LIVE_POOL_SIZE === 6,
-          "home is untouched: six MJPEG, no webrtc");
+          "home: a pool of six live tiles, all WebRTC since v3.36.0");
     b = runPolicy("reflector", 10, RTC_CFG);
     check(b.WEBRTC_FOCUS === false && b.LIVE_POOL_SIZE === 0,
           "the reflector never attempts webrtc",
           "ports 8177/8555 are not fronted by it");
     b = runPolicy("vpn", 116, {});
-    check(b.WEBRTC_FOCUS === false && b.LIVE_POOL_SIZE === 1,
-          "no webrtcPath in config -> the old vpn-near single-MJPEG band stands",
-          "an older plugin's config.js must get exactly the v2.64.0 behaviour");
+    check(b.WEBRTC_FOCUS === false && b.LIVE_POOL_SIZE === 0,
+          "no webrtcPath in config -> stills, never an MJPEG band (v3.36.0)");
+    const noRtc = (cls, rtt) => {
+        const box = runPolicy(cls, rtt, RTC_CFG, true);
+        return box.LIVE_POOL_SIZE === 0 && box.WEBRTC_FOCUS === false;
+    };
+    check(noRtc("home", 5) && noRtc("vpn", 116),
+          "a browser without WebRTC gets stills everywhere");
 }
 
 console.log("\nnegotiation shape");
@@ -119,16 +124,37 @@ console.log("\nnegotiation shape");
 
 console.log("\nteardown discipline — count the call sites");
 {
-    // stopWebrtc is called from: startWebrtc (restart safety), startLive,
-    // startStill, pauseTile, and the pagehide loop. webrtcFallback also
-    // calls it before falling back. A stripped site leaks a peer connection.
+    // stopWebrtc is called from: startWebrtc (restart safety), startStill,
+    // pauseTile, and the pagehide loop. webrtcFallback also calls it before
+    // falling back. startLive IS startWebrtc since v3.36.0. A stripped site
+    // leaks a peer connection.
     const sites = countMatches(code, /(?<!function )stopWebrtc\(/g);
-    check(sites === 6, "exactly six stopWebrtc call sites",
-          `found ${sites} (startWebrtc, startLive, startStill, pauseTile, pagehide, webrtcFallback)`);
-    check(/stopWebrtc\(st\)/.test(fn("startLive")), "startLive tears the pc down");
+    check(sites === 5, "exactly five stopWebrtc call sites",
+          `found ${sites} (startWebrtc, startStill, pauseTile, pagehide, webrtcFallback)`);
+    check(/startWebrtc\(host\)/.test(fn("startLive")), "live means WebRTC: startLive opens a peer connection");
     check(/stopWebrtc\(st\)/.test(fn("startStill")), "startStill tears the pc down");
     check(/stopWebrtc\(st\)/.test(fn("pauseTile")),
           "a hidden tab holds no peer connection");
+    {
+        // Executed, not grepped: a text check survived a mutant that
+        // disabled the capture while leaving every string in place.
+        const img = { src: "poster.jpg", onload: 1, onerror: 1 };
+        const st = { mode: "webrtc", videoEl: { videoWidth: 640, videoHeight: 360 }, imgEl: img,
+                     frameEl: { classList: { add() {} } }, bwEl: { style: {} } };
+        const box = {
+            camState: { h: st }, TRANSPARENT_PIXEL: "pixel",
+            clearTileTimers() {}, setMode() {},
+            stopWebrtc(t) { t.videoEl = null; },
+            captureLastFrame() { img.src = "poster-capture"; },
+            document: { createElement: () => ({ getContext: () => ({ drawImage() {} }),
+                                                toDataURL: () => "data:video-frame" }) },
+        };
+        vm.createContext(box);
+        vm.runInContext(fn("pauseTile") + "\npauseTile('h');", box);
+        check(img.src === "data:video-frame",
+              "pausing a live tile keeps the video frame the viewer was looking at",
+              `got ${img.src}: the <img> under the video is the poster from before it went live`);
+    }
     const ph = code.slice(code.indexOf('"pagehide"'), code.indexOf('"visibilitychange"'));
     check(/stopWebrtc\(st\)/.test(ph), "pagehide closes every pc",
           "iOS kills the JS context but the server-side consumer would linger");
@@ -157,19 +183,17 @@ console.log("\nfocus handover");
 console.log("\nfailure ladder and the fallback floor");
 {
     const fb = fn("webrtcFallback");
-    check(/LAST_RTT\s*!=\s*null\s*&&\s*LAST_RTT\s*<=\s*RTT_TUNNEL_MS/.test(fb),
-          "fallback asserts the COMPARISON: near-tunnel -> the single MJPEG tile",
-          "a mutant replacing the band check with true would open MJPEG on 5G");
-    const nearIdx = fb.indexOf("startLive(host)");
-    const farIdx  = fb.indexOf("startStill(host)");
-    check(nearIdx >= 0 && farIdx > nearIdx,
-          "…and far falls to stills — the floor is exactly v2.64.0 behaviour");
+    const poolIdx = fb.indexOf("degradeToStill(host");
+    const awayIdx = fb.indexOf("startStill(host)");
+    check(/LIVE_POOL_SIZE\s*>\s*0\s*&&\s*mayHoldLive\(host\)/.test(fb) && poolIdx >= 0,
+          "a pool tile falls back through the degrade ladder",
+          "which owns its retry and parks it after six failures");
+    check(awayIdx > poolIdx,
+          "the single away tile falls to stills with its own backoff");
+    check(!/startLive|mjpeg/i.test(fb), "and nothing falls back to a stream");
     check(/LIVE_RETRY_BASE_MS\s*\*\s*st\.webrtcFails/.test(fb)
               && /LIVE_RETRY_MAX_MS/.test(fb),
           "retry backoff reuses the live-retry arithmetic, capped");
-    check(!/autoDegraded/.test(fb) && !/autoDegraded/.test(fn("startWebrtc")),
-          "the webrtc ladder never touches autoDegraded",
-          "that flag belongs to the MJPEG ladder and pins 5 s still polls");
     const wd = fn("startStallWatchdog");
     check(/st\.mode\s*===\s*["']webrtc["']/.test(wd)
               && /v\.currentTime\s*>\s*\(st\.lastVideoTime/.test(wd),
@@ -183,14 +207,14 @@ console.log("\nfailure ladder and the fallback floor");
 console.log("\ninstrumentation ties in");
 {
     const ages = fn("tickAges");
-    check(/st\.mode\s*===\s*["']live["']\s*\|\|\s*st\.mode\s*===\s*["']webrtc["']/.test(ages),
-          "the age chip treats webrtc like live: time since last visible change");
+    check(/st\.mode\s*===\s*["']webrtc["']/.test(ages) && !/["']live["']\s*\|\|/.test(ages),
+          "the age chip shows a live tile's time since last visible change");
     const bw = fn("startBandwidthPoll");
     check(/inbound-rtp/.test(bw) && /_rxBytes\s*\+=\s*d/.test(bw),
           "webrtc bytes come from the pc's own counters into the page total",
           "exact measurement, not go2rtc's camera-side ingest");
-    check(/webrtc:\s*["']live · rtc["']/.test(fn("setMode")),
-          "the mode chip says what it is");
+    check(/webrtc:\s*["']live["']/.test(fn("setMode")) && !/\blive:\s*["']/.test(fn("setMode")),
+          "the mode chip calls a WebRTC tile live, and there is no other kind");
 }
 
 done();

@@ -1,13 +1,13 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 # Filename:    cameras_mixin.py
-# Description: Cameras: the go2rtc video service, the :8177 MJPEG proxy and guest
-#              server, the snapshot poller and its thumbnails, and the
+# Description: Cameras: the go2rtc video service, the :8177 proxy (WebRTC
+#              signalling, bootstraps, guest reads), the snapshot poller and its thumbnails, and the
 #              stream and camera-health files the Cameras page reads.
 #              Split out of plugin.py in v3.32.0; Plugin inherits it.
 # Author:      CliveS & Claude Opus 5.5
 # Date:        23-09-2026
-# Version:     1.0
+# Version:     1.1 (v3.36.0: MJPEG route and transcode streams removed)
 
 try:
     import indigo
@@ -33,8 +33,7 @@ from dash_common import (
     GO2RTC_BIN,
     GO2RTC_RTSP_PORT,
     GO2RTC_WEBRTC_PORT,
-    MJPEG_PROXY_PORT,
-    MJPEG_UPSTREAM_TIMEOUT,
+    PROXY_PORT,
     VENDOR_URLS,
     log,
 )
@@ -42,7 +41,7 @@ from dash_common import (
 
 class CamerasMixin:
     # --------------------------------------------------------
-    # MJPEG proxy (tiny HTTP server in a daemon thread)
+    # The :8177 proxy (tiny HTTP server in a daemon thread)
     # --------------------------------------------------------
 
     # --------------------------------------------------------
@@ -55,15 +54,15 @@ class CamerasMixin:
         Contract verified live against go2rtc 1.9.14 (30-Jul-2026):
         POST /api/webrtc?src=<slug> with Content-Type: application/sdp
         answers 201 Created, application/sdp, SDP answer in the body.
-        There is NO /api/whep alias (404). The RAW H.264 slug is used, NOT
-        <slug>_mjpeg — WebRTC takes the H.264 straight through with no
-        ffmpeg leg, and the answer negotiates H264 payload types.
+        There is NO /api/whep alias (404). The RAW H.264 slug is used —
+        WebRTC takes the H.264 straight through with no ffmpeg leg, and the
+        answer negotiates H264 payload types.
 
         This is a SHORT-LIVED request on one of the proxy's per-connection
         threads: go2rtc answers in milliseconds (static candidates, no
         gathering wait), and the MEDIA then flows browser<->go2rtc:8555
-        directly — it never transits the plugin process, so unlike /mjpeg
-        this holds zero long-lived plugin threads.
+        directly — it never transits the plugin process, so this holds
+        zero long-lived plugin threads.
         """
         import urllib.request
         import urllib.error
@@ -96,27 +95,27 @@ class CamerasMixin:
                 return 504, "text/plain", b"go2rtc timed out"
             return 502, "text/plain", f"go2rtc unreachable: {exc}".encode("utf-8")
 
-    def _start_mjpeg_proxy(self):
-        """Bind a small HTTP server to MJPEG_PROXY_PORT and serve one endpoint
-        per camera. Each request opens an upstream MJPEG stream to the camera
-        (Digest auth) and pipes the multipart bytes straight to the client.
-        Per-request thread because socketserver's ThreadingMixIn handles each
-        connection on its own thread — fine for 3 cameras × a few viewers."""
+    def _start_proxy(self):
+        """Bind a small HTTP server to PROXY_PORT for the routes the pages
+        cannot reach through IWS: WebRTC signalling (POST /webrtc/<host>),
+        the API-key and guest bootstraps, the guest read path and /healthz.
+        It carried live MJPEG too until v3.36.0. ThreadingMixIn gives each
+        connection its own thread; none of these requests is long-lived."""
         # v1.20.1: the proxy also serves /bootstrap (LAN/Tailscale-only API-key
         # seed for the dashboard pages), so it now starts even with no cameras
         # configured — camera routes just 404 in that case.
         cameras_enabled = bool(self.cam_user and self.cam_pass and self.cameras)
         if not cameras_enabled and not self.api_key:
-            log("[MJPEG] No cameras configured and no API key — proxy disabled",
+            log("[Proxy] No cameras configured and no API key — proxy disabled",
                 level="WARNING")
-            self._mjpeg_server = None
+            self._proxy_server = None
             return
         if not cameras_enabled:
             if self.cameras:
-                log("[MJPEG] cameras are configured but DAHUA_USER/DAHUA_PASS are not "
+                log("[Proxy] cameras are configured but DAHUA_USER/DAHUA_PASS are not "
                     "set — camera routes disabled, /bootstrap only", level="WARNING")
             else:
-                self.logger.info("[MJPEG] no cameras configured — /bootstrap only")
+                self.logger.info("[Proxy] no cameras configured — /bootstrap only")
 
         import http.server
         import ipaddress
@@ -124,10 +123,7 @@ class CamerasMixin:
         import threading
         from urllib.parse import urlparse
 
-        # Map host → go2rtc stream slug. The MJPEG proxy targets go2rtc's
-        # transcoded-MJPEG endpoint (mainstream H.264 → MJPEG via ffmpeg) so
-        # the picture stays sharp regardless of how the camera's own MJPEG
-        # substream is configured. Goodbye Garage shimmer.
+        # Map host → go2rtc stream slug, for WebRTC signalling.
         host_to_slug  = {c["host"]: self._cam_slug(c["name"]) for c in self.cameras}
         allowed_hosts = set(host_to_slug.keys())
         plugin_self   = self
@@ -136,9 +132,7 @@ class CamerasMixin:
             # Socket timeout (v2.95.2). StreamRequestHandler applies this to
             # the request socket, so a client that connects and never sends a
             # request line, or a viewer whose write side has stalled, is
-            # dropped after 30 s instead of pinning a handler thread — and,
-            # for /mjpeg, an ffmpeg transcode in go2rtc — for ever. A healthy
-            # MJPEG stream writes many times a second, so it never trips.
+            # dropped after 30 s instead of pinning a handler thread for ever.
             timeout = 30
 
             # Silence default per-request access logging — we'd flood the event log.
@@ -175,8 +169,8 @@ class CamerasMixin:
 
             # ── WebRTC signalling (WHEP) — v2.68.0 ─────────────────
             # POST /webrtc/<host> forwards the browser's SDP offer to
-            # go2rtc's loopback API and relays the answer. Same security
-            # model as /mjpeg: private sources only, configured-camera
+            # go2rtc's loopback API and relays the answer. Security model:
+            # private sources only, configured-camera
             # allowlist, port never fronted by the reflector. The answer
             # carries session ICE credentials and the LAN candidate — no
             # camera passwords. Media never touches this process.
@@ -244,7 +238,6 @@ class CamerasMixin:
 
             def do_GET(self):
                 # Routes:
-                #   /mjpeg/<host>?subtype=N    → live multipart stream
                 #   /bootstrap                 → API-key seed (private sources only)
                 #   /healthz                   → "ok"
                 parsed = urlparse(self.path)
@@ -438,117 +431,35 @@ class CamerasMixin:
                         plugin_self.logger.debug(f"[Bootstrap] API key re-seeded to {_ip}")
                     return
 
-                if not parsed.path.startswith("/mjpeg/"):
-                    self.send_error(404, "not found")
-                    return
-                # Same source rule as every other route on this port
-                # (v2.95.1). It was the one route without it — the one
-                # carrying the bulkiest private data on the box.
-                if not self._client_is_private():
-                    self.send_error(403, "forbidden")
-                    return
-
-                host = parsed.path[len("/mjpeg/"):]
-                if host not in allowed_hosts:
-                    self.send_error(403, "host not allowed")
-                    return
-
-                slug = host_to_slug[host]
-                # All cameras go through go2rtc's ffmpeg-transcoded MJPEG —
-                # works the same for Dahua and Hikvision because go2rtc only
-                # cares about the RTSP source. Local connection, no auth.
-                import requests
-                upstream = (f"http://127.0.0.1:{GO2RTC_API_PORT}/api/stream.mjpeg"
-                            f"?src={slug}_mjpeg")
-                auth     = None
-
-                try:
-                    r = requests.get(
-                        upstream,
-                        auth=auth,
-                        stream=True,
-                        timeout=MJPEG_UPSTREAM_TIMEOUT,
-                    )
-                except Exception as exc:
-                    plugin_self.logger.warning(
-                        f"[MJPEG] {host} upstream connect failed: {exc}")
-                    self.send_error(502, "upstream connect failed")
-                    return
-
-                try:
-                    if r.status_code != 200:
-                        plugin_self.logger.warning(
-                            f"[MJPEG] {host} upstream HTTP {r.status_code}")
-                        self.send_error(502, f"upstream {r.status_code}")
-                        return
-
-                    ct = r.headers.get("Content-Type", "multipart/x-mixed-replace; boundary=myboundary")
-                    self.send_response(200)
-                    self.send_header("Content-Type", ct)
-                    self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
-                    self.send_header("Pragma", "no-cache")
-                    self.send_header("Connection", "close")
-                    # CORS: the pages are same-host on another port, and the
-                    # cameras page sets crossOrigin="anonymous" on the <img>
-                    # so it can copy the last frame to a canvas — which makes
-                    # this header load-bearing. Same-host echo, not "*"
-                    # (v2.95.1): a wildcard let any page in a LAN browser read
-                    # the video cross-origin.
-                    self._echo_same_host_origin()
-                    self.end_headers()
-
-                    chunks = r.iter_content(chunk_size=16384)
-                    while True:
-                        try:
-                            chunk = next(chunks)
-                        except StopIteration:
-                            break
-                        except Exception as exc:
-                            # UPSTREAM died mid-stream (go2rtc restart, camera
-                            # drop). Ending quietly beats the per-client
-                            # traceback http.server printed when this raised
-                            # straight out of do_GET.
-                            plugin_self.logger.debug(
-                                f"[MJPEG] {host} upstream ended mid-stream: {exc}")
-                            break
-                        if not chunk:
-                            continue
-                        try:
-                            self.wfile.write(chunk)
-                        except (BrokenPipeError, ConnectionResetError, OSError):
-                            # Client disconnected — close the upstream and bail.
-                            break
-                finally:
-                    try:
-                        r.close()
-                    except Exception:
-                        pass
+                # /mjpeg/<host> went in v3.36.0: live video is WebRTC, whose
+                # media never touches this process.
+                self.send_error(404, "not found")
 
         class _Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
             daemon_threads      = True
             allow_reuse_address = True
 
         try:
-            srv = _Server(("0.0.0.0", MJPEG_PROXY_PORT), _Handler)
+            srv = _Server(("0.0.0.0", PROXY_PORT), _Handler)
         except Exception as exc:
-            log(f"[MJPEG] Could not bind :{MJPEG_PROXY_PORT}: {exc}", level="ERROR")
-            self._mjpeg_server = None
+            log(f"[Proxy] Could not bind :{PROXY_PORT}: {exc}", level="ERROR")
+            self._proxy_server = None
             return
 
-        self._mjpeg_server = srv
-        thread = threading.Thread(target=srv.serve_forever, daemon=True, name="MjpegProxy")
+        self._proxy_server = srv
+        thread = threading.Thread(target=srv.serve_forever, daemon=True, name="CameraProxy")
         thread.start()
-        self._activity(f"[MJPEG] Proxy listening on :{MJPEG_PROXY_PORT}")
+        self._activity(f"[Proxy] Proxy listening on :{PROXY_PORT}")
 
-    def _stop_mjpeg_proxy(self):
-        if getattr(self, "_mjpeg_server", None):
+    def _stop_proxy(self):
+        if getattr(self, "_proxy_server", None):
             try:
-                self._mjpeg_server.shutdown()
-                self._mjpeg_server.server_close()
-                self._activity("[MJPEG] Proxy stopped")
+                self._proxy_server.shutdown()
+                self._proxy_server.server_close()
+                self._activity("[Proxy] Proxy stopped")
             except Exception as exc:
-                log(f"[MJPEG] Shutdown error: {exc}", level="WARNING")
-            self._mjpeg_server = None
+                log(f"[Proxy] Shutdown error: {exc}", level="WARNING")
+            self._proxy_server = None
 
     # --------------------------------------------------------
     # go2rtc lifecycle (WebRTC backend for live.html)
@@ -646,20 +557,16 @@ class CamerasMixin:
                 "",
             ]
         else:
-            log("[go2rtc] ffmpeg not found on PATH — MJPEG transcode will fail. "
+            log("[go2rtc] ffmpeg not found on PATH — camera snapshots will fail. "
                 "Install Homebrew ffmpeg (searched: PATH, /opt/homebrew/bin, /usr/local/bin).",
                 level="WARNING")
         lines += ["streams:"]
-        # Two streams per camera:
-        #   <slug>        = H.264 RTSP source. Mainstream or sub2 per the
-        #                   camera's `stream` field in DASHBOARDS_CAMERAS
-        #                   (default sub2). Available for direct RTSP
-        #                   consumers; not used by the page after retiring
-        #                   live.html.
-        #   <slug>_mjpeg  = same source transcoded → MJPEG via ffmpeg.
-        #                   Consumed by the plugin's MJPEG proxy. With sub2
-        #                   as the source the transcode is roughly half the
-        #                   CPU of mainstream.
+        # One stream per camera: <slug> = the camera's H.264 RTSP source,
+        # mainstream or sub2 per the camera's `stream` field (default sub2).
+        # WebRTC relays it to the browser untouched and the snapshot poller
+        # takes its frames from it. The `<slug>_mjpeg` ffmpeg transcode that
+        # fed the MJPEG tiles went in v3.36.0 — it was an ffmpeg process per
+        # camera being watched, re-encoding video nobody needed re-encoded.
         sub2_count = 0
         main_count = 0
         for cam in self.cameras:
@@ -671,9 +578,6 @@ class CamerasMixin:
             tpl   = v_urls.get(tpl_key, v_urls["rtsp_main"])
             rtsp  = tpl.format(user=user_q, pwd=pass_q, host=cam["host"])
             lines.append(f"  {slug}: {rtsp}")
-            # ffmpeg: source is the named stream <slug>; #video=mjpeg adds an
-            # MJPEG re-encode in front of go2rtc's MJPEG consumer.
-            lines.append(f"  {slug}_mjpeg: ffmpeg:{slug}#video=mjpeg")
             if stream == "sub2": sub2_count += 1
             else:                main_count += 1
 
@@ -901,7 +805,7 @@ class CamerasMixin:
 
     def _supervise_go2rtc(self):
         """Restart go2rtc if it died mid-run. Until v2.72.0 a crash killed
-        every camera function — snapshots, MJPEG, WebRTC — SILENTLY until a
+        every camera function — snapshots and WebRTC — SILENTLY until a
         manual plugin restart (the only mid-run check was the /streams
         consumer path, which merely errored). Called from the poller's 30 s
         sweep; backoff stops a crash-looping binary from thrashing."""
@@ -1064,7 +968,7 @@ class CamerasMixin:
     def _fetch_one_snapshot(self, host):
         """Fetch a single JPEG via go2rtc's /api/frame.jpeg endpoint. This
         decodes one frame from the camera's RTSP stream (the same source
-        go2rtc uses for the live MJPEG transcode), so any camera that streams
+        WebRTC relays), so any camera that streams
         will also snapshot — even cameras whose own /snapshot.cgi endpoint is
         broken (e.g. the Patio 4K returns HTTP 500 directly). Bonus: removes
         the vendor-specific snapshot URL handling — go2rtc does that work."""

@@ -22,7 +22,7 @@ from dash_common import (
     COLOUR_PRESETS,
     GO2RTC_API_PORT,
     LIVE_POOL_SIZE,
-    MJPEG_PROXY_PORT,
+    PROXY_PORT,
     PAGES_SOURCE_DIR,
     PUBLIC_SUBDIR,
     log,
@@ -325,9 +325,8 @@ class PublishMixin:
             "thumbPattern":   "cam-{host}-thumb.jpg",
             "thumbWidth":     CAMERA_THUMB_WIDTH,
             "pollSeconds":    CAMERA_POLL_SECONDS,
-            "mjpegPort":      MJPEG_PROXY_PORT,            # live MJPEG proxy
-            "mjpegPath":      "/mjpeg/{host}",             # ?subtype=0 (HD) / 1 (SD)
-            "webrtcPath":     "/webrtc/{host}",            # WHEP signalling (same port as mjpegPort)
+            "proxyPort":      PROXY_PORT,                  # the plugin's own port: WebRTC signalling
+            "webrtcPath":     "/webrtc/{host}",            # WHEP signalling, on proxyPort
             "go2rtcPort":     GO2RTC_API_PORT,             # WebRTC backend
             "livePoolSize":   LIVE_POOL_SIZE,              # how many cams run live at once
             "mainCameras":    list(self.main_cameras),     # ordered IPs for the index.html mosaic

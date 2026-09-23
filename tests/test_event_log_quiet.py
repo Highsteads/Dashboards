@@ -91,8 +91,8 @@ def test_activity_defaults_to_the_plugins_own_log():
 def test_activity_reaches_the_event_log_when_the_user_asks_for_it():
     p = bare_plugin()
     p.log_activity = True
-    p._activity("[MJPEG] Proxy stopped")
-    p.logger.info.assert_called_once_with("[MJPEG] Proxy stopped")
+    p._activity("[Proxy] Proxy stopped")
+    p.logger.info.assert_called_once_with("[Proxy] Proxy stopped")
     p.logger.debug.assert_not_called()
 
 
@@ -237,8 +237,8 @@ QUIETENED = [
     ("_sync_pages_to_public",  "asset(s) to"),
     ("_sync_pages_to_public",  "Removed stale"),
     ("_write_config_js",       "Wrote "),
-    ("_start_mjpeg_proxy",     "[MJPEG] Proxy listening"),
-    ("_stop_mjpeg_proxy",      "[MJPEG] Proxy stopped"),
+    ("_start_proxy",     "[Proxy] Proxy listening"),
+    ("_stop_proxy",      "[Proxy] Proxy stopped"),
     ("_write_go2rtc_config",   "[go2rtc] Wrote config"),
     ("_start_go2rtc",          "[go2rtc] Started"),
     ("_stop_go2rtc",           "[go2rtc] Stopped"),
@@ -306,11 +306,11 @@ def test_startup_writes_exactly_one_info_line():
 def summary_plugin(monkeypatch):
     """The camera list is plugin state since 3.32.0, so each test's list
     lives on its own instance and cannot leak into the next test."""
-    def build(cameras, user="u", passwd="p", mjpeg=None, go2rtc=None):
+    def build(cameras, user="u", passwd="p", proxy=None, go2rtc=None):
         p = bare_plugin()
         p.pluginDisplayName = "Dashboards"
         p.cam_user, p.cam_pass = user, passwd
-        p._mjpeg_server, p._go2rtc_proc = mjpeg, go2rtc
+        p._proxy_server, p._go2rtc_proc = proxy, go2rtc
         p.cameras = cameras
         return p
     return build
@@ -323,9 +323,9 @@ def test_a_bare_instance_has_no_cameras():
 
 
 def test_summary_names_what_the_plugin_ended_up_running(summary_plugin):
-    p = summary_plugin([{"n": 1}] * 9, mjpeg=object(), go2rtc=object())
+    p = summary_plugin([{"n": 1}] * 9, proxy=object(), go2rtc=object())
     line = p._startup_summary()
-    assert line == ("Dashboards started - 9 cameras, MJPEG proxy on :8177, "
+    assert line == ("Dashboards started - 9 cameras, camera proxy on :8177, "
                     "go2rtc running"), line
 
 
@@ -381,7 +381,7 @@ FAULT_SIBLINGS = [
     ("_sync_pages_to_public", "Could not remove stale"),
     ("_sync_pages_to_public", "Manifest copy failed"),
     ("_write_config_js",      "Failed to write"),
-    ("_stop_mjpeg_proxy",     "[MJPEG] Shutdown error"),
+    ("_stop_proxy",     "[Proxy] Shutdown error"),
     ("_stop_go2rtc",          "[go2rtc] Shutdown error"),
     ("runConcurrentThread",   "DAHUA_USER/DAHUA_PASS are not set"),
 ]
@@ -611,7 +611,7 @@ def test_a_broken_mirror_never_takes_the_caller_down(mirrored):
 
     plugin._install_file_mirror(_Exploding())
     plugin.indigo.server.log.reset_mock()
-    plugin.log("[MJPEG] Shutdown error: x", level="WARNING")   # must not raise
+    plugin.log("[Proxy] Shutdown error: x", level="WARNING")   # must not raise
     assert plugin.indigo.server.log.call_count == 1
 
 

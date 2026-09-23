@@ -126,7 +126,7 @@ model can be set in the raw-JSON box.
 | `vehicles` | `[{"id": <device>, "label": "Car 12V"}]` | Battery-voltage monitors to list under the Energy page's battery fleet, with a frozen-reading check |
 | `arrayKwp` | number | Your solar array's rating, for the weather page's roof-versus-sky cross-check |
 | `actionWatch` | object | Per-action-group confirmation rules for scene buttons: which device states confirm which action, so no page carries device numbers |
-| `livePoolSize` | number, default 6 | How many cameras show a moving picture at once. Six is a ceiling, not a preference: browsers allow about six long-lived connections per address, so a seventh never connects rather than merely running slowly |
+| `livePoolSize` | number, default 6 | How many cameras show live (WebRTC) video at once at home; the rest refresh as stills. Each live tile costs about 1 Mbit/s and some decoding work on the device, so lower it for an older tablet |
 
 ## Credentials in `IndigoSecrets.py`
 

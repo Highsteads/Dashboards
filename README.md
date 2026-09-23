@@ -8,7 +8,7 @@ Browser dashboards for [Indigo Domotics](https://www.indigodomo.com/), built for
 wall, a phone in your pocket and a Mac on the desk. No app to install, no cloud account,
 nothing leaving the house.
 
-<img src="https://img.shields.io/badge/version-3.35.0-5856d6" alt="Version 3.35.0">
+<img src="https://img.shields.io/badge/version-3.36.0-5856d6" alt="Version 3.36.0">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-21-0a84ff" alt="21 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
@@ -21,7 +21,7 @@ nothing leaving the house.
 
 ---
 
-**Version:** 3.35.0
+**Version:** 3.36.0
 
 **Documentation:** **[highsteads.github.io/Dashboards](https://highsteads.github.io/Dashboards/)** —
 getting started, configuration, a page of notes for every one of the 21 pages, cameras, remote
@@ -45,9 +45,8 @@ Pages live under Indigo's `/public/` namespace, so any browser on the LAN — or
 when you are away — opens them without typing credentials. The plugin handles all the
 camera-side and Indigo-side authentication on the server.
 
-Works in any modern browser: Chrome, Firefox, Safari, Edge and anything Chromium-based. The
-camera streams use standard MJPEG in an `<img>` tag, which every browser has handled for
-twenty years. The dashboard ships with a PWA manifest, so on an iPhone or iPad it pins to the home
+Works in any modern browser: Chrome, Firefox, Safari, Edge and anything Chromium-based. Live
+camera video is WebRTC, which every current browser plays with nothing to install. The dashboard ships with a PWA manifest, so on an iPhone or iPad it pins to the home
 screen as a proper standalone app (Safari → Share → **Add to Home Screen**), and on a Mac to the
 Dock.
 
@@ -67,11 +66,11 @@ with a gentle state simulator, touching no live devices.
 The three most recent releases, word for word. Every release before these is in
 **[the version history](docs/changelog.md)**, which the documentation site also carries.
 
+**3.36.0** (23-Sep-2026) - **Live camera video is WebRTC now, and MJPEG is gone.** The live tiles on the Cameras page play the camera's own video, relayed by go2rtc with no re-encoding: about a third of the data the old MJPEG streams used (six live tiles measured about 1 MB/s here, against 3 MB/s before), and on a slow connection a tile drops a frame rather than falling further and further behind. The server no longer runs an ffmpeg process for every camera being watched, and the page no longer ties up one of the browser's six connections per tile. A tile that cannot hold its video drops to stills and tries again later, as before. Pausing a live tile now keeps the frame you were looking at. The room pages show stills that cross-fade like the hub's, and a tap opens the Cameras page with that camera live. You still need ffmpeg, which go2rtc uses for the still pictures, and port 8555 has to be reachable for live video.
+
 **3.35.0** (23-Sep-2026) - **The hub is shorter, and one chip tells you whether anything needs you.** The greeting card now opens with a chip that reads All well, or says how many things need a look. Tap it and the list opens in place: devices reporting an error, batteries running low (named, when there are only a few), errors in the Indigo log, cameras that have stopped answering, and anything Home Insights finds out of the ordinary, each linking to the page with the detail. It replaces the low-battery and in-error chips, the Insights card and the log banner, which said the same things in four places. The camera strip no longer streams: it shows stills that cross-fade from one frame to the next, which reads as moving at a fraction of the data, and live video is a tap away on the Cameras page. The weather card stops repeating the conditions, today's range and the sun times that the greeting card already shows.
 
 **3.34.0** (23-Sep-2026) - **Energy is slimmer, and the Carbon and Laundry pages are one card on it.** The new When to run it card puts the cheapest time to run each metered appliance (with its finish-by buttons) beside how clean the grid is now and over the next day. Each half hides when it has nothing to say: laundry without its companion script, carbon when its region is switched off. The old Carbon and Laundry addresses land on the card. Energy lost what it said twice or three times: the Today's summary tiles (every figure was already in the hero, the energy flow or the battery tiles), the second copy of the dawn reserve on the battery card, the power chart that drew the same half-hour slots as the history chart (whose 24 h, 48 h and 7 day buttons it now carries), and the energy replay, which the Timeline page does better. Today is now one column: the solar card, then the day's energy flow.
-
-**3.33.0** (23-Sep-2026) - **Timeline is now the one page for the house's history, and the menu asks the questions you came with.** Timeline gained three tabs beside its day replay: Nights (the presence sensors night by night, which was the Presence page), Chart (graph anything the SQL Logger records, which was the Graphs page) and Diary (locks, doors, leaks and restarts from the event log, which was on the Activity page). Tap a device name in the day replay to chart it. The Nights view now draws every room the presence script watches, not two named rooms. The automation list from the Activity page (what is coming up, what is switched off, who holds a door code) moved to the System page. The old Presence, Graphs and Activity addresses still work and open the right view. The menu is now one page, grouped as Right now, Energy, What happened, Is anything wrong? and Setup, with the rooms a tap away, and it has the same top bar as every other page. Pages and tabs that need a companion script hide when that script is not installed, and a new test fails if any page is left with nothing linking to it.
 
 ## A look around
 
@@ -150,7 +149,7 @@ file — no build step, no framework, no bundler — and every one has [a page o
 
 The camera grid needs **both** of the following. Without either one the plugin logs a warning and the camera pages show no streams.
 
-- **Homebrew ffmpeg** — `brew install ffmpeg` — go2rtc calls ffmpeg to transcode the camera's H.264 RTSP stream to MJPEG; the camera grid will not work without it
+- **Homebrew ffmpeg** — `brew install ffmpeg` — go2rtc calls ffmpeg to take the still pictures from each camera's H.264 stream; the camera tiles will not work without it
 - **go2rtc** — `brew install go2rtc`, or download `go2rtc_mac_arm64.zip` from [go2rtc releases](https://github.com/AlexxIT/go2rtc/releases) and put the binary anywhere on your PATH. The plugin looks in the path set under **Plugins → Dashboards → Configure** first, then on the PATH, then at `~/bin/go2rtc` as a last resort
 - Pillow (thumbnails) and qrcode (setup links) install themselves from `requirements.txt` the first time the plugin starts — nothing to fetch by hand
 - IP cameras reachable on the LAN with RTSP enabled (Dahua and Hikvision supported out of the box)
@@ -202,7 +201,7 @@ Every key, every room-extras field and every Configure setting is described on t
 
 Away from home, run [Tailscale](https://tailscale.com). With it, your phone or laptop is
 effectively "at home" anywhere in the world, and the plugin already treats it that way: the
-cameras only work remotely this way (the MJPEG proxy on port 8177 is fronted by nothing else), a
+live cameras only work remotely this way (ports 8177 and 8555 are fronted by nothing else), a
 new browser on the tailnet pairs itself on first visit, and nothing is exposed — no port
 forwarding, no public attack surface.
 
@@ -223,12 +222,12 @@ Tailscale. Details, and the guest-device pairing for a wall tablet, on the
 | Port | Purpose | Auth |
 |---|---|---|
 | 8176 | Indigo Web Server — HTML pages served here | None (public namespace) |
-| 8177 | Plugin MJPEG proxy — live camera streams | None (trusted LAN / Tailscale) |
-| 1984 | go2rtc HTTP API | None |
-| 8554 | go2rtc RTSP republish | None |
-| 8555 | go2rtc WebRTC media (TCP) | None |
+| 8177 | Plugin server — WebRTC set-up, pairing | None (trusted LAN / Tailscale; refuses other sources) |
+| 1984 | go2rtc HTTP API | Loopback only |
+| 8554 | go2rtc RTSP republish | Loopback only |
+| 8555 | go2rtc WebRTC media (UDP and TCP) | None (trusted LAN / Tailscale) |
 
-The MJPEG proxy and go2rtc ports are intentionally unauthenticated — same trusted-LAN / Tailscale threat model as Indigo's `/public/` namespace. Do not expose port 8177 directly to the internet.
+The plugin server and the WebRTC port are intentionally unauthenticated — same trusted-LAN / Tailscale threat model as Indigo's `/public/` namespace. Do not expose port 8177 or 8555 directly to the internet.
 
 
 ## Building and extending with Claude Code

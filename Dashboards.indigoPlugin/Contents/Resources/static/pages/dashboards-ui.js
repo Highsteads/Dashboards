@@ -14,7 +14,8 @@
  *              repaints on a 3-second poll without tearing down animations.
  * Author:      CliveS & Claude Opus 5 (v1.0); Claude Fable 5 (v1.1); Claude Opus 5.5 (v1.2)
  * Date:        23-09-2026
- * Version:     1.3 (swapImage: camera frames cross-fade instead of cutting);
+ * Version:     1.4 (the MJPEG bandwidth probe is gone with MJPEG); 1.3 (swapImage:
+ *              camera frames cross-fade instead of cutting);
  *              1.2 (tap guard: a scroll touch never presses a tile, and only
  *              tiles that do something flash); 1.1 (solarHoursChart — the stacked per-string hourly chart,
  *              shared by the Energy card and the hub's Solar · today block)
@@ -694,10 +695,10 @@
 
 
   /* ── how are we reaching the server? ─────────────────────────────────
-     The camera work needs this. The MJPEG proxy listens on its own port,
-     which the Indigo reflector does NOT front — so over the reflector a live
-     stream cannot work at all, and over Tailscale it works but costs about
-     4 Mbit/s per camera on whatever mobile signal you happen to have.
+     The camera work needs this. Live video (WebRTC) signals on the plugin's
+     own port and streams from go2rtc's, neither of which the Indigo
+     reflector fronts — so over the reflector a live tile cannot work at all,
+     and over Tailscale it works but costs mobile data.
 
      This is the honest trigger for cutting the cameras down: it is the link
      itself, known the moment the page loads. Presence would only be a proxy
@@ -706,7 +707,7 @@
 
        'home'      RFC1918 or loopback — the LAN. Everything is cheap.
        'vpn'       Tailscale's CGNAT range. Streams reachable but expensive.
-       'reflector' anything else. The MJPEG port is not reachable at all. */
+       'reflector' anything else. The video ports are not reachable at all. */
   function linkClass() {
     /* The SERVER's verdict wins (v2.96.1): a changedSince reply that carried
        via:"reflector" was seen arriving through the reflector, whatever the
@@ -862,128 +863,10 @@
     });
   }
 
-  /* ---- how much can this link actually CARRY? (v2.97.0) ---------------
-     Latency was the wrong question. It was asked because a slow link cannot
-     hold an MJPEG stream — but what a stream needs is THROUGHPUT, and the two
-     come apart exactly where it matters. CliveS's iPhone on the house wi-fi
-     with Tailscale running measures 116 ms, because every packet goes out to
-     the tunnel and back in; its throughput is the whole of the home wi-fi.
-     Judged on latency it was "remote" and got 3-second stills while sitting
-     in the same room as the cameras. Judged on throughput it is what it is:
-     a fast link that happens to take the long way round.
-
-     So measure bytes per second, on a real file, and subtract the round trip
-     so a small file over a high-latency link is not mistaken for a slow one. */
-  var BW_PROBE_KEY  = 'dash_link_bw';
-  var BW_CACHE_MS   = 60000;
-  /* THE PAYLOAD HAS TO BE BIG ENOUGH TO TIME (v2.99.0). The probe used to
-     fetch dashboards-ui.js, 44 KB — which a home link delivers in about 3 ms,
-     so the measurement was one scheduler hiccup wide and any hiccup halved it.
-     The largest asset the pages already ship is ~205 KB: 16 ms on a fast link,
-     48 ms at the 34 Mbit/s the strip needs for four tiles, so the decision
-     boundary is measured with room to spare. Falls back to the small file if
-     the big one is not there. */
-  var BW_FILES      = ['chart.umd.min.js', 'dashboards-ui.js'];
-  /* Warm-up first, and take the BEST of the timed samples. Both corrections
-     point the same way and for the same reason: interference is ONE-SIDED.
-     A cold connection, TCP slow start, the page's own boot fetches and a
-     sleeping phone radio can only ever make a reading WORSE — nothing makes
-     bytes arrive faster than the link allows. MEASURED on this LAN, back to
-     back: first fetch 6.9 Mbit/s, the four after it 92, 126, 117, 110. One
-     cold sample therefore reported a fifteenth of the truth, which floors the
-     budget at zero tiles and shows four 3-second stills to a phone in the same
-     room as the cameras. Same lesson as the RTT floor above. */
-  var BW_SAMPLES    = 2;
-  /* One live MJPEG tile measured ~4.25 Mbit/s (17 Mbit/s for the hub's four).
-     Ask for twice that before opening one: a link with no headroom queues,
-     and a queued MJPEG stream never catches up — it just gets further behind
-     (measured 30 s+ adrift), which is worse than a still on every count. */
-  var LIVE_TILE_KBPS = 4250;
-  var LIVE_HEADROOM  = 2;
-
-  function _cachedBw() {
-    try {
-      var raw = sessionStorage.getItem(BW_PROBE_KEY);
-      if (!raw) return null;
-      var v = JSON.parse(raw);
-      if (!v || typeof v.kbps !== 'number') return null;
-      if (Date.now() - (v.at || 0) > BW_CACHE_MS) return null;
-      return v.kbps;
-    } catch (e) { return null; }
-  }
-  function forgetBw() { try { sessionStorage.removeItem(BW_PROBE_KEY); } catch (e) {} }
-
-  /* One timed fetch, in kbit/s. 0 when it could not be fetched at all. */
-  function _bwSample(url, rtt) {
-    var t0 = _now();
-    return fetch(url + '?bw=' + Date.now() + Math.random(), { cache: 'no-store' })
-      .then(function (r) { return r.ok ? r.arrayBuffer() : Promise.reject(new Error(r.status)); })
-      .then(function (buf) {
-        /* Take the transfer time, not the whole round trip: on a 200 ms link
-           a 205 KB file "takes" 250 ms, and calling that 6 Mbit/s would
-           understate a fast tunnel by an order of magnitude.
-           BOUNDED, because the correction stops making sense once the round
-           trip is most of the elapsed time: on this LAN the fetch takes 3 ms
-           and the round trip is 2.3 ms, so subtracting it left 0.66 ms and
-           claimed 2.8 Gbit/s. Never credit the link with more than 2.5x what
-           was actually observed — enough to rescue a high-latency tunnel,
-           not enough to invent a gigabit. */
-        var elapsed = Math.max(0.5, _now() - t0);
-        var ms = Math.max(elapsed * 0.4, elapsed - Math.min(rtt, elapsed) * 0.9);
-        return (buf.byteLength * 8) / ms;          /* bytes*8 per ms == kbit/s */
-      })
-      .catch(function () { return 0; });
-  }
-
-  /* kbit/s, measured: a warm-up fetch to open the connection, then the best of
-     BW_SAMPLES timed fetches of an asset the pages already ship. Best, not
-     mean or median — see BW_SAMPLES above. */
-  function probeBandwidth() {
-    var cached = _cachedBw();
-    if (cached !== null) return Promise.resolve(cached);
-    return probeRtt().then(function (rtt) {
-      /* Which asset is actually there. The warm-up doubles as the check, and
-         its timing is DISCARDED — it is the cold one, and cold is the reading
-         that was wrong before. */
-      var chain = BW_FILES.reduce(function (prev, f) {
-        return prev.then(function (found) {
-          if (found) return found;
-          return fetch(f + '?bwwarm=' + Date.now(), { cache: 'no-store' })
-            .then(function (r) { return r.ok ? f : null; })
-            .catch(function () { return null; });
-        });
-      }, Promise.resolve(null));
-
-      return chain.then(function (url) {
-        if (!url) return 0;
-        var best = 0, i = 0;
-        function next() {
-          if (i++ >= BW_SAMPLES) return Promise.resolve(best);
-          return _bwSample(url, rtt).then(function (kbps) {
-            if (kbps > best) best = kbps;
-            return next();
-          });
-        }
-        return next();
-      }).then(function (kbps) {
-        try {
-          sessionStorage.setItem(BW_PROBE_KEY,
-            JSON.stringify({ kbps: Math.round(kbps), at: Date.now() }));
-        } catch (e) {}
-        return kbps;
-      });
-    }).catch(function () { return 0; });   /* could not measure == cannot afford a stream */
-  }
-
-  /* How many live MJPEG tiles this link can carry. 0 means stills only.
-     The reflector is always 0 — the stream port is not fronted by it at all,
-     so no measurement can make one work. */
-  function streamBudget() {
-    if (linkClass() === 'reflector') return Promise.resolve(0);
-    return probeBandwidth().then(function (kbps) {
-      return Math.max(0, Math.floor(kbps / (LIVE_TILE_KBPS * LIVE_HEADROOM)));
-    });
-  }
+  /* The bandwidth probe that sized live MJPEG tiles (probeBandwidth,
+     streamBudget, v2.97.0-v3.35.0) went with the MJPEG streams in v3.36.0:
+     live video is WebRTC, which drops frames on a thin link instead of
+     queueing behind them, and a page decides by link class alone. */
 
   /* ---- tap guard + press feedback (v3.24.0) ----------------------------
      Two faults on a phone, one cause: the pages reacted to a finger LANDING
@@ -1298,14 +1181,10 @@
     message: message,
     poll: poll,
     linkClass: linkClass,
-    probeBandwidth: probeBandwidth,
-    streamBudget: streamBudget,
-    forgetBw: forgetBw,
     pressFeedback: pressFeedback,
     isScrollTouch: isScrollTouch,
     isActionable: isActionable,
     TAP_SLOP_PX: TAP_SLOP_PX,
-    LIVE_TILE_KBPS: LIVE_TILE_KBPS,
     idleGuard: idleGuard,
     lanUrl: lanUrl,
     measuredClass: measuredClass,

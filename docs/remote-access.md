@@ -14,9 +14,9 @@ the private-client gate on port 8177 accepts Tailscale's `100.64.0.0/10` range a
 
 Why this plugin needs it:
 
-- **Cameras only work remotely this way.** The MJPEG proxy lives on port 8177, which nothing else
-  fronts — without Tailscale you get every data page but no live streams; over Tailscale you get the
-  lot, including the hub's camera strip.
+- **Live cameras only work remotely this way.** WebRTC is set up on port 8177 and streams on 8555,
+  which nothing else fronts — without Tailscale you get every data page and the stills but no live
+  video; over Tailscale the tile at the top of the Cameras page goes live.
 - **No pairing ceremony.** A new browser on the tailnet auto-pairs on first visit, exactly as at
   home. Any other way in, you would need a one-time setup link or to type the API key.
 - **Nothing exposed.** No port forwarding, no public attack surface, WireGuard encryption end to
@@ -97,9 +97,9 @@ browser's site data un-pairs it.
 | Port | Purpose | Auth |
 |---|---|---|
 | 8176 | Indigo Web Server — the pages are served here | None for the pages; API key for every data call |
-| 8177 | Plugin MJPEG proxy — live camera streams, stills, pairing | None (trusted LAN / Tailscale; refuses non-private sources) |
-| 1984 | go2rtc HTTP API | None |
-| 8554 | go2rtc RTSP republish | None |
+| 8177 | Plugin server — WebRTC set-up, pairing | None (trusted LAN / Tailscale; refuses non-private sources) |
+| 1984 | go2rtc HTTP API | Loopback only |
+| 8554 | go2rtc RTSP republish | Loopback only |
 | 8555 | go2rtc WebRTC media (TCP and UDP) | None |
 
 The proxy and go2rtc ports are intentionally unauthenticated — the same trusted-LAN / Tailscale

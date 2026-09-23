@@ -25,8 +25,8 @@ note on how many are disabled but still own devices.
 plus wired plus compressed) and swap called out as the real pressure signal on a small Mac; the
 three load averages; up since; Indigo and API versions; macOS version and architecture; Python
 version. *Storage* — the SQL history database's size with a bar showing it against free space, and
-the advice that pruning old device history reclaims disk; then "Dashboard services": the go2rtc
-transcoder, the MJPEG proxy, and the number of cameras configured.
+the advice that pruning old device history reclaims disk; then "Dashboard services": go2rtc (the camera
+video service), the plugin's camera proxy, and the number of cameras configured.
 
 **Devices.** A device-health census: total, enabled and off counts, then sections — *In error*
 (with an explicit "none" rather than an empty space), *Low battery* (at or below the threshold set

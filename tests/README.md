@@ -128,7 +128,6 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_solar_hours_chart.mjs` | Contract test for DashUI.solarHoursChart — the stacked hourly |
 | `test_solar_string_hours.py` | Contract tests for Plugin._string_hours_payload — the pure half |
 | `test_stamp_gate.mjs` | Node contract test for dashboards-gate.js (v2.70.0) — the |
-| `test_stream_budget_probe.mjs` | Contract test for DashUI.probeBandwidth / streamBudget — how |
 | `test_sync_pages.py` | _sync_pages_to_public — the startup copy of the bundle's pages |
 | `test_tap_guard.mjs` | Contract test for the tap guard and press feedback in |
 | `test_test_index.py` | tests/README.md lists every test file (v3.25.0). It had fallen |

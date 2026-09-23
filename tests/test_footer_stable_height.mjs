@@ -48,8 +48,10 @@ check("nothing else writes either element directly",
       !/getElementById\("total-bw"\)[\s\S]{0,80}textContent =/.test(src.replace(/function _setBw[\s\S]*?\n    \}/, "")),
       "two writers is how the two readouts drifted apart");
 const setters = src.match(/_setBw\(/g) || [];
-check("every measurement path goes through it", setters.length >= 4,
-      `found ${setters.length} references (definition + 3 call sites)`);
+// One measurement path since v3.36.0 (the page's own bytes); the go2rtc
+// counter paths went with MJPEG. Definition + that call.
+check("every measurement path goes through it", setters.length === 2,
+      `found ${setters.length} references (definition + 1 call site)`);
 
 console.log("\nand the wording stays short enough to fit a phone");
 check("health reads 'health OK', not 'camera health OK'",

@@ -97,25 +97,25 @@ console.log("\nthe skew tell");
 
 console.log("\nwho may stamp the Updated clock");
 {
-    // Exactly three stampers, each a REAL frame arriving: the still blob
-    // path, the live onload guarded to live mode, and the webrtc
-    // first-frame callback. Count the call sites — a "appears somewhere"
+    // Exactly two stampers, each a REAL frame arriving: the still blob path
+    // and the webrtc first-frame callback. (A third, the MJPEG <img> onload,
+    // went with MJPEG in v3.36.0.) Count the call sites — a "appears somewhere"
     // assert survives a stripped site.
     const sites = countMatches(code, /(?<!function )markRefreshed\(\)/g);
-    check(sites === 3, "exactly three markRefreshed call sites",
+    check(sites === 2, "exactly two markRefreshed call sites",
           `found ${sites}`);
     const still = fn("startStill");
     check(/markRefreshed\(\)/.test(still),
           "one is the still blob path");
     const loadHandler = code.slice(code.indexOf("onFrameLoad = () => {"),
                                    code.indexOf("onFrameError = () => {"));
-    check(/if\s*\(\s*st\.mode\s*===\s*["']live["']\s*\)\s*markRefreshed\(\)/.test(loadHandler),
-          "another is the onload handler, guarded to live mode",
-          "an unguarded onload stamp fires for objectURL swaps of already-stamped frames");
+    check(!/markRefreshed/.test(loadHandler),
+          "the <img> onload never stamps",
+          "it fires for objectURL swaps of frames the blob path already stamped");
     const rtc = fn("startWebrtc");
     const ffStart = rtc.indexOf("const firstFrame");
     check(ffStart >= 0 && rtc.indexOf("markRefreshed()", ffStart) > ffStart,
-          "the third is the webrtc FIRST-FRAME callback, nowhere earlier",
+          "the other is the webrtc FIRST-FRAME callback, nowhere earlier",
           `startWebrtc must not stamp before a frame renders`);
     check(rtc.indexOf("markRefreshed()") >= ffStart,
           "…and startWebrtc has no stamp outside that callback");
@@ -143,15 +143,13 @@ console.log("\nrendering");
           "tapping the footer policy line toggles the debug view");
 }
 
-console.log("\na missed connect window joins the retry ladder");
+console.log("\na live pool tile that fails joins the retry ladder");
 {
-    const live = fn("startLive");
-    const timeoutBlock = live.slice(live.indexOf("st.liveTimeout = setTimeout"));
-    check(/degradeToStill\(host,/.test(timeoutBlock),
-          "the 10 s connect timeout routes through degradeToStill",
+    const fb = fn("webrtcFallback");
+    check(/LIVE_POOL_SIZE\s*>\s*0\s*&&\s*mayHoldLive\(host\)/.test(fb) && /degradeToStill\(host,/.test(fb),
+          "a pool tile falls back through degradeToStill",
           "a bare startStill left autoDegraded unset and the tile was never retried");
-    check(!/startStill\(host\)/.test(timeoutBlock),
-          "…and the bare startStill call is gone from that path");
+    check(/live:\s*"live"|webrtc:\s*"live"/.test(fn("setMode")), "and it is still called live");
 }
 
 done();

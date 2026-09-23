@@ -45,7 +45,7 @@ def test_go2rtc_stops_before_the_pool_and_pool_is_closed_first(monkeypatch):
     p._stop_stamp_thread = lambda: order.append("stamp")
     p._stop_go2rtc = lambda: order.append(("go2rtc", p._cam_pool_closed))
     p._stop_snapshot_pool = lambda: order.append("pool")
-    p._stop_mjpeg_proxy = lambda: order.append("mjpeg")
+    p._stop_proxy = lambda: order.append("proxy")
     p._stop_weather_thread = lambda: order.append("weather")
     p._cam_pool_closed = False
     p.shutdown()

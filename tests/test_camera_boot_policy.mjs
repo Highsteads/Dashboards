@@ -5,7 +5,7 @@
 //              WHY THIS EXISTS
 //              The page's address is always the LAN address, and over a
 //              Tailscale subnet route that address says "home" from a 5G
-//              connection. Booting on it started six MJPEG streams into a
+//              connection. Booting on it started six live streams into a
 //              mobile link (~17 Mbit/s of video the correcting probes then
 //              queued behind), and if the 9 s stall watchdog fired before the
 //              measurement landed, tiles latched autoDegraded and sat at 5 s
@@ -216,16 +216,15 @@ console.log("\npaused tiles can never fire a synthetic 'frame arrived'");
           "pauseTile detaches handlers BEFORE the data-URL and the pixel",
           "both assignments fire onload; nine of them stamped 'Updated' per tab-hide");
     check(/\.onerror\s*=\s*null/.test(pt), "onerror detached too");
-    const ri = fn("replaceImg");
-    check(/st\.onFrameLoad/.test(ri) && !/=\s*oldImg\.onload/.test(ri),
-          "replaceImg takes handlers from tile state, never off the old element",
-          "copying a detached element's null handlers killed resumed tiles");
+    check(!/function replaceImg\(/.test(code),
+          "no <img> is torn down and rebuilt any more (v3.36.0)",
+          "that existed to free an MJPEG socket; nothing streams into an <img> now");
     check(/camState\[host\]\.onFrameLoad\s*=/.test(code),
           "buildGrid stores the canonical handlers on the tile state");
     const ss = fn("startStill");
     check(/st\.onFrameLoad/.test(ss),
           "startStill re-attaches them on resume",
-          "a resume-from-paused skips replaceImg entirely");
+          "a resume-from-paused must not lose them");
 }
 
 console.log("\nboot-time execution order (the v2.64.0 page-killer)");

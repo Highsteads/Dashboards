@@ -32,20 +32,21 @@ browser should behave rather than leaving it to detection.
 
 Each tile shows one of these as a badge:
 
-- **live** — a continuous MJPEG stream.
-- **2s**, **5s** — polling the still image at that interval. A slow link gets the longer one, and
-  the badge says "SLOW LINK" when the page has decided that for itself.
+- **live** — WebRTC video, straight from go2rtc.
+- **2s**, **5s** — polling the still image at that interval. A tile that could not hold its live
+  video drops to the longer one, says "SLOW LINK", and tries live again later.
 
-The page assumes it is remote until it can prove otherwise. Away from home the tiles poll rather
-than stream, and the away path uses WebRTC for the one tile that stays live. The state dot has four
+The page assumes it is remote until it can prove otherwise. At home up to six tiles are live; away
+over a VPN only the tile at the top is, and it follows the tile you tap; over the reflector none
+are. The state dot has four
 states: grey before anything has arrived, green with live frames, amber when connected but frames
 have stalled, red when unreachable. A tile that cannot get a still says so on the tile itself
 ("No snapshot (HTTP 404)") rather than staying a blank square.
 
 ## Where the pictures come from
 
-The plugin's own port 8177, not the web server: `/mjpeg/<host>` for a stream, `cam-<host>.jpg` for
-a still. Camera hosts, vendors, stream names and room membership all come from the configuration;
+Live video comes from go2rtc over WebRTC, set up by one request to the plugin's own port 8177
+(`/webrtc/<host>`); stills are `cam-<host>.jpg`, which the plugin writes to the web server. Camera hosts, vendors, stream names and room membership all come from the configuration;
 changing them needs a plugin restart. The state dots come from Indigo's `/v2/api`.
 
 ## Refresh

@@ -8,7 +8,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
     <meta name="indigo-page-name" content="Cameras">
     <meta name="indigo-page-icon" content="video.fill">
-    <meta name="indigo-page-description" content="Dahua IP cameras via go2rtc MJPEG transcode">
+    <meta name="indigo-page-description" content="IP cameras: live WebRTC video via go2rtc, with snapshot stills">
 
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -324,9 +324,11 @@
             .replace(/'/g, "&#39;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
     // ── Camera dashboard ───────────────────────────────────────
-    // Each tile loads MJPEG from the plugin's proxy on port 8177. The proxy
-    // relays go2rtc's transcoded mainstream H.264 → MJPEG so the picture is
-    // sharp regardless of how the camera's own substream is configured.
+    // A live tile is WebRTC (v3.36.0): go2rtc relays the camera's own H.264
+    // untouched, about a third of the old MJPEG bitrate, dropping frames on a
+    // congested link instead of queueing behind them. The plugin's proxy on
+    // port 8177 only carries the one signalling POST per tile. Every other
+    // tile polls the snapshot the plugin writes.
     //
     // Per-tile features: pause, snapshot, focus. See the toolbar in each tile.
 
@@ -347,8 +349,8 @@
     // eight empty tiles. One 404 is enough to know — they are all written by
     // the same code in the same pass.
     let thumbsAvailable = true;
-    const mjpegPort    = cfg.mjpegPort   || 8177;
-    const mjpegPath    = cfg.mjpegPath   || "/mjpeg/{host}";
+    // The plugin's own port: WebRTC signalling only since v3.36.0.
+    const proxyPort    = cfg.proxyPort || 8177;
     // The plugin refreshes each snapshot every 2s, so asking faster than that
     // just re-fetches the same bytes. Off the LAN we ask every 3s instead.
     const POLL_MS      = Math.max(1000, (cfg.pollSeconds || 10) * 1000);
@@ -396,10 +398,6 @@
 
     const TRANSPARENT_PIXEL = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 
-    function mjpegUrl(host) {
-        const path = mjpegPath.replace("{host}", host);
-        return `${location.protocol}//${location.hostname}:${mjpegPort}${path}`;
-    }
     function wantsFullSize(host) {
         // The focused tile is shown across the full width of the page, so it
         // gets the full-size picture. Everything else is a thumbnail.
@@ -471,22 +469,15 @@
     }
 
     // ── Live pool ──────────────────────────────────────────────
-    // Browsers cap HTTP/1.1 connections at ~6 per origin, so the first N
-    // cameras run live MJPEG continuously and the rest snapshot-poll every
-    // POLL_MS.
-    //
-    // How big N is depends on how the page was reached, because each live
-    // stream costs roughly 4 Mbit/s and away from home that is somebody's
-    // mobile data:
+    // The first N cameras run live WebRTC and the rest snapshot-poll every
+    // POLL_MS. How big N is depends on how the page was reached:
     //   home       the configured pool (6) — it is all on the LAN.
-    //   vpn        ONE, the focused tile. Everything else polls the snapshot.
-    //   reflector  NONE. The MJPEG port is not fronted by the reflector, so a
-    //              live tile could only ever sit there saying CONNECTING.
+    //   vpn        ONE, the focused tile (WEBRTC_FOCUS). The rest poll.
+    //   reflector  NONE. Neither the signalling port nor go2rtc's media port
+    //              is fronted by the reflector, so a live tile cannot connect.
     //
-    // Off the LAN the pool is one, so the live stream FOLLOWS the tile you tap
-    // to the top — see focusTile. At home the pool is fixed and tapping only
-    // changes the layout, which is what iOS Safari's MJPEG socket-reuse bugs
-    // make safe to do.
+    // Off the LAN the one live tile FOLLOWS the tile you tap to the top — see
+    // focusTile. At home the pool is fixed and tapping only changes the layout.
     // Policy is now MUTABLE, because the address is only an opening guess: a
     // LAN address reached over a VPN subnet route is indistinguishable from
     // the LAN itself, so the real class only arrives once the link has been
@@ -501,73 +492,41 @@
             () => { _idlePaused = false; document.body.classList.remove("idle-paused"); });
     }
     let LIVE_POOL_SIZE, DEFAULT_LIVE, DEFAULT_LIVE_SET, LIVE_FOLLOWS_FOCUS;
-    // Away over the tunnel, the focused tile streams WebRTC instead of any
-    // MJPEG: go2rtc relays the camera's H.264 untranscoded over UDP, which
-    // DROPS on congestion rather than queueing 30 s behind the way MJPEG's
-    // lossless in-order delivery does. Spike-proven on the real path
-    // (iPhone, 5G+Tailscale, 30-Jul-2026): connected over UDP 3/3, first
-    // frame 1.2-2.3 s, ~1 s behind the camera clock. LAST_RTT is kept for
-    // the FALLBACK ladder: if WebRTC fails, a near-tunnel link falls back
-    // to the old single MJPEG tile and a far one to stills — the floor is
-    // exactly the pre-WebRTC behaviour, never worse.
+    // Away over the tunnel, the focused tile streams WebRTC: go2rtc relays
+    // the camera's H.264 untranscoded over UDP, which DROPS on congestion
+    // rather than queueing 30 s behind the way the old MJPEG streams did.
+    // Spike-proven on the real path (iPhone, 5G+Tailscale, 30-Jul-2026):
+    // connected over UDP 3/3, first frame 1.2-2.3 s, ~1 s behind the camera
+    // clock. If WebRTC fails the tile falls back to stills and retries later.
     let WEBRTC_FOCUS = false;
     let LAST_RTT     = null;
-    // Above the LAN threshold but still plausibly inside the house. CliveS runs
-    // Tailscale ON PERMANENTLY, including at home — and that is the right way to
-    // run it: turning it off on wi-fi to get live video would also leave it off
-    // on café and hotel wi-fi, which is precisely where the tunnel earns its
-    // keep. So "at home" has to be catered for WITH the tunnel up.
-    //
-    // The trouble is that round trip cannot cleanly separate his two tunnelled
-    // cases. MEASURED on his iPhone: 116 ms at home over Tailscale against
-    // 245 ms on 5G over Tailscale — barely 2x, and a good 5G connection can
-    // beat a poor wi-fi one. A single threshold across that gap is a guess.
-    //
-    // So do not guess. Between the two, run exactly ONE live tile instead of
-    // six. If the guess is right he gets live video at home with the tunnel up.
-    // If it is wrong the cost is one stream (~0.5 MB/s) rather than six
-    // (~5.5 MB/s), and the stall watchdog demotes it to stills within seconds
-    // because a link that cannot drain MJPEG shows it almost immediately.
-    // Wrong in this band is survivable. Wrong at six streams is what stalled
-    // his phone in the first place.
+    // The round trip that separates a tunnel from inside the house (116 ms
+    // measured at home over Tailscale, 245 ms on 5G). Only the footer label
+    // uses it now: both bands get the same single WebRTC tile.
     const RTT_TUNNEL_MS = 150;
 
     function setPolicy(cls, rttMs) {
         LINK = cls;
         // typeof-guarded: the contract tests eval setPolicy on its own.
         if (cls === "reflector" && typeof _armIdleGuard === "function") _armIdleGuard();
-        // NO live tiles off the LAN, on a VPN either. Measured on a real phone:
-        // a live tile ran over 30 SECONDS behind while the stills beside it were
-        // 5-8 s behind. MJPEG over TCP delivers every frame in order and drops
-        // nothing, so when the link cannot drain frames as fast as go2rtc makes
-        // them the queue grows and the picture never catches up — it degrades
-        // without limit, and it costs ~17 Mbit/s to do it. A still re-asks for
-        // the current frame every time and cannot fall behind like that. Live
-        // is therefore worse than a still off-LAN on BOTH latency and data, so
-        // there is nothing left to trade off.
-        // The reflector never streams — the MJPEG port is not fronted by it, so
-        // a live tile there cannot connect at all, whatever the timing says.
+        // The reflector never streams — neither video port is fronted by it,
+        // so a live tile there cannot connect at all, whatever the timing
+        // says. A browser without WebRTC gets stills everywhere.
         LAST_RTT     = (rttMs == null ? null : rttMs);
         WEBRTC_FOCUS = false;
-        if (cls === "home") {
+        const canRtc = "RTCPeerConnection" in window;
+        if (cls === "home" && canRtc) {
             // A CONFIGURED zero must mean zero — `|| 6` turned it back into
             // the default (the falsy-number trap).
             const poolCfg = Number.isFinite(+cfg.livePoolSize) ? Math.max(0, +cfg.livePoolSize) : 6;
             LIVE_POOL_SIZE = Math.min(poolCfg, hosts.length);
-        } else if (cls === "vpn" && rttMs != null && cfg.webrtcPath && hosts.length
-                   && "RTCPeerConnection" in window) {
+        } else if (cls === "vpn" && rttMs != null && cfg.webrtcPath && hosts.length && canRtc) {
             // MEASURED tunnel link, near or far: the focused tile streams
-            // WebRTC (see WEBRTC_FOCUS above), everything else stills. This
-            // REPLACES the old "vpn near -> one MJPEG tile" band as first
-            // choice — WebRTC is strictly better off-LAN (drops instead of
-            // queues, ~half the bitrate) — but that band survives below as
-            // the no-webrtcPath fallback and as the failure floor.
+            // WebRTC (see WEBRTC_FOCUS above), everything else stills.
             // rttMs != null is load-bearing: an UNMEASURED link (boot's
-            // conservative guess) must not open any stream, WebRTC included.
+            // conservative guess) must not open any stream.
             LIVE_POOL_SIZE = 0;
             WEBRTC_FOCUS   = true;
-        } else if (cls === "vpn" && rttMs != null && rttMs <= RTT_TUNNEL_MS) {
-            LIVE_POOL_SIZE = Math.min(1, hosts.length);   // probably home, tunnel up
         } else {
             // Includes an unknown round trip: never assume the expensive case
             // when we have not measured.
@@ -581,7 +540,7 @@
     // ── Boot policy ────────────────────────────────────────────
     // The address is a trap on this network: the page is always opened at the
     // LAN address, and over a Tailscale subnet route that address says "home"
-    // from a 5G connection. Booting on it opened six MJPEG streams into a
+    // from a 5G connection. Booting on it opened six live streams into a
     // mobile link, and the correcting measurement then queued its probes
     // behind ~17 Mbit/s of video — sometimes long enough for the stall
     // watchdog to fire first and latch tiles onto 5 s polling.
@@ -638,7 +597,7 @@
         let label = { home: "home network", vpn: "VPN", reflector: "reflector" }[LINK] || LINK;
         if (LINK === "vpn") {
             const near = LAST_RTT != null && LAST_RTT <= RTT_TUNNEL_MS;
-            label = WEBRTC_FOCUS ? `VPN, ${near ? "near" : "far"}, WebRTC` : (LIVE_POOL_SIZE ? "VPN, near" : "VPN, far");
+            label = `VPN, ${near ? "near" : "far"}`;
         }
         // Say WHY, when the answer came from wi-fi association rather than from
         // timing — otherwise "home network" at 116 ms looks like a misreading.
@@ -647,7 +606,7 @@
         }
         const stills = Math.max(hosts.length - LIVE_POOL_SIZE - (WEBRTC_FOCUS ? 1 : 0), 0);
         const bits = [];
-        if (WEBRTC_FOCUS) bits.push("1 live · rtc");
+        if (WEBRTC_FOCUS) bits.push("1 live");
         if (LIVE_POOL_SIZE) bits.push(`${LIVE_POOL_SIZE} live`);
         if (stills) bits.push(`${stills} still @${still / 1000}s`);
         // The measured round trip is shown because it is the whole basis of the
@@ -658,52 +617,14 @@
     renderPolicy();
 
     // ── Client-side stall watchdog (slow-link fallback) ────────
-    // WHY THIS EXISTS, and why the bandwidth poll below can't do it:
-    // the kB/s telemetry reads go2rtc's `bytes_recv`, which counts bytes on the
-    // CAMERA→go2rtc leg. Over a weak mobile link go2rtc keeps receiving frames
-    // perfectly while the go2rtc→BROWSER leg stalls, so that counter happily
-    // advances while the user stares at a frozen first frame. It can detect a
-    // camera-side stall and never a client-side one — which is the one that
-    // actually bites when away from home.
-    //
-    // So we measure what the user can actually see: sample the rendered <img>
-    // into a small canvas and watch for the picture changing. That is immune to
-    // where the bottleneck is, and to whether `onload` fires per multipart part
-    // (which varies by browser). A live MJPEG here runs ~9 fps at ~535 kB/s per
-    // camera; the still fallback is ~50 kB/s, roughly 10x lighter, and is served
-    // from /public which the reflector fronts — so it survives links that MJPEG
-    // cannot.
-    //
-    // Sensor noise means two consecutive real frames are never identical, so an
-    // unchanging signature means the stream stopped, not that the scene is still.
-    const LIVE_PROBE_MS      = 1500;    // how often we sample each live tile
-    const LIVE_STALL_MS      = 9000;    // no visible change for this long → degrade
+    // A live tile is judged by what the viewer can see: the <video> clock has
+    // to keep advancing. go2rtc's own counters only see the camera->go2rtc
+    // leg, which keeps flowing while the go2rtc->browser leg stalls. A stalled
+    // tile drops to stills and tries live again on a growing backoff.
+    const LIVE_PROBE_MS      = 1500;    // how often the watchdog looks at each tile
     const DEGRADED_POLL_MS   = 5000;    // slower still-refresh once degraded
     const LIVE_RETRY_BASE_MS = 60000;   // first re-try of live after degrading
     const LIVE_RETRY_MAX_MS  = 300000;  // backoff ceiling (5 min)
-    const PROBE_N            = 24;      // probe canvas is PROBE_N x PROBE_N
-
-    let _probeCanvas = null;
-    function frameSignature(img) {
-        if (!img || !img.complete || !img.naturalWidth) return null;
-        if (!_probeCanvas) {
-            _probeCanvas = document.createElement("canvas");
-            _probeCanvas.width = _probeCanvas.height = PROBE_N;
-        }
-        try {
-            const ctx = _probeCanvas.getContext("2d", { willReadFrequently: true });
-            ctx.drawImage(img, 0, 0, PROBE_N, PROBE_N);
-            const d = ctx.getImageData(0, 0, PROBE_N, PROBE_N).data;
-            // Cheap rolling hash over the red channel — enough to spot any change.
-            let h = 0;
-            for (let i = 0; i < d.length; i += 4) h = (h * 31 + d[i]) | 0;
-            return h;
-        } catch (e) {
-            // Tainted canvas (CORS) — can't sample. Signal "unknown" so the
-            // watchdog stays out of the way rather than degrading everything.
-            return null;
-        }
-    }
 
     // ── Refresh status ─────────────────────────────────────────
     function _pad(n) { return String(n).padStart(2, "0"); }
@@ -734,7 +655,7 @@
                 continue;
             }
             let txt = "", old = false;
-            if (st.mode === "live" || st.mode === "webrtc") {
+            if (st.mode === "webrtc") {
                 // A live tile has no Last-Modified — show time since the
                 // watchdog last saw the picture CHANGE, and say so.
                 if (st.lastChangeAt) {
@@ -765,12 +686,10 @@
     setInterval(() => { tickRefreshStatus(); tickAges(); }, 1000);
 
     // ── Per-tile stream control ────────────────────────────────
-    // Browsers cap HTTP/1.1 connections at ~6 per origin, so running 9 MJPEG
-    // streams at once leaves the last 3 tiles stuck "Connecting…" forever.
-    // Architecture: up to LIVE_POOL_SIZE tiles are in "live" mode (MJPEG,
-    // long-lived connections); every other tile is in "still" mode (snapshot
-    // polling — short HTTP GETs that complete and free their slot at once).
-    // That pool is 6 on the LAN and 1 or 0 off it; see the Live pool block.
+    // Up to LIVE_POOL_SIZE tiles are live ("webrtc" mode, one peer connection
+    // each); every other tile is in "still" mode (snapshot polling — short
+    // HTTP GETs that complete and free their slot at once). That pool is 6 on
+    // the LAN and 1 or 0 off it; see the Live pool block.
     function releaseFrameUrl(st) {
         // Object URLs are held until revoked; a tile going live or being paused
         // must hand its last one back or the page leaks a blob per frame.
@@ -787,36 +706,8 @@
         // switched to live inside its offset window has a pending timeout that
         // fires later and quietly restarts still polling behind it.
         if (st.stillDelay)   { clearTimeout(st.stillDelay);   st.stillDelay  = null; }
-        if (st.liveTimeout)  { clearTimeout(st.liveTimeout);  st.liveTimeout = null; }
     }
-    // Replace the tile's <img> with a fresh one. Two things matter here:
-    //   1. We have to EXPLICITLY abort the old element's current load before
-    //      detaching it. iOS Safari keeps the underlying HTTP socket open if
-    //      we only do replaceWith() — that eats one of the 6 per-origin
-    //      connection slots and the next MJPEG tries to open queue forever.
-    //      Setting old src to a data URL forces the socket release.
-    //   2. The new element gets the CANONICAL onload/onerror for this tile,
-    //      taken from the tile state (set once in buildGrid) rather than
-    //      copied off the old element — the old one may have had them
-    //      detached by pauseTile, and copying null forward left a resumed
-    //      tile that could never report a frame again.
-    function replaceImg(st) {
-        const oldImg = st.imgEl;
-        // Detach handlers FIRST so they don't fire on the data-URL "load".
-        oldImg.onload  = null;
-        oldImg.onerror = null;
-        oldImg.src     = TRANSPARENT_PIXEL;          // explicit abort
-        const newImg = document.createElement("img");
-        newImg.alt         = oldImg.alt || "";
-        newImg.crossOrigin = "anonymous";
-        newImg.onload      = st.onFrameLoad  || null;
-        newImg.onerror     = st.onFrameError || null;
-        oldImg.replaceWith(newImg);
-        st.imgEl = newImg;
-        return newImg;
-    }
-
-    // ── WebRTC focused tile (away over the tunnel) ─────────────
+    // ── WebRTC tiles ───────────────────────────────────────────
     // Media: browser <-> go2rtc :8555 directly (UDP+TCP mux), reachable on
     // the LAN address over the Tailscale subnet route. Signalling: one POST
     // to the plugin proxy, which forwards to go2rtc's loopback API. Video
@@ -827,7 +718,7 @@
     const WEBRTC_FRAME_MS = 8000;    // connected but no frame → fall back
     function webrtcUrl(host) {
         const path = (cfg.webrtcPath || "/webrtc/{host}").replace("{host}", host);
-        return `${location.protocol}//${location.hostname}:${mjpegPort}${path}`;
+        return `${location.protocol}//${location.hostname}:${proxyPort}${path}`;
     }
     function stopWebrtc(st) {
         if (st.webrtcIceTimer)   { clearTimeout(st.webrtcIceTimer);   st.webrtcIceTimer   = null; }
@@ -846,19 +737,23 @@
                                     // negative and freeze the rate display
         st.imgEl.style.display = "";
     }
-    // The failure floor is exactly the pre-WebRTC behaviour: a near-tunnel
-    // link falls back to the single MJPEG tile, a far one to stills. Backoff
-    // reuses the live-retry arithmetic; the stall watchdog owns the retry.
+    // A tile in the live pool drops to stills through degradeToStill, whose
+    // backoff ladder owns the retry (tryRestoreLive). The single away tile
+    // keeps its own backoff, which the stall watchdog retries while that tile
+    // still holds the focus.
     function webrtcFallback(host, why) {
         const st = camState[host]; if (!st) return;
+        stopWebrtc(st);
+        if (LIVE_POOL_SIZE > 0 && mayHoldLive(host)) {
+            degradeToStill(host, `WebRTC ${why}`);
+            return;
+        }
         st.webrtcFails   = (st.webrtcFails || 0) + 1;
         st.webrtcRetryAt = Date.now()
             + Math.min(LIVE_RETRY_BASE_MS * st.webrtcFails, LIVE_RETRY_MAX_MS);
-        console.warn(`[cameras] ${host} webrtc ${why} — falling back`
+        console.warn(`[cameras] ${host} webrtc ${why} — falling back to stills`
                      + ` (retry in ${Math.round((st.webrtcRetryAt - Date.now()) / 1000)}s)`);
-        stopWebrtc(st);
-        if (LAST_RTT != null && LAST_RTT <= RTT_TUNNEL_MS) startLive(host);
-        else startStill(host);
+        startStill(host);
     }
     function startWebrtc(host) {
         const st = camState[host]; if (!st) return;
@@ -866,12 +761,6 @@
         clearTileTimers(st);
         releaseFrameUrl(st);
         stopWebrtc(st);
-        // Leaving LIVE: release the MJPEG socket first (v2.95.1). The <img>
-        // stays under the video as the poster, and a poster that is still a
-        // multipart stream is a second stream on the one link where two are
-        // never allowed — ~4 Mbit/s of mobile data under the WebRTC picture,
-        // and a tile chip that said "webrtc" while MJPEG kept flowing.
-        if (st.mode === "live") replaceImg(st);
         st.mode   = "webrtc";
         st.paused = false;
         st.frameEl.classList.remove("paused");
@@ -922,6 +811,12 @@
             if (st.webrtcGotFrame) return;       // two triggers race; first wins
             st.webrtcGotFrame = true;
             st.webrtcFails    = 0;               // a working stream forgives the past
+            if (st.autoDegraded) {               // a pool tile back from stills
+                st.autoDegraded = false;
+                st.recoveredAt  = Date.now();
+                st.degradesSinceRecovery = 0;
+                console.info(`[cameras] ${host} live stream recovered`);
+            }
             st.lastChangeAt   = Date.now();
             st.lastVideoTime  = 0;
             st.frameEl.classList.add("has-image");
@@ -971,55 +866,27 @@
         if (st.bwEl) st.bwEl.style.visibility = "visible";
     }
 
+    // "Live" means WebRTC since v3.36.0. The MJPEG streams it replaced cost
+    // about 4 Mbit/s a tile and held one of the browser's six connections per
+    // origin each, so a page with six live tiles could not even send the
+    // signalling request for a seventh. Kept as its own name because the
+    // pool, the retry ladder and the focus hand-over all speak of "live".
     function startLive(host) {
-        const st = camState[host]; if (!st) return;
-        clearTileTimers(st);
-        stopWebrtc(st);             // leaving webrtc mode: close the pc, restore the img
-        releaseFrameUrl(st);        // leaving still mode: hand the blob back
-        st.mode   = "live";
-        st.paused = false;
-        st.frameEl.classList.remove("paused");
-        st.frameEl.classList.add("connecting");
-        const img = replaceImg(st);
-        img.src = mjpegUrl(host) + "?_t=" + Date.now();
-
-        // Safety timeout: if the MJPEG hasn't delivered a frame in 10s the
-        // socket is probably stuck somewhere upstream. Drop the tile to
-        // still polling so it shows something rather than CONNECTING… forever.
-        if (st.liveTimeout) clearTimeout(st.liveTimeout);
-        st.liveTimeout = setTimeout(() => {
-            if (camState[host]?.mode === "live"
-                && camState[host].frameEl.classList.contains("connecting")) {
-                // Route through degradeToStill rather than a bare startStill:
-                // the bare call left autoDegraded unset, so the watchdog's
-                // retry ladder never looked at this tile again and one missed
-                // 10 s window meant stills until the next re-layout.
-                degradeToStill(host, "MJPEG didn't connect in 10s");
-            }
-        }, 10000);
-
-        setMode(host, "live");
-        if (st.bwEl) st.bwEl.style.visibility = "visible";
-        // No markRefreshed here: STARTING a stream is not a frame. The first
-        // real frame stamps the clock from onFrameLoad.
+        startWebrtc(host);
     }
     function startStill(host) {
         const st = camState[host]; if (!st) return;
-        const wasLive = st.mode === "live";
         clearTileTimers(st);
         stopWebrtc(st);             // no-op unless leaving webrtc mode
         st.mode   = "still";
         st.paused = false;
         st.frameEl.classList.remove("paused");
         st.frameEl.classList.remove("connecting");
-        // If we're coming from live (multipart MJPEG), replace the img element
-        // to fully tear down the connection. For still→still this is unnecessary
-        // and would just churn DOM, so skip it.
-        const img = wasLive ? replaceImg(st) : st.imgEl;
+        const img = st.imgEl;
         img.crossOrigin = "anonymous";
         // Re-attach the canonical handlers unconditionally: a tile resuming
-        // from paused had them detached (see pauseTile) and skips replaceImg,
-        // so without this it would never report a frame again.
+        // from paused had them detached (see pauseTile), so without this it
+        // would never report a frame again.
         if (st.onFrameLoad)  img.onload  = st.onFrameLoad;
         if (st.onFrameError) img.onerror = st.onFrameError;
 
@@ -1053,7 +920,7 @@
             // tiles polling every second over a 0.9 s link ask for more than
             // that and the surplus queues. A queued poll is worthless — by the
             // time it is answered its frame is stale — and a growing queue is
-            // exactly how the live MJPEG tiles ended up 30 s behind. Skipping
+            // exactly how the old MJPEG tiles ended up 30 s behind. Skipping
             // means a slow link quietly polls less often rather than building a
             // backlog it can never drain.
             if (_idlePaused) return Promise.resolve();   // reflector, ten idle minutes: nothing until a tap (v2.96.1)
@@ -1141,7 +1008,7 @@
         // ticking over without sending anything.
         const refresh = () => (document.hidden ? Promise.resolve() : fetchFrame());
         fetchFrame();
-        // Auto-degraded tiles poll slower — the link that couldn't carry MJPEG
+        // Auto-degraded tiles poll slower — the link that couldn't carry video
         // won't thank us for a 2s snapshot either.
         const period = stillPeriodFor(host, st);
         // STAGGER the tiles across the period. Fired together, nine requests
@@ -1208,8 +1075,8 @@
     // never regain live after a stall (the watchdog logged "retrying" every
     // 1.5s while this gate silently refused), and hosts[0], demoted by a
     // handover but still carrying autoDegraded, could restore ITSELF behind
-    // the user's back — two MJPEG sockets at once on the one link where that
-    // is exactly what we are avoiding.
+    // the user's back — two streams at once on the one link where that is
+    // exactly what we are avoiding.
     function mayHoldLive(host) {
         if (LIVE_FOLLOWS_FOCUS) return host === (focusedHost || DEFAULT_LIVE[0]);
         return DEFAULT_LIVE_SET.has(host);
@@ -1231,7 +1098,6 @@
             if (!st.paused && st.mode === "still") startStill(host);
             return;
         }
-        st.lastSig     = null;
         st.lastChangeAt = Date.now();   // grace period before the watchdog can bite
         startLive(host);
     }
@@ -1239,6 +1105,19 @@
     function pauseTile(host) {
         const st = camState[host]; if (!st) return;
         clearTileTimers(st);
+        // Keep what the viewer last saw: a live tile's picture is in the
+        // <video>, and the <img> under it is only the poster from before it
+        // went live, minutes old.
+        const v = st.mode === "webrtc" && st.videoEl && st.videoEl.videoWidth ? st.videoEl : null;
+        let lastVideo = null;
+        if (v) {
+            try {
+                const c = document.createElement("canvas");
+                c.width = v.videoWidth; c.height = v.videoHeight;
+                c.getContext("2d").drawImage(v, 0, 0);
+                lastVideo = c.toDataURL("image/jpeg", 0.85);
+            } catch (e) {}
+        }
         stopWebrtc(st);             // a hidden tab must not hold a peer connection
         st.paused = true;
         st.mode   = "paused";
@@ -1255,7 +1134,8 @@
         st.imgEl.onload  = null;
         st.imgEl.onerror = null;
         st.lastFrameDataUrl = null;          // this pause's capture, not an earlier one
-        try { captureLastFrame(host); } catch (e) {}
+        if (lastVideo) { st.lastFrameDataUrl = lastVideo; st.imgEl.src = lastVideo; }
+        else { try { captureLastFrame(host); } catch (e) {} }
         // The captured frame has already replaced the stream src (so the
         // socket is released); overwriting it with the transparent pixel
         // threw the capture away a line after making it (v2.95.4).
@@ -1273,8 +1153,7 @@
         c.getContext("2d").drawImage(st.imgEl, 0, 0);
         try { st.lastFrameDataUrl = c.toDataURL("image/jpeg", 0.85); } catch (e) {}
         if (st.lastFrameDataUrl) {
-            // Swap to the captured still so the tile shows the last frame even
-            // after we drop the MJPEG connection.
+            // Swap to the captured still so the tile shows the last frame.
             st.imgEl.src = st.lastFrameDataUrl;
         }
     }
@@ -1296,8 +1175,7 @@
         // while the footer said "@1s" beside it.
         const stillPeriod = stillPeriodFor(host, st);
         const labels = {
-            live:    "live",
-            webrtc:  "live · rtc",
+            webrtc:  "live",
             // A tile dropped by the slow-link watchdog says so, so it's obvious
             // why it isn't moving and that it wasn't a configuration choice.
             still:   st.autoDegraded
@@ -1314,9 +1192,9 @@
     function takeSnapshot(host) {
         const st = camState[host]; if (!st) return;
         const filename = `${slugify(names[host] || host)}_${tsStamp()}.jpg`;
-        // Canvas approach: works because the MJPEG proxy sends ACAO:* and the
-        // img has crossorigin="anonymous". Falls back to direct download of
-        // the snapshot poller file (cam-<ip>.jpg) on any failure.
+        // Canvas approach: the stills are same-origin and a WebRTC <video>
+        // never taints a canvas. Falls back to direct download of the
+        // snapshot poller file (cam-<ip>.jpg) on any failure.
         const fallback = () => {
             const a = document.createElement("a");
             // true: someone saving a picture wants the full-size one, whatever
@@ -1351,8 +1229,8 @@
     // ── Focus mode ─────────────────────────────────────────────
     // Exactly one tile is focused (the big one at the top of the grid).
     // Tapping any other tile just moves the focused class — live and still
-    // tiles keep their assigned mode forever. No swapping, no MJPEG
-    // reconnection on click.
+    // tiles keep their assigned mode, except off the LAN where the one live
+    // tile follows the focus.
     function focusTile(host) {
         if (focusedHost === host) return;
         const previous = focusedHost;
@@ -1366,14 +1244,9 @@
         if (wrap) wrap.scrollIntoView({ behavior: "smooth", block: "start" });
 
         // Away over the tunnel the WEBRTC slot follows the focus. Stop the
-        // old tile FIRST — never two peer connections at once, the same rule
-        // as the never-two-MJPEG-sockets one below.
+        // old tile FIRST — never two peer connections over the tunnel.
         if (WEBRTC_FOCUS) {
-            // The previous focus drops to a still whether it was WebRTC OR the
-            // single MJPEG tile a near-tunnel fallback left it on (v2.95.1) —
-            // never two streams over the tunnel.
-            if (previous && camState[previous]
-                    && (camState[previous].mode === "webrtc" || camState[previous].mode === "live")) {
+            if (previous && camState[previous] && camState[previous].mode === "webrtc") {
                 startStill(previous);            // closes the pc via stopWebrtc
             }
             const stN = camState[host];
@@ -1384,12 +1257,10 @@
             }
         }
 
-        // Off the LAN there is one live stream and it belongs to whichever
-        // tile is at the top. Hand it over: drop the old one to stills first
-        // so we are never holding two MJPEG sockets at once, which is what
-        // iOS Safari struggles with.
-        if (LIVE_FOLLOWS_FOCUS && camState[host] && camState[host].mode !== "live") {
-            if (previous && camState[previous] && camState[previous].mode === "live") {
+        // A configured pool of one follows the focus too. Hand it over: drop
+        // the old one to stills first so there are never two at once.
+        if (LIVE_FOLLOWS_FOCUS && camState[host] && camState[host].mode !== "webrtc") {
+            if (previous && camState[previous] && camState[previous].mode === "webrtc") {
                 startStill(previous);
             }
             const st = camState[host];
@@ -1436,7 +1307,7 @@
                     <span class="name"><span class="dot"></span></span>
                     <span class="age"></span>
                     <span class="bw">— kB/s</span>
-                    <span class="host"><span class="mode">live</span> · ${escAttr(host)}</span>
+                    <span class="host"><span class="mode">…</span> · ${escAttr(host)}</span>
                 </div>`;
             grid.appendChild(wrap);
 
@@ -1449,18 +1320,13 @@
 
             camState[host] = { imgEl: img, frameEl: frame, dotEl: dot, modeEl, bwEl, ageEl,
                                 mode: "off", paused: false,
-                                lastBytes: null,
-                                // Wall-clock time of the most recent bytes-arrived
-                                // event from the camera→go2rtc telemetry. The
-                                // bandwidth-poll tick flips the dot to amber when
-                                // this gets > STALE_MS old (frozen-frame detection,
-                                // since <img> onerror doesn't fire for MJPEG that
-                                // simply stops mid-stream).
+                                // Wall-clock time of the last frame this tile
+                                // received; the bandwidth tick flips the dot to
+                                // amber once it is more than STALE_MS old.
                                 lastFreshAt: null };
 
             // ONE source of truth for the frame handlers, stored on the tile
-            // state: replaceImg attaches them to each fresh element, startStill
-            // re-attaches on resume, and pauseTile detaches them before poking
+            // state: startStill re-attaches them on resume, and pauseTile detaches them before poking
             // src so a data-URL or transparent-pixel assignment can never fire
             // a synthetic "frame arrived".
             camState[host].onFrameLoad = () => {
@@ -1468,29 +1334,20 @@
                 frame.classList.add("has-image");
                 frame.classList.remove("error");
                 frame.classList.remove("connecting");   // first frame arrived
-                if (st.liveTimeout) { clearTimeout(st.liveTimeout); st.liveTimeout = null; }
                 dot.classList.remove("bad");
                 dot.classList.remove("stale");
                 dot.classList.add("ok");
                 st.lastFreshAt = Date.now();        // bootstrap the watchdog
-                if (!st.paused) setMode(host, st.mode === "live" ? "live" : "still");
-                // Only a LIVE tile stamps Updated from onload — a still's
-                // onload fires for the objectURL swap of a frame the blob
-                // path already stamped, and double-stamping hid the gap
-                // between "we fetched something" and "a new frame arrived".
-                if (st.mode === "live") markRefreshed();
+                // Only a still's <img> reports here now (a live tile draws in its
+                // <video>), and the blob path has already stamped Updated for
+                // it — stamping again would hide the gap between "we fetched
+                // something" and "a new frame arrived".
+                if (!st.paused && st.mode === "still") setMode(host, "still");
             };
             camState[host].onFrameError = () => {
                 const st = camState[host];
                 if (!st || st.paused) return;
-                if (st.mode === "live") {
-                    // A live socket dying mid-stream used to land here as a
-                    // terminal "Unreachable" — nothing ever retried it. Route
-                    // it through the degrade ladder instead: stills keep the
-                    // tile alive and the watchdog's backoff owns the retry.
-                    degradeToStill(host, "stream error");
-                    return;
-                }
+                if (st.mode === "webrtc") return;     // the poster, not the picture
                 frame.classList.remove("has-image");
                 frame.classList.add("error");
                 dot.classList.remove("ok");
@@ -1520,8 +1377,8 @@
     }
 
     // ── Re-layout / pause all ──────────────────────────────────
-    // Lays every tile out under the CURRENT policy: the default-live set gets
-    // MJPEG, everything else snapshot-polls. Used at boot, on resume, and on
+    // Lays every tile out under the CURRENT policy: the default-live set goes
+    // live over WebRTC, everything else snapshot-polls. Used at boot, on resume, and on
     // every policy change.
     function relayoutAll() {
         for (const host of hosts) {
@@ -1552,22 +1409,13 @@
     }
 
     // ── Bandwidth polling ──────────────────────────────────────
-    // Reads streams.json, which the plugin writes from go2rtc's /api/streams
-    // with producer URLs stripped. We use the <slug>_mjpeg producer's bytes_recv counter
-    // — that's the bytes go2rtc reads from its ffmpeg pipe per stream, which
-    // tracks what we ship to the browser pretty closely.
+    // The rate is what THIS page downloads: stills measured blob by blob, live
+    // tiles from their peer connection's own inbound counter. A dot turns
+    // amber once its tile has shown nothing new for STALE_MS.
     let _bwTimer    = null;
-    let _bwLastTs   = null;        // last _writeTs we processed
-    // Stale-stream watchdog: if a camera's bytes_recv hasn't advanced in this
-    // many milliseconds, flip its dot to amber. MJPEG <img> tags don't fire
-    // `onerror` when a stream goes silent mid-flow (TCP stays open, frames
-    // just stop) so the bandwidth telemetry is the only reliable heartbeat.
     const STALE_MS = 10000;
     // Bytes this page has actually received, ever. Deltas between ticks give
-    // the real rate. Stills are exact (we can see each blob); a live MJPEG tile
-    // is not measurable from JS, so its share is still taken from go2rtc's
-    // producer counter — approximate, but at least those bytes genuinely are
-    // being sent to this device.
+    // the real rate.
     let _rxBytes = 0, _rxLast = 0, _rxLastAt = 0;
     let _healthLastFetch = 0;
     function paintCameraHealth(health) {
@@ -1647,98 +1495,31 @@
                     st.dotEl.classList.toggle("ok", !stale);
                 }
 
-                // streams.json exists only to read go2rtc's per-producer byte
-                // counters, which are meaningful for LIVE tiles alone. Off the
-                // LAN there are none, so this was a request a second, from every
-                // phone, for a number nothing used.
-                const anyLive = hosts.some(h => camState[h] && camState[h].mode === "live");
-                const needsHealth = (Date.now() - _healthLastFetch) > 30000;
-                if (!anyLive && !needsHealth) {
-                    _rxLast = _rxBytes; _rxLastAt = nowMs0;
-                    const str = ownKBs > 1024 ? `${(ownKBs/1024).toFixed(1)} MB/s`
-                                              : `${ownKBs.toFixed(0)} kB/s`;
-                    _setBw(str);
-                    return;
+                // A live tile is stale when its <video> clock stops, which the
+                // stall watchdog owns; here it is only painted.
+                for (const host of hosts) {
+                    const st = camState[host];
+                    if (!st || st.mode !== "webrtc" || st.paused || !st.webrtcGotFrame) continue;
+                    const stale = st.lastChangeAt != null && (nowMs0 - st.lastChangeAt) > STALE_MS;
+                    if (st.dotEl.classList.contains("bad")) continue;
+                    st.dotEl.classList.toggle("stale", stale);
+                    st.dotEl.classList.toggle("ok", !stale);
                 }
 
-                const r = await fetch(streamsApi(), { cache: "no-store" });
-                if (!r.ok) return;
-                const data = await r.json();
-                _healthLastFetch = Date.now();
-                paintCameraHealth(data._cameraHealth);
-                // Health is the only reason an all-stills page reaches this
-                // far. Preserve its locally measured bandwidth rather than
-                // briefly replacing it with an irrelevant go2rtc total.
-                if (!anyLive) {
-                    _rxLast = _rxBytes; _rxLastAt = nowMs0;
-                    const str = ownKBs > 1024 ? `${(ownKBs/1024).toFixed(1)} MB/s`
-                                              : `${ownKBs.toFixed(0)} kB/s`;
-                    _setBw(str);
-                    return;
+                // Every byte this page pulls down is in _rxBytes — the stills
+                // exactly, the WebRTC tiles from their own counters above — so
+                // the total needs nothing from the server. streams.json is read
+                // only for camera health, every 30 s.
+                if ((Date.now() - _healthLastFetch) > 30000) {
+                    _healthLastFetch = Date.now();
+                    try {
+                        const r = await fetch(streamsApi(), { cache: "no-store" });
+                        if (r.ok) paintCameraHealth((await r.json())._cameraHealth);
+                    } catch (e) { /* health is best-effort */ }
                 }
-                const ts   = data._writeTs;
-                // Skip if the file hasn't been refreshed since our last read —
-                // otherwise the delta is 0 and the display flicks to 0 kB/s.
-                if (ts == null || ts === _bwLastTs) return;
-                let total = 0;
-                const now = Date.now();
-                for (const host of hosts) {
-                    const slug = slugs[host];
-                    if (!slug) continue;
-                    const s = data[`${slug}_mjpeg`];
-                    const bytes = (s && s.producers && s.producers[0] &&
-                                   s.producers[0].bytes_recv) || 0;
-                    const st = camState[host];
-                    if (!st) continue;
-                    if (st.lastBytes != null && st.lastTs != null) {
-                        const dB = bytes - st.lastBytes;
-                        const dT = ts - st.lastTs;       // seconds (server clock)
-                        if (dB >= 0 && dT > 0) {
-                            const kBs = dB / 1024 / dT;
-                            st.bwEl.textContent = kBs > 1024
-                                ? `${(kBs/1024).toFixed(1)} MB/s`
-                                : `${kBs.toFixed(0)} kB/s`;
-                            // ONLY for a tile actually holding a live stream.
-                            // A still tile downloads a small JPEG once a second
-                            // while go2rtc goes on pulling RTSP from that camera
-                            // regardless — counting that here is what produced
-                            // the wildly overstated total.
-                            if (!st.paused && st.mode === "live") total += kBs;
-                        }
-                        // Stale-stream watchdog: if bytes have increased,
-                        // mark fresh and clear any amber state.
-                        if (dB > 0) {
-                            st.lastFreshAt = now;
-                            if (st.dotEl.classList.contains("stale")) {
-                                st.dotEl.classList.remove("stale");
-                                st.dotEl.classList.add("ok");
-                            }
-                        }
-                    }
-                    // Flip to amber if frames have stopped arriving for
-                    // STALE_MS+. Don't override "bad" (image-load error) —
-                    // that's a stronger signal. Also skip cams in "off" mode
-                    // because the tile isn't pulling frames anyway.
-                    if (st.lastFreshAt != null
-                            && (now - st.lastFreshAt) > STALE_MS
-                            && !st.dotEl.classList.contains("bad")
-                            && st.mode !== "off") {
-                        if (!st.dotEl.classList.contains("stale")) {
-                            st.dotEl.classList.remove("ok");
-                            st.dotEl.classList.add("stale");
-                        }
-                    }
-                    st.lastBytes = bytes;
-                    st.lastTs    = ts;
-                }
-                _bwLastTs = ts;
-                // Our own bytes were worked out at the top of the tick; add them
-                // to the live tiles' share. Computed once, used once — an
-                // earlier version of this did it in both places and doubled it.
-                total += ownKBs;
                 _rxLast = _rxBytes; _rxLastAt = nowMs0;
-                _setBw(total > 1024 ? `${(total/1024).toFixed(1)} MB/s`
-                                    : `${total.toFixed(0)} kB/s`);
+                _setBw(ownKBs > 1024 ? `${(ownKBs/1024).toFixed(1)} MB/s`
+                                     : `${ownKBs.toFixed(0)} kB/s`);
             } catch (e) { /* ignore */ }
         };
         tick();
@@ -1754,9 +1535,8 @@
 
     // ── Client-side stall watchdog ─────────────────────────────
     // Runs independently of the bandwidth poll (and of any server telemetry) so
-    // it still works when the page is reached over a link that can't sustain
-    // MJPEG — which is exactly when it's needed. Purely local: samples the
-    // rendered image and compares it with the previous sample.
+    // it still works on a link that cannot sustain video — which is exactly
+    // when it is needed. Purely local: watches each live tile's video clock.
     let _stallTimer = null;
     function startStallWatchdog() {
         if (_stallTimer) clearInterval(_stallTimer);
@@ -1766,57 +1546,27 @@
                 const st = camState[host];
                 if (!st || st.paused) continue;
 
-                if (st.mode === "live") {
-                    const sig = frameSignature(st.imgEl);
-                    if (sig === null) continue;          // can't sample — stay out of the way
-                    if (st.lastSig === null || st.lastSig === undefined) {
-                        st.lastSig      = sig;
-                        st.lastChangeAt = now;
-                        continue;
-                    }
-                    if (sig !== st.lastSig) {
-                        st.lastSig      = sig;
-                        st.lastChangeAt = now;
-                        // Frames are flowing. If this tile had been degraded,
-                        // it has recovered — clear the marker and, after a good
-                        // run, forgive the backoff so a one-off blip doesn't
-                        // leave it permanently cautious.
-                        if (st.autoDegraded) {
-                            st.autoDegraded = false;
-                            st.recoveredAt  = now;
-                            st.degradesSinceRecovery = 0;
-                            setMode(host, "live");
-                            console.info(`[cameras] ${host} live stream recovered`);
-                        }
-                        if (st.recoveredAt && (now - st.recoveredAt) > LIVE_RETRY_MAX_MS) {
-                            st.degradeCount = 0;
-                            st.recoveredAt  = null;
-                        }
-                        continue;
-                    }
-                    // Unchanged. Degrade once we're past the stall threshold.
-                    if (st.lastChangeAt && (now - st.lastChangeAt) > LIVE_STALL_MS) {
-                        degradeToStill(host, `no new frame in ${Math.round((now - st.lastChangeAt)/1000)}s`);
-                    }
-                } else if (st.mode === "webrtc") {
-                    // Stall = the video clock stopped advancing. currentTime
-                    // is cheaper and more direct than canvas hashing, and a
-                    // WebRTC srcObject cannot taint a canvas anyway if this
-                    // ever wants the frameSignature treatment.
+                if (st.mode === "webrtc") {
+                    // Stall = the video clock stopped advancing.
                     const v = st.videoEl;
                     if (!v || !st.webrtcGotFrame) continue;  // connecting — the timers own it
                     if (v.currentTime > (st.lastVideoTime || 0)) {
                         st.lastVideoTime    = v.currentTime;
                         st.lastChangeAt     = now;
                         st.webrtcStallTicks = 0;
+                        // After a good run, forgive the degrade backoff so a
+                        // one-off blip does not leave the tile cautious for ever.
+                        if (st.recoveredAt && (now - st.recoveredAt) > LIVE_RETRY_MAX_MS) {
+                            st.degradeCount = 0;
+                            st.recoveredAt  = null;
+                        }
                     } else if ((st.webrtcStallTicks = (st.webrtcStallTicks || 0) + 1) >= 2) {
                         st.webrtcStallTicks = 0;
                         webrtcFallback(host, "video stalled");
                     }
                 } else if (st.mode === "still" && st.autoDegraded) {
                     // Six degrades without ONE recovery = the stream is not
-                    // coming back (or the picture is genuinely static, which
-                    // the hash cannot tell from a stall) — park on stills
+                    // coming back — park on stills
                     // until a user tap or a tab-resume re-layout, instead of
                     // thrashing live/still on the retry ladder for ever.
                     // Park after six degrades with no recovery between them, OR six
@@ -1849,7 +1599,7 @@
     // ── Global controls ────────────────────────────────────────
     // Measure the link and correct the policy if the guess was wrong. The
     // address said "home", but a LAN address arriving over a Tailscale subnet
-    // route says exactly the same thing, and acting on it opened six MJPEG
+    // route says exactly the same thing, and acting on it opened six live
     // streams on a mobile connection. Only ever downgrades — a fast probe
     // cannot make a reflector address local — so the worst case is a second of
     // stills at home, against 44 Mbit/s of mobile data the other way round.
@@ -2057,7 +1807,7 @@
         // Re-decide from the cached measured verdict (bounded 60 s) before
         // resuming a single tile. The old path resumed straight into the LAST
         // policy, which for a phone put down at home and picked up on 5G was
-        // six live MJPEG streams into a mobile link.
+        // six live streams into a mobile link.
         bootPolicy();
         relayoutAll();
         if (window.DashUI && DashUI.forgetRtt) DashUI.forgetRtt();
@@ -2075,7 +1825,7 @@
         // Initial layout under the BOOT policy — the cached measured verdict,
         // or conservative all-stills when there isn't a fresh one (see
         // bootPolicy). measureAndApply below corrects it within a second or
-        // two; what it can no longer do is open six MJPEG streams on an
+        // two; what it can no longer do is open six live streams on an
         // unverified "home" guess.
         relayoutAll();
         // Pin focus to Garage (already live; this just adds the .focused class

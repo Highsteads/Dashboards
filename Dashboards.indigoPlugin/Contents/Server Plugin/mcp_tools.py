@@ -51,7 +51,7 @@ LOG_TAIL_BYTES    = 512 * 1024       # more than 400 lines of anything this plug
 VENDORS = ("dahua", "hikvision")
 STREAMS = ("sub2", "main")
 # Same rule as the Settings endpoint: a host is later interpolated into
-# go2rtc.yaml and MJPEG proxy URLs, so an IP or plain hostname only.
+# go2rtc.yaml and WebRTC signalling URLs, so an IP or plain hostname only.
 HOST_RE = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9.-]{0,252}[A-Za-z0-9])?$")
 
 
@@ -263,7 +263,7 @@ def tool_get_status(plugin, args):
             "running":          len(plugin.cameras),
             "credentialsSet":   bool(getattr(plugin, "cam_user", "") and getattr(plugin, "cam_pass", "")),
             "go2rtcRunning":    go2rtc is not None and go2rtc.poll() is None,
-            "mjpegProxyRunning": getattr(plugin, "_mjpeg_server", None) is not None,
+            "proxyRunning": getattr(plugin, "_proxy_server", None) is not None,
         },
         "history": {
             "backend":     str((plugin.pluginPrefs or {}).get("historyBackend") or "sqlite"),
@@ -339,7 +339,7 @@ def tool_list_cameras(plugin, args):
         "swapOutHost":       cfg.get("swapOutHost") or "",
         "credentialsSet":    bool(getattr(plugin, "cam_user", "") and getattr(plugin, "cam_pass", "")),
         "go2rtcRunning":     go2rtc is not None and go2rtc.poll() is None,
-        "mjpegProxyRunning": getattr(plugin, "_mjpeg_server", None) is not None,
+        "proxyRunning": getattr(plugin, "_proxy_server", None) is not None,
         "restartPending":    mod._parse_cameras(saved) != mod._parse_cameras(running),
     }
 

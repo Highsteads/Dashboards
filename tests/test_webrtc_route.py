@@ -74,9 +74,9 @@ def test_answer_passthrough_uses_raw_slug():
     assert ctype == "application/sdp"
     assert payload == b"v=0\r\nanswer-sdp"
     seen = _StubGo2rtc.seen[0]
-    # The RAW H.264 slug, NOT the ffmpeg MJPEG leg — the _mjpeg suffix lives
-    # three lines from this code in the MJPEG route, and forwarding to it
-    # would silently negotiate a transcode that cannot even carry H264.
+    # The RAW H.264 slug. Until v3.36.0 an ffmpeg `_mjpeg` leg sat beside it,
+    # and forwarding to that would have negotiated a transcode that cannot
+    # even carry H264; it is gone, and this keeps it from coming back here.
     assert seen["path"] == "/api/webrtc?src=garage"
     assert "_mjpeg" not in seen["path"]
     assert seen["ctype"] == "application/sdp"
@@ -123,7 +123,7 @@ def test_unreachable_go2rtc_maps_to_502():
 
 
 # ── Handler gate ordering (source asserts) ─────────────────────
-# The /webrtc/<host> handler is a nested class inside _start_mjpeg_proxy, so
+# The /webrtc/<host> handler is a nested class inside _start_proxy, so
 # it cannot be instantiated without the full plugin; pin its gate ORDER from
 # the source instead, the way the .mjs suites pin page behaviour.
 def _do_post_source():
@@ -173,3 +173,13 @@ def test_options_preflight_scoped_to_webrtc():
     assert '"/webrtc/"' in body
     assert "Access-Control-Allow-Methods" in body
     assert "Access-Control-Allow-Headers" in body
+
+
+def test_the_mjpeg_route_and_transcode_are_gone():
+    """v3.36.0: live video is WebRTC. No /mjpeg route on the proxy, and no
+    ffmpeg `_mjpeg` transcode stream in the generated go2rtc config."""
+    import inspect
+    import cameras_mixin
+    src = inspect.getsource(cameras_mixin)
+    assert '"/mjpeg/"' not in src and "stream.mjpeg" not in src
+    assert "#video=mjpeg" not in src

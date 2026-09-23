@@ -41,8 +41,9 @@ for as long as the contacts say the door is actually moving. It holds until the 
 door really has moved, goes red if it failed, and goes amber and tells you to go and look if nothing
 confirmed it either way. It is reporting the door, not the fact that Indigo accepted the request.
 
-**Cameras are live video, not stills.** H.264 streams transcoded to MJPEG and dropped straight into
-an `<img>` tag. On a slow link — away from home over Tailscale, on mobile data — everything slows
+**Cameras are live video, not stills.** The camera's own H.264, relayed over WebRTC with no
+re-encoding, on the Cameras page; the hub and room pages show stills that cross-fade, and a tap
+opens the live picture. On a slow link — away from home over Tailscale, on mobile data — everything slows
 right down and then stops altogether after ten minutes untouched, because somebody is paying for
 those bytes.
 

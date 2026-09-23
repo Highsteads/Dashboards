@@ -43,10 +43,12 @@ Read the resolved counts under each room before assuming a page is broken.
 - **Tiles say "2s" or "5s" at home.** The page thinks the link is slow. Tap "this device is" at the
   bottom of the Cameras page to pin it to home. Check whether the browser was paired with the
   reflector address rather than the LAN one.
-- **Only some tiles are live.** `livePoolSize` (default six) is a browser limit, not a plugin one:
-  about six long-lived connections per address is all a browser will open.
-- **Cameras work at home and not away.** Live streams need port 8177, which only Tailscale reaches.
-  Over the reflector you get stills, slowly, by design.
+- **Only some tiles are live.** `livePoolSize` (default six) sets how many are live at home; the
+  rest are stills. Away from home only the tile at the top is live, by design.
+- **Live tiles never start, or drop to stills.** Live video is WebRTC: it is set up on port 8177
+  and streams from go2rtc on 8555, and both have to be reachable. At home, check nothing on the Mac
+  blocks 8555; away, only Tailscale reaches them. Over the reflector you get stills, slowly, by
+  design.
 
 ## Energy, Cost or Laundry are missing from the menu
 

@@ -124,7 +124,7 @@ lives in modules beside it, which `Plugin` inherits, so every method is still `s
 
 | Module | What it holds |
 |---|---|
-| `cameras_mixin.py` | go2rtc, the :8177 MJPEG proxy and guest server, the snapshot poller and its thumbnails, and the stream and camera-health files |
+| `cameras_mixin.py` | go2rtc, the :8177 server (WebRTC set-up, bootstraps, guest reads), the snapshot poller and its thumbnails, and the stream and camera-health files |
 | `config_mixin.py` | The settings store (`dashboards_config.json`), the one-time import of legacy settings, and the Settings page's load and save |
 | `publish_mixin.py` | Copying the pages into `Web Assets/public/dashboards` and writing `config.js`, with its flags for optional plugins |
 | `health_mixin.py` | The System Health page: Mac vitals, storage, services and the device census |

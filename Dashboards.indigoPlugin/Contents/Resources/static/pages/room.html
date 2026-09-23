@@ -355,7 +355,7 @@
         .door-btn:disabled { opacity: 0.5; cursor: default; }
 
         /* Camera tile for the optional per-room cam (e.g. Inside Garage on
-           the Garage page). 16:9 MJPEG, click to open the main cameras page.
+           the Garage page). 16:9 stills, click to open the main cameras page.
            Sizing rule:
              - On phones (~390px viewport): cells shrink to ~33% so 3 fit
                across when a room has 3 cameras (e.g. Garden has Back Garden
@@ -583,8 +583,8 @@
     </header>
     <div class="container">
         <!-- Cameras render ONCE into this sibling so the 5s device-state poll
-             (which wholesale-replaces #content) doesn't tear down the MJPEG
-             connection every cycle. -->
+             (which wholesale-replaces #content) does not restart their
+             picture timers every cycle. -->
         <div id="cameras-section"></div>
         <div id="content">
             <div class="loading"><div class="spinner"></div><p>Connecting…</p></div>
@@ -662,7 +662,6 @@
     let   ROOM_CAMERAS = [];                // [{host,name}, …] for this room (may be empty)
     let   ROOM_DOORS   = [];                // [{label,relayIds,pulseMs,statusContactId,openWhenContactOnState}, …]
     let   ROOM_APPLIANCES = [];             // [{label,monitorId,cycleId}, …] for read-only Appliances section
-    let   MJPEG_PORT   = 8177;              // overwritten from rooms.json companion config
 
     function lightSupportsColour(d) {
         return d.supportsRGB === true
@@ -733,21 +732,15 @@
         // (ApplianceMonitor virtual for idle/running cycle state) }. Pair
         // lookup happens at render time against the live device list.
         ROOM_APPLIANCES = Array.isArray(r0.appliances) ? r0.appliances : [];
-        // The MJPEG proxy port is exposed by config.js as CAMERA_CONFIG.mjpegPort
-        // (loaded ahead of this script). Fall back to 8177 if config.js wasn't
-        // loaded or doesn't have it.
-        if (window.CAMERA_CONFIG && window.CAMERA_CONFIG.mjpegPort) {
-            MJPEG_PORT = window.CAMERA_CONFIG.mjpegPort;
-        }
         document.title = `${room} · Dashboards`;
         const h1 = document.querySelector(".topbar h1");
         if (h1) h1.textContent = room;
         window.__ROOM_NAME = room;
         // Render the cameras (and any pulse-door tiles) ONCE into the same
-        // grid — pure MJPEG cameras have no device-state dependence so the
-        // 5s render() cycle never touches the camera frame. The door tiles
+        // grid — cameras have no device-state dependence so the 5s render()
+        // cycle never touches the camera frame. The door tiles
         // get re-rendered IN PLACE into per-door slots below, so the camera
-        // socket stays alive while door status / button label still update.
+        // picture keeps going while door status / button label still update.
         renderRoomCameras();
         return room;
     }
@@ -854,9 +847,8 @@
         let html = "";
 
         // NOTE: Cameras are rendered ONCE in _initRoomFromConfig into a
-        // separate sibling element (#cameras-section), not here. Re-rendering
-        // a <video>-like MJPEG <img> on every 5s poll tears down the proxy
-        // connection and causes a black flash on each refresh.
+        // separate sibling element (#cameras-section), not here, so a 5s poll
+        // never blanks them.
 
         // Pulse-style doors (e.g. Garage Door). Status is derived from a
         // contact sensor declared per door in DASHBOARDS_ROOM_EXTRAS; tap →
@@ -1348,20 +1340,13 @@
             </div>`;
     }
 
-    // Live MJPEG via the plugin's proxy. URL is built relative to the page
-    // origin (so Tailscale / .local / LAN-IP all work), with the cam IP in
-    // the path and a cache-buster query so the browser re-requests after we
-    // remount the page.
-    // Live only when the link can carry it (v2.97.0). This page opened a full
-    // MJPEG stream per camera unconditionally — three at once on the Drive
-    // page — so on a link that could not drain them no frame ever arrived and
-    // every tile sat as a broken image: a black box with a question mark,
-    // which reads as "the camera has gone". The hub strip and the cameras
-    // page had both been taught to measure first; the room page never was.
-    // The stills come from /public, which anything that could load this page
-    // can fetch, so the fallback cannot fail for want of bandwidth.
+    // Stills that cross-fade from frame to frame (v3.36.0). This page used to
+    // open a live MJPEG stream per camera wherever a bandwidth probe said the
+    // link could carry it — three at once on the Drive page. Live video is
+    // one tap away on the Cameras page, which is what the tile opens. The
+    // stills come from /public, which anything that could load this page can
+    // fetch, so they cannot fail for want of bandwidth.
     const ROOM_STILL_MS = 3000;
-    let _roomLiveBudget = 0;             // live tiles this link can carry, MEASURED
     const _roomStillTimers = [];
     function _roomStillSrc(host) { return `cam-${host}.jpg?_t=${Date.now()}`; }
     function _startRoomStill(img) {
@@ -1372,47 +1357,19 @@
         const host = card.dataset.camHost;
         const swap = () => {
             if (document.hidden || !img.isConnected) return;
+            const url = _roomStillSrc(host);
+            if (window.DashUI && DashUI.swapImage) { DashUI.swapImage(img, url).catch(() => {}); return; }
             const next = new Image();
             next.crossOrigin = "anonymous";
             next.onload = () => { img.src = next.src; };
-            next.src = _roomStillSrc(host);
+            next.src = url;
         };
-        swap();
         _roomStillTimers.push(setInterval(swap, ROOM_STILL_MS));
     }
-    // A live tile whose stream fails becomes a polled still, not a broken one.
-    window._roomDemoteCamera = (img) => {
-        if (!img || !img.isConnected || img.dataset.live !== "1") return;
-        img.dataset.live = "0";
-        _startRoomStill(img);
-    };
-    function _applyRoomBudget() {
-        if (!window.DashUI || !DashUI.streamBudget || _roomBudgetAsked) return;
-        _roomBudgetAsked = true;
-        // MEASURE A SETTLED LINK, not a loading one. Run at page load the
-        // probe competes with the room's own device fetch and three pictures,
-        // and reads the link as several times slower than it is — which then
-        // withholds the live tile it was asked to decide on. A second and a
-        // half is long enough for the page to have finished with the network.
-        setTimeout(() => {
-            DashUI.streamBudget().then(n => {
-                _roomBudgetAsked = false;
-                if (n === _roomLiveBudget) return;
-                _roomLiveBudget = n;
-                renderRoomCameras();      // re-render: the first answer was a guess
-            }).catch(() => { _roomBudgetAsked = false; });
-        }, 1500);
-    }
-    let _roomBudgetAsked = false;
 
-    function renderRoomCamera(cam, i) {
-        const host = location.hostname;
-        const live = (i || 0) < _roomLiveBudget;
-        const src  = live
-            ? `${location.protocol}//${host}:${MJPEG_PORT}/mjpeg/${cam.host}?_t=${Date.now()}`
-            : _roomStillSrc(cam.host);
+    function renderRoomCamera(cam) {
         // No name/IP caption — tap target is the frame itself, which feels
-        // less cluttered and gives more vertical room for the MJPEG image.
+        // less cluttered and gives more vertical room for the picture.
         // The `alt` attribute still carries the name for screen readers.
         // Host/name travel as data attributes, never inside an inline JS
         // string — a quote or backslash in a configured camera name would
@@ -1421,23 +1378,20 @@
         return `
             <div class="camera-card" data-cam-host="${escapeHtml(cam.host)}" onclick="openRoomCamera(this.dataset.camHost)">
                 <div class="camera-frame">
-                    <img crossorigin="anonymous" alt="${escapeHtml(cam.name)}" data-live="${live ? 1 : 0}"
-                         onerror="window._roomDemoteCamera && window._roomDemoteCamera(this)" src="${src}">
+                    <img crossorigin="anonymous" alt="${escapeHtml(cam.name)}" src="${_roomStillSrc(cam.host)}">
                 </div>
             </div>`;
     }
 
-    // Build (or rebuild) the camera + door grid. Called once from the room
-    // load and again when the measured budget changes how many tiles stream.
-    // The door SLOTS are re-filled in place by the 5 s render cycle, so this
-    // may only run when the camera policy actually changed.
+    // Build the camera + door grid, once per room load. The door SLOTS are
+    // re-filled in place by the 5 s render cycle.
     function renderRoomCameras() {
         const camEl = document.getElementById("cameras-section");
         const hasCam  = ROOM_CAMERAS.length > 0;
         const hasDoor = ROOM_DOORS.length > 0;
         if (!camEl || !(hasCam || hasDoor)) return;
         let cells = "";
-        if (hasCam)  cells += ROOM_CAMERAS.map((c, i) => renderRoomCamera(c, i)).join("");
+        if (hasCam)  cells += ROOM_CAMERAS.map(renderRoomCamera).join("");
         if (hasDoor) cells += ROOM_DOORS
             .map((d, i) => `<div class="door-slot" data-door-idx="${i}"></div>`)
             .join("");
@@ -1451,12 +1405,11 @@
             '<div class="grid camera-grid">' + cells + '</div>';
         _roomStillTimers.forEach(clearInterval);
         _roomStillTimers.length = 0;
-        camEl.querySelectorAll('img[data-live="0"]').forEach(_startRoomStill);
+        camEl.querySelectorAll(".camera-frame img").forEach(_startRoomStill);
         // The door slots are filled in place by the 5 s device render, which
         // is also what knows the contact states — so a rebuild leaves them
         // empty for at most one cycle rather than duplicating that logic here.
         if (window.__lastDevices) { try { render(window.__lastDevices); } catch (e) { /* next tick */ } }
-        _applyRoomBudget();
     }
 
     // Click handler — opens the cameras page focused on this cam. The cameras

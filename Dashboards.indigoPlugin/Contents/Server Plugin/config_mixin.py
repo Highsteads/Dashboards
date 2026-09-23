@@ -303,7 +303,7 @@ class ConfigMixin:
             errors.append("cameras must be a list")
             cameras = []
         # Hosts are later interpolated into go2rtc.yaml RTSP producer lines
-        # and MJPEG proxy URLs — an arbitrary string here is a config/URL
+        # and WebRTC signalling URLs — an arbitrary string here is a config/URL
         # injection. IP addresses or plain hostnames only.
         _host_ok = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9.-]{0,252}[A-Za-z0-9])?$")
         for i, c in enumerate(cameras):

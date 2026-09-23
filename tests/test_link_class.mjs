@@ -202,11 +202,12 @@ for (const [host, rtt, want, why] of CASES) {
 }
 
 // ---- link class -> camera policy ---------------------------------------
-// Pinned because this behaviour has now been got wrong three times. The rule:
-// live MJPEG ONLY at home. Off-LAN a live tile measured 30 s+ behind while the
-// stills beside it were 5-8 s behind, because MJPEG queues on a link that
-// cannot drain it and never recovers, at ~17 Mbit/s. Worse than a still on both
-// counts, so there is no "one live tile" compromise to keep.
+// Pinned because this behaviour has been got wrong three times. Live video is
+// WebRTC since v3.36.0: a pool of six at home, ONE tile (the focused one) on a
+// measured tunnel link, none over the reflector and none on an unmeasured
+// guess. The near/far tunnel bands no longer differ: WebRTC drops frames on a
+// thin link instead of queueing behind them, which is what made MJPEG unsafe
+// on 5G.
 {
   const camSrc = fs.readFileSync(path.join(HERE, "..", "Dashboards.indigoPlugin",
     "Contents", "Resources", "static", "pages", "cameras.html"), "utf8");
@@ -216,33 +217,23 @@ for (const [host, rtt, want, why] of CASES) {
     if (camSrc[j] === "{") depth++;
     else if (camSrc[j] === "}") { depth--; if (depth === 0) { end = j + 1; break; } }
   }
-  // RTT_TUNNEL_MS read from source, for the same reason as the other constants:
-  // a missing one is not a loud failure, it just quietly changes the answer.
-  const box = { hosts: ["a","b","c","d","e","f","g","h","i"], cfg: { livePoolSize: 6 },
-                LINK: null, LIVE_POOL_SIZE: null, DEFAULT_LIVE: null,
+  const box = { hosts: ["a","b","c","d","e","f","g","h","i"],
+                cfg: { livePoolSize: 6, webrtcPath: "/webrtc/{host}" },
+                window: { RTCPeerConnection: function () {} },
+                LINK: null, LIVE_POOL_SIZE: null, DEFAULT_LIVE: null, WEBRTC_FOCUS: null, LAST_RTT: null,
                 DEFAULT_LIVE_SET: null, LIVE_FOLLOWS_FOCUS: null, Set, Math, console,
                 RTT_TUNNEL_MS: Number(/RTT_TUNNEL_MS\s*=\s*(\d+)/.exec(camSrc)[1]) };
   vm.createContext(box);
   vm.runInContext(camSrc.slice(start, end), box);
-  // THREE BANDS, not two. CliveS runs Tailscale permanently, at home included,
-  // and that is correct — turning it off on wi-fi to get live video would leave
-  // it off on untrusted wi-fi too. So "home with the tunnel up" (116 ms
-  // measured) has to be catered for. Round trip cannot cleanly separate it from
-  // 5G with the tunnel up (245 ms measured) — barely 2x — so the middle band
-  // runs ONE live tile rather than six: right, and he gets live video at home
-  // through the tunnel; wrong, and it costs one stream that the stall watchdog
-  // demotes, instead of the six that stalled his phone originally.
   for (const [cls, rtt, wantLive, why] of [
         ["home",      21, 6, "on the LAN, tunnel off"],
         ["vpn",      116, 1, "MEASURED: at home with Tailscale up — one live tile"],
-        ["vpn",      150, 1, "top of the tunnel band still counts as near"],
-        ["vpn",      151, 0, "one millisecond past it does not"],
-        ["vpn",      245, 0, "MEASURED: 5G with Tailscale up — no live tiles"],
+        ["vpn",      245, 1, "MEASURED: 5G with Tailscale up — one live tile too"],
         ["vpn",     null, 0, "UNMEASURED must never assume the expensive case"],
-        ["reflector", 10, 0, "the reflector cannot carry MJPEG at any speed"],
+        ["reflector", 10, 0, "the reflector fronts neither video port"],
       ]) {
     vm.runInContext(`setPolicy(${JSON.stringify(cls)}, ${JSON.stringify(rtt)})`, box);
-    const got = box.LIVE_POOL_SIZE;
+    const got = box.LIVE_POOL_SIZE + (box.WEBRTC_FOCUS ? 1 : 0);
     const ok = got === wantLive;
     ok ? pass++ : fail++;
     console.log(`  ${ok ? "ok  " : "FAIL"} ${cls.padEnd(9)} ${String(rtt).padStart(4)}ms -> ` +

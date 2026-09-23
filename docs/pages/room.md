@@ -55,7 +55,7 @@ counts the seconds, and holds until the contact sensor confirms the door moved. 
 blue in travel, amber stuck, quiet when closed — and an unreadable door stays quiet with a dash
 rather than a confident "Closed".
 
-**Cameras.** Any camera whose entry names this room. Tap for the stream at full width.
+**Cameras.** Any camera whose entry names this room, as a still that cross-fades every three seconds. Tap it and the Cameras page opens with that camera live at the top.
 
 **Footer.** Last update and refresh cadence.
 

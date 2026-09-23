@@ -52,7 +52,7 @@ def make_plugin(monkeypatch, tmp_path, store=None, running=None,
     p.api_key       = "k"
     p.cam_user, p.cam_pass = "u", "p"
     p._go2rtc_proc  = None
-    p._mjpeg_server = None
+    p._proxy_server = None
     p.room_extras, p.pin_required, p.favourites, p.custom_links = {}, [], [], []
     p.control_pin   = (store or {}).get("controlPin", "")
     p.main_cameras  = list((store or {}).get("mainCameras") or [])
@@ -192,7 +192,7 @@ def test_get_status_shape(monkeypatch, tmp_path):
     assert r["roomFolders"]["existInIndigo"] == 3          # Kitchen, Hall, Garage exist
     assert "Bathroom" in r["roomFolders"]["missing"]
     assert r["cameras"] == {"saved": 1, "running": 1, "credentialsSet": True,
-                            "go2rtcRunning": False, "mjpegProxyRunning": False}
+                            "go2rtcRunning": False, "proxyRunning": False}
     assert r["history"] == {"backend": "sqlite", "sqliteFound": False}
     assert "Presence_Watch.py" in r["companionScripts"]["present"]
     assert "Log_Error_Watch.py" in r["companionScripts"]["missing"]

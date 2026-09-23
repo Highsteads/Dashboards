@@ -13,14 +13,13 @@
 #              auth (DAHUA_USER / DAHUA_PASS from IndigoSecrets.py) and writes
 #              the JPEGs as cam-<ip>.jpg into the same public folder, so
 #              cameras.html loads them same-origin with no browser auth.
-#              Also runs a tiny HTTP MJPEG proxy on port 8177 that relays each
-#              camera's live multipart/x-mixed-replace stream to the browser,
-#              again handling Digest auth server-side. The page uses MJPEG
-#              for the live grid and falls back to the still snapshot if a
-#              stream connection fails.
-# Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.35.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
+#              Runs go2rtc, whose WebRTC relays each camera's H.264 to the
+#              browser for live tiles, and a small HTTP server on port 8177
+#              for the WebRTC signalling and the bootstrap routes. Tiles that
+#              are not live poll the snapshots.
+# Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.36.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
 # Date:        23-09-2026
-# Version:     3.35.0
+# Version:     3.36.0
 #
 # Version history: docs/changelog.md (what each release does, for users) and
 # `git log` (why, for developers). The per-version engineering notes that sat
@@ -104,7 +103,7 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION = "3.35.0"
+PLUGIN_VERSION = "3.36.0"
 
 import logging
 from dash_common import (  # noqa: E402
@@ -113,7 +112,7 @@ from dash_common import (  # noqa: E402
     COLOUR_PRESETS,
     GO2RTC_BIN,
     INDEX_PATH,
-    MJPEG_PROXY_PORT,
+    PROXY_PORT,
     STAMP_CHANGE_WRITE_GAP,
     STAMP_FILENAME,
     STAMP_PERIOD_SECONDS,
@@ -195,7 +194,7 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         # the next restart.
         self.cameras = _parse_cameras(store.get("cameras") or [])
         # Default swap-out = last entry in the list (the cam most likely to be
-        # safe to drop from the live MJPEG pool), unless Settings names one.
+        # safe to drop from the live pool), unless Settings names one.
         swap_pref = (store.get("swapOutHost") or "").strip()
         self.swap_out_host = swap_pref if swap_pref else (
             self.cameras[-1]["host"] if self.cameras else "")
@@ -484,7 +483,7 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
 
         # Cameras that opted into a room get attached here. Each camera dict
         # carries its own host/name/vendor — the room template uses host to
-        # build the MJPEG proxy URL and name as the tile label.
+        # find the snapshot and name as the tile label.
         # `room` may be a single string ("Garage") OR a list (["Garage",
         # "Hall"]) so one camera can surface on multiple room pages — useful
         # when a camera is logically attached to one room's hardware but
@@ -1013,7 +1012,7 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         self._cam_inflight_lock = threading.Lock()
         self._cam_pool     = None
         self._cam_pool_closed = False
-        self._mjpeg_server = None
+        self._proxy_server = None
         self._go2rtc_proc  = None
         self._weather_stop = threading.Event()
         self._weather_thread = None
@@ -1060,12 +1059,12 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
             self.logger.warning(f"[Pages] could not remove a retired builder file: {exc}")
         self._write_config_js()
         self._cleanup_setup_links(force_all=True)    # no links survive a restart
-        self._start_mjpeg_proxy()
+        self._start_proxy()
         self._start_go2rtc(settle=False)
         # v3.23.1: go2rtc's one-second exited-immediately check and the JS
         # mirror (which waits for it to bind) were the whole second start-up
-        # spent. Nothing else here needs either — only live.html reads the two
-        # files, and the previous boot's copies stay in place meanwhile — so
+        # spent. Nothing else here needs either — only the camera pages read the
+        # two files, and the previous boot's copies stay in place meanwhile — so
         # both run on this thread and the plugin is ready a second sooner.
         threading.Thread(target=self._go2rtc_boot_bg,
                          name="dashboards-go2rtc-mirror", daemon=True).start()
@@ -1109,7 +1108,7 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         self._cam_pool_closed = True
         self._stop_go2rtc()
         self._stop_snapshot_pool()
-        self._stop_mjpeg_proxy()
+        self._stop_proxy()
         self._stop_weather_thread()
         # Workers are daemon threads blocked on a queue, so this only has to
         # wake them; each join is capped at a second and the budget above
@@ -2333,8 +2332,8 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
             bits.append(f"{len(self.cameras)} camera(s) configured but no credentials")
         else:
             bits.append("no cameras")
-        if getattr(self, "_mjpeg_server", None) is not None:
-            bits.append(f"MJPEG proxy on :{MJPEG_PROXY_PORT}")
+        if getattr(self, "_proxy_server", None) is not None:
+            bits.append(f"camera proxy on :{PROXY_PORT}")
         if getattr(self, "_go2rtc_proc", None) is not None:
             bits.append("go2rtc running")
         return f"{self.pluginDisplayName} started - {', '.join(bits)}"

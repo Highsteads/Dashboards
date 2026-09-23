@@ -154,7 +154,7 @@ def test_shutdown_writes_sentinel_then_quiesces_before_teardown(tmp_path, monkey
         seen["order"] = seen.get("order", []) + ["pool"]
 
     p._stop_snapshot_pool = _pool_stop
-    p._stop_mjpeg_proxy = lambda: seen.setdefault("order", []).append("mjpeg")
+    p._stop_proxy = lambda: seen.setdefault("order", []).append("proxy")
     p._stop_go2rtc = lambda: seen.setdefault("order", []).append("go2rtc")
     p._stop_weather_thread = lambda: seen.setdefault("order", []).append("weather")
     p.shutdown()
@@ -166,7 +166,7 @@ def test_shutdown_writes_sentinel_then_quiesces_before_teardown(tmp_path, monkey
     # go2rtc stops BEFORE the pool (v2.95.1): a snapshot worker blocked in
     # requests.get() against go2rtc fails at once when its listener closes,
     # instead of running out a 15 s timeout while shutdown waits on it.
-    assert seen["order"] == ["quiesce", "go2rtc", "pool", "mjpeg", "weather"]
+    assert seen["order"] == ["quiesce", "go2rtc", "pool", "proxy", "weather"]
 
 
 def test_a_device_change_is_written_by_the_stamp_thread_not_the_caller(tmp_path, monkeypatch):
