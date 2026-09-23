@@ -106,10 +106,23 @@ Dashboards/
 │       ├── Resources/
 │       │   ├── mcp-manifest.json  the plugin's MCP tools
 │       │   └── static/pages/      every page and shared script
-│       └── Server Plugin/         plugin.py, mcp_tools.py, history_db.py, the XML
+│       └── Server Plugin/         plugin.py and its mixins, mcp_tools.py, history_db.py, the XML
 ├── docs/                          this site (GitHub Pages), including the screenshots
 ├── scripts/                       the companion scripts and their tests
 ├── tests/                         the contract-test suite
 ├── tools/                         capture, demo-fixture and preflight tooling
 └── README.md                      the front page
 ```
+
+`plugin.py` holds the plugin's core: start-up and shutdown, cameras and the :8177 proxy, the
+settings store, page publishing and the endpoints that go with them. Four features live in mixin
+modules beside it, which `Plugin` inherits, so every method is still `self.<name>` and
+`Actions.xml` still names the same callbacks:
+
+| Module | What it holds |
+|---|---|
+| `history_mixin.py` | Everything that reads the SQL Logger history: Graphs, Timeline, the per-string solar hours, and the primary-key helpers that keep those queries off a full scan |
+| `mains_mixin.py` | The Mains and Meter pages: every 240 V meter and how far each can be trusted |
+| `insights_mixin.py` | Home Insights, the hub's "out of the ordinary" card |
+| `carbon_mixin.py` | The Carbon page's grid-intensity advice |
+| `dash_util.py` | Small pure helpers the modules share |

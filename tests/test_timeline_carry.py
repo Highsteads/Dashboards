@@ -64,8 +64,8 @@ def db(tmp_path):
 
 
 def _hist():
-    plugin = load_plugin_module()
-    hdb = plugin._history_db
+    load_plugin_module()                 # puts the Server Plugin folder on sys.path
+    import history_db as hdb             # plugin.py stopped importing it in v3.30.0
     return hdb.HistoryDB(backend=hdb.SQLITE, sqlite_path="unused")
 
 

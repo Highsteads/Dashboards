@@ -40,7 +40,15 @@ CONFIG_XML = os.path.join(SP, "PluginConfig.xml")
 
 
 def _tree():
-    return ast.parse(io.open(PLUGIN_PY, encoding="utf-8").read())
+    """plugin.py AND the mixin modules beside it (v3.30.0 split the plugin),
+    parsed into one module so a check sees every method wherever it lives."""
+    import glob as _glob
+    here = os.path.dirname(PLUGIN_PY)
+    files = [PLUGIN_PY] + sorted(_glob.glob(os.path.join(here, "*_mixin.py")))
+    body = []
+    for f in files:
+        body.extend(ast.parse(io.open(f, encoding="utf-8").read()).body)
+    return ast.Module(body=body, type_ignores=[])
 
 
 def _func(name, tree=None):

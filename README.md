@@ -8,7 +8,7 @@ Browser dashboards for [Indigo Domotics](https://www.indigodomo.com/), built for
 wall, a phone in your pocket and a Mac on the desk. No app to install, no cloud account,
 nothing leaving the house.
 
-<img src="https://img.shields.io/badge/version-3.29.0-5856d6" alt="Version 3.29.0">
+<img src="https://img.shields.io/badge/version-3.30.0-5856d6" alt="Version 3.30.0">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-26-0a84ff" alt="26 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
@@ -21,7 +21,7 @@ nothing leaving the house.
 
 ---
 
-**Version:** 3.29.0
+**Version:** 3.30.0
 
 **Documentation:** **[highsteads.github.io/Dashboards](https://highsteads.github.io/Dashboards/)** —
 getting started, configuration, a page of notes for every one of the 26 pages, cameras, remote
@@ -67,9 +67,9 @@ with a gentle state simulator, touching no live devices.
 The three most recent releases, word for word. Every release before these is in
 **[the version history](docs/changelog.md)**, which the documentation site also carries.
 
-**3.29.0** (23-Sep-2026) - **Every page's top bar and colours now match the Energy page.** The bars had drifted into several shapes: different widths, button sizes and spacing, some with the title off to one side, one with a plain text link instead of a button. Every page now has the Energy page's bar: a Home button on the left, the title and its status line in the middle, and the page's own button on the right, all the same size, on a white bar. The colours follow the Energy page too, including its deeper greens, ambers and reds, which read more clearly on white, and its dark-mode palette. On a phone, the Settings page's favourites rows no longer run off the side of the screen. The "Open Sigenergy Battery Dashboard (legacy)" menu item is gone, along with its Configure field, since the Energy page replaced that old dashboard long ago.
+**3.30.0** (23-Sep-2026) - **The plugin's code is split into parts, so it is easier to work on. Nothing you can see changes.** The main file had grown to over 8,000 lines. Four features now live in files of their own beside it: the history charts and timeline, the Mains and Meter pages, Home Insights, and the Carbon page. That takes the main file down to about 6,000 lines. Each part checks its own names when the code is linted, so a slip in one of them is caught before it ships rather than when a page asks for it.
 
-**3.28.0** (23-Sep-2026) - **The pages share their plumbing: one way to call the plugin, one way to poll, one way to say how long ago.** Every page used to carry its own copy of the code that asks the plugin for data, and not all of them checked first whether the plugin was restarting, which is what stops one request taking the whole web server down for five minutes. The Laundry page's deadline buttons never checked at all. They all go through one shared function now, with the check, a time limit, and a patient wait while a chart is being built. When something goes wrong the page shows the plugin's own explanation instead of a bare error number. Eight pages that kept asking for data in a background tab, where nobody could see it, now pause until you come back, and a slow answer is never overtaken by the next request. "How long ago" is worded one way everywhere and always rounds down, so an hour and forty minutes reads "1h ago" on every page rather than "2h ago" on some. The frosted top and bottom bars, focus rings and reduced-motion settings come from one shared stylesheet instead of seventeen pasted copies. Nothing else on the pages looks different.
+**3.29.0** (23-Sep-2026) - **Every page's top bar and colours now match the Energy page.** The bars had drifted into several shapes: different widths, button sizes and spacing, some with the title off to one side, one with a plain text link instead of a button. Every page now has the Energy page's bar: a Home button on the left, the title and its status line in the middle, and the page's own button on the right, all the same size, on a white bar. The colours follow the Energy page too, including its deeper greens, ambers and reds, which read more clearly on white, and its dark-mode palette. On a phone, the Settings page's favourites rows no longer run off the side of the screen. The "Open Sigenergy Battery Dashboard (legacy)" menu item is gone, along with its Configure field, since the Energy page replaced that old dashboard long ago.
 
 ## A look around
 

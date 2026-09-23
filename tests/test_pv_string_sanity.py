@@ -18,7 +18,7 @@ import sqlite3
 
 import pytest
 
-from conftest import bare_plugin, load_plugin_module
+from conftest import bare_plugin
 
 
 # Real rows, straight out of device_history_1563154425. The wrapped watts fall
@@ -44,7 +44,8 @@ def _mean(rows):
 def test_the_bound_sits_in_the_measured_gap():
     """Across 383k logged rows the largest genuine per-string sample is
     4,705 W and the smallest wrapped one is 32,832 W, with nothing between."""
-    cap = load_plugin_module().PV_STRING_SANE_MAX_W
+    import history_mixin          # the constant moved there with the query (v3.30.0)
+    cap = history_mixin.PV_STRING_SANE_MAX_W
     assert max(GENUINE) < cap < min(WRAPPED)
 
 
