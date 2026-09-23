@@ -236,7 +236,6 @@ QUIETENED = [
     ("_stop_mjpeg_proxy",      "[MJPEG] Proxy stopped"),
     ("_write_go2rtc_config",   "[go2rtc] Wrote config"),
     ("_start_go2rtc",          "[go2rtc] Started"),
-    ("_mirror_go2rtc_assets",  "[go2rtc] Mirrored"),
     ("_stop_go2rtc",           "[go2rtc] Stopped"),
     ("runConcurrentThread",    "[Cameras] Poller started"),
     ("runConcurrentThread",    "[Cameras] Poller stopped"),
@@ -274,7 +273,7 @@ def test_no_fault_was_routed_through_activity():
     calls = _calls(_tree(), "_activity")
     # 13 on 22-09-2026: 15 until v3.13.2 took the custom-pages mirror out,
     # 14 until v3.22.1 took the Domio page mirror out.
-    assert len(calls) >= 13, f"only {len(calls)} _activity calls found - did a sweep drop some?"
+    assert len(calls) >= 12, f"only {len(calls)} _activity calls found - did a sweep drop some?"   # 12 since v3.26.0: the go2rtc JS mirror went
     for c in calls:
         assert not c.keywords, "_activity takes no keywords; a level= here would be a demoted fault"
 
@@ -386,7 +385,6 @@ FAULT_SIBLINGS = [
     ("_write_config_js",      "Failed to write"),
     ("_stop_mjpeg_proxy",     "[MJPEG] Shutdown error"),
     ("_stop_go2rtc",          "[go2rtc] Shutdown error"),
-    ("_mirror_go2rtc_assets", "[go2rtc] Could not mirror"),
     ("runConcurrentThread",   "DAHUA_USER/DAHUA_PASS are not set"),
 ]
 

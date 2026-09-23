@@ -123,7 +123,6 @@
             box-shadow: 0 0 0 rgba(0,0,0,0);
         }
 
-
         .hdr-left, .hdr-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
         .topbar-status { font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
         .bottombar {
@@ -256,14 +255,6 @@
             .fav-tile.fav-door-moving::after { animation: none; left: 0; width: 100%; opacity: .45; }
         }
 
-        /* ── v2.95.0 — the light-hub notice ──────────────────────────────
-           The light hub used to remove the camera mosaic, the weather panel
-           and the alerts strip with NOTHING said, so a phone that measured
-           badly looked exactly like a phone with broken cameras. It reads as
-           a fault because an absence always does. This row is the whole fix:
-           it never hides, it says what is missing and why, and it is the
-           button that overrides the verdict. */
-
         /* ── Command-centre sections (cameras / energy / weather / heating / alerts) ── */
         #cameras-mosaic {
             display: grid; gap: 8px;
@@ -371,23 +362,6 @@
         .insight-row .ins-title { font-size: 13px; font-weight: 600; color: var(--text); }
         .insight-row.warn .ins-title { color: #ff9500; }
         .insight-row .ins-detail { font-size: 12px; color: var(--text-secondary); }
-        .attention-strip { display:flex; align-items:center; gap:10px; border-left:4px solid #ff9500; }
-        .attention-strip .attention-count { font-size:18px; font-weight:700; color:#ff9500; }
-        .attention-strip .attention-copy { min-width:0; }
-        .attention-strip .attention-title { font-size:13px; font-weight:650; color:var(--text); }
-        .attention-strip .attention-detail { font-size:12px; color:var(--text-secondary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-        .dash-card .heat-line {
-            display: grid; grid-template-columns: 1fr auto auto;
-            gap: 8px; font-size: 12px; padding: 2px 0;
-            font-variant-numeric: tabular-nums;
-        }
-        .dash-card .heat-line .zone-name { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .dash-card .heat-line .zone-temp { color: var(--text-secondary); }
-        .dash-card .heat-line .zone-dot {
-            width: 8px; height: 8px; border-radius: 50%; background: var(--off-color);
-            margin: 6px 0;
-        }
-        .dash-card .heat-line .zone-dot.on { background: #ff9500; }
         .dash-card .alert-open {
             display: flex; justify-content: space-between; align-items: baseline;
             font-size: 12px; padding: 2px 0;
@@ -478,31 +452,11 @@
         .wx-sol-legend span.li { display: inline-flex; align-items: center; gap: 4px; }
         .wx-sol-legend i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
         #wx-sol-score { color: var(--text-secondary); }
-        .wx-rule { height: 1px; background: var(--border-soft); margin: 12px 0 10px; }
 .reflector-note { margin: 8px 0 12px; padding: 10px 14px; border-radius: 10px; background: rgba(255,170,0,.12); border: 1px solid rgba(255,170,0,.45); font-size: 14px; }
 .reflector-note a { color: inherit; text-decoration: underline; word-break: break-all; }
 #cameras-mosaic.cam-paused .home-cam-frame::after { content: "paused — tap to resume"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.55); color: #fff; font-size: 13px; }
 </style>
 <style>
-        .back-to-top {
-            position: fixed;
-            bottom: max(80px, calc(72px + env(safe-area-inset-bottom)));
-            right: max(16px, env(safe-area-inset-right));
-            width: 44px; height: 44px;
-            border-radius: 50%;
-            background: var(--accent); color: #fff;
-            border: none; cursor: pointer;
-            font-size: 22px; font-weight: 700;
-            display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 4px 14px rgba(0,0,0,0.25);
-            opacity: 0; pointer-events: none;
-            transition: opacity 0.25s, transform 0.15s;
-            z-index: 9;
-            font-family: inherit;
-        }
-        .back-to-top.visible { opacity: 0.9; pointer-events: auto; }
-        .back-to-top:hover  { opacity: 1; transform: translateY(-2px); }
-        .back-to-top:active { transform: translateY(0); opacity: 0.85; }
 
         /* v2.18.0 — power-cut/storm banner; v2.30.0 — hero + linked pulse chips.
            NB pre-2.30 the .good chip used var(--good), which this page never
@@ -680,71 +634,16 @@
     // arrive as real booleans, 0/1, or the STRINGS "true"/"True".
     const asBool = v => v === true || v === 1 || String(v).toLowerCase() === "true";
     let ROOMS = null;       // rooms.json contents; populated once at boot
-    // Declared BEFORE bootCommandCentre() is called below — it reads these,
-    // and a `const` referenced before its line has been evaluated is a
-    // ReferenceError, not undefined.
-    const HEAVY_REGIONS = ["cameras-mosaic", "solar-now", "weather-now", "alerts-strip",
-                           "insights-card", "logwatch-card"];
-    // Per-device override (v2.95.0). "1" = always the full hub on this
-    // browser, "0" = always the light one, absent = let the link decide.
-    // CliveS never asked for the cameras to come off the hub at all, so the
-    // measurement gets to choose the DEFAULT and never gets to overrule him.
-    // v2.97.0 — THE LIGHT HUB IS GONE. It hid the cameras, weather and alerts
-    // whenever the link measured slow, and an absent region reads as a broken
-    // one however carefully it is explained (it was reported as "the cameras
-    // have disappeared" the first time, which is what the notice was added
-    // for). The data it saved is now saved where the data actually is: the
-    // camera strip polls by what the link can carry and pauses when nobody is
-    // looking. So the hub shows the whole hub, everywhere, always.
-    let _leanHub = false;
+    // The hub shows every region on every link (v2.97.0 removed the "light
+    // hub" that hid cameras, weather and alerts on a slow link: an absent
+    // region reads as a broken one). The saving moved to the camera strip,
+    // which streams by measured bandwidth and pauses when nobody is looking.
+    // Declared BEFORE bootCommandCentre() below reads it.
     let _heavyStarted = false;
     if (typeof IndigoAPI === "undefined" || !IndigoAPI.isConfigured()) {
         showConfigForm();
     } else {
         bootCommandCentre();
-    }
-
-    // ── Away lean hub (v2.87.0) ─────────────────────────────────────────
-    // Away from home the landing page is three things: the greeting, the
-    // favourites, and Energy · Now. Everything else is reachable from the
-    // House and Rooms tiles below, and is not gathered until you go there.
-    //
-    // The saving is NOT the cards — those fetches were already fired in
-    // parallel and never blocked first paint. It is the CAMERA MOSAIC: four
-    // thumbnails re-fetched every 3 s is a steady ~16 KB/s for as long as the
-    // page is open, which on a mobile link is the difference you actually
-    // feel. The rest is a handful of requests that stop being made at all.
-    //
-    // LEAN IS THE DEFAULT, and it stays lean until the link is MEASURED as
-    // home — the same reasoning the camera policy already uses. The page's
-    // address is the LAN address either way, so believing the address would
-    // hand a 5G connection the full hub. At home this costs one extra render.
-
-    function applyHubLayout() {
-        for (const id of HEAVY_REGIONS) {
-            const el = document.getElementById(id);
-            if (!el) continue;
-            // Only ever force-hide. Cards that hide themselves when they have
-            // nothing to say (insights, logwatch) must keep that right, so the
-            // full layout clears our marker and leaves their own display rule
-            // to decide — otherwise an empty card would be forced visible.
-            if (_leanHub) {
-                if (!el.dataset.leanHidden) {
-                    // Remember the inline value we are about to overwrite.
-                    // insights-card and logwatch-card ship display:none and
-                    // reveal themselves only when they have something to say;
-                    // restoring them to "" would paint an empty card on every
-                    // home load, which is exactly what it did.
-                    el.dataset.leanPrev = el.style.display || "";
-                    el.dataset.leanHidden = "1";
-                }
-                el.style.display = "none";
-            } else if (el.dataset.leanHidden) {
-                el.style.display = el.dataset.leanPrev || "";
-                delete el.dataset.leanHidden;
-                delete el.dataset.leanPrev;
-            }
-        }
     }
 
     // Optional plugin (v3.13.0): without SigenEnergyManager there is no energy
@@ -767,14 +666,6 @@
         return off;
     }
 
-    // Say what has been withheld, and offer the way out (v2.95.0).
-    //
-    // Silent is the one thing this must never be. Hiding the mosaic without a
-    // word is indistinguishable from the cameras being broken, and that is
-    // precisely how it was read: same build, same server, cameras on the
-    // laptop and gone on the phone, with nothing anywhere to say why.
-
-
     // Settle the hub once the link is known (v2.95.0). One function for the
     // probe, the failed probe and the no-measurement fallback: three copies of
     // this decision is how the override would come to mean different things on
@@ -784,12 +675,9 @@
     // together, because the mosaic is DRAWN by the refreshers — revealing the
     // box without starting them shows an empty frame, which is the original
     // fault again in different clothes.
-    function _goFull(cls) {
-        // Everything, always (v2.97.0). `cls` is still passed in because the
-        // CAMERA STRIP reads the measured class — it just no longer decides
-        // whether the rest of the page exists.
-        _leanHub = false;
-        try { applyHubLayout(); } catch (e) { console.warn("hub layout", e); }
+    function _goFull() {
+        // Everything, always (v2.97.0). The measured class is recorded in
+        // _measuredLink by the caller; the camera strip reads it there.
         try { startHeavyRefreshers(); } catch (e) { console.warn("heavy refreshers", e); }
     }
 
@@ -809,21 +697,6 @@
         // typeof-guarded: the contract tests eval this function on its own.
         if (typeof _applyStreamBudget === "function") _applyStreamBudget();
     }
-    function stopHeavyRefreshers() {
-        _heavyTimers.forEach(clearInterval);
-        _heavyTimers = [];
-        _stripTimers.forEach(t => { clearInterval(t); clearTimeout(t); });
-        _stripTimers = [];
-        // Release every stream socket: a hidden <img> with a multipart src
-        // keeps downloading.
-        document.querySelectorAll("#cameras-mosaic img").forEach(img => {
-            img.onerror = null; img.src = _STRIP_TRANSPARENT_PX;
-        });
-        const mount = document.getElementById("cameras-mosaic");
-        if (mount) mount.innerHTML = "";
-        _heavyStarted = false;
-    }
-
     async function bootCommandCentre() {
         // Load rooms.json once — we need it to find every radiator + contact
         // sensor across the house for the Heating and Alerts cards.
@@ -831,10 +704,6 @@
             const r = await fetch("rooms.json?t=" + Date.now(), { cache: "no-store" });
             if (r.ok) ROOMS = await r.json();
         } catch (_) { ROOMS = null; }
-        // Guarded: this is presentation only. Whatever it does, the greeting,
-        // the favourites and Energy · Now must still come up.
-        try { applyHubLayout(); }
-        catch (e) { console.warn("hub layout failed — showing everything", e); _leanHub = false; }
         let _sigenOff = false;
         try { _sigenOff = applySigenAvailability(); }
         catch (e) { console.warn("sigen availability", e); }
@@ -870,14 +739,13 @@
                 // whether the override is actually overriding anything — so
                 // dropping this assignment silently costs the LAN its live
                 // tiles AND makes the note say the wrong thing.
-                .then(cls => { _measuredLink = cls; _goFull(cls); })
-                // A probe that could not complete leaves the verdict unknown.
-                // Unknown is lean, unless this device has said otherwise.
-                .catch(() => { _goFull(null); });
+                .then(cls => { _measuredLink = cls; _goFull(); })
+                // A probe that could not complete leaves the verdict unknown;
+                // the page still shows everything, and the strip stays on stills.
+                .catch(() => { _goFull(); });
         } else {
-            // No measurement available at all: fall back to the old behaviour
-            // rather than permanently hiding half the hub from a home browser.
-            _goFull("home");
+            // No measurement available at all.
+            _goFull();
         }
         setupFavourites();          // one-time delegated click handler for fav tiles
         loadSummary();
@@ -963,7 +831,7 @@
                 </span>
             </div>`).join("");
         el.innerHTML = `<h3>Insights · ${items.length} out of the ordinary</h3>${rows}`;
-        el.style.display = _leanHub ? "none" : "block";
+        el.style.display = "block";
     }
 
     // ── log-error watch chip ────────────────────────────────────────────────
@@ -987,16 +855,9 @@
             const detail = worst ? `${worst.source} — ${worst.message}` : "";
             el.innerHTML = `<h3>Log · ${errs} ${errs === 1 ? "error" : "errors"}</h3>
                 <div class="row"><span>${escapeAttr(detail.slice(0, 110))}</span></div>`;
-            el.style.display = _leanHub ? "none" : "block";
+            el.style.display = "block";
         } catch (_) { /* the watch is optional — never block the hub */ }
     }
-
-    // ── Custom link tiles (config-driven) ─────────────────────
-    // Full-size hub cards that open an arbitrary URL in a new tab, defined in
-    // Settings → Custom links and published in window.INDIGO_CONFIG.customLinks
-    // ([{title, url, desc?, icon?}]). Inserted before the utility cluster
-    // (Active/Scenes/System/Activity/Settings). Built with textContent (no innerHTML)
-    // and the URL scheme is re-checked here, so a config value can't inject markup.
 
     // ── Camera strip (rendered ONCE) ───────────────────────────
     // Every tile used to open its own MJPEG stream. Four of them is about
@@ -1890,18 +1751,6 @@
             ${isFinite(inT) ? `<div class="row"><span class="key">Indoor</span><span class="val">${inT.toFixed(1)}°C${isFinite(inHum) ? " · " + inHum.toFixed(0) + "%" : ""}</span></div>` : ""}`;
     }
 
-    // ── Live room tiles (v2.31.0) ─────────────────────────────
-    // Each Rooms-grid tile shows live state from the same 3s device poll:
-    // room temperature (average of its TRVs' temperatureInput1, colour-banded),
-    // occupancy (presence/motion → green ring on the icon + "Occupied"),
-    // lights-on count, calling-for-heat flame and open-window count. Keyed off
-    // the tile's room.html?room= link + rooms.json, so no per-tile markup.
-    // Build the Rooms tile wall from rooms.json — alphabetical, icon chosen by
-    // room-name keyword with a neutral fallback, description from which
-    // sections the room actually has. the live poll used to fill them with
-    // state afterwards exactly as before (it keys off the tiles' hrefs).
-
-
     function renderAlertsCard(devices) {
         const el = document.getElementById("alerts-strip");
         if (!el) return;
@@ -2225,7 +2074,9 @@
             } catch (e) {
                 // Auth failure is handled by _onAuthFail. Everything else used to
                 // vanish here, so a dead network looked exactly like success.
-                if (e && e.name !== "AbortError") {
+                // (This tested e.name !== "AbortError", which was always true:
+                // dashboard.js wraps an abort in an IndigoAPIError.)
+                if (e && e.status !== 401 && e.status !== 403) {
                     DashAction.note(key, "error", "Failed — " + ((e && e.message) || "no response"));
                 }
             } finally {
@@ -2468,22 +2319,14 @@
             // Drive the command-centre cards from the same device fetch.
             try { renderFavouritesCard(devices); } catch (e) { console.warn("favourites card", e); }
             try { renderEnergyCard(devices);  } catch (e) { console.warn("energy card", e); }
-            // _leanHub has been a constant false since the light hub was
-            // removed in v2.97.0. The guard is kept because it is the one
-            // place that says these two are the expensive renders, and it
-            // costs nothing while it is always true.
-            if (!_leanHub) {
-                try { renderWeatherCard(devices); } catch (e) { console.warn("weather card", e); }
-                // Its own card now, so it no longer depends on the weather
-                // shell existing first — but it is still rendered on the same
-                // poll, from the same Sigen payload.
-                try { renderWeatherSolar(); } catch (e) { console.warn("solar card", e); }
-            }
+            try { renderWeatherCard(devices); } catch (e) { console.warn("weather card", e); }
+            // Its own card now, so it no longer depends on the weather shell
+            // existing first — but it is still rendered on the same poll, from
+            // the same Sigen payload.
+            try { renderWeatherSolar(); } catch (e) { console.warn("solar card", e); }
             try { renderHousePulse(devices);  } catch (e) { console.warn("house pulse", e); }
             try { renderBanner();             } catch (e) { console.warn("banner", e); }
-            if (!_leanHub) {
-                try { renderAlertsCard(devices);  } catch (e) { console.warn("alerts card", e); }
-            }
+            try { renderAlertsCard(devices);  } catch (e) { console.warn("alerts card", e); }
         } catch (e) {
             // Errors surface via stale topbar timestamp + auth-failure handler above.
         } finally {
@@ -2497,22 +2340,6 @@
             Updated <span id="ts-bot">—</span> · live every 3s
         </div>
     </footer>
-
-
-
-    <button class="back-to-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Back to top">↑</button>
-    <script>
-        (function() {
-            const btn = document.querySelector(".back-to-top");
-            if (!btn) return;
-            const onScroll = () => {
-                if (window.scrollY > 200) btn.classList.add("visible");
-                else btn.classList.remove("visible");
-            };
-            window.addEventListener("scroll", onScroll, { passive: true });
-            onScroll();
-        })();
-    </script>
 
 <script src="a11y.js"></script>
 

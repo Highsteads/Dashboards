@@ -123,18 +123,19 @@ const tests = {
         await assert.rejects(() => api.getDevices(), /auth/);
     },
 
-    // v2.70.0: ONLY a 404/405 (older plugin without the endpoint) may fall
-    // back to a full fetch. A network error or 5xx is an OUTAGE — falling back
-    // there was the amplifier that fired a 685 kB full fetch every 3 s from
-    // every open tab for the whole ~5-min IWS wedge.
-    async "a 404 from the delta endpoint falls back to a full fetch (legacy plugin)"() {
+    // v2.70.0: a network error or 5xx is an OUTAGE — falling back to a full
+    // fetch there was the amplifier that fired a 685 kB fetch every 3 s from
+    // every open tab for the whole ~5-min IWS wedge. v3.26.0: a 404 is treated
+    // the same way. The "older plugin" fallback went: the pages ship inside
+    // the plugin, so the endpoint is always there.
+    async "a 404 from the delta endpoint rethrows and does NOT full-fetch"() {
         resetStore();
         STORE.devices = new Map([[1, { id: 1 }]]);
         STORE.lastFull = FakeDate.now();
         const api = newApi();
         api._fetch = async () => { throw new T.IndigoAPIError("HTTP 404", 404); };
-        await api.getDevices();
-        assert.equal(api._fullCalls, 1);
+        await assert.rejects(() => api.getDevices(), /404/);
+        assert.ok(!api._fullCalls, "no full fetch into an outage");
     },
 
     async "a network error from the delta endpoint rethrows and does NOT full-fetch"() {
@@ -213,14 +214,14 @@ const tests = {
         assert.equal(STORE.sinceTs, 1001);
     },
 
-    async "a legacy plugin (delta 404) still seeds a usable cursor"() {
+    async "a delta reply with no server clock still seeds a usable cursor"() {
         // No server clock available. Falling back to the local clock is
         // slightly wrong but recoverable; leaving the cursor at 0 is not.
         resetStore();
         const api = newApi();
         delete api._fullDeviceFetch;
         api._fetch = async (p) => {
-            if (String(p).includes("changedSince")) throw new T.IndigoAPIError("HTTP 404", 404);
+            if (String(p).includes("changedSince")) return { ok: false };
             return [{ id: 1, name: "a" }];
         };
         await api.getDevices();

@@ -21,9 +21,9 @@ import { fileURLToPath } from "node:url";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DIR = path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
                       "Resources", "static", "pages");
-// demo/setup/webrtc-test are standalone utilities; guest.html is the pared-down
+// demo/setup are standalone utilities; guest.html is the pared-down
 // guest view and deliberately loads as little as it can.
-const EXEMPT = new Set(["demo.html", "setup.html", "webrtc-test.html", "guest.html"]);
+const EXEMPT = new Set(["demo.html", "setup.html", "guest.html"]);
 
 let failed = 0;
 const check = (n, ok, why) => {

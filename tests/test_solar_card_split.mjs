@@ -48,7 +48,6 @@ check("no inverter hides the whole card, not just its contents",
       "otherwise an empty box sits on the landing page");
 check("no readings yet also hides the card",
       /if \(actual == null && fc == null\) \{ card\.style\.display = "none"; return; \}/.test(fn.slice(0, 1400)));
-check("the solar card is in HEAVY_REGIONS", /HEAVY_REGIONS = \[[^\]]*"solar-now"/.test(src));
 check("both cards are rendered on the same poll",
       /renderWeatherCard\(devices\)[\s\S]{0,400}renderWeatherSolar\(\)/.test(src));
 

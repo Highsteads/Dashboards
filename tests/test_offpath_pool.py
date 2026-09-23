@@ -468,8 +468,7 @@ def test_startup_does_not_wait_for_go2rtc():
     startup = next(n for n in ast.walk(tree)
                    if isinstance(n, ast.FunctionDef) and n.name == "startup")
     direct = [n for n in ast.walk(startup) if isinstance(n, ast.Call)
-              and getattr(n.func, "attr", "") in ("_mirror_go2rtc_assets",
-                                                 "_go2rtc_settle_check")]
+              and getattr(n.func, "attr", "") == "_go2rtc_settle_check"]
     assert not direct, "startup() must hand these to a thread"
     starts = [n for n in ast.walk(startup) if isinstance(n, ast.Call)
               and getattr(n.func, "attr", "") == "_start_go2rtc"]

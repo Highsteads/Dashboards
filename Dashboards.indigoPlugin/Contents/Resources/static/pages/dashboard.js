@@ -23,8 +23,8 @@
 //   3. Changed devices are refetched individually and merged into the
 //      module-level cache; on "full" the whole list is refetched.
 //   4. A safety full refresh happens every 5 minutes regardless.
-// If the endpoint is unavailable (older plugin), getDevices() falls back to
-// a plain full fetch — identical behaviour to pre-1.22.0.
+// The pages ship inside the plugin, so the endpoint is always there: a 404
+// is treated as the outage it would be, not as an older plugin (v3.26.0).
 
 class IndigoAPIError extends Error {
     constructor(msg, status) { super(msg); this.name = "IndigoAPIError"; this.status = status; }
@@ -334,16 +334,11 @@ class IndigoAPI {
                     body: JSON.stringify({ since: s.sinceTs })
                 });
         } catch (e) {
-            if (e instanceof IndigoAPIError && (e.status === 401 || e.status === 403)) throw e;
-            // 404/405 = an older plugin without the endpoint: legacy full-fetch
-            // fallback. Anything else (network error, timeout, 5xx) is an
-            // OUTAGE — rethrow rather than firing a 685 kB full fetch into it
-            // every 3 s from every open tab (the old amplifier behaviour).
-            if (e instanceof IndigoAPIError && (e.status === 404 || e.status === 405)) {
-                resp = null;
-            } else {
-                throw e;
-            }
+            // An outage (network error, timeout, 5xx, auth) is rethrown rather
+            // than answered with a 685 kB full fetch every 3 s from every open
+            // tab. The "older plugin" 404/405 fallback went in v3.26.0: the
+            // pages ship inside the plugin, so the endpoint is always there.
+            throw e;
         }
         // The server saw this poll arrive through the reflector (v2.96.1):
         // tell DashUI.linkClass so every page slows its pictures down, even
@@ -382,7 +377,6 @@ class IndigoAPI {
             ? this._guestFetch("/guest/device/" + id)
             : this._fetch("/v2/api/indigo.devices/" + id);
     }
-    getActionGroups()     { return this._fetch("/v2/api/indigo.actionGroups"); }
 
     // ── History (v2.4.0) — time-series from SQL Logger via the plugin ───
     _demoSeries(deviceId, state, hours) {
@@ -446,24 +440,8 @@ class IndigoAPI {
     toggle(id)            { return this._cmd("indigo.device.toggle", id); }
     setBrightness(id, v)  { return this._cmd("indigo.dimmer.setBrightness", id, { value: v }); }
     // params: { redLevel, greenLevel, blueLevel, whiteLevel, whiteTemperature } — all optional, 0-100 levels, Kelvin temp.
-    setColorLevels(id, params) { return this._cmd("indigo.dimmer.setColorLevels", id, params); }
     setHeatSetpoint(id, v){ return this._cmd("indigo.thermostat.setHeatSetpoint", id, { value: v }); }
-    setCoolSetpoint(id, v){ return this._cmd("indigo.thermostat.setCoolSetpoint", id, { value: v }); }
     executeActionGroup(id){ return this._cmd("indigo.actionGroup.execute", id); }
-    observe(id, cb, ms = 3000) {
-        let last = "";
-        let busy = false;   // in-flight guard, as observeAll has (v2.95.3)
-        const tick = async () => {
-            if (busy || document.hidden) return;
-            busy = true;
-            try { const d = await this.getDevice(id); const j = JSON.stringify(d);
-                  if (j !== last) { last = j; cb(d); } } catch {}
-            finally { busy = false; }
-        };
-        tick();
-        const t = setInterval(tick, ms);
-        return { stop: () => clearInterval(t) };
-    }
     observeAll(cb, ms = 3000, onErr, onOk) {
         let last = "";
         let busy = false;   // in-flight guard: a slow tick must not be overlapped by the next

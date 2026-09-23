@@ -46,22 +46,7 @@
             max-width: 900px; margin: 0 auto;
         }
         .topbar h1 { font-size: 18px; font-weight: 600; margin: 0; letter-spacing: -.01em; }
-        .top-jump {
-            background: transparent;
-            border: 1px solid var(--border);
-            color: var(--accent);
-            width: 34px; height: 32px;
-            border-radius: var(--r-sm);
-            font-size: 16px; font-weight: 700;
-            cursor: pointer;
-            display: inline-flex; align-items: center; justify-content: center;
-            font-family: inherit;
-            transition: background .15s, color .15s;
-            margin-left: 6px;
-        }
-        .top-jump:hover  { background: var(--bg); }
-        .top-jump:active { background: var(--accent); color: #fff; }
-        /* ── New 3-column topbar (test layout — Conservatory + Living Room only) ── */
+        /* ── 3-column topbar ── */
         .topbar-3col {
             display: grid;
             grid-template-columns: 1fr 2fr 1fr;
@@ -124,16 +109,7 @@
             box-shadow: 0 0 0 rgba(0,0,0,0);
         }
 
-
         .hdr-left, .hdr-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-        .topbar .back-link {
-            color: var(--accent); text-decoration: none; font-size: 14px; font-weight: 500;
-            display: inline-flex; align-items: center; gap: 4px;
-            padding: 6px 10px; border-radius: var(--r-sm);
-            min-height: 32px;
-            transition: background .15s;
-        }
-        .topbar .back-link:hover { background: var(--bg); }
         .topbar-status { font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
         .bottombar {
             position: sticky; bottom: 0; z-index: 10;
@@ -183,7 +159,6 @@
         }
 
         /* ── ⓘ info button + details modal ── */
-        .head-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
         .name-row {
             display: flex;
             align-items: center;
@@ -389,10 +364,6 @@
             font-size: 13px; color: var(--text-secondary);
         }
         #ct-slider { width: 100%; height: 36px; }
-        .ct-track {
-            height: 16px; border-radius: var(--r-sm);
-            background: linear-gradient(to right, #ffb070 0%, #fff5e6 30%, #ffffff 55%, #d4e8ff 85%, #a0c8ff 100%);
-        }
         .ct-display {
             display: flex; justify-content: space-between; align-items: center;
             font-size: 12px; color: var(--text-secondary);
@@ -527,15 +498,6 @@
             width: 100%; height: 100%; object-fit: cover; display: block;
             pointer-events: none;
         }
-        .camera-meta {
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 8px 12px;
-            font-size: 13px;
-            color: var(--text-secondary);
-            border-top: 1px solid var(--border);
-        }
-        .camera-name { font-weight: 600; color: var(--text); }
-        .camera-host { font-variant-numeric: tabular-nums; }
 
         .motion-card {
             background: var(--card-bg); border-radius: var(--r-md); padding: 14px 16px;
@@ -620,7 +582,6 @@
             animation: spin 0.8s linear infinite; margin: 0 auto 12px;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
-        .last-updated { text-align: center; font-size: 12px; color: var(--text-secondary); padding-top: 16px; }
     
         /* ═══ Shared Apple/Safari polish (v2.25.0) ═════════════════
            Appended uniformly across pages: frosted translucent bars, laptop
@@ -699,7 +660,6 @@
             </footer>
         </div>
     </div>
-
 
     <!-- Device details modal — opened from the ⓘ button on any tile. -->
     <div id="details-modal" class="modal" hidden>
@@ -811,7 +771,6 @@
     // still says off. They get a vote in the COMMAND but never in a DECISION
     // derived from state (v2.90.0).
     let   OPEN_LOOP_IDS = new Set();
-    let   LIGHT_ORDER  = [];                // populated from rooms.json (alphabetical)
     let   SENSOR_IDS   = new Set();         // continuous-value sensors (temp+humidity)
     let   ROOM_CAMERAS = [];                // [{host,name}, …] for this room (may be empty)
     let   ROOM_DOORS   = [];                // [{label,relayIds,pulseMs,statusContactId,openWhenContactOnState}, …]
@@ -998,8 +957,7 @@
     }
 
     function render(devices) {
-        window.__ROOM_DEVICES = devices;   // so a camera-grid rebuild can re-fill the door slots
-        window.__lastDevices = devices;  // available to modal seed code
+        window.__lastDevices = devices;  // camera-grid rebuilds and the modals read this
         // Feed any in-flight door watch from the poll we already ran. observeAll
         // only calls render on CHANGE, so DashAction's own timer is the backstop
         // for the elapsed counter and the timeout.
@@ -1013,11 +971,8 @@
         const windows   = devices.filter(d => WINDOW_IDS.has(d.id)).sort(bySection("windows"));
         const sensors   = devices.filter(d => SENSOR_IDS.has(d.id)).sort(bySection("sensors"));
 
-        const lightsOn  = lights.filter(d => d.onState === true).length;
         const tvOnCount = tv.filter(d => d.onState === true).length;
         const tvAllOn   = tv.length > 0 && tvOnCount === tv.length;
-        const motionAny = motion.filter(d => d.onState === true).length;
-        const heatingAny = radiators.filter(isHeating).length;
 
         let html = "";
 
@@ -1572,7 +1527,6 @@
         }, 1500);
     }
     let _roomBudgetAsked = false;
-    let _roomCamHeader = "";
 
     function renderRoomCamera(cam, i) {
         const host = location.hostname;
@@ -1624,7 +1578,7 @@
         // The door slots are filled in place by the 5 s device render, which
         // is also what knows the contact states — so a rebuild leaves them
         // empty for at most one cycle rather than duplicating that logic here.
-        if (window.__ROOM_DEVICES) { try { render(window.__ROOM_DEVICES); } catch (e) { /* next tick */ } }
+        if (window.__lastDevices) { try { render(window.__lastDevices); } catch (e) { /* next tick */ } }
         _applyRoomBudget();
     }
 
@@ -1909,7 +1863,6 @@
             .replace(/ Contact Sensor$/i, "")
             .replace(/ Sensor$/i, "");
     }
-
 
     // ── Device details modal ─────────────────────────────────
     function openDeviceDetails(deviceId) {
@@ -2250,42 +2203,9 @@
         </div>
     </footer>
 
-
-    <style>
-        .back-to-top {
-            position: fixed;
-            bottom: max(80px, calc(72px + env(safe-area-inset-bottom)));
-            right: max(16px, env(safe-area-inset-right));
-            width: 44px; height: 44px;
-            border-radius: 50%;
-            background: var(--accent); color: #fff;
-            border: none; cursor: pointer;
-            font-size: 22px; font-weight: 700;
-            display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 4px 14px rgba(0,0,0,0.25);
-            opacity: 0; pointer-events: none;
-            transition: opacity 0.25s, transform 0.15s;
-            z-index: 9;
-            font-family: inherit;
-        }
-        .back-to-top.visible { opacity: 0.9; pointer-events: auto; }
-        .back-to-top:hover  { opacity: 1; transform: translateY(-2px); }
-        .back-to-top:active { transform: translateY(0); opacity: 0.85; }
-    </style>
-    <button class="back-to-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Back to top">↑</button>
     <script>
 const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
 
-        (function() {
-            const btn = document.querySelector(".back-to-top");
-            if (!btn) return;
-            const onScroll = () => {
-                if (window.scrollY > 200) btn.classList.add("visible");
-                else btn.classList.remove("visible");
-            };
-            window.addEventListener("scroll", onScroll, { passive: true });
-            onScroll();
-        })();
     </script>
 
 <script src="dashboards-icons.js"></script>

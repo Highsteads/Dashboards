@@ -8,9 +8,9 @@ Browser dashboards for [Indigo Domotics](https://www.indigodomo.com/), built for
 wall, a phone in your pocket and a Mac on the desk. No app to install, no cloud account,
 nothing leaving the house.
 
-<img src="https://img.shields.io/badge/version-3.25.0-5856d6" alt="Version 3.25.0">
+<img src="https://img.shields.io/badge/version-3.26.0-5856d6" alt="Version 3.26.0">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
-<img src="https://img.shields.io/badge/pages-27-0a84ff" alt="27 pages">
+<img src="https://img.shields.io/badge/pages-26-0a84ff" alt="26 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
 
 <br><br>
@@ -21,10 +21,10 @@ nothing leaving the house.
 
 ---
 
-**Version:** 3.25.0
+**Version:** 3.26.0
 
 **Documentation:** **[highsteads.github.io/Dashboards](https://highsteads.github.io/Dashboards/)** —
-getting started, configuration, a page of notes for every one of the 27 pages, cameras, remote
+getting started, configuration, a page of notes for every one of the 26 pages, cameras, remote
 access, troubleshooting, and the full version history. This README is the short version.
 
 ### Jump to
@@ -67,11 +67,9 @@ with a gentle state simulator, touching no live devices.
 The three most recent releases, word for word. Every release before these is in
 **[the version history](docs/changelog.md)**, which the documentation site also carries.
 
+**3.26.0** (23-Sep-2026) - **A spring clean: things nothing used are gone, and nothing you use has changed.** The WebRTC test page is retired: it was a bench for building the away-from-home camera tile, which shipped long ago, and it was still being published. Two unused test pages and a retired tool left the bundle too. The pages lost about 700 lines of styling and script for things no longer on them, including a colour-picker on the Weather page whose buttons led nowhere, the switch for the old "light hub" that has been off since 2.97.0, and a second back-to-top button on six pages, where the one in the top bar is always on screen anyway. The plugin stopped copying two go2rtc files that no page has loaded since the old live page went, dropped a camera route nothing called, and lost the thousand-line version history at the top of its code, which this page and git already hold. Demo mode stays, since the docs point people at it, and so does the clean-up that removes old presence data on upgrade.
+
 **3.25.0** (23-Sep-2026) - **A clear-out of the faults the spring-clean review found.** The garage door tiles on the Garage and Hall room pages now work: they were set up the old way with no opener behind them, so they sat on "Unknown" and pressing them did nothing. They now follow the GarageDoor plugin like the front page's tile does, and an old-style door tile with no opener now says "Not set up" instead of offering a press that does nothing. When a light on a room page or the Everything On page fails to answer, it now says so on the tile; those messages had nowhere to appear. A name with a double quote in it no longer breaks the page it is shown on. The cameras page states the right refresh rate when you are away from home. With the reflector refused, every part of the dashboards now refuses it, not just half of them. Setting a laundry deadline and building the solar chart no longer hold up the rest of the web server while they work, and one bad room setting no longer stops every room's page from updating. Saving the plugin's settings can no longer leave two weather fetches running. The companion scripts on GitHub now match the ones this house runs.
-
-**3.24.0** (23-Sep-2026) - **Scrolling on a phone no longer presses the tiles you brush past, and tiles that do nothing no longer flash when touched.** A finger that landed on a switch tile on its way down the page could still switch it, and every tile lit up the moment it was touched, so a scroll looked like a string of presses. A touch now only counts as a press when the finger stays put: one that slides more than a few millimetres, moves the page, or lands while the page is still gliding from a swipe is ignored, before the tile ever sees it. The flash now comes after a press that got through, and only on something that acts, so reading tiles, a door that is already moving and the plain cards stay still. A mouse or keyboard works exactly as before.
-
-**3.23.2** (22-Sep-2026) - **A camera that is off the network now says so in plain words.** When a camera could not be reached, the log said "snapshot failed: unexpected content-type" followed by two quote marks, which told you nothing. It now says "no picture from the camera: go2rtc could not reach it". Nothing else changes.
 
 ## A look around
 
@@ -139,7 +137,7 @@ file — no build step, no framework, no bundler — and every one has [a page o
 | **[Wi-Fi](docs/pages/wifi.md)** `wifi.html` | Every access point and how hard it is working; tap one for [its own page](docs/pages/wifi-ap.md). Needs UniFiHealth |
 | **[Alerts](docs/pages/alerts.md)** `alerts.html` | Notification rules from your own browser, no third-party service anywhere |
 | **[Settings](docs/pages/settings.md)** `settings.html` | Forms-based configuration — favourites, links, cameras, rooms, scenes, security, raw JSON |
-| **[Setup](docs/pages/setup.md)**, **[Guest](docs/pages/guest.md)**, **[Demo](docs/pages/demo.md)**, **[WebRTC test](docs/pages/webrtc-test.md)** | First-run pairing, read-only pairing, the fixtures-only demo, and a camera transport bench |
+| **[Setup](docs/pages/setup.md)**, **[Guest](docs/pages/guest.md)** and **[Demo](docs/pages/demo.md)** | First-run pairing, read-only pairing, and the fixtures-only demo |
 
 ## Requirements
 

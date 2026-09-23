@@ -28,7 +28,7 @@ def _setup(tmp_path, monkeypatch):
     # what the public dir held before this sync
     (dst / "old.html").write_text("<html>gone</html>", encoding="utf-8")     # no longer in the bundle
     (dst / "config.js").write_text("window.INDIGO_CONFIG={}", encoding="utf-8")   # written by the plugin
-    (dst / "video-rtc.js").write_text("// go2rtc", encoding="utf-8")            # mirrored from go2rtc
+    (dst / "video-rtc.js").write_text("// go2rtc", encoding="utf-8")            # mirrored by versions before 3.26.0
     (dst / "rooms.json").write_text("{}", encoding="utf-8")                      # runtime data
     (dst / "cam-1.2.3.4.jpg").write_bytes(b"\xff\xd8")                           # snapshot
     monkeypatch.setattr(plugin, "PAGES_SOURCE_DIR", str(src))
@@ -48,8 +48,16 @@ def test_bundle_pages_are_copied_and_stale_ones_swept(tmp_path, monkeypatch):
 def test_runtime_artefacts_survive_the_sweep(tmp_path, monkeypatch):
     plugin, p, src, dst = _setup(tmp_path, monkeypatch)
     p._sync_pages_to_public()
-    for keep in ("config.js", "video-rtc.js", "rooms.json", "cam-1.2.3.4.jpg"):
+    for keep in ("config.js", "rooms.json", "cam-1.2.3.4.jpg"):
         assert (dst / keep).exists(), f"{keep} is written at runtime and must never be swept"
+
+
+def test_the_old_go2rtc_js_copies_are_cleared(tmp_path, monkeypatch):
+    """v3.26.0: nothing loads go2rtc's video-rtc.js any more, so the plugin
+    stopped mirroring it and the sweep clears the copy older versions left."""
+    plugin, p, src, dst = _setup(tmp_path, monkeypatch)
+    p._sync_pages_to_public()
+    assert not (dst / "video-rtc.js").exists()
 
 
 def test_no_tmp_files_left_behind(tmp_path, monkeypatch):

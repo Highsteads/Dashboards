@@ -19,7 +19,7 @@
 //                 double every poll for the life of the page.
 // Author:      CliveS & Claude Opus 5
 // Date:        02-09-2026
-// Version:     2.0
+// Version:     2.1 (v3.26.0: the constant-false _leanHub went; this now checks it stays gone)
 //
 // Run: node tests/test_hub_lean_away.mjs   (exit 0 = pass)
 
@@ -55,31 +55,25 @@ check("no light-hub notice element", !/id="hub-lean-note"/.test(src),
       "the element the whole feature hung off");
 check("no notice renderer", !/_renderLeanNote/.test(src));
 check("no lean CSS left behind", !/\.hub-lean-note/.test(src));
-check("_leanHub is a constant false, not a decision",
-      /let _leanHub = false;/.test(src),
-      "applyHubLayout still reads it, so it has to be false rather than absent");
+check("no lean-mode machinery left at all (v3.26.0)",
+      !/_leanHub|applyHubLayout|HEAVY_REGIONS|stopHeavyRefreshers/.test(src),
+      "a switch fixed at off since v2.97.0 is dead code, not a safeguard");
 
 console.log("\n_goFull shows everything, on every verdict");
 {
     const fn = extractFn(src, "_goFull");
     const calls = [];
     const ctx = {
-        _leanHub: true, _heavyStarted: false,
-        applyHubLayout: () => calls.push("layout"),
+        _heavyStarted: false,
         startHeavyRefreshers: () => calls.push("heavy"),
-        stopHeavyRefreshers: () => calls.push("stop"),
         console: { warn() {} },
     };
     vm.createContext(ctx);
-    vm.runInContext(fn + "\n_goFull(null);", ctx);          // measurement FAILED
-    check("a failed measurement still starts the heavy refreshers",
-          calls.includes("heavy") && ctx._leanHub === false,
+    vm.runInContext(fn + "\n_goFull();", ctx);
+    check("_goFull starts the heavy refreshers", calls.includes("heavy"));
+    check("the page calls _goFull on a failed measurement too",
+          /\.catch\(\(\) => \{ _goFull\(\); \}\)/.test(src),
           "unknown used to mean lean, which hid the cameras on a slow probe");
-    calls.length = 0;
-    vm.runInContext("_goFull('reflector');", ctx);
-    check("so does a reflector verdict", calls.includes("heavy") && ctx._leanHub === false);
-    check("and nothing is ever stopped to save data", !calls.includes("stop"),
-          "the cameras throttle themselves now — the page does not go away");
 }
 
 console.log("\nthe saving moved to the cameras, and it is MEASURED");

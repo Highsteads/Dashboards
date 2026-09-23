@@ -46,21 +46,6 @@
             max-width: 900px; margin: 0 auto;
         }
         .topbar h1 { font-size: 18px; font-weight: 600; margin: 0; letter-spacing: -.01em; }
-        .top-jump {
-            background: transparent;
-            border: 1px solid var(--border);
-            color: var(--accent);
-            width: 34px; height: 32px;
-            border-radius: var(--r-sm);
-            font-size: 16px; font-weight: 700;
-            cursor: pointer;
-            display: inline-flex; align-items: center; justify-content: center;
-            font-family: inherit;
-            transition: background .15s, color .15s;
-            margin-left: 6px;
-        }
-        .top-jump:hover  { background: var(--bg); }
-        .top-jump:active { background: var(--accent); color: #fff; }
         /* ── 3-column topbar (Back · Title + Updated · Top) ── */
         .topbar-3col {
             display: grid;
@@ -124,16 +109,7 @@
             box-shadow: 0 0 0 rgba(0,0,0,0);
         }
 
-
         .hdr-left, .hdr-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-        .topbar .back-link {
-            color: var(--accent); text-decoration: none; font-size: 14px; font-weight: 500;
-            display: inline-flex; align-items: center; gap: 4px;
-            padding: 6px 10px; border-radius: var(--r-sm);
-            min-height: 32px;
-            transition: background .15s;
-        }
-        .topbar .back-link:hover { background: var(--bg); }
         .topbar-status { font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
         .bottombar {
             position: sticky; bottom: 0; z-index: 10;
@@ -163,27 +139,8 @@
             font-size: 13px; color: var(--text-secondary);
             text-transform: uppercase; letter-spacing: 0.5px;
         }
-        .section-action {
-            font-size: 12px; font-weight: 600;
-            color: var(--accent);
-            background: transparent;
-            border: 1px solid var(--accent);
-            border-radius: var(--r-pill);
-            padding: 5px 14px;
-            cursor: pointer;
-            min-height: 28px;
-            font-family: inherit;
-            transition: background .15s, color .15s;
-        }
-        .section-action:hover { background: rgba(88,86,214,0.10); }
-        .section-action.is-on  { background: var(--accent); color: #fff; }
-        .section-action:disabled { opacity: 0.5; cursor: default; }
-        @media (prefers-color-scheme: dark) {
-            .section-action:hover { background: rgba(125,122,255,0.18); }
-        }
 
         /* ── ⓘ info button + details modal ── */
-        .head-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
         .name-row {
             display: flex;
             align-items: center;
@@ -293,7 +250,6 @@
            (Warm white · Movie · More…) fits without wrapping. On a 1-column
            grid (iPhone SE) `span 2` clamps to the available track count
            and just fills the row — no special case needed. */
-        .light-card.is-colour { grid-column: span 2; }
 
         /* ── Light cards ── */
         .light-card {
@@ -306,52 +262,10 @@
             display: flex; align-items: center; justify-content: space-between; gap: 8px;
         }
         .light-name { font-size: 15px; font-weight: 600; flex: 1; min-width: 0; }
-        .light-state { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
         .toggle { position: relative; width: 51px; height: 31px; flex-shrink: 0; cursor: pointer; }
         .toggle input { opacity: 0; width: 0; height: 0; }
-        .toggle .slider {
-            position: absolute; inset: 0; background: var(--off-color);
-            border-radius: var(--r-pill); transition: background 0.25s;
-        }
-        .toggle .slider::before {
-            content: ""; position: absolute; width: 27px; height: 27px;
-            left: 2px; bottom: 2px; background: white; border-radius: 50%;
-            transition: transform 0.25s; box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-        }
-        .toggle input:checked + .slider { background: var(--on-color); }
-        .toggle input:checked + .slider::before { transform: translateX(20px); }
-        .toggle input:disabled + .slider { opacity: 0.5; }
-
-        .brightness-row {
-            display: flex; align-items: center; gap: 10px;
-        }
 
         /* ── Colour-lamp extras: chips on card, full-screen picker modal ── */
-        .light-card.is-colour { cursor: pointer; }
-        .light-card.is-colour:focus-visible {
-            outline: 2px solid var(--accent); outline-offset: 2px;
-        }
-        .presets {
-            display: flex; gap: 6px; flex-wrap: wrap;
-            margin-top: 2px;
-        }
-        .preset-chip {
-            display: inline-flex; align-items: center; gap: 6px;
-            background: var(--bg); color: var(--text);
-            border: 1px solid var(--border);
-            border-radius: var(--r-pill);
-            padding: 5px 10px; font-size: 12px; font-weight: 500;
-            cursor: pointer; font-family: inherit;
-            min-height: 28px;
-            transition: background .15s, border-color .15s;
-        }
-        .preset-chip:hover { background: var(--card-bg); border-color: var(--accent); }
-        .preset-icon { font-size: 14px; }
-        .preset-swatch {
-            display: inline-block; width: 14px; height: 14px; border-radius: 50%;
-            border: 1px solid var(--border);
-        }
-        .preset-more { color: var(--accent); }
 
         /* Modal */
         .modal[hidden] { display: none !important; }
@@ -387,46 +301,10 @@
         }
         .modal-close:hover { background: var(--bg); color: var(--text); }
         .modal-body { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
-        .mode-tabs {
-            display: flex; gap: 6px;
-            background: var(--bg); border-radius: var(--r-md); padding: 4px;
-        }
-        .mode-tab {
-            flex: 1; background: transparent; border: none; cursor: pointer;
-            padding: 8px 12px; font-size: 14px; font-weight: 500;
-            color: var(--text-secondary); border-radius: var(--r-sm); font-family: inherit;
-            min-height: 36px;
-        }
-        .mode-tab.is-active {
-            background: var(--card-bg); color: var(--text);
-            box-shadow: 0 1px 2px rgba(0,0,0,0.08);
-        }
-        .modal-label {
-            display: flex; flex-direction: column; gap: 8px;
-            font-size: 13px; color: var(--text-secondary);
-        }
         #ct-slider { width: 100%; height: 36px; }
-        .ct-track {
-            height: 16px; border-radius: var(--r-sm);
-            background: linear-gradient(to right, #ffb070 0%, #fff5e6 30%, #ffffff 55%, #d4e8ff 85%, #a0c8ff 100%);
-        }
-        .ct-display {
-            display: flex; justify-content: space-between; align-items: center;
-            font-size: 12px; color: var(--text-secondary);
-            font-variant-numeric: tabular-nums;
-        }
-        .ct-current { font-size: 16px; font-weight: 600; color: var(--text); }
         #rgb-picker {
             width: 100%; height: 56px; padding: 0; border: 1px solid var(--border);
             border-radius: var(--r-md); background: var(--bg); cursor: pointer;
-        }
-        .rgb-preview {
-            display: flex; align-items: center; gap: 10px;
-            font-size: 13px; color: var(--text-secondary);
-        }
-        .rgb-preview-swatch {
-            width: 28px; height: 28px; border-radius: 50%;
-            border: 1px solid var(--border);
         }
         .modal-actions {
             padding: 12px 16px;
@@ -441,14 +319,6 @@
             background: var(--card-bg); color: var(--text);
         }
         .modal-btn:hover { background: var(--bg); }
-        .modal-btn-primary {
-            background: var(--accent); color: #fff; border-color: var(--accent);
-        }
-        .modal-btn-primary:hover { background: var(--accent); opacity: 0.9; }
-        .brightness-row .pct {
-            font-size: 12px; color: var(--text-secondary);
-            min-width: 36px; text-align: right; font-variant-numeric: tabular-nums;
-        }
         input[type="range"].brightness {
             flex: 1; height: 32px; -webkit-appearance: none; appearance: none;
             background: linear-gradient(to right, var(--accent) 0%, var(--off-color) 0%);
@@ -462,63 +332,12 @@
         }
 
         /* ── Motion cards ── */
-        .motion-card {
-            background: var(--card-bg); border-radius: var(--r-md); padding: 14px 16px;
-            box-shadow: var(--shadow);
-            display: flex; align-items: center; justify-content: space-between; gap: 12px;
-        }
-        .motion-card.active { border-left: 3px solid var(--warn); }
-        .motion-info { flex: 1; min-width: 0; }
-        .motion-name { font-size: 14px; font-weight: 600; }
-        .motion-state { font-size: 12px; color: var(--text-secondary); margin-top: 2px; font-variant-numeric: tabular-nums; }
-        .motion-dot {
-            width: 14px; height: 14px; border-radius: 50%;
-            background: var(--off-color);
-            flex-shrink: 0;
-        }
-        .motion-card.active .motion-dot {
-            background: var(--warn);
-            box-shadow: 0 0 0 4px rgba(255,149,0,0.18);
-            animation: motion-pulse 1.6s ease-in-out infinite;
-        }
         @keyframes motion-pulse {
             0%, 100% { opacity: 1; }
             50%      { opacity: 0.55; }
         }
 
         /* ── Radiator cards (mirror heating.html) ── */
-        .zone {
-            background: var(--card-bg); border-radius: var(--r-lg); padding: 14px 16px;
-            box-shadow: var(--shadow);
-            display: flex; flex-direction: column; gap: 10px;
-        }
-        .zone.heating { border-left: 3px solid var(--warn); }
-        .zone-head {
-            display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;
-        }
-        .zone-name { font-size: 15px; font-weight: 600; }
-        .zone-flame { font-size: 16px; opacity: 0; transition: opacity 0.3s; }
-        .zone-flame.on { opacity: 1; }
-        .temps { display: flex; align-items: baseline; gap: 12px; }
-        .cur-temp { font-size: 32px; font-weight: 700; line-height: 1; }
-        .cur-temp.cold { color: #007aff; }
-        .cur-temp.warm { color: var(--warn); }
-        .cur-temp.hot  { color: var(--bad); }
-        .cur-unit { font-size: 16px; color: var(--text-secondary); font-weight: 500; }
-        .setpoint {
-            display: flex; align-items: center; justify-content: space-between;
-            background: var(--bg); border-radius: var(--r-md); padding: 6px 8px;
-        }
-        .setpoint-label { font-size: 12px; color: var(--text-secondary); }
-        .setpoint-val { font-size: 16px; font-weight: 600; min-width: 50px; text-align: center; }
-        .setpoint-btn {
-            width: 36px; height: 36px; border-radius: var(--r-md);
-            border: none; background: var(--off-color); color: var(--text);
-            font-size: 18px; font-weight: 600; cursor: pointer;
-        }
-        .setpoint-btn:active { background: var(--accent); color: white; }
-        .setpoint-btn:disabled { opacity: 0.5; }
-        .zone-meta { font-size: 12px; color: var(--text-secondary); display: flex; gap: 12px; flex-wrap: wrap; }
 
         .loading { text-align: center; padding: 60px 20px; color: var(--text-secondary); }
         .spinner {
@@ -527,7 +346,6 @@
             animation: spin 0.8s linear infinite; margin: 0 auto 12px;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
-        .last-updated { text-align: center; font-size: 12px; color: var(--text-secondary); padding-top: 16px; }
     
         /* ═══ Shared Apple/Safari polish (v2.25.0) ═════════════════
            Appended uniformly across pages: frosted translucent bars, laptop
@@ -566,49 +384,6 @@
     </style>
 </head>
 <body>
-    <!-- Colour picker modal — shared by the chip "More…" and the card-body tap. -->
-    <div id="color-modal" class="modal" hidden>
-        <div class="modal-backdrop" onclick="closeColorPicker()"></div>
-        <div class="modal-card" role="dialog" aria-labelledby="color-modal-title">
-            <header class="modal-head">
-                <h2 id="color-modal-title">Colour Lamp</h2>
-                <button class="modal-close" aria-label="Close" onclick="closeColorPicker()">×</button>
-            </header>
-            <div class="modal-body">
-                <div class="mode-tabs">
-                    <button class="mode-tab" id="tab-white" onclick="setMode('white')">White</button>
-                    <button class="mode-tab" id="tab-color" onclick="setMode('color')">Colour</button>
-                </div>
-                <div id="white-panel" class="mode-panel">
-                    <label class="modal-label">
-                        Temperature
-                        <input type="range" id="ct-slider" min="2200" max="6500" step="100" oninput="onCtInput()">
-                    </label>
-                    <div class="ct-display">
-                        <span>2200K · warm</span>
-                        <span class="ct-current" id="ct-value">3000K</span>
-                        <span>6500K · cool</span>
-                    </div>
-                </div>
-                <div id="color-panel" class="mode-panel" hidden>
-                    <label class="modal-label">
-                        Pick a colour
-                        <input type="color" id="rgb-picker" oninput="onRgbInput()">
-                    </label>
-                    <div class="rgb-preview">
-                        <span class="rgb-preview-swatch" id="rgb-swatch"></span>
-                        <span id="rgb-hex">#ffffff</span>
-                    </div>
-                </div>
-            </div>
-            <footer class="modal-actions">
-                <button class="modal-btn" onclick="closeColorPicker()">Cancel</button>
-                <button class="modal-btn modal-btn-primary" onclick="applyColorSelection()">Apply</button>
-            </footer>
-        </div>
-    </div>
-
-
     <!-- Device details modal — opened from the ⓘ button on any tile. -->
     <div id="details-modal" class="modal" hidden>
         <div class="modal-backdrop" onclick="closeDeviceDetails()"></div>
@@ -1119,7 +894,6 @@
         return out;
     }
 
-
     function escapeHtml(t) { return DashUI.esc(t); }   // v3.25.0: escapes quotes too
     </script>
 
@@ -1129,41 +903,6 @@
         </div>
     </footer>
 
-
-    <style>
-        .back-to-top {
-            position: fixed;
-            bottom: max(80px, calc(72px + env(safe-area-inset-bottom)));
-            right: max(16px, env(safe-area-inset-right));
-            width: 44px; height: 44px;
-            border-radius: 50%;
-            background: var(--accent); color: #fff;
-            border: none; cursor: pointer;
-            font-size: 22px; font-weight: 700;
-            display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 4px 14px rgba(0,0,0,0.25);
-            opacity: 0; pointer-events: none;
-            transition: opacity 0.25s, transform 0.15s;
-            z-index: 9;
-            font-family: inherit;
-        }
-        .back-to-top.visible { opacity: 0.9; pointer-events: auto; }
-        .back-to-top:hover  { opacity: 1; transform: translateY(-2px); }
-        .back-to-top:active { transform: translateY(0); opacity: 0.85; }
-    </style>
-    <button class="back-to-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Back to top">↑</button>
-    <script>
-        (function() {
-            const btn = document.querySelector(".back-to-top");
-            if (!btn) return;
-            const onScroll = () => {
-                if (window.scrollY > 200) btn.classList.add("visible");
-                else btn.classList.remove("visible");
-            };
-            window.addEventListener("scroll", onScroll, { passive: true });
-            onScroll();
-        })();
-    </script>
 
 <script src="a11y.js"></script>
 

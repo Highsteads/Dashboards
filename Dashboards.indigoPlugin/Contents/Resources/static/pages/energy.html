@@ -208,7 +208,6 @@ header h1{
 .spark-wrap svg{width:100%;height:100%;display:block}
 .spark-cap{font-size:10px;color:var(--text-secondary);margin-top:4px;text-align:right;letter-spacing:.4px;font-variant-numeric:tabular-nums}
 
-
 /* ── money ── */
 .money-card{background-image:var(--money-grad)}
 .eco-rate{font-size:26px;font-weight:700;color:var(--on-color);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
@@ -236,7 +235,6 @@ header h1{
 .home-c{color:var(--home-load)}
 
 .chart-wrap{position:relative;height:220px}
-.chart-wrap.h160{height:160px}
 
 /* ── solar forecast bars ── */
 .fc-meta{display:flex;gap:20px;margin:2px 0 10px;font-size:12px;color:var(--text-secondary);flex-wrap:wrap}
@@ -323,9 +321,6 @@ header h1{
 .wow-delta.flat{color:var(--text-muted)}
 .period-table td.tdays{color:var(--text-secondary);font-size:11px}
 .period-table tr:last-child td{border-bottom:none}
-.period-pos{color:var(--on-color)}
-.period-neg{color:var(--bad)}
-.period-table .avg{color:var(--text-muted);font-size:11px;display:block}
 .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 
 /* ── chart tabs ── */
@@ -342,11 +337,6 @@ header h1{
 /* card entrance */
 .card{animation:card-in .4s ease-out both}
 @keyframes card-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-.skel{
-  display:inline-block;min-width:3em;border-radius:4px;color:transparent;
-  background:linear-gradient(90deg,var(--border-soft) 0%,var(--card-bg-alt) 50%,var(--border-soft) 100%);
-  background-size:200% 100%;animation:skel-shim 1.4s linear infinite;
-}
 @keyframes skel-shim{0%{background-position:200% 0}100%{background-position:-200% 0}}
 
 /* help tips */
@@ -361,15 +351,6 @@ header h1{
 .help-tip .help-tip-title{color:var(--accent);font-weight:600;font-size:11px;letter-spacing:.4px;text-transform:uppercase;margin-bottom:6px}
 
 /* back to top */
-.back-to-top{
-  position:fixed;bottom:max(80px,calc(72px + env(safe-area-inset-bottom)));
-  right:max(16px,env(safe-area-inset-right));width:44px;height:44px;border-radius:50%;
-  background:var(--accent);color:#fff;border:none;cursor:pointer;font-size:22px;font-weight:700;
-  display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(0,0,0,.25);
-  opacity:0;pointer-events:none;transition:opacity .25s, transform .15s;z-index:9;font-family:inherit;
-}
-.back-to-top.visible{opacity:.9;pointer-events:auto}
-.back-to-top:hover{opacity:1;transform:translateY(-2px)}
 
 /* Safari / a11y polish (matches v2.25.0 sweep) */
 html{-webkit-text-size-adjust:100%}
@@ -602,9 +583,6 @@ a,button,input,select,textarea{-webkit-tap-highlight-color:transparent}
     <div class="eco-sub muted" id="eco-rates" style="margin-top:12px">&#8212;</div>
   </section>
 
-  <!-- ═══ SOLAR ═══ -->
-  <div class="sec-label">Solar</div>
-
   <!-- ═══ MANAGER ═══ -->
   <div class="sec-label">Manager</div>
   <div class="grid3">
@@ -714,8 +692,9 @@ a,button,input,select,textarea{-webkit-tap-highlight-color:transparent}
 
 <script>
 /* ════════════════════════════════════════════════════════════════
-   Energy 2 — data layer. Same sources as energy.html:
-   • Sigen manager API via the reflector-friendly sigenApi proxy
+   Data layer:
+   • Sigen manager API via the sigenApi proxy (refused over the reflector
+     when the Configure option to block it is ticked)
    • Indigo /v2/api device poll for pack telemetry + fleet
    ════════════════════════════════════════════════════════════════ */
 const SIGEN_PROXY = '/message/com.clives.indigoplugin.dashboards/sigenApi/';
@@ -1683,7 +1662,7 @@ function renderEnvironment(d) {
   setText('env-miles', Math.round(life * EV_MILES_PER_KWH).toLocaleString() + ' mi');
 }
 
-/* ── economics renderers (ported from energy.html) ── */
+/* ── economics renderers ── */
 function renderEconomics(prefix, econ) {
   if (!econ) return;
   const benefitEl = document.getElementById(prefix + 'benefit');
@@ -2052,7 +2031,6 @@ function _findInverter() {
   const ds = window.__DEVICES || [];
   return ds.find(d => d.states && d.states.pvPowerWatts !== undefined && d.states.batterySoc !== undefined) || null;
 }
-function _bw(w) { const n = Math.round(w); return Math.abs(n) >= 1000 ? (w / 1000).toFixed(2) + ' kW' : n + ' W'; }
 async function refreshDevices() {
   if (document.hidden) return;
   try {
@@ -2200,20 +2178,9 @@ if (window.DashFeatures && DashFeatures.sigenAbsent('Energy')) {
 _wireHelpTips();
 </script>
 
-<button class="back-to-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Back to top">&uarr;</button>
 <script>
 const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
 
-(function () {
-  const btn = document.querySelector('.back-to-top');
-  if (!btn) return;
-  const onScroll = () => {
-    if (window.scrollY > 200) btn.classList.add('visible');
-    else btn.classList.remove('visible');
-  };
-  window.addEventListener('scroll', onScroll, { passive: true });
-  onScroll();
-})();
 </script>
 <script src="dashboards-icons.js"></script>
 <script src="a11y.js"></script>

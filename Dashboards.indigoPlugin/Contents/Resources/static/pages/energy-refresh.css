@@ -15,7 +15,6 @@
 .energy-page .mt-val { font-size:22px; letter-spacing:-.4px; }
 .energy-page .hs-bar,.energy-page .self-suff-bar { height:4px; }
 .energy-page .chart-wrap { height:280px; margin-top:16px; }
-.energy-page .chart-wrap.h160 { height:210px; }
 .energy-page .chart-tab { min-height:40px; padding:9px 16px; border-radius:10px; font-size:13px; }
 .energy-page .chart-tab.active { background:var(--card-bg-alt); color:var(--accent); border-color:var(--accent); }
 .energy-page .sol-legend { font-size:12px; gap:14px; }

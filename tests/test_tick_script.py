@@ -63,14 +63,15 @@ def test_failure_logged_once_with_traceback_then_recovery(tmp_path, monkeypatch)
 
 
 def test_missing_script_is_recorded_silently(tmp_path, monkeypatch):
-    """v2.96.0: a missing optional script is recorded, not logged per key —
+    """v2.96.0: a missing optional script is not logged per key —
     runConcurrentThread reports every absent one in ONE line after the seed
-    pass (five separate lines used to greet every fresh install)."""
+    pass (five separate lines used to greet every fresh install). The set it
+    was once "recorded" in was never read, and went in v3.26.0."""
     plugin, p = _plugin_with_scripts(tmp_path, monkeypatch)
     assert p._tick_script("nightsweep") is False
     assert p._tick_script("nightsweep") is False
-    assert "nightsweep" in p._script_missing_logged
     p.logger.info.assert_not_called()
+    p.logger.warning.assert_not_called()
 
 
 def test_one_failing_task_does_not_starve_the_others(monkeypatch):

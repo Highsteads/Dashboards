@@ -929,7 +929,7 @@
      knows what colour to go back to.) */
   var TOUCH_TILE_SEL = '.fav-tile, .card, .dash-card, .camera-card, .home-cam, ' +
                        'a.pulse-chip, .scene-btn, .nav-btn, .door-btn, .ctrl-btn, ' +
-                       '.cam-btn, .mcard, .money-link, .back-to-top';
+                       '.cam-btn, .mcard, .money-link';
 
   /* The decision on its own, so a test can drive it without a DOM.
      p = { travel, scrolledWhileDown, downAt, glideAt } — glideAt is when the
@@ -1035,10 +1035,6 @@
     } else { pressFeedback(); }
   }
 
-  /* True when a long-lived MJPEG stream is worth opening at all. */
-  function canStream()  { return linkClass() !== 'reflector'; }
-  /* True when we should be frugal: every byte is on someone's mobile data. */
-  function isRemote()   { return linkClass() !== 'home'; }
 
   /* ---- idle guard (v2.96.1) ------------------------------------------
      A page left open on a table keeps polling for ever. On the LAN that is
@@ -1136,8 +1132,6 @@
     probeRtt: probeRtt,
     forgetRtt: forgetRtt,
     RTT_HOME_MS: RTT_HOME_MS,
-    canStream: canStream,
-    isRemote: isRemote,
     DEADBAND_W: DEADBAND_W,
   };
 

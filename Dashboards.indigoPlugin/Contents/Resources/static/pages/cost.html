@@ -277,8 +277,6 @@ header h1{font-size:20px;font-weight:700;letter-spacing:-.02em;white-space:nowra
 
 /* ── loading + help tips ── */
 .loading{text-align:center;padding:60px 20px;color:var(--text-secondary)}
-.spinner{width:24px;height:24px;border:3px solid var(--off-color);border-top-color:var(--accent);
-  border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 12px}
 @keyframes spin{to{transform:rotate(360deg)}}
 .skel{
   background:linear-gradient(90deg,var(--card-bg-alt) 25%,var(--border-soft) 37%,var(--card-bg-alt) 63%);
@@ -550,7 +548,7 @@ a,button,input,select,textarea{-webkit-tap-highlight-color:transparent}
 
 <script>
 /* Cost page data layer — the same bill-exact source as the Energy page:
-   SigenEnergyManager economics via the reflector-friendly sigenApi proxy.
+   SigenEnergyManager economics via the sigenApi proxy.
    Shared arithmetic and formatters live in energy-calc.js, where they are
    tested by tests/test_energy_cost.mjs. */
 const SIGEN_PROXY = '/message/com.clives.indigoplugin.dashboards/sigenApi/';

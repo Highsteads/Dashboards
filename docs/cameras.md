@@ -102,8 +102,6 @@ on that room's page; tap it there for the stream at full width.
   sitting as a blank black square.
 - A sub-second stream failure with a 500 from go2rtc is usually ffmpeg exiting with code 69, and a
   single retry clears it. The plugin retries once; it is a go2rtc quirk, not a limit.
-- `webrtc-test.html` is a bench for one WebRTC stream on one device, kept for diagnosing the away
-  path. It is not linked from anywhere.
 - The go2rtc ports (1984 HTTP API, 8554 RTSP, 8555 WebRTC) and the proxy on 8177 are deliberately
   unauthenticated — the same trusted-LAN / Tailscale threat model as Indigo's `/public/`. Never
   expose 8177 to the internet.

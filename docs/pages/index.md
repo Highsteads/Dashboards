@@ -61,4 +61,3 @@ and the things worth knowing before you trust it.
 | [Setup](setup.md) | `setup.html` | First-run pairing from a one-time link |
 | [Guest](guest.md) | `guest.html` | Pairing for a read-only device |
 | [Demo](demo.md) | `demo.html` | The whole thing running on fixtures, with no Indigo behind it |
-| [WebRTC test](webrtc-test.md) | `webrtc-test.html` | A bench for one camera stream, for diagnosing the away path |

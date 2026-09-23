@@ -1630,8 +1630,8 @@
     }
 
     // ── Bandwidth polling ──────────────────────────────────────
-    // Hits the plugin proxy's /streams endpoint, which forwards go2rtc's
-    // /api/streams JSON. We use the <slug>_mjpeg producer's bytes_recv counter
+    // Reads streams.json, which the plugin writes from go2rtc's /api/streams
+    // with producer URLs stripped. We use the <slug>_mjpeg producer's bytes_recv counter
     // — that's the bytes go2rtc reads from its ffmpeg pipe per stream, which
     // tracks what we ship to the browser pretty closely.
     let _bwTimer    = null;
