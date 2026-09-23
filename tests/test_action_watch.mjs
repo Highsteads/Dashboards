@@ -32,6 +32,7 @@ import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
+import { checkEq as check, done } from "./lib/check.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SRC = path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
@@ -220,13 +221,6 @@ const garage = (bottom, top) => [dev(BOTTOM, { contact: bottom }), dev(TOP, { co
 
 /* ── harness ────────────────────────────────────────────────────────────── */
 
-let pass = 0, fail = 0;
-function check(name, got, want) {
-    const ok = JSON.stringify(got) === JSON.stringify(want);
-    if (ok) { pass++; console.log(`  ok   ${name}`); }
-    else { fail++; console.log(`  FAIL ${name}\n         got  ${JSON.stringify(got)}\n         want ${JSON.stringify(want)}`); }
-}
-
 const flush = () => new Promise(r => setImmediate(r));
 
 const box = makeBox();
@@ -381,5 +375,4 @@ btn = tile();
 await DA.run({ key: KEY, actionId: 999999, exec: () => Promise.resolve(), sentText: "Sent" });
 check("an unwatched action claims only that it was sent", veilText(btn), "Sent");
 
-console.log(`\n${pass} passed, ${fail} failed`);
-process.exit(fail ? 1 : 0);
+done();

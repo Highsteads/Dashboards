@@ -25,17 +25,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { check, done } from "./lib/check.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SRC  = path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
                        "Resources", "static", "pages", "dashboard.js");
 const src  = fs.readFileSync(SRC, "utf8");
-
-let failures = 0;
-const check = (label, cond) => {
-    console.log(`  ${cond ? "ok  " : "FAIL"} ${label}`);
-    if (!cond) failures++;
-};
 
 console.log("dashboard.js — _fetch waits out a pending reply");
 
@@ -139,5 +134,4 @@ for (const [status, obj, label] of [
     check("and the deadline is not restarted by each attempt", !ranAway && n <= CAP);
 }
 
-console.log(failures ? `\n${failures} failure(s)` : "\nAll pending-retry checks passed.");
-process.exit(failures ? 1 : 0);
+done();

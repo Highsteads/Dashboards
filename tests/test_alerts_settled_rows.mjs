@@ -31,6 +31,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { check, done } from "./lib/check.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SRC  = path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
@@ -60,11 +61,6 @@ const render = new Function("$", "esc", "shortTime",
     grab("render") + "; return render;")($, esc, shortTime);
 
 // ── helpers ────────────────────────────────────────────────────────────────
-let failures = 0;
-function check(label, cond) {
-    if (cond) { console.log(`  ok   ${label}`); }
-    else { console.log(`  FAIL ${label}`); failures++; }
-}
 function paint(row) {
     body.innerHTML = "";
     render({ feed: { rows: [Object.assign(
@@ -109,5 +105,4 @@ for (const [flag, pill] of [["muted", "muted"], ["recovered", "answered"],
     check("no reason, no dangling dot",  !/explained<\/span>\s*·\s*·/.test(html));
 }
 
-console.log(failures ? `\n${failures} failure(s)` : "\nAll alerts-card checks passed.");
-process.exit(failures ? 1 : 0);
+done();

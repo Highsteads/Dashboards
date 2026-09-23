@@ -24,6 +24,7 @@ import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
+import { checkOk as check, done } from "./lib/check.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SRC = path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
@@ -54,12 +55,6 @@ const DashCalc = globalThis.DashCalc;
 if (!DashCalc || typeof DashCalc.savingSessions !== "function") {
     throw new Error("energy-calc.js did not export DashCalc.savingSessions");
 }
-
-let pass = 0, fail = 0;
-const check = (ok, label, detail = "") => {
-    ok ? pass++ : fail++;
-    console.log(`  ${ok ? "ok  " : "FAIL"} ${label}${detail ? "   " + detail : ""}`);
-};
 
 const ctx = { Date, Math, isFinite, Object, DashCalc,
               I: (n) => `<svg data-icon="${n}">` };
@@ -140,5 +135,4 @@ check(/savingSessionAlerts\(d\.octopus_sessions/.test(ua),
 check(!/savingSessionAlerts\(d\.octopus_sessions\.windows/.test(ua),
       "and passes the whole block, not just windows");
 
-console.log(`\n${pass} passed, ${fail} failed`);
-process.exit(fail ? 1 : 0);
+done();

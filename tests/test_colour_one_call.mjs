@@ -25,14 +25,12 @@ import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
+import { check, done } from "./lib/check.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PAGES = path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents", "Resources", "static", "pages");
 const apiSrc = fs.readFileSync(path.join(PAGES, "dashboard.js"), "utf8");
 const roomSrc = fs.readFileSync(path.join(PAGES, "room.html"), "utf8");
-
-let fails = 0;
-const check = (w, ok) => { console.log((ok ? "  ok   " : "  FAIL ") + w); if (!ok) fails++; };
 
 // A context with just enough browser for IndigoAPI to run, and every fetch
 // recorded so the request COUNT can be asserted.
@@ -149,5 +147,4 @@ for (const name of ["applyPreset", "applyColorSelection"]) {
 check("the room page prefers the server's preset table",
       /colourPresets/.test(roomSrc));
 
-console.log(fails ? `\n${fails} FAILED` : "\nall passed");
-process.exit(fails ? 1 : 0);
+done();

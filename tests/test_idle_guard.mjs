@@ -15,6 +15,7 @@ import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
+import { check, done } from "./lib/check.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const UI = path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
@@ -47,9 +48,6 @@ function makeWindow(hostname) {
     return win;
 }
 
-let failed = 0;
-function check(name, ok) { console.log((ok ? "PASS" : "FAIL") + "  " + name); if (!ok) failed++; }
-
 const w = makeWindow("myhouse.indigodomo.net");
 check("a name that is not an address classes as reflector", w.DashUI.linkClass() === "reflector");
 const h = makeWindow("192.168.1.10");
@@ -76,4 +74,4 @@ w.document.hidden = false; w.fire("visibilitychange");
 check("coming back to the tab counts as a touch", resumed === 2);
 g.stop();
 
-process.exit(failed ? 1 : 0);
+done();

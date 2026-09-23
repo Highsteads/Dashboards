@@ -14,13 +14,11 @@ import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
+import { check, done } from "./lib/check.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const src = fs.readFileSync(path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
                                       "Resources", "static", "pages", "dashboards-ui.js"), "utf8");
-let failed = 0;
-function check(name, ok, why) { console.log((ok ? "PASS" : "FAIL") + "  " + name + (ok || !why ? "" : "  — " + why)); if (!ok) failed++; }
-
 function page({ gate = "up", key = "k123", replies = [] } = {}) {
     const calls = [];
     const win = { setTimeout, clearTimeout, setInterval, clearInterval, Date, Math, JSON, Promise,
@@ -102,4 +100,4 @@ function page({ gate = "up", key = "k123", replies = [] } = {}) {
     let err = null; try { await M("x"); } catch (e) { err = e; }
     check("a network failure says so", err && /network error/.test(err.message));
 }
-process.exit(failed ? 1 : 0);
+done();

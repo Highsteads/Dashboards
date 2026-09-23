@@ -15,16 +15,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { check, done } from "./lib/check.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const src = fs.readFileSync(path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
                                       "Resources", "static", "pages", "index.html"), "utf8");
-let failed = 0;
-const check = (n, ok, why) => {
-    console.log((ok ? "  ok   " : "  FAIL ") + n + (why ? "   " + why : ""));
-    if (!ok) failed++;
-};
-
 console.log("\ntwo cards, two destinations");
 check("a solar card exists and goes to the energy page",
       /<a id="solar-now"\s+class="dash-card" href="energy\.html"/.test(src));
@@ -51,4 +46,4 @@ check("no readings yet also hides the card",
 check("both cards are rendered on the same poll",
       /renderWeatherCard\(devices\)[\s\S]{0,400}renderWeatherSolar\(\)/.test(src));
 
-process.exit(failed ? 1 : 0);
+done();

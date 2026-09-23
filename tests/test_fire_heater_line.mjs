@@ -14,6 +14,7 @@ import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
+import { checkEq as check, done } from "./lib/check.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PAGE = path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
@@ -35,13 +36,6 @@ const ctx = vm.createContext({ console });
 vm.runInContext(extractFn(src, "fireSubtitle"), ctx);
 const line = (states, onState = false) =>
     vm.runInContext(`fireSubtitle(${JSON.stringify({ onState, states })})`, ctx);
-
-let fails = 0;
-const check = (what, got, want) => {
-    const ok = JSON.stringify(got) === JSON.stringify(want);
-    console.log((ok ? "  ok   " : "  FAIL ") + what + (ok ? "" : `  got ${JSON.stringify(got)}`));
-    if (!ok) fails++;
-};
 
 console.log("Fire tile line");
 
@@ -88,5 +82,4 @@ check("a lamp publishing no reading keeps its own wording",
 check("the heater-on class is applied to the state line",
       /class="light-state\$\{stateCls\}"/.test(extractFn(src, "renderLight")), true);
 
-if (fails) { console.log(`${fails} failure(s)`); process.exit(1); }
-console.log("all passed");
+done();

@@ -15,14 +15,12 @@ import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
+import { check, done } from "./lib/check.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const UI = path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
                      "Resources", "static", "pages", "dashboards-ui.js");
 const src = fs.readFileSync(UI, "utf8");
-
-let failed = 0;
-function check(name, ok) { console.log((ok ? "PASS" : "FAIL") + "  " + name); if (!ok) failed++; }
 
 // ── a fake element: just enough of matches/closest/classList ──────────
 function el({ tag = "BUTTON", cls = [], attrs = {}, disabled = false, field = false } = {}) {
@@ -175,4 +173,4 @@ function tap(page, target, { travel = 0, type = "touch" } = {}) {
           /@media \(hover: none\)\{[^}]*\.fav-tile:active[^}]*\{transform:none!important;/.test(page.doc._css || ""));
 }
 
-process.exit(failed ? 1 : 0);
+done();

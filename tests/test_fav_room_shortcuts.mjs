@@ -25,6 +25,7 @@ import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
+import { check, done } from "./lib/check.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PAGE = path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
@@ -41,9 +42,6 @@ function extractFn(s, name) {
     }
     throw new Error("unbalanced: " + name);
 }
-
-let fails = 0;
-const check = (w, ok) => { console.log((ok ? "  ok   " : "  FAIL ") + w); if (!ok) fails++; };
 
 console.log("favourites — room shortcuts");
 
@@ -103,5 +101,4 @@ vm.runInContext("renderFavouritesCard([])", ctx);
 check("room shortcuts alone still show the card",
       host.style.display === "block" && host.innerHTML.includes("room=Hall"));
 
-console.log(fails ? `\n${fails} FAILED` : "\nall passed");
-process.exit(fails ? 1 : 0);
+done();

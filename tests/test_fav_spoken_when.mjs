@@ -22,6 +22,7 @@ import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
+import { checkIs as check, done } from "./lib/check.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PAGE = path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
@@ -38,13 +39,6 @@ function extractFn(s, name) {
     }
     throw new Error("unbalanced: " + name);
 }
-
-let fails = 0;
-const check = (w, got, want) => {
-    const ok = got === want;
-    console.log((ok ? "  ok   " : "  FAIL ") + w + (ok ? "" : `  got ${JSON.stringify(got)} want ${JSON.stringify(want)}`));
-    if (!ok) fails++;
-};
 
 console.log("favourites — spoken timestamps");
 const ctx = vm.createContext({ console, Date, Math, String, isNaN });
@@ -78,5 +72,4 @@ check("pure ASCII", /^[\x20-\x7e]*$/.test(all), true);
 const fav = extractFn(src, "renderFavouritesCard");
 check("reading tile uses spokenWhen", /spokenWhen\(raw\)/.test(fav), true);
 
-if (fails) { console.log(`${fails} failure(s)`); process.exit(1); }
-console.log("all passed");
+done();

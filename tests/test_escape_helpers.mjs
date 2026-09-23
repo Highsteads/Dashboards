@@ -15,12 +15,10 @@ import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
+import { check, done } from "./lib/check.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PAGES = path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents", "Resources", "static", "pages");
-
-let failed = 0;
-function check(name, ok) { console.log((ok ? "PASS" : "FAIL") + "  " + name); if (!ok) failed++; }
 
 const win = { setTimeout, clearTimeout, setInterval, clearInterval, Date, Math };
 win.window = win;
@@ -62,4 +60,4 @@ const copies = fs.readdirSync(PAGES).filter(f => f.endsWith(".html"))
     .filter(f => LADDER.test(fs.readFileSync(path.join(PAGES, f), "utf8")));
 check("no page carries its own 'Nm ago' ladder" + (copies.length ? ": " + copies.join(", ") : ""), copies.length === 0);
 
-process.exit(failed ? 1 : 0);
+done();

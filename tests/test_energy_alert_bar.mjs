@@ -36,6 +36,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
+import { check, done } from "./lib/check.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SRC  = path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
@@ -89,12 +90,6 @@ const code = [
 new Function(code)();
 
 // ── assertions ─────────────────────────────────────────────────────────────
-let failures = 0;
-function check(label, cond, detail) {
-    if (cond) { console.log(`  ok   ${label}`); }
-    else { console.log(`  FAIL ${label}${detail ? "  — " + detail : ""}`); failures++; }
-}
-
 function reset() { bar.textContent = ""; bar.innerHTML = ""; bar.className = ""; bar.style = {}; }
 
 const HEALTHY = { flags: { modbus_connected: true, import_active: false } };
@@ -143,7 +138,4 @@ updateAlerts(HEALTHY);
 check("healthy system hides the bar", bar.style.display === "none");
 check("healthy system clears the bar", bar.innerHTML === "", JSON.stringify(bar.innerHTML));
 
-console.log(failures === 0
-    ? "\ntest_energy_alert_bar.mjs: all checks passed"
-    : `\ntest_energy_alert_bar.mjs: ${failures} FAILED`);
-process.exit(failures === 0 ? 0 : 1);
+done();

@@ -17,6 +17,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { check, done } from "./lib/check.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DIR = path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
@@ -24,12 +25,6 @@ const DIR = path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
 // demo/setup are standalone utilities; guest.html is the pared-down
 // guest view and deliberately loads as little as it can.
 const EXEMPT = new Set(["demo.html", "setup.html", "guest.html"]);
-
-let failed = 0;
-const check = (n, ok, why) => {
-    console.log((ok ? "  ok   " : "  FAIL ") + n + (why ? "   " + why : ""));
-    if (!ok) failed++;
-};
 
 const pages = fs.readdirSync(DIR).filter(f => f.endsWith(".html")).sort();
 console.log("\nevery page carries the shared UI library");
@@ -50,4 +45,4 @@ for (const f of pages) {
           "the calls are guarded, so a missing file fails silently");
 }
 
-process.exit(failed ? 1 : 0);
+done();

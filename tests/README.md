@@ -107,6 +107,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_reflector_guard.py` | Every browser-facing handler refuses the reflector when the |
 | `test_reflector_note.py` | Contract test for Plugin._note_reflector_use (v2.96.1) — a |
 | `test_release_versions.py` | Keep every user-visible Dashboards version declaration in lock-step. |
+| `test_repo_notes_size.py` | The repo's CLAUDE.md holds CURRENT facts only. It had grown to |
 | `test_room_door_device.mjs` | Contract test for the ROOM page's state-driven door tile |
 | `test_room_extras_isolation.py` | One room's roomExtras entry of the wrong shape must cost that |
 | `test_rtt_estimator.mjs` | Contract test for the estimator inside DashUI.probeRtt — which |

@@ -28,6 +28,7 @@ import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
+import { check, done } from "./lib/check.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PAGE = path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
@@ -68,9 +69,6 @@ function press(states, openLoop = [FIRE], mainLight = []) {
     vm.runInContext(extractFn(src, "toggleLights"), ctx);
     return vm.runInContext("toggleLights()", ctx).then(() => sent);
 }
-
-let fails = 0;
-const check = (w, ok) => { console.log((ok ? "  ok   " : "  FAIL ") + w); if (!ok) fails++; };
 
 console.log("Lights bulk button with an unreadable device");
 
@@ -199,5 +197,4 @@ check("the label excludes unreadable devices too, so it cannot disagree",
       label.includes("OPEN_LOOP_IDS.has(d.id)"));
 check("the label holds the main light out too", label.includes("MAIN_LIGHT_IDS.has(d.id)"));
 
-console.log(fails ? `\n${fails} FAILED` : "\nall passed");
-process.exit(fails ? 1 : 0);
+done();

@@ -14,13 +14,11 @@ import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
+import { check, done } from "./lib/check.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const src = fs.readFileSync(path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
                                       "Resources", "static", "pages", "cameras.html"), "utf8");
-
-let failed = 0;
-function check(name, ok) { console.log((ok ? "PASS" : "FAIL") + "  " + name); if (!ok) failed++; }
 
 function constOf(name) {
     const m = new RegExp(`const ${name}\\s*=\\s*(\\d+)`).exec(src);
@@ -59,4 +57,4 @@ check("no second copy of the ladder (only stillPeriodFor and the footer's own)",
 check("the chip uses it", /const stillPeriod = stillPeriodFor\(host, st\)/.test(src));
 check("the poller uses it", /const period = stillPeriodFor\(host, st\)/.test(src));
 
-process.exit(failed ? 1 : 0);
+done();

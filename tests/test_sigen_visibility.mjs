@@ -16,6 +16,7 @@ import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
+import { check, done } from "./lib/check.mjs";
 
 const HERE  = path.dirname(fileURLToPath(import.meta.url));
 const PAGES = path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents", "Resources", "static", "pages");
@@ -44,12 +45,6 @@ function extractLiteral(s, head) {
         else if (s[j] === "}") { depth--; if (!depth) return s.slice(s.indexOf("{", start), j + 1); }
     }
     throw new Error("unterminated: " + head);
-}
-
-let failed = 0;
-function check(name, ok, why) {
-    console.log((ok ? "  ok   " : "  FAIL ") + name + (why ? "   " + why : ""));
-    if (!ok) failed++;
 }
 
 /* A tiny document: elements by id, a <main>, readyState, one listener bag. */
@@ -178,5 +173,4 @@ console.log("\nthe three pages guard their boot");
           [energy, cost, laundry].every(p => /<script src="dashboards-auth\.js">/.test(p)));
 }
 
-console.log(failed ? `\n${failed} failed` : "\nall passed");
-process.exit(failed ? 1 : 0);
+done();

@@ -20,6 +20,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { check, done } from "./lib/check.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SRC  = path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
@@ -111,12 +112,6 @@ reset();
 api.startStallWatchdog();
 const tick    = () => _timer.fn();
 const advance = (ms) => { NOW += ms; };
-
-let passed = 0, failed = 0;
-function check(name, cond) {
-    if (cond) { passed++; console.log(`  ok   ${name}`); }
-    else      { failed++; console.log(`  FAIL ${name}`); }
-}
 
 console.log(`constants: probe=${LIVE_PROBE_MS} stall=${LIVE_STALL_MS} `
           + `degradedPoll=${DEGRADED_POLL_MS} retry=${LIVE_RETRY_BASE_MS}..${LIVE_RETRY_MAX_MS}`);
@@ -233,5 +228,4 @@ check("at home the whole pool may", api.mayHoldLive("camA") === true
                                   && api.mayHoldLive("camB") === true);
 
 Date.now = realDateNow;
-console.log(`\n${passed} passed, ${failed} failed`);
-process.exit(failed ? 1 : 0);
+done();

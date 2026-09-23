@@ -21,6 +21,7 @@ import path from "node:path";
 import vm from "node:vm";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
+import { checkFn as check, done } from "./lib/check.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SRC = path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
@@ -45,12 +46,6 @@ vm.runInContext(
     "const STALE = STALE_AFTER_MS;\n" +
     grab("agoWords") + "\n" + grab("freshness") + "\n" + grab("clock") + "\n" +
     grab("shapeCard") + "\n", ctx);
-
-let failures = 0;
-function check(name, fn) {
-    try { fn(); console.log("  ok   " + name); }
-    catch (e) { failures++; console.log("  FAIL " + name + "\n       " + e.message); }
-}
 
 console.log("laundry page");
 
@@ -201,5 +196,4 @@ check("interpolated values are escaped", () => {
     assert.ok((src.match(/esc\(/g) || []).length > 8);
 });
 
-console.log(failures ? `\n${failures} FAILED` : "\nAll laundry page checks passed.");
-process.exit(failures ? 1 : 0);
+done();

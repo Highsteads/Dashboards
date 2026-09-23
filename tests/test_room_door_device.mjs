@@ -28,6 +28,7 @@ import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
+import { check, done } from "./lib/check.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PAGE = path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
@@ -68,12 +69,6 @@ function render(doorState, door = DOOR) {
         ? []
         : [{ id: door.deviceId, name: "Garage Door", states: { doorState } }];
     return vm.runInContext("renderStateDoorTile(__door, __devs, false)", ctx);
-}
-
-let failures = 0;
-function check(what, cond) {
-    if (cond) { console.log("  ok   " + what); }
-    else { console.log("  FAIL " + what); failures++; }
 }
 
 console.log("state-driven room door tile");
@@ -125,5 +120,4 @@ ctx.__devs = [{ id: DOOR.deviceId, name: "Garage Door", states: { doorState: "mo
 const opening = vm.runInContext("renderStateDoorTile(__door, __devs, false)", ctx);
 check("moving after closed is named Opening…", /Opening/.test(opening));
 
-console.log(failures ? `\n${failures} FAILED` : "\nall passed");
-process.exit(failures ? 1 : 0);
+done();

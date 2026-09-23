@@ -13,12 +13,11 @@ import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
+import { check, done } from "./lib/check.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PAGES = path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents", "Resources", "static", "pages");
 const src = fs.readFileSync(path.join(PAGES, "dashboards-ui.js"), "utf8");
-let failed = 0;
-function check(name, ok) { console.log((ok ? "PASS" : "FAIL") + "  " + name); if (!ok) failed++; }
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 const listeners = {};
@@ -77,4 +76,4 @@ const poll = win.DashUI.poll;
     }
     check("no page polls the plugin with a bare setInterval" + (bare.length ? ": " + bare.join(", ") : ""), bare.length === 0);
 }
-process.exit(failed ? 1 : 0);
+done();

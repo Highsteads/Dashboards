@@ -25,18 +25,13 @@ import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
+import { check, done } from "./lib/check.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PAGES = path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
                         "Resources", "static", "pages");
 const uiSrc  = fs.readFileSync(path.join(PAGES, "dashboards-ui.js"), "utf8");
 const hubSrc = fs.readFileSync(path.join(PAGES, "index.html"), "utf8");
-
-let failed = 0;
-const check = (n, ok, why) => {
-    console.log((ok ? "  ok   " : "  FAIL ") + n + (why ? "   " + why : ""));
-    if (!ok) failed++;
-};
 
 // A window whose fetch answers with a fixed byte count, taking `msFor(n)` for
 // the nth call. A real Promise throughout — a hand-rolled thenable gets
@@ -151,4 +146,4 @@ console.log("\nthe hub spends the whole budget");
           /DashUI\.forgetBw\(\)[\s\S]{0,120}_applyStreamBudget\(\)/.test(hubSrc));
 }
 
-process.exit(failed ? 1 : 0);
+done();

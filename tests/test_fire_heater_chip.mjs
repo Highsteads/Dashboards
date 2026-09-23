@@ -12,6 +12,7 @@ import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
+import { checkEq as check, done } from "./lib/check.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PAGE = path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
@@ -39,13 +40,6 @@ const chip = (devices, rooms = null) =>
 const FIRE = 614164061;
 const ROOMS = { rooms: { "Living Room": { lights: [1, FIRE], openLoop: [FIRE] }, "Kitchen": { lights: [2] } } };
 const fire = states => ({ id: FIRE, name: "Fire On/Off", enabled: true, states });
-
-let fails = 0;
-const check = (what, got, want) => {
-    const ok = JSON.stringify(got) === JSON.stringify(want);
-    console.log((ok ? "  ok   " : "  FAIL ") + what + (ok ? "" : `  got ${JSON.stringify(got)}`));
-    if (!ok) fails++;
-};
 
 console.log("Hub fire-heater chip");
 
@@ -79,5 +73,4 @@ check("two heaters: counted",
 check("renderHousePulse pushes the chip after the heating zones",
       /fireHeaterChip\(devices, ROOMS\)/.test(extractFn(src, "renderHousePulse")), true);
 
-if (fails) { console.log(`${fails} failure(s)`); process.exit(1); }
-console.log("all passed");
+done();

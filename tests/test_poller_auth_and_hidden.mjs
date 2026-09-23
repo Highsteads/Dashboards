@@ -28,6 +28,7 @@ import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
+import { check, done } from "./lib/check.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PAGE = path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
@@ -44,9 +45,6 @@ function extractFn(s, name) {
     }
     throw new Error("unbalanced: " + name);
 }
-
-let fails = 0;
-const check = (what, ok) => { console.log((ok ? "  ok   " : "  FAIL ") + what); if (!ok) fails++; };
 
 console.log("hub side pollers — auth refusal and hidden-tab gates");
 
@@ -115,5 +113,4 @@ for (const name of POLLERS) {
     check("a second ask while the first is in flight is skipped", second === null && calls.length === 1);
 }
 
-console.log(fails ? `\n${fails} FAILED` : "\nall passed");
-process.exit(fails ? 1 : 0);
+done();

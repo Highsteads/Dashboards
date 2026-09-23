@@ -58,7 +58,13 @@ def plug():
         "content": json.dumps(payload),
     }
     p._start_offpath_workers()
+    # A slow producer waits on this instead of sleeping, so teardown can let it
+    # go at once. The pool's stop joins each worker for up to a second, and a
+    # worker parked in time.sleep(8) cost a full second in every such test.
+    p._release = threading.Event()
+    p._hold = lambda *a, **k: p._release.wait(8)
     yield p
+    p._release.set()
     p._stop_offpath_workers()
 
 
@@ -87,7 +93,7 @@ def test_a_dead_producer_does_not_hold_the_handler(plug, monkeypatch):
 
     def never_answers(url):
         started.set()
-        time.sleep(plug.SIGEN_UPSTREAM_TIMEOUT)
+        plug._release.wait(plug.SIGEN_UPSTREAM_TIMEOUT)
         raise RuntimeError("timed out")
 
     monkeypatch.setattr(plug, "_sigen_fetch", never_answers)
@@ -110,7 +116,7 @@ def test_no_handler_waits_on_a_slow_producer(plug, monkeypatch, name, handler,
                                              producer_attr):
     """All three, not just the one that was fixed first. A slow producer must
     not be able to hold any of them."""
-    monkeypatch.setattr(plug, producer_attr, lambda *a, **k: time.sleep(8))
+    monkeypatch.setattr(plug, producer_attr, plug._hold)
     t0 = time.time()
     reply = handler(plug)
     assert time.time() - t0 < 1.5, f"{name} blocked the dispatch path"
@@ -135,7 +141,7 @@ def test_a_stale_entry_is_rebuilt_never_served(plug):
     one is not."""
     st = plug._offpath()
     st["cache"]["k"] = (time.time() - 3600, {"v": "old"})
-    state, payload = plug._offpath_get("k", lambda: time.sleep(8), 30)
+    state, payload = plug._offpath_get("k", plug._hold, 30)
     assert state == "pending"
     assert payload is None
 
@@ -411,7 +417,7 @@ def test_the_pages_that_wait_properly_get_a_shorter_hand_off(plug):
 ])
 def test_the_shorter_cap_is_the_one_actually_applied(plug, monkeypatch, handler,
                                                      producer_attr, cap_attr):
-    monkeypatch.setattr(plug, producer_attr, lambda *a, **k: time.sleep(5))
+    monkeypatch.setattr(plug, producer_attr, plug._hold)
     t0 = time.time()
     reply = handler(plug)
     elapsed = time.time() - t0
@@ -434,7 +440,7 @@ def history(p, **kw):
 
 
 def test_a_slow_history_query_does_not_hold_the_handler(plug, monkeypatch):
-    monkeypatch.setattr(plug, "_history_query", lambda params: time.sleep(8))
+    monkeypatch.setattr(plug, "_history_query", plug._hold)
     t0 = time.time()
     reply = history(plug)
     elapsed = time.time() - t0

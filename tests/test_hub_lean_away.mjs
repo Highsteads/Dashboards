@@ -27,6 +27,7 @@ import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
+import { check, done } from "./lib/check.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PAGE = path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
@@ -44,11 +45,6 @@ function extractFn(s, name) {
     throw new Error("unterminated: " + name);
 }
 
-let failed = 0;
-function check(name, ok, why) {
-    console.log((ok ? "  ok   " : "  FAIL ") + name + (why ? "   " + why : ""));
-    if (!ok) failed++;
-}
 
 console.log("\nthe light hub is gone, root and branch");
 check("no light-hub notice element", !/id="hub-lean-note"/.test(src),
@@ -105,4 +101,4 @@ console.log("\nstill idempotent");
     check("calling it twice renders the strip once", n === 1);
 }
 
-process.exit(failed ? 1 : 0);
+done();

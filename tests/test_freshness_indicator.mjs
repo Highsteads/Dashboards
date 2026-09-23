@@ -26,16 +26,11 @@ import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
+import { checkOk as check, done } from "./lib/check.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PAGES = path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
                         "Resources", "static", "pages");
-
-let pass = 0, fail = 0;
-const check = (ok, label, detail = "") => {
-    ok ? pass++ : fail++;
-    console.log(`  ${ok ? "ok  " : "FAIL"} ${label}${detail ? "   " + detail : ""}`);
-};
 
 function fnSource(code, name) {
     const start = code.indexOf(`function ${name}(`);
@@ -116,5 +111,4 @@ for (const page of ["mains.html", "meter.html"]) {
     check(/console\.error\(/.test(code), "a failed poll is logged");
 }
 
-console.log(`\n${pass} passed, ${fail} failed`);
-process.exit(fail ? 1 : 0);
+done();

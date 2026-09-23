@@ -24,15 +24,17 @@
 //              every single poll costs a full frame again. That failure is
 //              INVISIBLE: the pictures still update, they just cost 44% more
 //              data. Hence a test rather than a comment.
-// Author:      CliveS & Claude Opus 5
-// Date:        30-07-2026
-// Version:     1.0
+// Author:      CliveS & Claude Opus 5; Claude Opus 5.5 (2.0)
+// Date:        23-09-2026
+// Version:     2.0 - the still refresh is now run, not read (fake network and clock)
 //
 // Run: node tests/test_snapshot_conditional.mjs   (exit 0 = pass)
 
 import fs from "node:fs";
+import vm from "node:vm";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { checkOk as check, done } from "./lib/check.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SRC = path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
@@ -55,54 +57,234 @@ function fn(name) {
 
 const num = re => { const m = re.exec(code); return m ? Number(m[1]) : null; };
 
-let pass = 0, fail = 0;
-const check = (ok, label, detail = "") => {
-    ok ? pass++ : fail++;
-    console.log(`  ${ok ? "ok  " : "FAIL"} ${label}${detail ? "   " + detail : ""}`);
-};
+// ── THE STILL REFRESH, RUN FOR REAL (23-09-2026) ────────────────────────
+// Until 23-09-2026 every check below was a regular expression over the source, so
+// a harmless reformat turned the test red and a real regression written in a
+// different shape could pass. These run the page's own snapshotUrl,
+// wantsFullSize, startStill and clearTileTimers in a sandbox with a fake
+// network and a fake clock, and look at what they actually DO.
+function makeSandbox({ thumbs = true, hidden = false } = {}) {
+    let now = 1_700_000_000_000;
+    const timers = [];                 // {id, at, fn}
+    let nextId = 1;
+    const requests = [];               // {url, opts, resolve, reject}
+    const revoked = [];
+    const created = [];
+    function makeImg() {
+        const listeners = {};
+        return {
+            src: "", crossOrigin: "", onload: null, onerror: null,
+            addEventListener(t, fn) { (listeners[t] = listeners[t] || []).push(fn); },
+            fire(t) { const l = listeners[t] || []; listeners[t] = []; l.forEach(fn => fn()); },
+        };
+    }
+    const img = makeImg();
+    const st = {
+        mode: "still", imgEl: img,
+        frameEl: { classList: { remove() {}, add() {} } },
+        bwEl: { style: {} },
+    };
+    const ctx = {
+        console, Math, JSON, Promise, Number, isNaN, String, Object, Error,
+        AbortController,
+        Date: Object.assign(function () {}, { now: () => now, parse: Date.parse }),
+        setTimeout: (fn, ms) => { const id = nextId++; timers.push({ id, at: now + (ms || 0), fn }); return id; },
+        clearTimeout: id => { const i = timers.findIndex(t => t.id === id); if (i >= 0) timers.splice(i, 1); },
+        document: { hidden },
+        URL: { createObjectURL: b => { const u = "blob:" + created.length; created.push(u); return u; },
+               revokeObjectURL: u => revoked.push(u) },
+        fetch: (url, opts) => new Promise((resolve, reject) => requests.push({ url, opts, resolve, reject })),
+        camState: { "10.0.0.1": st },
+        hosts: ["10.0.0.1"],
+        imgPattern: "cam-{host}.jpg", thumbPattern: "cam-{host}-thumb.jpg",
+        thumbsAvailable: thumbs, focusedHost: null, _idlePaused: false,
+        STILL_FETCH_TIMEOUT_MS: 10000, MIN_GAP_MS: num(/MIN_GAP_MS\s*=\s*(\d+)/),
+        _rxBytes: 0,
+        stopWebrtc() {}, replaceImg: s => s.imgEl, setMode() {},
+        stillPeriodFor: () => 1000, noteAgeAtReceipt() {}, markRefreshed() {},
+        _stillOk() {}, _stillFailed(s, why) { s.lastFailure = why; },
+    };
+    vm.createContext(ctx);
+    vm.runInContext(["snapshotUrl", "wantsFullSize", "clearTileTimers", "releaseFrameUrl", "startStill"]
+        .map(fn).join("\n") +
+        "\nglobalThis.__api = { snapshotUrl, wantsFullSize, startStill, clearTileTimers," +
+        " get thumbs() { return thumbsAvailable; }, set focus(h) { focusedHost = h; } };", ctx);
+    const settle = async () => { for (let i = 0; i < 8; i++) await new Promise(r => setImmediate(r)); };
+    return {
+        api: ctx.__api, st, img, ctx, requests, revoked, created,
+        settle,
+        advance: async ms => {
+            const until = now + ms;
+            for (;;) {
+                timers.sort((a, b) => a.at - b.at);
+                const t = timers[0];
+                if (!t || t.at > until) break;
+                timers.shift();
+                now = t.at;
+                t.fn();
+                await settle();
+            }
+            now = until;
+        },
+        pendingTimers: () => timers.map(t => t.at - now),
+        answer: async (req, status, lastMod, size = 1000) => {
+            req.resolve({
+                status, ok: status >= 200 && status < 300,
+                headers: { get: k => (k === "Last-Modified" ? lastMod : null) },
+                blob: async () => ({ size }),
+            });
+            await settle();
+        },
+        fail: async (req, err = new Error("down")) => { req.reject(err); await settle(); },
+    };
+}
 
 console.log("\nsnapshot URL must stay revalidatable");
 {
-    const s = fn("snapshotUrl");
-    check(!/[?&]t=/.test(s) && !/Date\.now\(\)/.test(s) && !/Math\.random/.test(s),
-          "no cache-buster in snapshotUrl",
-          "a unique url per poll defeats If-Modified-Since entirely");
+    const sb = makeSandbox();
+    const a = sb.api.snapshotUrl("10.0.0.1", false), b = sb.api.snapshotUrl("10.0.0.1", false);
+    check(a === b && !a.includes("?"), "the same picture has the same URL every time", a);
+    check(sb.api.snapshotUrl("10.0.0.1", true) !== a, "and the two sizes are different URLs");
 }
 
-console.log("\nthe still refresh must ask conditionally, and read the answer");
+console.log("\nthe still refresh asks conditionally and reads the answer");
 {
-    const still = fn("startStill");
-    check(/If-Modified-Since/.test(still),
-          "sends If-Modified-Since");
-    check(/lastMod/.test(still) && /Last-Modified/.test(still),
-          "stores the server's Last-Modified to send back next time");
-    check(/status\s*===\s*304/.test(still),
-          "handles 304 explicitly",
-          "without this a 304 would be treated as an empty frame and blank the tile");
-    // The 304 branch must NOT reach the line that reads Last-Modified off the
-    // response — a 304 does not carry one, so that would blank the timestamp
-    // and the next poll would go out unconditional, silently reverting to
-    // full-frame-every-time. Anchored on the assignment FROM THE RESPONSE
-    // specifically: `st.lastMod = null` also appears earlier, deliberately, to
-    // drop the timestamp when a tile changes between thumbnail and full size,
-    // and a plain search for "st.lastMod =" finds that one instead.
-    const i304 = still.indexOf("304");
-    const iFromResponse = still.indexOf("st.lastMod = r.headers");
-    check(i304 >= 0 && iFromResponse > i304,
-          "304 returns before Last-Modified is read off the response");
-    check(/cache:\s*["']no-store["']/.test(still),
-          "no-store, so the browser's own cache cannot hide the 304 from us");
+    const sb = makeSandbox();
+    sb.api.startStill("10.0.0.1");
+    await sb.settle();
+    const first = sb.requests[0];
+    check(first && !first.opts.headers["If-Modified-Since"], "the first request is unconditional");
+    check(first && first.opts.cache === "no-store", "no-store, so the browser's cache cannot hide a 304");
+    await sb.answer(first, 200, "Wed, 23 Sep 2026 10:00:00 GMT", 21000);
+    check(sb.st.lastMod === "Wed, 23 Sep 2026 10:00:00 GMT", "a 200 stores its Last-Modified");
+    check(sb.ctx._rxBytes === 21000, "and counts the bytes this page downloaded", String(sb.ctx._rxBytes));
+    check(sb.img.src === "blob:0", "and shows the new frame", sb.img.src);
+
+    await sb.advance(1000);
+    const second = sb.requests[1];
+    check(second && second.opts.headers["If-Modified-Since"] === "Wed, 23 Sep 2026 10:00:00 GMT",
+          "the next request sends that time back");
+    await sb.answer(second, 304, null);
+    check(sb.st.lastMod === "Wed, 23 Sep 2026 10:00:00 GMT",
+          "a 304 keeps the held time (it carries none of its own)");
+    check(sb.img.src === "blob:0", "and leaves the picture alone");
+    check(sb.st.lastFailure === undefined, "and is not counted as a failure", String(sb.st.lastFailure));
+    await sb.advance(1000);
+    check(sb.requests[2] && sb.requests[2].opts.headers["If-Modified-Since"],
+          "so the request after a 304 is still conditional");
 }
 
-console.log("\npolling faster than frames are produced needs a pile-up guard");
+console.log("\npolling faster than frames arrive needs a pile-up guard");
 {
-    const still = fn("startStill");
-    check(/st\.fetching/.test(still) && /if\s*\(\s*st\.fetching\s*\)\s*return/.test(still),
-          "skips a tick while the previous poll is still in flight",
-          "HTTP/1.1 allows 6 connections per origin; 9 tiles at 1 s would queue");
-    check(/\.finally\(\s*\(\)\s*=>\s*\{\s*st\.fetching\s*=\s*false/.test(still),
-          "clears the flag on EVERY exit path",
-          "a throw that skipped this would stop the tile refreshing for good");
+    const sb = makeSandbox();
+    sb.api.startStill("10.0.0.1");
+    await sb.settle();
+    await sb.advance(1000);            // the first request never comes back
+    check(sb.requests.length === 1, "no second request while the first is in flight",
+          `${sb.requests.length} requests`);
+    await sb.fail(sb.requests[0]);
+    check(sb.st.fetching === false && sb.st.lastFailure === "unreachable",
+          "a failed request clears the in-flight flag and says why");
+    await sb.advance(1000);
+    check(sb.requests.length === 2, "so the tile keeps refreshing after a failure");
+}
+
+console.log("\nthe poll reschedules itself from the end of each request");
+{
+    const sb = makeSandbox();
+    sb.api.startStill("10.0.0.1");
+    await sb.settle();
+    await sb.answer(sb.requests[0], 200, "Wed, 23 Sep 2026 10:00:00 GMT");
+    await sb.advance(0);               // the stagger offset (0 for the only tile) fires the chain
+    const req = sb.requests[1];
+    await sb.advance(400);             // this request takes 400 ms
+    await sb.answer(req, 304, null);
+    const waits = sb.pendingTimers();
+    check(waits.includes(600), "it waits out the REMAINDER of the period, not a fresh one",
+          JSON.stringify(waits));
+    await sb.advance(2000);
+    const slow = sb.requests[sb.requests.length - 1];
+    await sb.advance(5000);            // a request slower than the whole period
+    await sb.answer(slow, 304, null);
+    check(sb.pendingTimers().includes(sb.ctx.MIN_GAP_MS),
+          "and never spins when a request outlasts the period", JSON.stringify(sb.pendingTimers()));
+}
+
+console.log("\ntearing a tile down stops its chain");
+{
+    const sb = makeSandbox();
+    sb.api.startStill("10.0.0.1");
+    await sb.settle();
+    await sb.answer(sb.requests[0], 200, "Wed, 23 Sep 2026 10:00:00 GMT");
+    await sb.advance(0);
+    const inFlight = sb.requests[1];
+    sb.api.clearTileTimers(sb.st);     // torn down while a request is out
+    await sb.answer(inFlight, 304, null);
+    check(sb.pendingTimers().length === 0,
+          "a chain caught mid-request does not schedule a successor",
+          `${sb.pendingTimers().length} timers left`);
+    await sb.advance(5000);
+    check(sb.requests.length === 2, "and nothing more is fetched", `${sb.requests.length} requests`);
+    // NB the guard at the TOP of tick is defensive: every path that starts a
+    // new chain clears the old timer first, so no test can reach it.
+}
+
+console.log("\nthumbnail for the grid, full size for the focused tile");
+{
+    const sb = makeSandbox();
+    check(!sb.api.wantsFullSize("10.0.0.1"), "a grid tile wants the thumbnail");
+    sb.api.focus = "10.0.0.1";
+    check(sb.api.wantsFullSize("10.0.0.1"), "the focused tile wants the full picture");
+    sb.api.focus = null;
+    sb.api.startStill("10.0.0.1");
+    await sb.settle();
+    check(sb.requests[0].url.endsWith("-thumb.jpg"), "the grid asks for the thumbnail", sb.requests[0].url);
+    await sb.answer(sb.requests[0], 200, "Wed, 23 Sep 2026 10:00:00 GMT");
+    sb.api.focus = "10.0.0.1";         // promoted
+    await sb.advance(1000);
+    const promoted = sb.requests[1];
+    check(!promoted.url.endsWith("-thumb.jpg") && !promoted.opts.headers["If-Modified-Since"],
+          "a promoted tile asks for the full picture WITHOUT the thumbnail's time",
+          "otherwise it 304s against the thumb and never sharpens");
+}
+{
+    const sb = makeSandbox();
+    sb.api.startStill("10.0.0.1");
+    await sb.settle();
+    await sb.answer(sb.requests[0], 404, null);
+    check(sb.api.thumbs === false, "a missing thumbnail turns thumbnails off for the page");
+    await sb.advance(1000);
+    check(!sb.requests[1].url.endsWith("-thumb.jpg"), "and the next request is the full picture");
+}
+
+console.log("\nblob lifetime — a frame a second leaks fast if this slips");
+{
+    const sb = makeSandbox();
+    sb.api.startStill("10.0.0.1");
+    await sb.settle();
+    await sb.answer(sb.requests[0], 200, "A");
+    sb.img.fire("load");
+    await sb.advance(1000);
+    await sb.answer(sb.requests[1], 200, "B");
+    check(sb.revoked.length === 0, "the previous frame is kept until the new one has decoded");
+    sb.img.fire("load");
+    check(sb.revoked.includes("blob:0"), "and let go once it has");
+    await sb.advance(1000);
+    await sb.answer(sb.requests[2], 200, "C");
+    sb.img.fire("error");
+    check(sb.revoked.includes("blob:2"), "a frame that fails to decode is let go too");
+}
+
+console.log("\na hidden tab spends nothing but keeps its place");
+{
+    const sb = makeSandbox({ hidden: true });
+    sb.api.startStill("10.0.0.1");
+    await sb.settle();
+    check(sb.requests.length === 1, "the first frame is fetched even when hidden");
+    await sb.answer(sb.requests[0], 200, "A");
+    await sb.advance(3000);
+    check(sb.requests.length === 1, "later ticks fetch nothing while hidden");
+    check(sb.pendingTimers().length === 1, "but the chain is still scheduled");
 }
 
 console.log("\npoll periods");
@@ -121,55 +303,9 @@ console.log("\npoll periods");
           "not so fast that 9 tiles saturate the 6 connection slots", `${remote} ms`);
 }
 
-console.log("\nblob lifetime — a frame per second leaks fast if this slips");
-{
-    const still = fn("startStill");
-    check(/createObjectURL/.test(still) && /revokeObjectURL/.test(still),
-          "creates and revokes object URLs");
-    // Revoking the OLD url only after the NEW one has decoded is what stops the
-    // tile blanking between frames; revoking eagerly is the bug this replaced.
-    const done = /const done = \(\) => \{[\s\S]*?\}/.exec(still);
-    check(done && /st\.objUrl\)\s*URL\.revokeObjectURL\(st\.objUrl\)/.test(done[0]),
-          "revokes the PREVIOUS frame inside the load handler, not before it");
-    check(/addEventListener\("error"[\s\S]{0,80}revokeObjectURL/.test(still),
-          "revokes on decode failure too, or a broken frame leaks");
-    const live = fn("startLive");
-    check(/releaseFrameUrl\(st\)/.test(live),
-          "a tile switching to live hands its last blob back");
-}
-
-console.log("\nthumbnail for the grid, full size for the focused tile");
-{
-    // The saving is 70% (measured: 33.2 KB per full picture, 12.3 KB per
-    // thumbnail, nine cameras). It rests on the grid asking for the small one
-    // and the focused tile — the only one big enough to show the difference —
-    // asking for the large one.
-    const url = fn("snapshotUrl");
-    check(/thumbPattern/.test(url) && /imgPattern/.test(url),
-          "snapshotUrl can serve either size");
-    const wants = fn("wantsFullSize");
-    check(/focusedHost/.test(wants),
-          "the focused tile is the one that gets the full-size picture");
-    check(/thumbsAvailable/.test(wants),
-          "and everything falls back to full size when there are no thumbs");
-
-    const still = fn("startStill");
-    // The two sizes are different FILES written in the same pass, so their
-    // timestamps sit within a second of each other — close enough that a
-    // carried-over If-Modified-Since produces a wrong 304 and a promoted tile
-    // keeps showing its thumbnail. This is the subtle one.
-    check(/st\.srcFull\s*!==\s*full/.test(still) && /st\.lastMod\s*=\s*null/.test(still),
-          "the held timestamp is dropped when the tile changes size",
-          "otherwise a promoted tile 304s against the thumb's timestamp and never sharpens");
-    check(/status\s*===\s*404[\s\S]{0,120}thumbsAvailable\s*=\s*false/.test(still),
-          "a missing thumbnail demotes the whole page to full-size pictures",
-          "a server without Pillow must show pictures, not eight empty tiles");
-
-    // Saving a picture should give you the real one, not the thumbnail.
-    const camSrc = code;
-    check(/a\.href\s*=\s*snapshotUrl\(host,\s*true\)/.test(camSrc),
-          "the download link always saves the full-size picture");
-}
+console.log("\nsaving a picture");
+check(/a\.href\s*=\s*snapshotUrl\(host,\s*true\)/.test(code),
+      "the download link always saves the full-size picture");
 
 console.log("\nthe hub strip — smallest tiles, landing page, biggest win");
 {
@@ -183,59 +319,6 @@ console.log("\nthe hub strip — smallest tiles, landing page, biggest win");
     check(/data-full=/.test(hubCode) && /onerror=/.test(hubCode),
           "including on the FIRST paint, before any refresh timer has run",
           "otherwise a server with no thumbnails shows an empty strip for a whole poll period");
-}
-
-console.log("\nthe still poll must reschedule itself, not run on a fixed beat");
-{
-    // REPORTED as "the refresh jumps between 3 and 7 seconds", and measured NOT
-    // to be the server: over three minutes the nine snapshot files were
-    // rewritten 797 times at a mean of 2.04 s, worst gap 2.5 s, none over 3 s.
-    // It was setInterval. A fixed beat fires whether or not the last request
-    // has come back, the in-flight guard throws that tick away, and a fetch
-    // that overran by 50 ms therefore costs a WHOLE second. At a 1 s interval
-    // over a link with a ~0.9 s round trip, ordinary jitter drops ticks and the
-    // rate visibly sawtooths. Scheduling from the END of each request cannot
-    // sawtooth and cannot overlap itself.
-    const still = fn("startStill");
-    check(!/setInterval/.test(still),
-          "no setInterval in the still poll",
-          "a fixed beat turns a slightly-slow fetch into a whole skipped period");
-    check(/setTimeout\(tick/.test(still),
-          "the next poll is scheduled by the previous one finishing");
-    check(/Math\.max\(MIN_GAP_MS,\s*period\s*-\s*spent\)/.test(still),
-          "it waits out the REMAINDER of the period, not a fresh full one",
-          "otherwise the effective rate is period + round-trip, not period");
-    const gap = num(/MIN_GAP_MS\s*=\s*(\d+)/);
-    check(gap !== null && gap >= 100,
-          "and never spins when a fetch takes longer than the whole period", `${gap} ms`);
-
-    // A chain has no timer to cancel while it is waiting inside its own .then(),
-    // so clearing timers alone would let one more poll through. The generation
-    // counter is what actually stops it.
-    // TWO guards, and the test must require both — an earlier version of this
-    // check accepted either, so deleting one passed a mutation run. They do
-    // different jobs: the one at the top of `tick` stops a stale timeout that
-    // is already pending from firing a fetch, and the one inside `.then()`
-    // stops a stale chain from scheduling its successor. Only the second
-    // prevents chains multiplying, but the first is what stops a torn-down
-    // tile sending one last request.
-    const guards = (still.match(/st\.gen\s*!==\s*gen/g) || []).length;
-    check(guards >= 2,
-          "a stale chain stands down BOTH before fetching and before rescheduling",
-          `found ${guards} of 2`);
-    const clear = fn("clearTileTimers");
-    check(/st\.gen\s*=/.test(clear),
-          "tearing a tile down bumps the generation",
-          "clearTimeout cannot stop a chain that is mid-request");
-    check(/clearTimeout\(st\.stillTimer\)/.test(clear),
-          "and clears it as a timeout, which is what it now is");
-
-    // The chain can only wait for the fetch if the fetch is handed back to it.
-    check(/return fetch\(snapshotUrl/.test(still),
-          "fetchFrame returns its promise so the chain can wait on it",
-          "without this every tick reschedules immediately and it is a tight loop");
-    check(/document\.hidden\s*\?\s*Promise\.resolve\(\)/.test(still),
-          "a hidden tab resolves at once rather than stalling the chain");
 }
 
 console.log("\nthe bandwidth figure must describe THIS DEVICE");
@@ -272,5 +355,4 @@ console.log("\na still tile's status dot must reflect the TILE, not the server")
           "and something actually stamps that time when a frame arrives");
 }
 
-console.log(`\n${pass} passed, ${fail} failed`);
-process.exit(fail ? 1 : 0);
+done();

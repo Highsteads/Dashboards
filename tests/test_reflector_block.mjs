@@ -22,18 +22,13 @@ import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
+import { check, done } from "./lib/check.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PAGES = path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
                         "Resources", "static", "pages");
 const authSrc = fs.readFileSync(path.join(PAGES, "dashboards-auth.js"), "utf8");
 const uiSrc   = fs.readFileSync(path.join(PAGES, "dashboards-ui.js"), "utf8");
-
-let failed = 0;
-const check = (n, ok, why) => {
-    console.log((ok ? "  ok   " : "  FAIL ") + n + (why ? "   " + why : ""));
-    if (!ok) failed++;
-};
 
 // Pull the refusal's own address test out of the shipped file.
 const start = authSrc.indexOf("var _isReflectorAddress = function () {");
@@ -94,4 +89,4 @@ check("it names the setting that turns it off", /Refuse the reflector/.test(auth
 check("it stops before any page code runs", /_isReflectorAddress\(\)\)\s*\{[\s\S]{0,2000}return;\s*\n\s*\}/.test(authSrc),
       "returning is what stops the camera pictures being asked for");
 
-process.exit(failed ? 1 : 0);
+done();

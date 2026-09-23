@@ -22,16 +22,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { check, done } from "./lib/check.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const src = fs.readFileSync(path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
                                       "Resources", "static", "pages", "cameras.html"), "utf8");
-let failed = 0;
-const check = (n, ok, why) => {
-    console.log((ok ? "  ok   " : "  FAIL ") + n + (why ? "   " + why : ""));
-    if (!ok) failed++;
-};
-
 console.log("\nthe footer's top line is one line, always");
 check("the status row is wrapped in .foot-line",
       /<span class="foot-line"><span id="grid-cam-count">/.test(src));
@@ -61,4 +56,4 @@ check("health reads 'health OK', not 'camera health OK'",
       /: "health OK";/.test(src) && !/"camera health OK"/.test(src),
       "the row already says '9 cameras', so the second 'camera' only cost width");
 
-process.exit(failed ? 1 : 0);
+done();

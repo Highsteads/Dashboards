@@ -24,6 +24,7 @@ import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
+import { checkOk as check, done } from "./lib/check.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SRC = path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
@@ -44,12 +45,6 @@ function fn(name) {
     throw new Error(`unbalanced braces in ${name}`);
 }
 const countMatches = (hay, re) => (hay.match(re) || []).length;
-
-let pass = 0, fail = 0;
-const check = (ok, label, detail = "") => {
-    ok ? pass++ : fail++;
-    console.log(`  ${ok ? "ok  " : "FAIL"} ${label}${detail ? "   " + detail : ""}`);
-};
 
 // ── Execute the real age functions ─────────────────────────────
 const ctx = { Math, Date, localStorage: { getItem: () => null } };
@@ -159,5 +154,4 @@ console.log("\na missed connect window joins the retry ladder");
           "…and the bare startStill call is gone from that path");
 }
 
-console.log(`\n${pass} passed, ${fail} failed`);
-process.exit(fail ? 1 : 0);
+done();

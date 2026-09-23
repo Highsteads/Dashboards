@@ -33,6 +33,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { check, done } from "./lib/check.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SRC  = path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
@@ -79,11 +80,6 @@ new Function(helpers + "let ROOMS = null;\n" + grab("fireHeaterChip") + grab("re
              "globalThis.renderHero = renderHero;" +
              "globalThis._sigen = _sigen;")();
 
-let failures = 0;
-function check(label, cond, detail) {
-    if (cond) console.log(`  ok   ${label}`);
-    else { console.log(`  FAIL ${label}${detail ? "  — " + detail : ""}`); failures++; }
-}
 
 const DEVICES = [
     { id: 1, name: "Presence - Clive", deviceTypeId: "unifiClient",
@@ -152,10 +148,6 @@ check("date itself survives", /\d/.test(d) && d.length > 10, d);
 d = hero("");
 check("absent version leaves a clean date", !d.includes("·") && !d.includes("v"), d);
 
-console.log(failures === 0
-    ? "\ntest_hub_vpp_and_version.mjs: all checks passed"
-    : `\ntest_hub_vpp_and_version.mjs: ${failures} FAILED`);
-process.exit(failures === 0 ? 0 : 1);
 
 // 5. An aged payload (v2.95.3) — a VPP chip painted from a two-minute-old
 // payload the page could no longer refresh is a false alarm.
@@ -166,4 +158,4 @@ process.exit(failures === 0 ? 0 : 1);
     renderHousePulse(DEVICES);
     check("a payload older than 120 s shows no VPP chip", !els["pulse-row"].innerHTML.includes("VPP"));
 }
-if (failures) { console.log(`\n${failures} check(s) failed`); process.exit(1); }
+done();

@@ -20,17 +20,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { check, done } from "./lib/check.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HUB = path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
                       "Resources", "static", "pages", "index.html");
 const html = fs.readFileSync(HUB, "utf8");
-
-let failed = 0;
-const check = (n, ok, why) => {
-    console.log((ok ? "  ok   " : "  FAIL ") + n + (why ? "   " + why : ""));
-    if (!ok) failed++;
-};
 
 console.log("\nthe hub's glance row");
 
@@ -66,5 +61,4 @@ check("solar and weather are not pinned to fixed rows",
       !/#solar-now\s*\{[^}]*grid-row:\s*[12]\b/.test(html) &&
       !/#weather-now\s*\{[^}]*grid-row:\s*[12]\b/.test(html));
 
-console.log(failed ? `\n${failed} failed\n` : "\nall passed\n");
-process.exit(failed ? 1 : 0);
+done();

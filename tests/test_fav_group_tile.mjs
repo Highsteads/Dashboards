@@ -29,14 +29,13 @@ import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
+import { check, done } from "./lib/check.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PAGES = path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents", "Resources", "static", "pages");
 const actionSrc = fs.readFileSync(path.join(PAGES, "dashboards-action.js"), "utf8");
 const pageSrc = fs.readFileSync(path.join(PAGES, "index.html"), "utf8");
 
-let fails = 0;
-const check = (w, ok) => { console.log((ok ? "  ok   " : "  FAIL ") + w); if (!ok) fails++; };
 const eq = (w, got, want) => check(`${w} — got ${JSON.stringify(got)}`, JSON.stringify(got) === JSON.stringify(want));
 
 // ── load the shipped module ──────────────────────────────────────────────
@@ -223,5 +222,4 @@ const devs = on => [{ id: LAMP, name: "Colour Lamp", onState: on },
           html.includes(">—<") && html.includes("fav-group-unknown"));
 }
 
-console.log(fails ? `\n${fails} FAILED` : "\nall passed");
-process.exit(fails ? 1 : 0);
+done();

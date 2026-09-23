@@ -23,6 +23,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
+import { checkOk as check, done } from "./lib/check.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PAGES = path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
@@ -70,12 +71,6 @@ new Function(`
     globalThis.savingSessionChip = savingSessionChip;
     globalThis.renderHousePulse = renderHousePulse;
 `)();
-
-let pass = 0, fail = 0;
-const check = (ok, label, detail = "") => {
-    ok ? pass++ : fail++;
-    console.log(`  ${ok ? "ok  " : "FAIL"} ${label}${detail ? "   " + JSON.stringify(detail) : ""}`);
-};
 
 // Wednesday 16 Sep 2026, local time.
 const at = (d, h, m = 0) => new Date(2026, 8, d, h, m).getTime();
@@ -181,5 +176,4 @@ check(!/Saving Session/.test(html), "no Sigen data, no chip in the hero");
 // 11. The energy card row stays too.
 check((code.match(/\$\{ssRow\}/g) || []).length === 2, "the Energy card row is still in both layouts");
 
-console.log(`\n${pass} passed, ${fail} failed`);
-process.exit(fail ? 1 : 0);
+done();

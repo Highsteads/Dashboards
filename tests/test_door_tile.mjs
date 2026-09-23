@@ -28,6 +28,7 @@ import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
+import { checkEq as check, done } from "./lib/check.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SRC = path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
@@ -146,12 +147,6 @@ function makeBox() {
 
 /* ── harness ────────────────────────────────────────────────────────────── */
 
-let pass = 0, fail = 0;
-function check(name, got, want) {
-    const ok = JSON.stringify(got) === JSON.stringify(want);
-    if (ok) { pass++; console.log(`  ok   ${name}`); }
-    else { fail++; console.log(`  FAIL ${name}\n         got  ${JSON.stringify(got)}\n         want ${JSON.stringify(want)}`); }
-}
 const flush = () => new Promise(r => setImmediate(r));
 
 const box = makeBox();
@@ -299,5 +294,4 @@ check("timeout veil is present and readable",
 box.advance(5000);          // holdDone:0 must NOT have applied to it
 check("still readable well past a zero hold", veilText(btn), "No confirmation — check the door");
 
-console.log(`\n${pass} passed, ${fail} failed`);
-if (fail) process.exit(1);
+done();
