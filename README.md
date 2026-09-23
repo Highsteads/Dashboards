@@ -8,7 +8,7 @@ Browser dashboards for [Indigo Domotics](https://www.indigodomo.com/), built for
 wall, a phone in your pocket and a Mac on the desk. No app to install, no cloud account,
 nothing leaving the house.
 
-<img src="https://img.shields.io/badge/version-3.39.0-5856d6" alt="Version 3.39.0">
+<img src="https://img.shields.io/badge/version-3.39.1-5856d6" alt="Version 3.39.1">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-21-0a84ff" alt="21 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
@@ -21,7 +21,7 @@ nothing leaving the house.
 
 ---
 
-**Version:** 3.39.0
+**Version:** 3.39.1
 
 **Documentation:** **[highsteads.github.io/Dashboards](https://highsteads.github.io/Dashboards/)** —
 getting started, configuration, a page of notes for every one of the 21 pages, cameras, remote
@@ -67,11 +67,11 @@ simulator, touching no live devices.
 The three most recent releases, word for word. Every release before these is in
 **[the version history](docs/changelog.md)**, which the documentation site also carries.
 
+**3.39.1** (23-Sep-2026) - **The online demo no longer thinks it came through the Indigo reflector.** Served from GitHub, its address looked like the reflector's, so the demo hub showed the reflector's slow-refresh note. Demo mode fetches nothing from a server, so it now counts as home.
+
 **3.39.0** (23-Sep-2026) - **The demo is back online.** [Try it here](https://highsteads.github.io/Dashboards/demo/demo.html): every page runs in your browser from sample data, with no Indigo server behind it. Demo mode now answers the plugin's own questions (energy, costs, the Timeline, System health, the meters) from sample files as well, so the Energy, Cost, Timeline and System pages work in the demo instead of showing errors, and a demo opened on a real install no longer mixes that house's readings into the made-up ones. The sample data was taken from a real house and cut down before publishing: no record of when anyone was home, no account figures, and an invented activity diary. A test now fails when the online copy falls behind the pages. On the System page, the memory note now gives the Mac's real memory size instead of a stray placeholder.
 
 **3.38.0** (23-Sep-2026) - **Smoother moving pictures.** The dots on the power-flow diagram are now round and glide: when the power changes they speed up or slow down smoothly instead of jumping to new places, and when the battery turns from charging to discharging they slow to a stop and set off the other way. Charts that refresh (the Energy history and daily charts, the Timeline's Chart view and the grid carbon forecast) now ease from their old figures to the new ones instead of being cleared and drawn again, and every chart moves the same way. Still camera pictures on the Cameras page cross-fade from one frame to the next, as the hub and room pages already do. All of it stops if your device is set to reduce motion.
-
-**3.37.0** (23-Sep-2026) - **One set of device tiles, and two heating fixes that came out of it.** The room, Active and Heating pages each carried their own copy of the on/off rule, the switch and brightness handling and the heating zone tile, and the copies had drifted apart. They now share one. Two things you can see: on a room page the heating zone now notices when a radiator is calling for heat (it looked in only one of the two places a RAMSES zone reports it), and a setpoint change there is now checked a couple of seconds later and put back, with a message, if the heating plugin did not take it, as the Heating page already did. Both pages now show humidity, valve opening and when each radiator was last heard. On the hub, a favourite whose device is disabled in Indigo now looks greyed out and does not flash when tapped. The pages share one tile stylesheet instead of four copies.
 
 ## A look around
 

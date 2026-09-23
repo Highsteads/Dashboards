@@ -791,6 +791,10 @@
        via:"reflector" was seen arriving through the reflector, whatever the
        address bar says. Only ever downgrades. */
     if (root.__DASH_VIA === 'reflector') return 'reflector';
+    /* Demo mode fetches nothing from a server, so there is no link to judge.
+       On the published demo the address is github.io, which read as the
+       reflector and put its bandwidth note on the hub (3.39.1). */
+    if ((root.INDIGO_CONFIG || {}).apiKey === 'demo') return 'home';
     var h = (root.location && root.location.hostname) || '';
     // An IPv6 literal arrives from location.hostname wrapped in brackets, so a
     // bare '::1' comparison could never match what a browser actually reports.

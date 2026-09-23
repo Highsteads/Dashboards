@@ -169,6 +169,23 @@ for (const [host, rtt, want, why] of CASES) {
 }
 
 
+// ---- demo mode has no link to judge (3.39.1) ---------------------------
+// The published demo is served from github.io, which reads as the reflector
+// and put the reflector's bandwidth note on the demo hub.
+{
+    const box = makeSandbox("highsteads.github.io", 50);
+    box.root.INDIGO_CONFIG = { apiKey: "demo" };
+    vm.createContext(box);
+    vm.runInContext(CODE + "\nvar __d = linkClass();", box);
+    const box2 = makeSandbox("highsteads.github.io", 50);
+    vm.createContext(box2);
+    vm.runInContext(CODE + "\nvar __d = linkClass();", box2);
+    const ok = box.__d === "home" && box2.__d === "reflector";
+    ok ? pass++ : fail++;
+    console.log(`  ${ok ? "ok  " : "FAIL"} demo mode is home; the same address without it is still the reflector (${box.__d}/${box2.__d})`);
+}
+
+
 // ---- the cached verdict must not outlive a network change --------------
 // REPORTED: wi-fi turned off, moved to mobile data, page carried on behaving as
 // though it were at home. The probe result was cached for the whole browser
