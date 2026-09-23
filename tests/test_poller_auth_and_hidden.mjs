@@ -20,7 +20,7 @@
 //                 problem, not a credential one, and must NOT clear the key.
 // Author:      CliveS & Claude Opus 5
 // Date:        28-08-2026
-// Version:     1.0
+// Version:     1.1 (v3.28.0: refusals are reported inside _msg, over DashUI.message)
 //
 // Run: node tests/test_poller_auth_and_hidden.mjs   (exit 0 = pass)
 
@@ -63,38 +63,56 @@ for (const name of POLLERS) {
           gateAt > -1 && (fetchAt === -1 || gateAt < fetchAt));
 }
 
-// ── rule 2: every poller reports a refusal ──────────────────────────────
+// ── rule 2: every poller goes through _msg, which reports a refusal ──────
+// (v3.28.0: the refusal check moved INTO _msg, over DashUI.message.)
 for (const name of POLLERS) {
-    check(`${name} reports a 401/403 to the auth counter`,
-          extractFn(src, name).includes("_authRefused("));
+    const body = extractFn(src, name);
+    check(`${name} calls the plugin through _msg`, body.includes("_msg(") && !body.includes("fetch("));
 }
 
-// ── rule 3: what counts as a refusal ────────────────────────────────────
+// ── rule 3: what counts as a refusal, and the in-flight guard ───────────
 {
+    const run = async (err, opts = {}) => {
+        const calls = [];
+        let release;
+        const ctx = vm.createContext({ console, Set,
+            _onAuthFail: opts.boom ? () => { throw new Error("boom"); } : () => calls.push("authfail"),
+            DashUI: { message: async () => {
+                if (opts.hold) await new Promise(r => { release = r; });
+                if (err) throw err;
+                return { ok: true };
+            } } });
+        vm.runInContext("const _msgInflight = new Set();\n" + extractFn(src, "_msg"), ctx);
+        let out, threw = false;
+        try { out = await vm.runInContext('_msg("x")', ctx); } catch (_) { threw = true; }
+        return { out, fired: calls.length, threw, ctx, release: () => release && release() };
+    };
+    const E = (status) => Object.assign(new Error("e"), { status, auth: status === 401 || status === 403 });
+
+    let r = await run(E(401));
+    check("401 is a refusal and is reported", r.out === null && r.fired === 1);
+    r = await run(E(403));
+    check("403 is a refusal and is reported", r.out === null && r.fired === 1);
+    r = await run(E(500));
+    check("500 is NOT a credential problem — must not clear the key", r.out === null && r.fired === 0);
+    r = await run(E(404));
+    check("404 is NOT a credential problem", r.out === null && r.fired === 0);
+    r = await run(null);
+    check("a good reply comes back", r.out && r.out.ok === true && r.fired === 0);
+    r = await run(E(401), { boom: true });
+    check("a throwing auth handler cannot break the poller", !r.threw && r.out === null);
+
+    // One in flight per endpoint: a second ask while the first is out gets null.
     const calls = [];
-    const ctx = vm.createContext({ console, _onAuthFail: () => calls.push("authfail") });
-    vm.runInContext(extractFn(src, "_authRefused"), ctx);
-    const refused = st => { calls.length = 0;
-        const out = vm.runInContext(`_authRefused(${JSON.stringify({ status: st })})`, ctx);
-        return { out, fired: calls.length }; };
-
-    check("401 is a refusal and is reported", refused(401).out === true && refused(401).fired === 1);
-    check("403 is a refusal and is reported", refused(403).out === true && refused(403).fired === 1);
-    check("500 is NOT a credential problem — must not clear the key",
-          refused(500).out === false && refused(500).fired === 0);
-    check("404 is NOT a credential problem",
-          refused(404).out === false && refused(404).fired === 0);
-    check("200 is not a refusal", refused(200).out === false && refused(200).fired === 0);
-    calls.length = 0;
-    check("a missing response is handled, not thrown on",
-          vm.runInContext("_authRefused(null)", ctx) === false && calls.length === 0);
-
-    // A poller must never be taken down by the reporting itself.
-    const boom = vm.createContext({ console, _onAuthFail: () => { throw new Error("boom"); } });
-    vm.runInContext(extractFn(src, "_authRefused"), boom);
-    let threw = false;
-    try { vm.runInContext('_authRefused({status:401})', boom); } catch (_) { threw = true; }
-    check("a throwing auth handler cannot break the poller", !threw);
+    let release;
+    const ctx = vm.createContext({ console, Set, _onAuthFail: () => {},
+        DashUI: { message: async () => { calls.push(1); await new Promise(res => { release = res; }); return { ok: 1 }; } } });
+    vm.runInContext("const _msgInflight = new Set();\n" + extractFn(src, "_msg"), ctx);
+    const first = vm.runInContext('_msg("same")', ctx);
+    const second = await vm.runInContext('_msg("same")', ctx);
+    release();
+    await first;
+    check("a second ask while the first is in flight is skipped", second === null && calls.length === 1);
 }
 
 console.log(fails ? `\n${fails} FAILED` : "\nall passed");

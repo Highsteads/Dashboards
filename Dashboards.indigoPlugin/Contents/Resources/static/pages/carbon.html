@@ -89,40 +89,9 @@
         .bottombar-inner { text-align: center; max-width: 900px; margin: 0 auto; font-size: 13px;
             color: var(--text-secondary); font-variant-numeric: tabular-nums; }
     
-        /* ═══ Shared Apple/Safari polish (v2.25.0) ═════════════════
-           Appended uniformly across pages: frosted translucent bars, laptop
-           hover states, keyboard focus rings, reduced-motion support, and
-           Safari/iOS fixes (dynamic viewport height, text-size-adjust, tap
-           highlight). Selectors a page lacks simply never match. */
-        html { -webkit-text-size-adjust: 100%; }
-        body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
-        @supports (min-height: 100dvh) { body { min-height: 100dvh; } }
-        a, button, input, select, textarea { -webkit-tap-highlight-color: transparent; }
-        :focus-visible { outline: 2px solid var(--accent, #5856d6); outline-offset: 2px; }
-        .topbar, .bottombar {
-            background: rgba(249, 249, 251, 0.82);
-            -webkit-backdrop-filter: saturate(180%) blur(20px);
-            backdrop-filter: saturate(180%) blur(20px);
-            box-shadow: none;
-        }
-        @media (prefers-color-scheme: dark) {
-            .topbar, .bottombar { background: rgba(22, 22, 24, 0.80); }
-        }
-        @media (hover: hover) and (pointer: fine) {
-            a.card:hover, a.dash-card:hover, .fav-tile:not(.fav-reading):hover, a.home-cam:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
-            }
-            .nav-btn:hover { transform: translateY(-1px); }
-        }
-        @media (prefers-reduced-motion: reduce) {
-            *, *::before, *::after {
-                transition-duration: 0.01ms !important;
-                animation-duration: 0.01ms !important;
-                scroll-behavior: auto !important;
-            }
-        }
+
     </style>
+    <link rel="stylesheet" href="dashboards-chrome.css">
 </head>
 <body>
     <header class="topbar">
@@ -158,17 +127,8 @@
     }
     setInterval(tickStatus, 1000);
 
-    const CARBON_EP = "/message/com.clives.indigoplugin.dashboards/carbonAdvisor/";
-    async function carbonFetch() {
-        // v2.70.0: never call /message/ while the plugin is stopping — a
-        // request in flight when the host dies wedges all of IWS for ~5 min.
-        if (window.DashGate && await window.DashGate.check() === "down")
-            throw new Error("Dashboards plugin restarting");
-        const key = (window.INDIGO_CONFIG || {}).apiKey || "";
-        return fetch(CARBON_EP, { method: "POST",
-            headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
-            body: "{}" });
-    }
+    // The gate, key, timeout and pending retry live in DashUI.message (v3.28.0).
+    const carbonFetch = () => DashUI.message("carbonAdvisor");
 
     function esc(t) { return DashUI.esc(t); }   // v3.25.0: escapes quotes too
     function num(v, dp) { return (v===null||v===undefined||isNaN(Number(v))) ? "—" : Number(v).toFixed(dp==null?0:dp); }
@@ -193,13 +153,11 @@
             `<div class="loading"><p>Carbon data is switched off under Plugins → Dashboards → Configure.<br><small>The Carbon Intensity API covers Great Britain only; pick a region there to turn this page on.</small></p></div>`;
     }
     else { start(); }
-    function start() { load(); setInterval(load, POLL_INTERVAL_MS); }
+    function start() { DashUI.poll(load, POLL_INTERVAL_MS); }   // v3.28.0: pauses in a hidden tab, never stacks
 
     async function load() {
         try {
-            const r = await carbonFetch();
-            if (!r.ok) throw new Error("HTTP " + r.status);
-            const d = await r.json();
+            const d = await carbonFetch();
             _lastUpdate = Date.now(); tickStatus();
             render(d);
             // A warming cache answers in seconds, not the 60 s poll (bounded).

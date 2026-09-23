@@ -267,21 +267,12 @@ a,button,input,select,textarea{-webkit-tap-highlight-color:transparent}
 <script src="dashboards-gate.js"></script>
 <script>
 const POLL_INTERVAL_MS = 30000;
-const MAINS_EP = "/message/com.clives.indigoplugin.dashboards/mainsMeters/";
 const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
 
 if (!window.INDIGO_CONFIG || !window.INDIGO_CONFIG.apiKey) { location.href = "index.html"; }
 
-async function mainsFetch() {
-    // Never call /message/ while the plugin is stopping — a request in flight
-    // when the host dies wedges the whole of IWS for five minutes.
-    if (window.DashGate && await window.DashGate.check() === "down")
-        throw new Error("Dashboards plugin restarting");
-    const key = (window.INDIGO_CONFIG || {}).apiKey || "";
-    return fetch(MAINS_EP, { method: "POST",
-        headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
-        body: "{}" });
-}
+// The gate, key, timeout and pending retry live in DashUI.message (v3.28.0).
+const mainsFetch = () => DashUI.message("mainsMeters");
 
 function esc(t) { return DashUI.esc(t); }   // v3.25.0: escapes quotes too
 function has(v) { return v !== null && v !== undefined && !isNaN(Number(v)); }
@@ -304,14 +295,7 @@ function setTs() {
 const STALE_AFTER_MS = 90000;          // three missed thirty-second polls
 let _lastGood = 0;
 
-function agoWords(ms) {
-    const s = Math.round(ms / 1000);
-    if (s < 90) return s + (s === 1 ? " second" : " seconds");
-    const m = Math.round(s / 60);
-    if (s < 3600) return m + (m === 1 ? " minute" : " minutes");
-    const h = Math.round(s / 3600);
-    return h + (h === 1 ? " hour" : " hours");
-}
+function agoWords(ms) { return DashUI.ago(ms, { words: true }); }   // v3.28.0: one wording, rounding down
 
 function freshness(ageMs) {
     // Before anything has arrived there is nothing to be stale about — the
@@ -551,9 +535,7 @@ function render(d) {
 
 async function tick() {
     try {
-        const r = await mainsFetch();
-        if (!r.ok) throw new Error("HTTP " + r.status);
-        const d = await r.json();
+        const d = await mainsFetch();
         if (d.ok === false) throw new Error(d.error || "endpoint error");
         render(d);
         setTs();
@@ -572,8 +554,7 @@ async function tick() {
         }
     }
 }
-tick();
-setInterval(tick, POLL_INTERVAL_MS);
+DashUI.poll(tick, POLL_INTERVAL_MS);   // v3.28.0: pauses in a hidden tab, never stacks
 </script>
 <script src="dashboards-icons.js"></script>
 <script src="a11y.js"></script>

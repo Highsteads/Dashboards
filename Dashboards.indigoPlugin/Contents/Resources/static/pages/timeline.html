@@ -138,31 +138,17 @@ html{-webkit-text-size-adjust:100%}
 <script>
 const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
 
-const EP = "/message/com.clives.indigoplugin.dashboards/timelineDay/";
-async function fetchDay(date) {
-  // The liveness gate (v2.95.3): one tap here mid-restart wedged IWS for
-  // five minutes, and this page never loaded the gate at all.
-  if (window.DashGate && await window.DashGate.check() === "down") {
-    throw new Error("the Dashboards plugin is restarting — try again in a moment");
-  }
-  const key = (window.INDIGO_CONFIG || {}).apiKey || "";
-  // The server builds a day on a worker now (plugin 3.19.0) — it used to take
-  // 1.7 s inline, stalling every other dashboard in the house for all of it.
-  // So the first ask for a day answers 503 + pending; wait for it rather than
-  // reporting an error the user cannot act on.
-  const once = () => fetch(EP, { method:"POST",
-    headers:{ "Authorization":"Bearer "+key, "Content-Type":"application/json" },
-    body: JSON.stringify({ date }) });
-  const r = window.DashUI && DashUI.whenReady
-    ? await DashUI.whenReady(once, { onWait: () => {
-        const b = document.getElementById("tl-body");
-        if (b) b.innerHTML = '<p class="muted">Building this day…</p>';
-      } })
-    : await once();
-  if (!r.ok) throw new Error("HTTP " + r.status);
-  return r.json();
+// The server builds a day on a worker (plugin 3.19.0), so the first ask for a
+// day answers 503 + pending; DashUI.message waits for it rather than reporting
+// an error the user cannot act on, and owns the gate, key and timeout (v3.28.0).
+// A bad date comes back as the server's own words.
+function fetchDay(date) {
+  return DashUI.message("timelineDay", { date }, { pendingMs: 20000, onWait: () => {
+    const b = document.getElementById("tl-body");
+    if (b) b.innerHTML = '<p class="muted">Building this day…</p>';
+  } });
 }
-function esc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;"); }
+function esc(s){ return DashUI.esc(s); }
 function pad(n){ return String(n).padStart(2,"0"); }
 function hm(min){ const m=Math.round(Math.max(0,Math.min(1440,min))); return pad(Math.floor(m/60))+":"+pad(m%60); }   // round FIRST — 59.6 used to print "00:60"
 function ymd(d){ return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }

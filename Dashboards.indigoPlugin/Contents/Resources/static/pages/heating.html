@@ -241,41 +241,9 @@
         .ctrl-toast.ok  { color: var(--on-color); }
         .ctrl-toast.err { color: var(--bad); }
     
-        /* ═══ Shared Apple/Safari polish (v2.25.0) ═════════════════
-           Appended uniformly across pages: frosted translucent bars, laptop
-           hover states, keyboard focus rings, reduced-motion support, and
-           Safari/iOS fixes (dynamic viewport height, text-size-adjust, tap
-           highlight). Selectors a page lacks simply never match. */
-        html { -webkit-text-size-adjust: 100%; }
-        body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
-        @supports (min-height: 100dvh) { body { min-height: 100dvh; } }
-        a, button, input, select, textarea { -webkit-tap-highlight-color: transparent; }
-        :focus-visible { outline: 2px solid var(--accent, #5856d6); outline-offset: 2px; }
-        .topbar, .bottombar {
-            background: rgba(249, 249, 251, 0.82);
-            -webkit-backdrop-filter: saturate(180%) blur(20px);
-            backdrop-filter: saturate(180%) blur(20px);
-            box-shadow: none;
-        }
-        @media (prefers-color-scheme: dark) {
-            .topbar, .bottombar { background: rgba(22, 22, 24, 0.80); }
-        }
-        @media (hover: hover) and (pointer: fine) {
-            a.card:hover, a.dash-card:hover, .fav-tile:not(.fav-reading):hover, a.home-cam:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
-            }
-            .nav-btn:hover { transform: translateY(-1px); }
-        }
-        @media (prefers-reduced-motion: reduce) {
-            *, *::before, *::after {
-                transition-duration: 0.01ms !important;
-                animation-duration: 0.01ms !important;
-                scroll-behavior: auto !important;
-            }
-        }
-            .control-card .ctrl-h2 { margin-top: 14px; }
+        .control-card .ctrl-h2 { margin-top: 14px; }
 </style>
+    <link rel="stylesheet" href="dashboards-chrome.css">
 </head>
 <body>
     <header class="topbar">
@@ -456,13 +424,7 @@
         const t = Date.parse(String(v).replace(" ", "T"));
         return isNaN(t) ? null : t;
     }
-    function fmtAge(ms) {
-        const m = Math.round(ms / 60000);
-        if (m < 1) return "just now";
-        if (m < 60) return m + "m ago";
-        const h = Math.floor(m / 60);
-        return h < 24 ? h + "h ago" : Math.floor(h / 24) + "d ago";
-    }
+    function fmtAge(ms) { return DashUI.ago(ms); }   // v3.28.0: one wording, rounding down
     const TRV_STALE_MS = 3 * 3600 * 1000;   // flag a TRV unheard for > 3 hours
     function cleanZoneName(s) { return String(s || "").replace(/\s+(Radiator|Thermostat)$/i, ""); }
 
@@ -614,7 +576,6 @@
     // executeAction). This page used to POST via the author's private Command
     // Centre bundle, which no other install has — every button errored for
     // every other user of this published plugin.
-    const EVO_ENDPOINT = "/message/com.clives.indigoplugin.dashboards/evoHomeAction/";
     const EVO_LABELS = {
         startTimedBoost1h:   "Boost started (1 hour)",
         startTimedBoost2h:   "Boost started (2 hours)",
@@ -632,34 +593,22 @@
         allBtns.forEach(b => { b.disabled = true; });
         toast.textContent = "Sending…";
         toast.className = "ctrl-toast";
-        if (window.DashGate && await window.DashGate.check() === "down") {
-            toast.textContent = "Dashboards is restarting — try again in a moment";
-            toast.className = "ctrl-toast err";
-            allBtns.forEach(b => { b.disabled = false; });
-            return;
-        }
+        // Gate, key and timeout live in DashUI.message (v3.28.0).
         try {
-            const r = await fetch(EVO_ENDPOINT, {
-                method: "POST",
-                headers: {
-                    Authorization: "Bearer " + (indigo ? indigo._key : ""),
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ action_id: actionId }),
-            });
-            const data = await r.json().catch(() => ({}));
-            if (r.ok && data.ok) {
+            const data = await DashUI.message("evoHomeAction", { action_id: actionId });
+            if (data && data.ok) {
                 toast.textContent = EVO_LABELS[actionId] || "Done";
                 toast.className = "ctrl-toast ok";
-            } else if (r.status === 503) {
-                toast.textContent = "The EvoHome Heating Controller plugin is not installed or not enabled on this system";
-                toast.className = "ctrl-toast err";
             } else {
-                toast.textContent = "Error: " + (data.error || r.status);
+                toast.textContent = "Error: " + ((data && data.error) || "no reply");
                 toast.className = "ctrl-toast err";
             }
         } catch (e) {
-            toast.textContent = "Request failed — check connection";
+            toast.textContent = e.status === 503
+                ? "The EvoHome Heating Controller plugin is not installed or not enabled on this system"
+                : e.status ? "Error: " + e.message
+                : /restarting/.test(e.message) ? "Dashboards is restarting — try again in a moment"
+                : "Request failed — check connection";
             toast.className = "ctrl-toast err";
         } finally {
             allBtns.forEach(b => { b.disabled = false; });

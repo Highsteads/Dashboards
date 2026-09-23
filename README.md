@@ -8,7 +8,7 @@ Browser dashboards for [Indigo Domotics](https://www.indigodomo.com/), built for
 wall, a phone in your pocket and a Mac on the desk. No app to install, no cloud account,
 nothing leaving the house.
 
-<img src="https://img.shields.io/badge/version-3.27.0-5856d6" alt="Version 3.27.0">
+<img src="https://img.shields.io/badge/version-3.28.0-5856d6" alt="Version 3.28.0">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-26-0a84ff" alt="26 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
@@ -21,7 +21,7 @@ nothing leaving the house.
 
 ---
 
-**Version:** 3.27.0
+**Version:** 3.28.0
 
 **Documentation:** **[highsteads.github.io/Dashboards](https://highsteads.github.io/Dashboards/)** —
 getting started, configuration, a page of notes for every one of the 26 pages, cameras, remote
@@ -67,9 +67,9 @@ with a gentle state simulator, touching no live devices.
 The three most recent releases, word for word. Every release before these is in
 **[the version history](docs/changelog.md)**, which the documentation site also carries.
 
-**3.27.0** (23-Sep-2026) - **The plugin's plumbing, tidied: one way to hold settings, one cache, one way to find the inverter.** Settings now live in one place, the file the Settings page writes. Installs that still set cameras, room extras or hidden scenes in IndigoSecrets or in the Configure dialog have those values copied into it once, on the first start of this version, and the log says so; after that the Settings page owns them, and the three old Configure fields are gone. The Carbon, Insights and Mains pages now share one background cache instead of running a thread each, and a failure there is remembered for a few minutes rather than retried on every refresh. That cache also stopped emptying itself completely when it filled, which threw away timeline days it meant to keep, and stopped reporting an old failure as the answer to a new question. The guest tablet's charts share the same cache, so the second look at a 30-day chart no longer costs another six seconds. The note that tells every page something has changed is written by its own thread instead of by the one that serves the pages, the room and scene lists are written only when they change, and the four ways of finding the Sigenergy inverter are one. Nothing on the pages looks different.
+**3.28.0** (23-Sep-2026) - **The pages share their plumbing: one way to call the plugin, one way to poll, one way to say how long ago.** Every page used to carry its own copy of the code that asks the plugin for data, and not all of them checked first whether the plugin was restarting, which is what stops one request taking the whole web server down for five minutes. The Laundry page's deadline buttons never checked at all. They all go through one shared function now, with the check, a time limit, and a patient wait while a chart is being built. When something goes wrong the page shows the plugin's own explanation instead of a bare error number. Eight pages that kept asking for data in a background tab, where nobody could see it, now pause until you come back, and a slow answer is never overtaken by the next request. "How long ago" is worded one way everywhere and always rounds down, so an hour and forty minutes reads "1h ago" on every page rather than "2h ago" on some. The frosted top and bottom bars, focus rings and reduced-motion settings come from one shared stylesheet instead of seventeen pasted copies. Nothing else on the pages looks different.
 
-**3.26.0** (23-Sep-2026) - **A spring clean: things nothing used are gone, and nothing you use has changed.** The WebRTC test page is retired: it was a bench for building the away-from-home camera tile, which shipped long ago, and it was still being published. Two unused test pages and a retired tool left the bundle too. The pages lost about 700 lines of styling and script for things no longer on them, including a colour-picker on the Weather page whose buttons led nowhere, the switch for the old "light hub" that has been off since 2.97.0, and a second back-to-top button on six pages, where the one in the top bar is always on screen anyway. The plugin stopped copying two go2rtc files that no page has loaded since the old live page went, dropped a camera route nothing called, and lost the thousand-line version history at the top of its code, which this page and git already hold. Demo mode stays, since the docs point people at it, and so does the clean-up that removes old presence data on upgrade.
+**3.27.0** (23-Sep-2026) - **The plugin's plumbing, tidied: one way to hold settings, one cache, one way to find the inverter.** Settings now live in one place, the file the Settings page writes. Installs that still set cameras, room extras or hidden scenes in IndigoSecrets or in the Configure dialog have those values copied into it once, on the first start of this version, and the log says so; after that the Settings page owns them, and the three old Configure fields are gone. The Carbon, Insights and Mains pages now share one background cache instead of running a thread each, and a failure there is remembered for a few minutes rather than retried on every refresh. That cache also stopped emptying itself completely when it filled, which threw away timeline days it meant to keep, and stopped reporting an old failure as the answer to a new question. The guest tablet's charts share the same cache, so the second look at a 30-day chart no longer costs another six seconds. The note that tells every page something has changed is written by its own thread instead of by the one that serves the pages, the room and scene lists are written only when they change, and the four ways of finding the Sigenergy inverter are one. Nothing on the pages looks different.
 
 ## A look around
 

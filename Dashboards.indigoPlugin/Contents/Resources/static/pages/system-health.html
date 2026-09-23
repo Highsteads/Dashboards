@@ -198,21 +198,9 @@ a,button,input,select,textarea{-webkit-tap-highlight-color:transparent}
 const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
 
 const POLL_INTERVAL_MS = 30000;
-const HEALTH_EP = "/message/com.clives.indigoplugin.dashboards/systemHealth/";
-async function healthFetch() {
-    // v2.70.0: never call /message/ while the plugin is stopping — a
-    // request in flight when the host dies wedges all of IWS for ~5 min.
-    if (window.DashGate && await window.DashGate.check() === "down")
-        throw new Error("Dashboards plugin restarting");
-    const key = (window.INDIGO_CONFIG || {}).apiKey || "";
-    // Gathered on a worker now (plugin 3.19.0): the Mac vitals shell out and
-    // the storage breakdown walks the disk, which took 262 ms on the thread
-    // that serves every other page. A cold ask answers 503 + pending.
-    const once = () => fetch(HEALTH_EP, { method: "POST",
-        headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
-        body: "{}" });
-    return (window.DashUI && DashUI.whenReady) ? DashUI.whenReady(once) : once();
-}
+// Gathered on a worker (plugin 3.19.0), so a cold ask answers 503 + pending;
+// DashUI.message waits for it, and owns the gate, key and timeout (v3.28.0).
+const healthFetch = () => DashUI.message("systemHealth", {}, { pendingMs: 20000 });
 
 function esc(t) { return DashUI.esc(t); }   // v3.25.0: escapes quotes too
 function num(v, dp) { return (v === null || v === undefined || isNaN(Number(v))) ? "—" : Number(v).toFixed(dp == null ? 1 : dp); }
@@ -227,13 +215,11 @@ function setTs() {
 }
 
 if (!window.INDIGO_CONFIG || !window.INDIGO_CONFIG.apiKey) { location.href = "index.html"; }
-else { load(); setInterval(load, POLL_INTERVAL_MS); }
+else { DashUI.poll(load, POLL_INTERVAL_MS); }   // v3.28.0: pauses in a hidden tab, never stacks
 
 async function load() {
     try {
-        const r = await healthFetch();
-        if (!r.ok) throw new Error("HTTP " + r.status);
-        const d = await r.json();
+        const d = await healthFetch();
         setTs();
         render(d);
     } catch (e) {

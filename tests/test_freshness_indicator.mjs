@@ -54,8 +54,11 @@ for (const page of ["mains.html", "meter.html"]) {
     // Strip comments so a rule can never be satisfied by prose describing it.
     const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 
-    const ctx = { Math };
+    const ctx = { Math, Date };
+    ctx.window = ctx;
     vm.createContext(ctx);
+    // agoWords delegates to the shared DashUI.ago (v3.28.0).
+    vm.runInContext(fs.readFileSync(path.join(PAGES, "dashboards-ui.js"), "utf8"), ctx);
     vm.runInContext("const STALE_AFTER_MS = 90000;\n"
         + fnSource(code, "agoWords") + "\n" + fnSource(code, "freshness"), ctx);
     const freshness = (ms) => vm.runInContext(`freshness(${ms})`, ctx);

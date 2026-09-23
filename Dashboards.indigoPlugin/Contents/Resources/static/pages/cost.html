@@ -551,18 +551,20 @@ a,button,input,select,textarea{-webkit-tap-highlight-color:transparent}
    SigenEnergyManager economics via the sigenApi proxy.
    Shared arithmetic and formatters live in energy-calc.js, where they are
    tested by tests/test_energy_cost.mjs. */
-const SIGEN_PROXY = '/message/com.clives.indigoplugin.dashboards/sigenApi/';
+/* DashUI.message owns the gate, key and timeout (v3.28.0). The callers here
+   were written against a fetch Response, so this hands one back: ok + json()
+   for an answer, ok:false + status for a refusal. A pending reply is waited
+   for briefly — these pages keep their last render, and a long wait would
+   only overlap the next poll. */
 async function sigenFetch(path, query) {
-  // v2.70.0: never call /message/ while the plugin is stopping — a
-  // request in flight when the host dies wedges all of IWS for ~5 min.
-  if (window.DashGate && await window.DashGate.check() === "down")
-    throw new Error("Dashboards plugin restarting");
-  const key = (window.INDIGO_CONFIG || {}).apiKey || '';
-  return fetch(SIGEN_PROXY, {
-    method: 'POST',
-    headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path: path, query: query || {} }),
-  });
+  try {
+    const d = await DashUI.message('sigenApi', { path: path, query: query || {} },
+                                   { pendingMs: 3000 });
+    return { ok: true, status: 200, json: async () => d };
+  } catch (e) {
+    if (e.status) return { ok: false, status: e.status, json: async () => e.body };
+    throw e;
+  }
 }
 
 const POLL_INTERVAL_MS = 30000;
@@ -1329,12 +1331,13 @@ else if (window.DashFeatures && DashFeatures.sigenAbsent('Cost')) {
      page and there is nothing to poll. */
 }
 else {
-  load(); setInterval(load, POLL_INTERVAL_MS);
-  refreshWeekCompare(); setInterval(refreshWeekCompare, 60 * 60 * 1000);
+  // Pause in a hidden tab and never stack a slow reply (v3.28.0).
+  DashUI.poll(load, POLL_INTERVAL_MS);
+  DashUI.poll(refreshWeekCompare, 60 * 60 * 1000);
   /* Five minutes: the ledger only moves when an event ends or Axle's figures
      are re-imported, so polling it at the page's 30s cadence would be asking
      the same question a hundred times an hour. */
-  refreshVpp(); setInterval(refreshVpp, 5 * 60 * 1000);
+  DashUI.poll(refreshVpp, 5 * 60 * 1000);
 }
 _wireHelpTips();
 </script>

@@ -41,6 +41,40 @@
     return String(t == null ? '' : t).replace(/[&<>"']/g, function (c) { return ESC_MAP[c]; });
   }
 
+  /* How long ago, said ONE way (v3.28.0). Five page-local copies disagreed:
+     some rounded (1 h 40 m read "2h ago" on a room page) and some rounded
+     down (the same age read "1h ago" on Heating). Now every figure rounds
+     DOWN, so an age never claims more time than has passed.
+       ago(iso or Date string)          -> "just now" | "12m ago" | "3h ago" | "2d ago"
+       ago(ageMs)                       -> the same, from an age in milliseconds
+       ago(x, {words: true})            -> "45 seconds" | "5 minutes" | "2 hours"
+       ago(bad, {bad: "—"})             -> what to show for a value that is not a time
+                                           (default: the value itself, or "") */
+  function ago(when, opts) {
+    var o = opts || {};
+    var now = (o.now != null) ? o.now : Date.now();
+    var ms;
+    if (typeof when === 'number') {
+      ms = when;
+    } else {
+      var t = Date.parse(when || '');
+      if (isNaN(t)) return (o.bad != null) ? o.bad : (when ? String(when) : '');
+      ms = now - t;
+    }
+    if (!(ms >= 0)) ms = 0;
+    var sec = Math.floor(ms / 1000), min = Math.floor(sec / 60), hr = Math.floor(min / 60);
+    if (o.words) {
+      var plural = function (n, one) { return n + ' ' + one + (n === 1 ? '' : 's'); };
+      if (sec < 90) return plural(sec, 'second');
+      if (min < 60) return plural(min, 'minute');
+      return plural(hr, 'hour');
+    }
+    if (min < 1) return 'just now';
+    if (min < 60) return min + 'm ago';
+    if (hr < 24) return hr + 'h ago';
+    return Math.floor(hr / 24) + 'd ago';
+  }
+
   function setText(id, v) {
     var e = typeof id === 'string' ? doc.getElementById(id) : id;
     if (e && e.textContent !== v) e.textContent = v;
@@ -1086,28 +1120,113 @@
    * comes straight back. Retrying a bad date for ever would be worse than the
    * stall this replaced.
    */
-  async function whenReady(fetchOnce, opts) {
-    const o        = opts || {};
-    const everyMs  = o.everyMs   || 400;
-    const timeout  = o.timeoutMs || 20000;
-    const onWait   = o.onWait;
-    const deadline = Date.now() + timeout;
-    let waited = false;
-    for (;;) {
-      const r = await fetchOnce();
-      if (r.status !== 503) return r;
-      let body = null;
-      try { body = await r.clone().json(); } catch (e) { body = null; }
-      if (!body || !body.pending) return r;      // a 503 that is not ours
-      if (Date.now() >= deadline) throw new Error(body.error || 'still not ready');
-      if (!waited && typeof onWait === 'function') { waited = true; onWait(body); }
-      await new Promise(res => setTimeout(res, everyMs));
+  /* ---- message: ONE way for a page to call this plugin (v3.28.0) -------
+     Every page used to carry its own "check the gate, add the Bearer, POST"
+     helper — about fifteen copies, only a few with a timeout, one or two
+     retrying a pending reply. The gate is what stops a request landing on a
+     restarting plugin and wedging the whole web server for five minutes, so
+     it belongs in one place that cannot be forgotten.
+
+     message(name, body, opts) POSTs /message/<plugin>/<name>/ and resolves to
+     the parsed JSON reply. It:
+       - refuses while the plugin is restarting (DashGate says "down");
+       - gives up after opts.timeoutMs (12 s);
+       - on 503 + {pending: true} waits opts.everyMs (400 ms) and asks again,
+         for up to opts.pendingMs (30 s), calling opts.onWait(body) once;
+       - rejects with an Error whose message is the server's own `error`
+         text when it gave one, carrying .status, .body and .auth (401/403).
+     A page that needs the raw status can read err.status. */
+  var MSG_BASE = '/message/com.clives.indigoplugin.dashboards/';
+  function msgError(text, status, body) {
+    var e = new Error(text);
+    e.status = status || 0;
+    e.body = body || null;
+    e.auth = status === 401 || status === 403;
+    return e;
+  }
+  async function message(name, body, opts) {
+    var o = opts || {};
+    var cfg = root.INDIGO_CONFIG || {};
+    var key = cfg.apiKey || '';
+    if (!key) throw msgError('this device has no API key', 0, null);
+    if (root.DashGate && typeof root.DashGate.check === 'function'
+        && await root.DashGate.check() === 'down') {
+      throw msgError('the Dashboards plugin is restarting', 0, null);
     }
+    var deadline = Date.now() + (o.pendingMs || 30000);
+    var onWait = o.onWait;
+    for (;;) {
+      var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+      var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, o.timeoutMs || 12000) : null;
+      var r;
+      try {
+        r = await root.fetch(MSG_BASE + name + '/', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body || {}),
+          signal: ctrl ? ctrl.signal : undefined
+        });
+      } catch (e) {
+        throw msgError(e && e.name === 'AbortError' ? 'no answer from the plugin (timed out)'
+                                                     : 'network error: ' + ((e && e.message) || e), 0, null);
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
+      var data = null;
+      try { data = await r.json(); } catch (e) { data = null; }
+      if (r.status === 503 && data && data.pending) {
+        if (Date.now() >= deadline) throw msgError(data.error || 'still not ready', 503, data);
+        if (typeof onWait === 'function') { try { onWait(data); } catch (e) { /* page's problem */ } onWait = null; }
+        await new Promise(function (res) { setTimeout(res, o.everyMs || 400); });
+        continue;
+      }
+      if (!r.ok) throw msgError((data && data.error) || ('HTTP ' + r.status), r.status, data);
+      return data;
+    }
+  }
+
+  /* ---- poll: one polling loop for every page (v3.28.0) ----------------
+     Eight pages polled with a bare setInterval: they carried on in a
+     background tab, where nobody can see the answer, and a slow reply could
+     be overtaken by the next tick so requests stacked up — which matters
+     most over the reflector. poll(fn, ms) runs fn now and every ms, but
+     skips a tick while the tab is hidden or while the last run (a promise)
+     has not settled, and runs at once when the tab comes back. Returns
+     {stop, run}. Pass {immediate: false} to wait for the first tick. */
+  function poll(fn, ms, opts) {
+    var o = opts || {};
+    var doc = root.document;
+    var busy = false, stopped = false;
+    function run() {
+      if (stopped || busy || (doc && doc.hidden)) return;
+      busy = true;
+      var p;
+      try { p = fn(); } catch (e) { busy = false; return; }
+      Promise.resolve(p).catch(function () { /* the page reports its own */ })
+        .then(function () { busy = false; });
+    }
+    function onVisible() { if (doc && !doc.hidden) run(); }
+    if (o.immediate !== false) run();
+    var timer = setInterval(run, ms);
+    if (doc && typeof doc.addEventListener === 'function') {
+      doc.addEventListener('visibilitychange', onVisible);
+    }
+    return {
+      run: run,
+      stop: function () {
+        stopped = true;
+        clearInterval(timer);
+        if (doc && typeof doc.removeEventListener === 'function') {
+          doc.removeEventListener('visibilitychange', onVisible);
+        }
+      }
+    };
   }
 
   var API = {
     cssVar: cssVar,
     esc: esc,
+    ago: ago,
     setText: setText,
     tweenNumber: tweenNumber,
     reducedMotion: reducedMotion,
@@ -1116,7 +1235,8 @@
     solarHoursChart: solarHoursChart,
     STRING_COLOURS: STRING_COLOURS,
     STRING_STACK_ORDER: STRING_STACK_ORDER,
-    whenReady: whenReady,
+    message: message,
+    poll: poll,
     linkClass: linkClass,
     probeBandwidth: probeBandwidth,
     streamBudget: streamBudget,

@@ -82,40 +82,9 @@
         .stats b { color: var(--text); }
         .empty { color: var(--text-secondary); text-align: center; padding: 40px 12px; }
     
-        /* ═══ Shared Apple/Safari polish (v2.25.0) ═════════════════
-           Appended uniformly across pages: frosted translucent bars, laptop
-           hover states, keyboard focus rings, reduced-motion support, and
-           Safari/iOS fixes (dynamic viewport height, text-size-adjust, tap
-           highlight). Selectors a page lacks simply never match. */
-        html { -webkit-text-size-adjust: 100%; }
-        body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
-        @supports (min-height: 100dvh) { body { min-height: 100dvh; } }
-        a, button, input, select, textarea { -webkit-tap-highlight-color: transparent; }
-        :focus-visible { outline: 2px solid var(--accent, #5856d6); outline-offset: 2px; }
-        .topbar, .bottombar {
-            background: rgba(249, 249, 251, 0.82);
-            -webkit-backdrop-filter: saturate(180%) blur(20px);
-            backdrop-filter: saturate(180%) blur(20px);
-            box-shadow: none;
-        }
-        @media (prefers-color-scheme: dark) {
-            .topbar, .bottombar { background: rgba(22, 22, 24, 0.80); }
-        }
-        @media (hover: hover) and (pointer: fine) {
-            a.card:hover, a.dash-card:hover, .fav-tile:not(.fav-reading):hover, a.home-cam:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
-            }
-            .nav-btn:hover { transform: translateY(-1px); }
-        }
-        @media (prefers-reduced-motion: reduce) {
-            *, *::before, *::after {
-                transition-duration: 0.01ms !important;
-                animation-duration: 0.01ms !important;
-                scroll-behavior: auto !important;
-            }
-        }
+
     </style>
+    <link rel="stylesheet" href="dashboards-chrome.css">
 </head>
 <body>
     <header class="topbar">

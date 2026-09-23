@@ -18,9 +18,9 @@
 #              again handling Digest auth server-side. The page uses MJPEG
 #              for the live grid and falls back to the still snapshot if a
 #              stream connection fails.
-# Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.27.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
+# Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.28.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
 # Date:        23-09-2026
-# Version:     3.27.0
+# Version:     3.28.0
 #
 # Version history: docs/changelog.md (what each release does, for users) and
 # `git log` (why, for developers). The per-version engineering notes that sat
@@ -164,7 +164,7 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION = "3.27.0"
+PLUGIN_VERSION = "3.28.0"
 # Pages are mirrored into Web Assets/public/dashboards/ so IWS serves them
 # WITHOUT HTTP Basic Auth. Indigo only treats the global /public/ namespace
 # as anonymous — per-plugin `public/` subfolders still require auth.
@@ -4234,7 +4234,7 @@ class Plugin(indigo.PluginBase):
     # enough for a page somebody opens to look at them.
     SYSTEM_HEALTH_TTL  = 30
 
-    # These two pages wait properly — they use DashUI.whenReady, which polls a
+    # These two pages wait properly — they use DashUI.message, which polls a
     # pending reply and shows "Building this day…" — so their handlers need not
     # hold the dispatch path at all while a first build runs. Measured after
     # the move: with the default 0.75 s cap, timelineDay's worst call was
@@ -6663,7 +6663,7 @@ class Plugin(indigo.PluginBase):
         # Check the date HERE, not on a worker. It is a pure string test costing
         # nothing on the dispatch path, and it keeps the two failure kinds
         # apart: a malformed date is a 400 the page reports to the user, while
-        # a 503 means "not ready yet" and DashUI.whenReady polls it. Deciding
+        # a 503 means "not ready yet" and DashUI.message polls it. Deciding
         # that from the text of the exception instead — which is what the first
         # version of this did — got it wrong, because the real message reads
         # "date must be YYYY-MM-DD" and the guess looked for the word "format".

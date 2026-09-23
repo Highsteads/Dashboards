@@ -157,7 +157,7 @@ console.log("\nindex.html — the hub hides its cards and says why");
           /if \(!_sigenOff\) \{\s*_refreshSigen\(\);\s*setInterval\(_refreshSigen, 30 \* 1000\);\s*\}/.test(boot));
     const rs = hub.slice(hub.indexOf("async function _refreshSigen()"), hub.indexOf("function _sigenMoney()"));
     check("_refreshSigen itself returns before asking the proxy",
-          rs.indexOf("sigenAvailable === false) return;") > 0 && rs.indexOf("sigenAvailable === false) return;") < rs.indexOf("_msg(SIGEN_PROXY"));
+          rs.indexOf("sigenAvailable === false) return;") > 0 && rs.indexOf("sigenAvailable === false) return;") < rs.indexOf("_msg(\"sigenApi\""));
     const rec = extractFn(hub, "renderEnergyCard");
     check("renderEnergyCard hides the card rather than saying 'device not found'",
           rec.indexOf('sigenAvailable === false) {') > 0 && rec.indexOf('sigenAvailable === false) {') < rec.indexOf("Sigen device not found"));
@@ -170,9 +170,9 @@ console.log("\nthe three pages guard their boot");
           iE > 0 && iE < energy.indexOf("fetchStatus();\n", iE) && iE < energy.indexOf("setInterval(fetchStatus"));
     const iC = cost.indexOf("DashFeatures.sigenAbsent('Cost')");
     check("cost: after the api-key redirect, before the poll",
-          cost.indexOf("location.href = 'index.html'") < iC && iC < cost.indexOf("load(); setInterval(load, POLL_INTERVAL_MS)"));
+          cost.indexOf("location.href = 'index.html'") < iC && iC < cost.indexOf("DashUI.poll(load, POLL_INTERVAL_MS)"));
     check("laundry: the guarded boot is the only boot",
-          /if \(window\.DashFeatures && DashFeatures\.sigenAbsent\('Laundry'\)\) \{[\s\S]*?\} else \{\s*load\(\);\s*setInterval\(load, POLL_MS\);\s*\}/.test(laundry) &&
+          /if \(window\.DashFeatures && DashFeatures\.sigenAbsent\('Laundry'\)\) \{[\s\S]*?\} else \{\s*DashUI\.poll\(load, POLL_MS\);[^\n]*\s*\}/.test(laundry) &&
           (laundry.match(/^load\(\);$/mg) || []).length === 0);
     check("each page loads the auth shim (where DashFeatures lives)",
           [energy, cost, laundry].every(p => /<script src="dashboards-auth\.js">/.test(p)));

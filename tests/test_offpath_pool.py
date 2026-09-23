@@ -399,7 +399,7 @@ def test_system_health_answers_from_one_key(plug, monkeypatch):
 
 def test_the_pages_that_wait_properly_get_a_shorter_hand_off(plug):
     """timeline.html and system-health.html poll a pending reply through
-    DashUI.whenReady, so their handlers need not hold the dispatch path for the
+    DashUI.message, so their handlers need not hold the dispatch path for the
     full default. Measured with the default: timelineDay's worst call was
     779 ms, which was the cap and not the work."""
     assert plug.TIMELINE_WAIT < plug.OFFPATH_WAIT

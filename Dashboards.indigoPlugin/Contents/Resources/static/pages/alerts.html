@@ -55,40 +55,9 @@
     .pill { display: inline-block; font-size: 12.5px; color: var(--text-secondary);
             border: 1px solid var(--border); border-radius: var(--r-pill); padding: 3px 10px; }
 
-        /* ═══ Shared Apple/Safari polish (v2.25.0) ═════════════════
-           Appended uniformly across pages: frosted translucent bars, laptop
-           hover states, keyboard focus rings, reduced-motion support, and
-           Safari/iOS fixes (dynamic viewport height, text-size-adjust, tap
-           highlight). Selectors a page lacks simply never match. */
-        html { -webkit-text-size-adjust: 100%; }
-        body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
-        @supports (min-height: 100dvh) { body { min-height: 100dvh; } }
-        a, button, input, select, textarea { -webkit-tap-highlight-color: transparent; }
-        :focus-visible { outline: 2px solid var(--accent, #5856d6); outline-offset: 2px; }
-        .topbar, .bottombar {
-            background: rgba(249, 249, 251, 0.82);
-            -webkit-backdrop-filter: saturate(180%) blur(20px);
-            backdrop-filter: saturate(180%) blur(20px);
-            box-shadow: none;
-        }
-        @media (prefers-color-scheme: dark) {
-            .topbar, .bottombar { background: rgba(22, 22, 24, 0.80); }
-        }
-        @media (hover: hover) and (pointer: fine) {
-            a.card:hover, a.dash-card:hover, .fav-tile:not(.fav-reading):hover, a.home-cam:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
-            }
-            .nav-btn:hover { transform: translateY(-1px); }
-        }
-        @media (prefers-reduced-motion: reduce) {
-            *, *::before, *::after {
-                transition-duration: 0.01ms !important;
-                animation-duration: 0.01ms !important;
-                scroll-behavior: auto !important;
-            }
-        }
+
     </style>
+    <link rel="stylesheet" href="dashboards-chrome.css">
 </head>
 <body>
 <header>
@@ -371,7 +340,6 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
    judgement about what is new or muted lives in that script, never here. */
 (function () {
     "use strict";
-    const EP = "/message/com.clives.indigoplugin.dashboards/logErrors/";
     const POLL_MS = 5 * 60 * 1000;
     const $ = id => document.getElementById(id);
     const esc = t => DashUI.esc(t);   // v3.25.0: escapes quotes too
@@ -442,21 +410,14 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
         // v2.70.0: skip while the plugin is stopping — see dashboards-gate.js.
         if (window.DashGate && await window.DashGate.check() === "down") return;
         try {
-            const r = await fetch(EP, {
-                method: "POST",
-                headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
-                body: "{}"
-            });
-            if (!r.ok) throw new Error("HTTP " + r.status);
-            render(await r.json());
+            render(await DashUI.message("logErrors"));   // v3.28.0
         } catch (err) {
             const meta = $("logwatch-meta");
             if (meta) meta.textContent = "Log watch unavailable (" + err.message + ")";
         }
     }
 
-    load();
-    setInterval(load, POLL_MS);
+    DashUI.poll(load, POLL_MS);   // v3.28.0: pauses in a hidden tab, never stacks
 })();
 </script>
 <script src="dashboards-icons.js"></script>

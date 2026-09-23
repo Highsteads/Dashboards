@@ -36,7 +36,11 @@ function grab(name) {
     return m[0];
 }
 
-const ctx = vm.createContext({ PLAN: null, STALE_AFTER_MS: 195000, esc: (s) => String(s) });
+const ctx = vm.createContext({ PLAN: null, STALE_AFTER_MS: 195000, esc: (s) => String(s), Math, Date });
+ctx.window = ctx;
+// agoWords delegates to the shared DashUI.ago (v3.28.0).
+vm.runInContext(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "..",
+    "Dashboards.indigoPlugin", "Contents", "Resources", "static", "pages", "dashboards-ui.js"), "utf8"), ctx);
 vm.runInContext(
     "const STALE = STALE_AFTER_MS;\n" +
     grab("agoWords") + "\n" + grab("freshness") + "\n" + grab("clock") + "\n" +
@@ -76,7 +80,8 @@ check("the age is worded the way a person says it", () => {
     assert.equal(ctx.agoWords(45000), "45 seconds");
     assert.equal(ctx.agoWords(300000), "5 minutes");
     assert.equal(ctx.agoWords(60000 * 60), "1 hour");
-    assert.equal(ctx.agoWords(60000 * 150), "3 hours");
+    // Rounds DOWN since v3.28.0 (one rule for every page): 2 h 30 m is "2 hours".
+    assert.equal(ctx.agoWords(60000 * 150), "2 hours");
 });
 
 check("_lastGood is written in exactly three places, all on data arriving", () => {

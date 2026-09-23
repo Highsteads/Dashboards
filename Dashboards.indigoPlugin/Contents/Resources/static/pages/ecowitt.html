@@ -347,41 +347,9 @@
         }
         @keyframes spin { to { transform: rotate(360deg); } }
     
-        /* ═══ Shared Apple/Safari polish (v2.25.0) ═════════════════
-           Appended uniformly across pages: frosted translucent bars, laptop
-           hover states, keyboard focus rings, reduced-motion support, and
-           Safari/iOS fixes (dynamic viewport height, text-size-adjust, tap
-           highlight). Selectors a page lacks simply never match. */
-        html { -webkit-text-size-adjust: 100%; }
-        body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
-        @supports (min-height: 100dvh) { body { min-height: 100dvh; } }
-        a, button, input, select, textarea { -webkit-tap-highlight-color: transparent; }
-        :focus-visible { outline: 2px solid var(--accent, #5856d6); outline-offset: 2px; }
-        .topbar, .bottombar {
-            background: rgba(249, 249, 251, 0.82);
-            -webkit-backdrop-filter: saturate(180%) blur(20px);
-            backdrop-filter: saturate(180%) blur(20px);
-            box-shadow: none;
-        }
-        @media (prefers-color-scheme: dark) {
-            .topbar, .bottombar { background: rgba(22, 22, 24, 0.80); }
-        }
-        @media (hover: hover) and (pointer: fine) {
-            a.card:hover, a.dash-card:hover, .fav-tile:not(.fav-reading):hover, a.home-cam:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
-            }
-            .nav-btn:hover { transform: translateY(-1px); }
-        }
-        @media (prefers-reduced-motion: reduce) {
-            *, *::before, *::after {
-                transition-duration: 0.01ms !important;
-                animation-duration: 0.01ms !important;
-                scroll-behavior: auto !important;
-            }
-        }
         .wx-card.stale { opacity: .55; }
     </style>
+    <link rel="stylesheet" href="dashboards-chrome.css">
 </head>
 <body>
     <!-- Device details modal — opened from the ⓘ button on any tile. -->
@@ -547,17 +515,7 @@
         if (t < 22) return "warm";
         return "hot";
     }
-    function formatWhen(iso) {
-        if (!iso) return "";
-        const t = Date.parse(iso);
-        if (isNaN(t)) return iso;
-        const mins = Math.round((Date.now() - t) / 60000);
-        if (mins < 1) return "just now";
-        if (mins < 60) return mins + "m ago";
-        const hrs = Math.round(mins / 60);
-        if (hrs < 24) return hrs + "h ago";
-        return Math.round(hrs / 24) + "d ago";
-    }
+    function formatWhen(iso) { return DashUI.ago(iso); }   // v3.28.0: one wording, rounding down
 
     function num(s, key, scale = 1) {
         if (!s) return null;

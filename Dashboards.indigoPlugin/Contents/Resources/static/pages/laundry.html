@@ -188,15 +188,13 @@ a,button,input,select,textarea{-webkit-tap-highlight-color:transparent}
 <script src="dashboards-gate.js"></script>
 <script>
 "use strict";
-const EP = "/message/com.clives.indigoplugin.dashboards/";
 const POLL_MS = 60000;
 const DEADLINES = [["12:00","by noon"],["14:00","by 2pm"],["16:00","by 4pm"],
                    ["19:00","by 7pm"],["22:00","by 10pm"],["","no deadline"]];
 let PLAN = null, BUSY = false;
 
 const $ = (id) => document.getElementById(id);
-const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g,
-    (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const esc = (s) => DashUI.esc(s);
 
 /* ── how fresh is what you are looking at ───────────────────────────────────
    Its OWN timer, not the poll's: a poll that has died cannot be trusted to
@@ -204,14 +202,7 @@ const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g,
 const STALE_AFTER_MS = 195000;         // three missed sixty-second polls, plus slack
 let _lastGood = 0;
 
-function agoWords(ms) {
-    const s = Math.round(ms / 1000);
-    if (s < 90) return s + (s === 1 ? " second" : " seconds");
-    const m = Math.round(s / 60);
-    if (s < 3600) return m + (m === 1 ? " minute" : " minutes");
-    const h = Math.round(s / 3600);
-    return h + (h === 1 ? " hour" : " hours");
-}
+function agoWords(ms) { return DashUI.ago(ms, { words: true }); }   // v3.28.0: one wording, rounding down
 
 function freshness(ageMs) {
     // Before anything has arrived there is nothing to be stale about - the
@@ -232,16 +223,9 @@ function markFreshness() {
 setInterval(markFreshness, 5000);
 
 /* ── talking to the plugin ──────────────────────────────────────────────── */
-async function call(route, body) {
-    const key = (window.INDIGO_CONFIG || {}).apiKey || "";
-    const r = await fetch(EP + route + "/", {
-        method: "POST",
-        headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
-        body: JSON.stringify(body || {})
-    });
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    return await r.json();
-}
+// DashUI.message owns the gate, key and timeout (v3.28.0). The deadline
+// buttons called this with no gate check at all until then.
+const call = (route, body) => DashUI.message(route, body);
 
 async function load() {
     // The gate: back off while the plugin is restarting rather than wedging the
@@ -407,8 +391,7 @@ if (window.DashFeatures && DashFeatures.sigenAbsent('Laundry')) {
        the page and there is nothing to poll. markFreshness finds no bar and
        returns. */
 } else {
-    load();
-    setInterval(load, POLL_MS);
+    DashUI.poll(load, POLL_MS);   // v3.28.0: pauses in a hidden tab, never stacks
 }
 </script>
 <script src="dashboards-icons.js"></script>

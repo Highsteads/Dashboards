@@ -50,13 +50,15 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_command_guards.py` | applyColour must refuse a command Indigo would swallow |
 | `test_config_js_no_secrets.py` | Pins the plugin's single most important security invariant: |
 | `test_cost_rate_tiers.mjs` | Contract tests for the Cost page's Rates tiles. |
+| `test_dash_message.mjs` | Contract test for DashUI.message (v3.28.0) — the one way a page |
+| `test_dash_poll.mjs` | Contract test for DashUI.poll (v3.28.0): one polling loop for |
 | `test_demo_fixture_is_sanitised.py` | The demo fixture (demo-data/devices.json) is a snapshot of a |
 | `test_docs_site.py` | The documentation site (docs/, GitHub Pages) and the README |
 | `test_door_tile.mjs` | Contract test for the hub's state-driven door favourite — |
 | `test_energy_alert_bar.mjs` | Node contract test for energy.html's alert bar. Extracts the |
 | `test_energy_cost.mjs` | Node contract test for energy-calc.js — the shared arithmetic |
 | `test_energy_soc.mjs` | Node contract test for energy.html's handling of an UNKNOWN |
-| `test_escape_helpers.mjs` | DashUI.esc escapes all five characters that matter, and no page |
+| `test_escape_helpers.mjs` | DashUI.esc escapes all five characters that matter, DashUI.ago |
 | `test_event_log_quiet.py` | The Indigo event log is shared by every plugin on the server and |
 | `test_fav_device_label.mjs` | Contract test for the label on a plain on/off device favourite |
 | `test_fav_group_tile.mjs` | Contract test for the group favourite (v2.93.0) — ONE hub tile |
@@ -134,4 +136,3 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_vpp_card.mjs` | Contract tests for the Cost page's Grid events (Axle VPP) card. |
 | `test_weather_thread_restart.py` | A Configure save that restarts the weather thread while a fetch |
 | `test_webrtc_route.py` | Contract tests for the WHEP signalling forward (v2.68.0) — |
-| `test_when_ready.mjs` | Node contract test for DashUI.whenReady, extracted from the |

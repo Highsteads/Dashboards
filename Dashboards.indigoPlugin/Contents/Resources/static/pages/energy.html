@@ -697,18 +697,20 @@ a,button,input,select,textarea{-webkit-tap-highlight-color:transparent}
      when the Configure option to block it is ticked)
    • Indigo /v2/api device poll for pack telemetry + fleet
    ════════════════════════════════════════════════════════════════ */
-const SIGEN_PROXY = '/message/com.clives.indigoplugin.dashboards/sigenApi/';
+/* DashUI.message owns the gate, key and timeout (v3.28.0). The callers here
+   were written against a fetch Response, so this hands one back: ok + json()
+   for an answer, ok:false + status for a refusal. A pending reply is waited
+   for briefly — these pages keep their last render, and a long wait would
+   only overlap the next poll. */
 async function sigenFetch(path, query) {
-  // v2.70.0: never call /message/ while the plugin is stopping — a
-  // request in flight when the host dies wedges all of IWS for ~5 min.
-  if (window.DashGate && await window.DashGate.check() === "down")
-    throw new Error("Dashboards plugin restarting");
-  const key = (window.INDIGO_CONFIG || {}).apiKey || '';
-  return fetch(SIGEN_PROXY, {
-    method: 'POST',
-    headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path: path, query: query || {} }),
-  });
+  try {
+    const d = await DashUI.message('sigenApi', { path: path, query: query || {} },
+                                   { pendingMs: 3000 });
+    return { ok: true, status: 200, json: async () => d };
+  } catch (e) {
+    if (e.status) return { ok: false, status: e.status, json: async () => e.body };
+    throw e;
+  }
 }
 
 /* Pack size arrives as battery.capacity_kwh from SigenEnergyManager v5.52.0.
@@ -1125,30 +1127,15 @@ function _wireSolarHoursTap() {
 async function refreshStringHours() {
   if (document.hidden) return;
   try {
-    if (window.DashGate && await window.DashGate.check() === 'down') return;
-    const key = (window.INDIGO_CONFIG || {}).apiKey || '';
-    const r = await fetch('/message/com.clives.indigoplugin.dashboards/solarStringHours/', {
-      method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
-      body: '{}',
-    });
-    /* 503 "pending" (v3.25.0): the chart is being built on a background
-       worker. Look again shortly, a few times, rather than wait five minutes. */
-    if (r.status === 503 && _solHoursRetries < 6) {
-      _solHoursRetries++;
-      setTimeout(refreshStringHours, 2000);
-      return;
-    }
-    if (!r.ok) return;
-    const d = await r.json();
+    // DashUI.message waits out a pending build (it runs on a worker since
+    // v3.25.0) and owns the gate, key and timeout (v3.28.0).
+    const d = await DashUI.message('solarStringHours', {}, { pendingMs: 15000 });
     if (d && d.ok) {
-      _solHoursRetries = 0;
       _solStringHours = d;
       renderSolarHours();
     }
   } catch (e) { /* chart degrades to site-total bars */ }
 }
-let _solHoursRetries = 0;
 
 /* ── SOC sparkline ── */
 function renderSocSparkline(slots) {
