@@ -21,6 +21,11 @@ Dashboards.indigoPlugin/Contents/Resources/static/pages/weather.json
 **/weather.json
 Dashboards.indigoPlugin/Contents/Resources/static/pages/rooms.json
 **/rooms.json
+# The online demo's copies are sample data written by tools/build_demo_site.sh,
+# not a live install's files, and the demo's room pages cannot load without them.
+!docs/demo/rooms.json
+!docs/demo/weather.json
+!docs/demo/config.js
 
 # Test runner artefacts
 .pytest_cache/

@@ -10,9 +10,10 @@
 #              actually have.
 # Author:      CliveS & Claude Opus 5.5
 # Date:        23-09-2026
-# Version:     1.0
+# Version:     1.1 (demo files must be TRACKED, not just on disk)
 import json
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -42,6 +43,23 @@ def test_the_demo_copy_matches_the_bundle(rel):
 def test_the_plugin_files_a_page_fetches_are_there():
     for name in ("rooms.json", "scenes.json", "weather.json", "config.js", "demo-cam.svg"):
         assert (DEMO / name).is_file(), name
+
+
+def test_the_demo_files_are_tracked_not_just_present():
+    """.gitignore hides every rooms.json, weather.json and config.js, because
+    on a live install they carry the house's layout and API key. The demo's
+    copies were present on disk and passing here while CI, on a clean
+    checkout, had none of them (3.39.0)."""
+    try:
+        out = subprocess.run(["git", "ls-files", "docs/demo"], cwd=ROOT, capture_output=True,
+                             text=True, check=True).stdout.split()
+    except (OSError, subprocess.CalledProcessError):
+        pytest.skip("not a git checkout")
+    tracked = set(out)
+    for p in sorted(DEMO.rglob("*")):
+        if p.is_file():
+            rel = str(p.relative_to(ROOT))
+            assert rel in tracked, f"{rel} is on disk but not in git — check .gitignore"
 
 
 def test_the_docs_site_publishes_the_demo():
