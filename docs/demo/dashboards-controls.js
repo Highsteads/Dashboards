@@ -10,11 +10,12 @@
  *              Needs dashboards-action.js loaded first.
  *              DashTile.bind(indigo) once the page has its IndigoAPI, then:
  *                state(v) / isOn(v)          the one on/off rule (true / false / null)
- *                toggle(el) / slide(el) / slideCommit(el)
+ *                toggle(el) / slide(el) / slideCommit(el)   room + Active switches
+ *                pressDevice(el, id, opts)                  a device tile (hub)
  *                zone.render(d, opts) / zone.bump(id, dir) and the helpers
  * Author:      CliveS & Claude Opus 5.5
  * Date:        23-09-2026
- * Version:     1.0
+ * Version:     1.1 (pressDevice for the hub's favourite tiles)
  */
 (function (root) {
   'use strict';
@@ -60,16 +61,55 @@
 
   /* A toggle is CONFIRMED from the device, not assumed (v2.95.3). A device
      whose communication is disabled, or whose plugin has stopped, swallows
-     the command without an error — the switch used to stay flipped for ever. */
-  function confirmToggle(el, id, expected) {
+     the command without an error — the switch used to stay flipped for ever.
+     `undo(actual)` puts the control back to what the device really says. */
+  function confirmFromDevice(a, id, expected, undo) {
     root.setTimeout(function () {
-      Promise.resolve(api.getDevice(id)).then(function (d) {
+      Promise.resolve(a.getDevice(id)).then(function (d) {
         if (d && typeof d.onState === 'boolean' && d.onState !== expected) {
-          el.checked = d.onState;
+          undo(d.onState);
           try { if (root.DashAction) root.DashAction.note('device:' + id, 'timeout', 'No confirmation — check it'); } catch (_) {}
         }
       }).catch(function () { /* the next poll repaints from the server anyway */ });
     }, CONFIRM_MS);
+  }
+  function confirmToggle(el, id, expected) {
+    confirmFromDevice(api, id, expected, function (actual) { el.checked = actual; });
+  }
+
+  /* A device TILE pressed (the hub's favourites, v3.41.0): the same rules as
+     the switch on a room page — flip it at once so the press is felt, then
+     check back with the device and put it right if the command went nowhere.
+     The hub's copy flipped and never checked, so a swallowed command left a
+     tile saying On over a lamp that was off until the next poll disagreed.
+     opts.api overrides the bound API (the hub makes one per press);
+     opts.key is the DashAction key for failure notes. */
+  function paintTile(el, on) {
+    el.classList.toggle('on', on);
+    var st = el.querySelector && el.querySelector('.fav-state');
+    if (st) st.textContent = on ? 'On' : 'Off';
+  }
+  function pressDevice(el, id, opts) {
+    opts = opts || {};
+    var a = opts.api || api;
+    var key = opts.key || ('device:' + id);
+    if (!a || !el) return Promise.resolve(false);
+    var expected = !el.classList.contains('on');
+    el.classList.add('busy');
+    return Promise.resolve(a.toggle(id)).then(function () {
+      paintTile(el, expected);
+      confirmFromDevice(a, id, expected, function (actual) {
+        if (el.isConnected !== false) paintTile(el, actual);
+      });
+      return true;
+    }).catch(function (e) {
+      // An auth failure is the page's to handle; anything else used to vanish,
+      // so a dead network looked exactly like success.
+      if (!(e && (e.status === 401 || e.status === 403))) {
+        try { if (root.DashAction) root.DashAction.note(key, 'error', 'Failed — ' + ((e && e.message) || 'no response')); } catch (_) {}
+      }
+      return false;
+    }).then(function (ok) { el.classList.remove('busy'); return ok; });
   }
 
   function slide(el) {
@@ -236,6 +276,7 @@
     state: state,
     isOn: isOn,
     toggle: toggle,
+    pressDevice: pressDevice,
     slide: slide,
     slideCommit: slideCommit,
     zone: {

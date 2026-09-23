@@ -242,6 +242,18 @@
      The contact is consulted FIRST, so a dead lock can never blind an open
      door; and an absent contact is UNKNOWN even with a healthy lock — a
      silent sensor must not render as a reassuring "Locked". */
+  /* The door tile WITH its memory (v3.41.0). A door only reports "moving",
+     so naming it Opening… or Closing… needs the last settled state, and the
+     hub and the room page each kept their own map of it. One map here, one
+     rule for what counts as settled. */
+  var _doorMemory = {};
+  function doorTileRemembered(id, raw) {
+    var t = doorTile(raw, _doorMemory[id]);
+    var s = raw == null ? '' : String(raw).trim().toLowerCase();
+    if (s === 'open' || s === 'closed') _doorMemory[id] = s;
+    return t;
+  }
+
   function lockTile(contactRaw, lockRaw) {
     var open = truthy(contactRaw);
     if (open === null) return { key: 'unknown', label: '—', intent: null };
@@ -667,6 +679,7 @@
   /* Test/teardown hook. */
   function reset() {
     _watches.clear();
+    _doorMemory = {};
     if (_timer) { clearInterval(_timer); _timer = null; }
     _lastFed = 0; _lastPoll = 0; _polling = false;
   }
@@ -681,6 +694,7 @@
     pending: pending,
     evaluate: evaluate,
     doorTile: doorTile,
+    doorTileRemembered: doorTileRemembered,
     lockTile: lockTile,
     groupTile: groupTile,
     groupPlan: groupPlan,

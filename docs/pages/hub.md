@@ -29,7 +29,9 @@ pill with the watts while a fire's heater runs (Broadlink RF 1.4.0 with a power 
 the energy plugin has one coming, a VPP or Saving Session pill.
 
 **Favourites.** One-tap tiles in the order set on the Settings page. A tile is a control (toggles a
-device or runs a scene), a reading (shows a device state and cannot be tapped), a door tile (shows
+device or runs a scene; a device tile flips at once, then checks with the device a few seconds later
+and puts itself right, with a note, if the command went nowhere), a reading (shows a device state;
+it is a display, not a button), a door tile (shows
 the door's state and acts on it), a room shortcut or a group.
 
 **Camera strip.** Up to four tiles from the cameras marked "main", as stills that cross-fade from

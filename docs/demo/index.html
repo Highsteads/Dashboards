@@ -501,6 +501,7 @@
     <script src="dashboards-ui.js"></script>
     <script src="dashboards-icons.js"></script>
     <script src="dashboards-action.js"></script>
+    <script src="dashboards-controls.js"></script>
     <script>
     // ── Refresh status: drives Updated / Next refresh in both top + bottom bar.
     const POLL_INTERVAL_MS = 3000;
@@ -1652,11 +1653,6 @@
     // Re-rendered each poll; a single delegated click handler
     // (setupFavourites) survives the re-render.
 
-    // Last settled end state ("open"/"closed") per door favourite, so a
-    // moving door can be named as Opening… or Closing…. Module-level on
-    // purpose: the card's DOM is torn down every 3 s poll.
-    const _doorLast = new Map();
-
     // v3.23.0: a reading whose value is a bare local timestamp
     // ("2026-09-22 13:00:30", the shape Indigo plugins write for "last
     // seen" / "last detection") is said the way a person says it — "1pm
@@ -1730,9 +1726,7 @@
                     if (window.DashAction && DashAction.lockTile) t = DashAction.lockTile(contactRaw, lockRaw);
                 } else {
                     const raw = (d && d.states) ? d.states[f.state || "doorState"] : undefined;
-                    if (window.DashAction && DashAction.doorTile) t = DashAction.doorTile(raw, _doorLast.get(did));
-                    const s = (raw == null) ? "" : String(raw).trim().toLowerCase();
-                    if (s === "open" || s === "closed") _doorLast.set(did, s);
+                    if (window.DashAction && DashAction.doorTileRemembered) t = DashAction.doorTileRemembered(did, raw);
                 }
                 const dname = f.label || (d && d.name) || "Door";
                 return `<button class="fav-tile fav-door fav-door-${t.key}" data-fav-type="door" data-fav-id="${escapeAttr(f.id)}" data-door-intent="${t.intent || ""}" data-dsh-act-key="door:${escapeAttr(f.id)}">
@@ -1774,9 +1768,12 @@
                     else if (Number.isFinite(wb) && num < wb) valCls = " fav-val-warn";
                     else valCls = " fav-val-good";
                 }
-                return `<button class="fav-tile fav-reading" data-fav-type="device" data-fav-id="${escapeAttr(f.id)}" data-fav-readonly="1">
+                // A reading is something to look at, so it is not a button
+                // (v3.41.0): a screen reader called it one, it took a Tab stop,
+                // and nothing happened when it was pressed.
+                return `<div class="fav-tile fav-reading" role="group" aria-label="${escapeAttr(rname)}: ${escapeAttr(valTxt)}" data-fav-type="device" data-fav-id="${escapeAttr(f.id)}" data-fav-readonly="1">
                     <span class="fav-name">${escapeAttr(rname)}</span>
-                    <span class="fav-state val${valCls}">${escapeAttr(valTxt)}</span></button>`;
+                    <span class="fav-state val${valCls}">${escapeAttr(valTxt)}</span></div>`;
             }
             // v2.92.1: a typed label WINS, as it already does on the door and
             // reading tiles. The old order put the live device name first, so a
@@ -1928,24 +1925,10 @@
                 try { DashAction.note(tile.dataset.dshActKey, "error", "Disabled in Indigo"); } catch (_) {}
                 return;
             }
-            tile.classList.add("busy");
-            try {
-                await indigo.toggle(id);
-                // Optimistic flip for instant feedback; the next 3s poll re-syncs from the server.
-                tile.classList.toggle("on");
-                const st = tile.querySelector(".fav-state");
-                if (st) st.textContent = tile.classList.contains("on") ? "On" : "Off";
-            } catch (e) {
-                // Auth failure is handled by _onAuthFail. Everything else used to
-                // vanish here, so a dead network looked exactly like success.
-                // (This tested e.name !== "AbortError", which was always true:
-                // dashboard.js wraps an abort in an IndigoAPIError.)
-                if (e && e.status !== 401 && e.status !== 403) {
-                    DashAction.note(key, "error", "Failed — " + ((e && e.message) || "no response"));
-                }
-            } finally {
-                tile.classList.remove("busy");
-            }
+            // The shared device press (v3.41.0): flip at once, then check back
+            // with the device and put the tile right if nothing happened —
+            // the rule the room pages' switches already followed.
+            await DashTile.pressDevice(tile, id, { api: indigo, key });
         });
     }
 

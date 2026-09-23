@@ -1263,11 +1263,6 @@
             + ` onclick="pulseDoor(this)">${escapeHtml(cooling ? "Wait…" : action)}</button>`;
     }
 
-    // Last SETTLED state per door device, so "moving" can be named as
-    // Opening… or Closing… rather than a bare "Moving…". Mirrors the hub's
-    // _doorLast; a door opened mid-travel is honestly neutral.
-    const _doorLast = new Map();
-
     // State-driven door tile (v2.86.0) — used when the door config carries a
     // `deviceId`. It reads the GarageDoor plugin's own doorState instead of
     // re-deriving the answer from a relay and one contact sensor, which is the
@@ -1280,11 +1275,9 @@
         const d   = devices.find(x => x.id === did);
         const raw = (d && d.states) ? d.states[door.state || "doorState"] : undefined;
         let t = { key: "unknown", label: "—", intent: null };
-        if (window.DashAction && DashAction.doorTile) {
-            t = DashAction.doorTile(raw, _doorLast.get(did));
-        }
-        const settled = (raw == null) ? "" : String(raw).trim().toLowerCase();
-        if (settled === "open" || settled === "closed") _doorLast.set(did, settled);
+        // One memory of each door's last settled state, shared with the hub
+        // (v3.41.0), so "moving" can be named Opening… or Closing….
+        if (window.DashAction && DashAction.doorTileRemembered) t = DashAction.doorTileRemembered(did, raw);
 
         const label  = door.label || (d && d.name) || "Door";
         const action = t.intent === "open"  ? "Press to Open"

@@ -7,7 +7,7 @@
 //              longer carry their own copies of any of it.
 // Author:      CliveS & Claude Opus 5.5
 // Date:        23-09-2026
-// Version:     1.0
+// Version:     1.1 (v3.41.0: the hub's device press, one door memory, reading tiles)
 
 import fs from "node:fs";
 import path from "node:path";
@@ -113,6 +113,54 @@ console.log("\na setpoint step is read back");
     els["sp-7"] = { dataset: { sp: "17.5" }, textContent: "17.5°" };
     sent.length = 0; await T.zone.bump(7, 1);
     checkEq("a half degree rounds in the direction tapped", sent[0], 18);
+    await flush();          // let its read-back fire here, not in the next section
+}
+
+console.log("\na device tile pressed on the hub (v3.41.0)");
+{
+    const notes = [];
+    box.DashAction.note = (k, ph, txt) => notes.push([k, ph, txt]);
+    const mkTile = on => { const st = { textContent: on ? "On" : "Off" }; const cls = new Set(on ? ["on"] : []);
+        return { isConnected: true, st, classList: { contains: c => cls.has(c), add: c => cls.add(c), remove: c => cls.delete(c),
+                 toggle: (c, f) => (f === undefined ? (cls.has(c) ? cls.delete(c) : cls.add(c)) : (f ? cls.add(c) : cls.delete(c))) },
+                 querySelector: () => st, cls }; };
+    let reported = true;
+    const api = { toggle: async () => {}, getDevice: async () => ({ onState: reported }) };
+    const t = mkTile(false);
+    const p = T.pressDevice(t, 5, { api, key: "device:5" });
+    check("busy while it sends", t.cls.has("busy"));
+    await p;
+    check("flips at once", t.cls.has("on") && t.st.textContent === "On");
+    check("and is no longer busy", !t.cls.has("busy"));
+    await flush();
+    check("a device that followed is left alone", t.cls.has("on") && !notes.length, JSON.stringify(notes) + " " + [...t.cls]);
+    reported = false;
+    const t2 = mkTile(false);
+    await T.pressDevice(t2, 6, { api, key: "device:6" });
+    await flush();
+    check("a device that did not follow is put back", !t2.cls.has("on") && t2.st.textContent === "Off");
+    check("and says so", notes.some(n => n[0] === "device:6" && n[1] === "timeout"));
+    notes.length = 0;
+    const t3 = mkTile(true);
+    const ok = await T.pressDevice(t3, 7, { api: { toggle: async () => { throw Object.assign(new Error("offline"), { status: 0 }); } }, key: "device:7" });
+    check("a failed send changes nothing", ok === false && t3.cls.has("on"));
+    check("and names the failure", notes.some(n => n[0] === "device:7" && n[1] === "error" && /offline/.test(n[2])));
+    notes.length = 0;
+    await T.pressDevice(mkTile(true), 8, { api: { toggle: async () => { throw Object.assign(new Error("x"), { status: 401 }); } } });
+    check("an auth failure is left to the page", !notes.length);
+}
+
+console.log("\none memory of each door (v3.41.0)");
+{
+    const A = box.DashAction;
+    A.reset();
+    checkEq("closed", A.doorTileRemembered(9, "closed").label, "Closed");
+    checkEq("then moving is Opening", A.doorTileRemembered(9, "moving").label, "Opening…");
+    checkEq("open", A.doorTileRemembered(9, "open").label, "Open");
+    checkEq("then moving is Closing", A.doorTileRemembered(9, "moving").label, "Closing…");
+    checkEq("another door keeps its own memory", A.doorTileRemembered(10, "moving").label, "Moving…");
+    A.reset();
+    checkEq("reset forgets", A.doorTileRemembered(9, "moving").label, "Moving…");
 }
 
 console.log("\nthe pages carry no copies");
@@ -134,6 +182,16 @@ for (const page of ["room.html", "active.html", "heating.html"]) {
     }
 }
 check("the room page's own three-state reader is gone", !/_threeState/.test(read("room.html")));
+{
+    const hub = read("index.html");
+    check("the hub loads the tile module after DashAction",
+          hub.indexOf('<script src="dashboards-action.js">') < hub.indexOf('<script src="dashboards-controls.js">')
+          && hub.includes('<script src="dashboards-controls.js">'));
+    check("the hub's favourite press is the shared one", hub.includes("DashTile.pressDevice(tile, id,"));
+    check("no page keeps its own door memory", !/_doorLast/.test(hub) && !/_doorLast/.test(read("room.html")));
+    check("a reading tile is not a button", /<div class="fav-tile fav-reading" role="group"/.test(hub)
+          && !/<button class="fav-tile fav-reading"/.test(hub));
+}
 check("no page tests on/off with === true any more",
       ["room.html", "active.html"].every(p => !/onState === true/.test(read(p))));
 
