@@ -8,10 +8,9 @@ Browser dashboards for [Indigo Domotics](https://www.indigodomo.com/), built for
 wall, a phone in your pocket and a Mac on the desk. No app to install, no cloud account,
 nothing leaving the house.
 
-<img src="https://img.shields.io/badge/version-3.24.0-5856d6" alt="Version 3.24.0">
+<img src="https://img.shields.io/badge/version-3.25.0-5856d6" alt="Version 3.25.0">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-27-0a84ff" alt="27 pages">
-<img src="https://img.shields.io/badge/tests-1469%20passing-30d158" alt="1469 tests passing">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
 
 <br><br>
@@ -22,7 +21,7 @@ nothing leaving the house.
 
 ---
 
-**Version:** 3.24.0
+**Version:** 3.25.0
 
 **Documentation:** **[highsteads.github.io/Dashboards](https://highsteads.github.io/Dashboards/)** —
 getting started, configuration, a page of notes for every one of the 27 pages, cameras, remote
@@ -68,11 +67,11 @@ with a gentle state simulator, touching no live devices.
 The three most recent releases, word for word. Every release before these is in
 **[the version history](docs/changelog.md)**, which the documentation site also carries.
 
+**3.25.0** (23-Sep-2026) - **A clear-out of the faults the spring-clean review found.** The garage door tiles on the Garage and Hall room pages now work: they were set up the old way with no opener behind them, so they sat on "Unknown" and pressing them did nothing. They now follow the GarageDoor plugin like the front page's tile does, and an old-style door tile with no opener now says "Not set up" instead of offering a press that does nothing. When a light on a room page or the Everything On page fails to answer, it now says so on the tile; those messages had nowhere to appear. A name with a double quote in it no longer breaks the page it is shown on. The cameras page states the right refresh rate when you are away from home. With the reflector refused, every part of the dashboards now refuses it, not just half of them. Setting a laundry deadline and building the solar chart no longer hold up the rest of the web server while they work, and one bad room setting no longer stops every room's page from updating. Saving the plugin's settings can no longer leave two weather fetches running. The companion scripts on GitHub now match the ones this house runs.
+
 **3.24.0** (23-Sep-2026) - **Scrolling on a phone no longer presses the tiles you brush past, and tiles that do nothing no longer flash when touched.** A finger that landed on a switch tile on its way down the page could still switch it, and every tile lit up the moment it was touched, so a scroll looked like a string of presses. A touch now only counts as a press when the finger stays put: one that slides more than a few millimetres, moves the page, or lands while the page is still gliding from a swipe is ignored, before the tile ever sees it. The flash now comes after a press that got through, and only on something that acts, so reading tiles, a door that is already moving and the plain cards stay still. A mouse or keyboard works exactly as before.
 
 **3.23.2** (22-Sep-2026) - **A camera that is off the network now says so in plain words.** When a camera could not be reached, the log said "snapshot failed: unexpected content-type" followed by two quote marks, which told you nothing. It now says "no picture from the camera: go2rtc could not reach it". Nothing else changes.
-
-**3.23.1** (22-Sep-2026) - **The plugin is ready about a second sooner after a restart, and a slow Sigenergy answer is logged once instead of twice.** At start-up the plugin used to spend a second waiting to be sure the video service had not fallen over, then copied two small files the live camera page needs. Both now happen in the background, so everything else, including the camera snapshots, starts straight away. And when SigenEnergyManager was too busy to answer, the log carried two amber lines for the one fault; it now carries one. Nothing you can see on the pages changes.
 
 ## A look around
 

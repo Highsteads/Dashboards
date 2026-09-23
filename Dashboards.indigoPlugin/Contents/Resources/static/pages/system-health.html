@@ -214,7 +214,7 @@ async function healthFetch() {
     return (window.DashUI && DashUI.whenReady) ? DashUI.whenReady(once) : once();
 }
 
-function esc(t) { const d = document.createElement("div"); d.textContent = String(t == null ? "" : t); return d.innerHTML; }
+function esc(t) { return DashUI.esc(t); }   // v3.25.0: escapes quotes too
 function num(v, dp) { return (v === null || v === undefined || isNaN(Number(v))) ? "—" : Number(v).toFixed(dp == null ? 1 : dp); }
 function gb(v) { return (v === null || v === undefined || isNaN(Number(v))) ? "—" : Number(v).toFixed(Number(v) < 10 ? 2 : 1) + " GB"; }
 function band(v, warnAt, badAt) { if (v >= badAt) return "bad"; if (v >= warnAt) return "warn"; return ""; }

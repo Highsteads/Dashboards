@@ -79,10 +79,12 @@ check("the age is worded the way a person says it", () => {
     assert.equal(ctx.agoWords(60000 * 150), "3 hours");
 });
 
-check("_lastGood is written in exactly two places, both on data arriving", () => {
-    // A third writer in a catch block would make the indicator unable to ever fire.
+check("_lastGood is written in exactly three places, all on data arriving", () => {
+    // A writer in a catch block would make the indicator unable to ever fire.
+    // Three since v3.25.0: the poll, the button's direct reply, and the
+    // button's wait for a replan that came back pending.
     const n = (src.match(/_lastGood = Date\.now\(\)/g) || []).length;
-    assert.equal(n, 2, `_lastGood assigned ${n} times; expected the poll and the button only`);
+    assert.equal(n, 3, `_lastGood assigned ${n} times; expected the poll and the button's two only`);
     assert.ok(!/catch[\s\S]{0,200}_lastGood = Date\.now\(\)/.test(src),
               "_lastGood must never be stamped from a catch block");
 });

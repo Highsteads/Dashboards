@@ -110,9 +110,7 @@
     ];
     const roomIcon = n => (ROOM_ICONS.find(([re]) => re.test(n)) || [null, "house"])[1];
 
-    const esc = s => String(s == null ? "" : s)
-        .replace(/&/g, "&amp;").replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    const esc = s => DashUI.esc(s);   // v3.25.0: one shared escape
 
     function tile(href, title, desc, cls, icon) {
         const ic = (window.DashIcons && DashIcons.has(icon)) ? DashIcons.svg(icon) : "";

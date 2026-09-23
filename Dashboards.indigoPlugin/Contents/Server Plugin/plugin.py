@@ -18,10 +18,27 @@
 #              again handling Digest auth server-side. The page uses MJPEG
 #              for the live grid and falls back to the still snapshot if a
 #              stream connection fails.
-# Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.24.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
+# Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.25.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
 # Date:        23-09-2026
-# Version:     3.24.0
+# Version:     3.25.0
 #
+# v3.25.0 (23-09-2026): THE SPRING-CLEAN BUGS BATCH.
+#   * _request_body(): one entry check for every browser-facing handler —
+#     refuse the reflector, parse, insist on an object. 11 of 22 handlers
+#     skipped the refusal; 4 answered a JSON list with a 500.
+#   * laundryDeadline replans on the off-path pool (pending -> the page polls
+#     for the new plan); _tick_script holds one lock so two script runs can
+#     never overlap. solarStringHours moved onto the pool too.
+#   * roomExtras applied per room (_merge_room_extras): one bad entry costs
+#     that room its extras instead of freezing rooms.json for all of them;
+#     the Settings save refuses a non-object entry.
+#   * The weather thread is handed its own stop Event, so a Configure save
+#     mid-fetch cannot leave two threads polling OpenWeatherMap.
+#   * _service_health reports Info.plist's version.
+#   Pages: DashUI.esc (quotes escaped) replaces 15 per-page copies; room and
+#   Active failure notes now have a target; cameras poll-rate rule in one
+#   function; legacy door tile with no relay says 'Not set up'; Energy
+#   history help text matches the chart. scripts/ synced from live.
 # v3.24.0 (23-09-2026): A TAP GUARD FOR PHONES. dashboards-ui.js throws away a
 #   click from a finger that travelled more than 10 px, that scrolled anything
 #   while it was down, or that landed on a page still gliding from a swipe,
@@ -1205,7 +1222,7 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION = "3.24.0"
+PLUGIN_VERSION = "3.25.0"
 # Pages are mirrored into Web Assets/public/dashboards/ so IWS serves them
 # WITHOUT HTTP Basic Auth. Indigo only treats the global /public/ namespace
 # as anonymous — per-plugin `public/` subfolders still require auth.
@@ -3804,140 +3821,7 @@ class Plugin(indigo.PluginBase):
         #   3. doors — pass-through to the page template
         # Sort happens AFTER this so manually-included devices land in the
         # right alphabetical position.
-        extras_cfg = self.room_extras if isinstance(self.room_extras, dict) else {}
-        for room_name, room_data in rooms.items():
-            cfg = extras_cfg.get(room_name) or {}
-            # (1) hide
-            hide_ids = set(cfg.get("hideDeviceIds") or [])
-            if hide_ids:
-                for k in ("lights", "motion", "radiators", "windows", "sensors", "extras"):
-                    room_data[k] = [i for i in room_data[k] if i not in hide_ids]
-            # (2) include — append; dedupe per section; also pull the same
-            # ID out of `extras` so it doesn't appear twice when rooms.json
-            # is inspected (extras isn't rendered today, but cleaner this way).
-            include = cfg.get("include") or {}
-            if isinstance(include, dict):
-                all_pinned = set()
-                for section, ids in include.items():
-                    if section not in ("lights", "motion", "radiators", "windows", "sensors", "extras"):
-                        continue
-                    if not isinstance(ids, (list, tuple)):
-                        continue
-                    existing = set(room_data[section])
-                    for did in ids:
-                        if isinstance(did, int) and did not in existing:
-                            room_data[section].append(did)
-                            existing.add(did)
-                            all_pinned.add(did)
-                # Drop included IDs from extras unless extras was itself the target.
-                if "extras" not in include:
-                    room_data["extras"] = [i for i in room_data["extras"]
-                                           if i not in all_pinned]
-            # (2c) appliances — read-only paired tiles (power meter + cycle
-            # state virtual) for things like the washing machine / tumble
-            # dryer. Pass-through; the room template renders them in a
-            # dedicated "Appliances" section.
-            appliances = cfg.get("appliances") or []
-            if appliances:
-                room_data["appliances"] = list(appliances)
-            # (2d) tv — list of device IDs that should appear in a "TV"
-            # section as toggleable light-style tiles (Sony TV + Sonos
-            # speakers in the Living Room). Render uses the same tile shape
-            # as lights but lives under its own header with an All On/Off.
-            tv_ids = cfg.get("tv") or []
-            if isinstance(tv_ids, (list, tuple)) and tv_ids:
-                room_data["tv"] = [int(i) for i in tv_ids
-                                   if isinstance(i, int)]
-            # (2e) plugs — mains sockets / smart plugs rendered as toggleable
-            # tiles under their own "Plugs & Sockets" header (same tile shape
-            # as Lights/TV). A socket is not a light: keeping them separate
-            # stops the hub tile counting a garage socket as "1 light on"
-            # (CliveS, 13-Jul-2026). Pinned ids are removed from the
-            # auto-classified sections so they can't appear twice.
-            plug_ids = cfg.get("plugs") or []
-            if isinstance(plug_ids, (list, tuple)) and plug_ids:
-                plugs_clean = [int(i) for i in plug_ids if isinstance(i, int)]
-                if plugs_clean:
-                    room_data["plugs"] = plugs_clean
-                    pinned = set(plugs_clean)
-                    for k in ("lights", "motion", "radiators",
-                              "windows", "sensors", "extras"):
-                        room_data[k] = [i for i in room_data[k]
-                                        if i not in pinned]
-            # (2f) fire — the living room fire, and anything else of that
-            # shape: an on/off appliance that is neither a light nor a socket.
-            # Same toggleable tile as Lights/TV/Plugs under its own "Fire"
-            # header. It is deliberately NOT pinned into `lights`: a fire is
-            # not a light, and counting one would put "1 light on" on the hub
-            # tile for a lit fire — the same reasoning that gave sockets their
-            # own section (CliveS, 13-Jul-2026). Pinned ids are pulled out of
-            # the auto-classified sections so they cannot appear twice; the
-            # fire lands in `extras` by default, which nothing renders, which
-            # is why it was invisible until now.
-            fire_ids = cfg.get("fire") or []
-            if isinstance(fire_ids, (list, tuple)) and fire_ids:
-                fire_clean = [int(i) for i in fire_ids if isinstance(i, int)]
-                if fire_clean:
-                    room_data["fire"] = fire_clean
-                    pinned = set(fire_clean)
-                    for k in ("lights", "motion", "radiators",
-                              "windows", "sensors", "extras"):
-                        room_data[k] = [i for i in room_data[k]
-                                        if i not in pinned]
-            # (2g) openLoop — devices whose state is a BELIEF, not a reading.
-            # The living room fire is a one-way RF relay: onOffState is only
-            # what was last transmitted, so if it is lit from its own handset
-            # Indigo still says off. Such a device must not get a vote in any
-            # decision DERIVED from state — notably whether the Lights section's
-            # bulk button offers "All On" or "All Off" — because one unreadable
-            # device would otherwise veto the button the user wanted. It is
-            # still COMMANDED with everything else, so an "All Off" reaches it
-            # whatever anyone believes. A vote in the command, not in the
-            # decision.
-            open_loop = cfg.get("openLoop") or []
-            if isinstance(open_loop, (list, tuple)) and open_loop:
-                clean_ol = [int(i) for i in open_loop if isinstance(i, int)]
-                if clean_ol:
-                    room_data["openLoop"] = clean_ol
-            # (2h) mainLight — lights the room's bulk "All On / All Off" must
-            # LEAVE ALONE. The room's main light, typically: you want the lamps
-            # off in one press without also killing the ceiling light, or on
-            # without it blazing.
-            #
-            # Deliberately NOT pinned out of `lights` the way plugs and fire
-            # are: it is still a light, it still renders as its own tile, and
-            # it is still switchable on its own. The only thing it is out of is
-            # the group. That is the whole distinction — plugs and fire are a
-            # different KIND of thing and get their own section, this is the
-            # same kind of thing held back from one action.
-            main_light = cfg.get("mainLight") or []
-            if isinstance(main_light, (list, tuple)) and main_light:
-                clean_ml = [int(i) for i in main_light if isinstance(i, int)]
-                if clean_ml:
-                    room_data["mainLight"] = clean_ml
-            # (3) doors
-            doors = cfg.get("doors") or []
-            if doors:
-                room_data["doors"] = list(doors)
-                # Auto-hide the devices that feed the door tile (relay openers
-                # and status contact sensors) so they don't ALSO show up as
-                # stray tiles in Lights / Windows & Doors. Saves the user
-                # having to repeat those IDs under hideDeviceIds.
-                auto_hide = set()
-                for d in doors:
-                    if not isinstance(d, dict):
-                        continue
-                    for rid in (d.get("relayIds") or []):
-                        if isinstance(rid, int):
-                            auto_hide.add(rid)
-                    sc = d.get("statusContactId")
-                    if isinstance(sc, int):
-                        auto_hide.add(sc)
-                if auto_hide:
-                    for k in ("lights", "motion", "radiators",
-                              "windows", "sensors", "extras"):
-                        room_data[k] = [i for i in room_data[k]
-                                        if i not in auto_hide]
+        self._merge_room_extras(rooms)
 
         # Re-sort sections after include-merge so manually-added IDs slot in
         # alphabetically next to the auto-classified ones — UNLESS the room
@@ -3947,10 +3831,13 @@ class Plugin(indigo.PluginBase):
         # default produces an unintuitive grouping (e.g. Conservatory wants
         # both windows first and then both doors, not Left-Outside-Right-
         # Sliding interleaved).
+        extras_cfg = self.room_extras if isinstance(self.room_extras, dict) else {}
         try:
             name_of2 = lambda i: (indigo.devices[i].name or "").lower()
             for room_name, room in rooms.items():
-                cfg = extras_cfg.get(room_name) or {}
+                cfg = extras_cfg.get(room_name)
+                if not isinstance(cfg, dict):      # already warned about by the merge
+                    cfg = {}
                 sort_order = cfg.get("sortOrder") or {}
                 for k in ("lights", "motion", "radiators",
                           "windows", "sensors", "extras"):
@@ -3979,6 +3866,172 @@ class Plugin(indigo.PluginBase):
         except Exception as exc:
             log(f"[Rooms] rooms.json write failed: {exc}", level="WARNING")
         return payload   # also return it so callers (e.g. timeline) can use it
+
+
+    def _merge_room_extras(self, rooms):
+        """Apply each room's roomExtras entry to its record in `rooms`.
+
+        One room at a time (v3.25.0): a single entry of the wrong shape used to
+        raise out of the whole build, every 30 s, so rooms.json went stale for
+        EVERY room. Now only that room loses its extras, and the log says so."""
+        extras_cfg = self.room_extras if isinstance(self.room_extras, dict) else {}
+        for room_name, room_data in rooms.items():
+            cfg = extras_cfg.get(room_name) or {}
+            if not isinstance(cfg, dict):
+                self._warn_room_extras(
+                    room_name, f"its settings are a {type(cfg).__name__}, not an object")
+                continue
+            try:
+                self._apply_room_extras(room_data, cfg)
+            except Exception as exc:
+                self._warn_room_extras(room_name, f"{type(exc).__name__}: {exc}")
+
+    def _warn_room_extras(self, room_name, why):
+        """WARN once per room and fault for this plugin run, not every 30 s."""
+        seen = self.__dict__.setdefault("_room_extras_warned", set())
+        if (room_name, why) in seen:
+            return
+        seen.add((room_name, why))
+        self.logger.warning(
+            f"[Rooms] ignoring the extra settings for room '{room_name}': {why}. "
+            f"Fix it on the Settings page; the other rooms are unaffected.")
+
+    def _apply_room_extras(self, room_data, cfg):
+        """Merge one room's roomExtras entry into its rooms.json record.
+
+        Moved out of _build_rooms_json in v3.25.0 so a fault in one room is
+        caught per room. See the order-of-operations note at the call site."""
+        # (1) hide
+        hide_ids = set(cfg.get("hideDeviceIds") or [])
+        if hide_ids:
+            for k in ("lights", "motion", "radiators", "windows", "sensors", "extras"):
+                room_data[k] = [i for i in room_data[k] if i not in hide_ids]
+        # (2) include — append; dedupe per section; also pull the same
+        # ID out of `extras` so it doesn't appear twice when rooms.json
+        # is inspected (extras isn't rendered today, but cleaner this way).
+        include = cfg.get("include") or {}
+        if isinstance(include, dict):
+            all_pinned = set()
+            for section, ids in include.items():
+                if section not in ("lights", "motion", "radiators", "windows", "sensors", "extras"):
+                    continue
+                if not isinstance(ids, (list, tuple)):
+                    continue
+                existing = set(room_data[section])
+                for did in ids:
+                    if isinstance(did, int) and did not in existing:
+                        room_data[section].append(did)
+                        existing.add(did)
+                        all_pinned.add(did)
+            # Drop included IDs from extras unless extras was itself the target.
+            if "extras" not in include:
+                room_data["extras"] = [i for i in room_data["extras"]
+                                       if i not in all_pinned]
+        # (2c) appliances — read-only paired tiles (power meter + cycle
+        # state virtual) for things like the washing machine / tumble
+        # dryer. Pass-through; the room template renders them in a
+        # dedicated "Appliances" section.
+        appliances = cfg.get("appliances") or []
+        if appliances:
+            room_data["appliances"] = list(appliances)
+        # (2d) tv — list of device IDs that should appear in a "TV"
+        # section as toggleable light-style tiles (Sony TV + Sonos
+        # speakers in the Living Room). Render uses the same tile shape
+        # as lights but lives under its own header with an All On/Off.
+        tv_ids = cfg.get("tv") or []
+        if isinstance(tv_ids, (list, tuple)) and tv_ids:
+            room_data["tv"] = [int(i) for i in tv_ids
+                               if isinstance(i, int)]
+        # (2e) plugs — mains sockets / smart plugs rendered as toggleable
+        # tiles under their own "Plugs & Sockets" header (same tile shape
+        # as Lights/TV). A socket is not a light: keeping them separate
+        # stops the hub tile counting a garage socket as "1 light on"
+        # (CliveS, 13-Jul-2026). Pinned ids are removed from the
+        # auto-classified sections so they can't appear twice.
+        plug_ids = cfg.get("plugs") or []
+        if isinstance(plug_ids, (list, tuple)) and plug_ids:
+            plugs_clean = [int(i) for i in plug_ids if isinstance(i, int)]
+            if plugs_clean:
+                room_data["plugs"] = plugs_clean
+                pinned = set(plugs_clean)
+                for k in ("lights", "motion", "radiators",
+                          "windows", "sensors", "extras"):
+                    room_data[k] = [i for i in room_data[k]
+                                    if i not in pinned]
+        # (2f) fire — the living room fire, and anything else of that
+        # shape: an on/off appliance that is neither a light nor a socket.
+        # Same toggleable tile as Lights/TV/Plugs under its own "Fire"
+        # header. It is deliberately NOT pinned into `lights`: a fire is
+        # not a light, and counting one would put "1 light on" on the hub
+        # tile for a lit fire — the same reasoning that gave sockets their
+        # own section (CliveS, 13-Jul-2026). Pinned ids are pulled out of
+        # the auto-classified sections so they cannot appear twice; the
+        # fire lands in `extras` by default, which nothing renders, which
+        # is why it was invisible until now.
+        fire_ids = cfg.get("fire") or []
+        if isinstance(fire_ids, (list, tuple)) and fire_ids:
+            fire_clean = [int(i) for i in fire_ids if isinstance(i, int)]
+            if fire_clean:
+                room_data["fire"] = fire_clean
+                pinned = set(fire_clean)
+                for k in ("lights", "motion", "radiators",
+                          "windows", "sensors", "extras"):
+                    room_data[k] = [i for i in room_data[k]
+                                    if i not in pinned]
+        # (2g) openLoop — devices whose state is a BELIEF, not a reading.
+        # The living room fire is a one-way RF relay: onOffState is only
+        # what was last transmitted, so if it is lit from its own handset
+        # Indigo still says off. Such a device must not get a vote in any
+        # decision DERIVED from state — notably whether the Lights section's
+        # bulk button offers "All On" or "All Off" — because one unreadable
+        # device would otherwise veto the button the user wanted. It is
+        # still COMMANDED with everything else, so an "All Off" reaches it
+        # whatever anyone believes. A vote in the command, not in the
+        # decision.
+        open_loop = cfg.get("openLoop") or []
+        if isinstance(open_loop, (list, tuple)) and open_loop:
+            clean_ol = [int(i) for i in open_loop if isinstance(i, int)]
+            if clean_ol:
+                room_data["openLoop"] = clean_ol
+        # (2h) mainLight — lights the room's bulk "All On / All Off" must
+        # LEAVE ALONE. The room's main light, typically: you want the lamps
+        # off in one press without also killing the ceiling light, or on
+        # without it blazing.
+        #
+        # Deliberately NOT pinned out of `lights` the way plugs and fire
+        # are: it is still a light, it still renders as its own tile, and
+        # it is still switchable on its own. The only thing it is out of is
+        # the group. That is the whole distinction — plugs and fire are a
+        # different KIND of thing and get their own section, this is the
+        # same kind of thing held back from one action.
+        main_light = cfg.get("mainLight") or []
+        if isinstance(main_light, (list, tuple)) and main_light:
+            clean_ml = [int(i) for i in main_light if isinstance(i, int)]
+            if clean_ml:
+                room_data["mainLight"] = clean_ml
+        # (3) doors
+        doors = cfg.get("doors") or []
+        if doors:
+            room_data["doors"] = list(doors)
+            # Auto-hide the devices that feed the door tile (relay openers
+            # and status contact sensors) so they don't ALSO show up as
+            # stray tiles in Lights / Windows & Doors. Saves the user
+            # having to repeat those IDs under hideDeviceIds.
+            auto_hide = set()
+            for d in doors:
+                if not isinstance(d, dict):
+                    continue
+                for rid in (d.get("relayIds") or []):
+                    if isinstance(rid, int):
+                        auto_hide.add(rid)
+                sc = d.get("statusContactId")
+                if isinstance(sc, int):
+                    auto_hide.add(sc)
+            if auto_hide:
+                for k in ("lights", "motion", "radiators",
+                          "windows", "sensors", "extras"):
+                    room_data[k] = [i for i in room_data[k]
+                                    if i not in auto_hide]
 
     def _snapshot_worker(self, cam):
         """Fetch and store ONE camera's snapshot. Runs on a pool thread.
@@ -4117,8 +4170,13 @@ class Plugin(indigo.PluginBase):
                 "IndigoSecrets or PluginConfig; hub Weather card will use Ecowitt only.",
                 level="INFO")
             return
+        # The thread is handed ITS OWN stop Event (v3.25.0). It used to re-read
+        # self._weather_stop on every loop, so a Configure save that swapped in
+        # a new Event while a fetch was running left the old thread waiting on
+        # the new one — two threads polling OpenWeatherMap until the restart.
         self._weather_thread = threading.Thread(
             target=self._weather_thread_main,
+            args=(self._weather_stop,),
             name="dashboards-weather",
             daemon=True,
         )
@@ -4133,13 +4191,17 @@ class Plugin(indigo.PluginBase):
             # join only lets a fetch that is a moment from finishing land.
             t.join(timeout=1.0)
 
-    def _weather_thread_main(self):
+    def _weather_thread_main(self, stop=None):
         """Hit OWM once on entry then every _WEATHER_POLL_SECONDS until stop.
         The stop Event lets us wake up promptly on shutdown rather than
-        sleeping out the full hour."""
+        sleeping out the full hour. `stop` is this thread's own Event, never
+        re-read from self, so a replaced Event cannot adopt an old thread."""
+        stop = stop or self._weather_stop
         # First fetch is fast — get the page into a useful state on next refresh.
+        if stop.is_set():
+            return
         self._fetch_and_write_weather()
-        while not self._weather_stop.wait(self._WEATHER_POLL_SECONDS):
+        while not stop.wait(self._WEATHER_POLL_SECONDS):
             self._fetch_and_write_weather()
 
     def _fetch_and_write_weather(self):
@@ -4398,13 +4460,18 @@ class Plugin(indigo.PluginBase):
                 return False
             with open(path, encoding="utf-8") as fh:
                 src = fh.read()
-            saved_path = list(_sys.path)
-            g = {"indigo": indigo, "TICK_MEMORY": memory}
-            g.update(extra)
-            try:
-                exec(compile(src, path, "exec"), g)
-            finally:
-                _sys.path[:] = saved_path
+            # ONE script at a time, whichever thread asks (v3.25.0). The loop
+            # runs them in turn, but a laundry deadline replans from a pool
+            # worker, and two runs at once shared one TICK_MEMORY dict and
+            # restored each other's saved sys.path.
+            with self.__dict__.setdefault("_script_tick_lock", threading.Lock()):
+                saved_path = list(_sys.path)
+                g = {"indigo": indigo, "TICK_MEMORY": memory}
+                g.update(extra)
+                try:
+                    exec(compile(src, path, "exec"), g)
+                finally:
+                    _sys.path[:] = saved_path
         except Exception as exc:               # noqa: BLE001 — isolate, report once
             text = f"{type(exc).__name__}: {exc}"
             if errors.get(key) != text:
@@ -4778,16 +4845,13 @@ class Plugin(indigo.PluginBase):
         Returns the device IDs that changed/were deleted after `since`, plus
         the current server clock for the next poll. Tells the client to do a
         full refetch when `since` is missing/stale or the change set is large."""
-        body = action.props.get("request_body") or ""
+        payload, _reply = self._request_body(action)
+        if _reply:
+            return _reply
         try:
-            payload = json.loads(body) if body else {}
-            since   = float(payload.get("since") or 0)
-        except Exception as exc:
-            return self._evo_reply({"ok": False, "error": f"bad JSON: {exc}"}, status=400)
-        if not isinstance(payload, dict):
-            return self._evo_reply({"ok": False, "error": "body must be a JSON object"}, status=400)
-        if self._refuse_reflector(action):
-            return self._refuse_reflector(action)
+            since = float(payload.get("since") or 0)
+        except (TypeError, ValueError):
+            return self._evo_reply({"ok": False, "error": "since must be a number"}, status=400)
         payload = self._changed_since_payload(since)
         if self._note_reflector_use(action):
             payload["via"] = "reflector"       # the pages slow down on this even when the address lies
@@ -4816,12 +4880,39 @@ class Plugin(indigo.PluginBase):
         except Exception:
             return str(prefs.get("reflectorBlock", "")).strip().lower() in ("true", "1", "yes", "on")
 
+    def _request_body(self, action, refuse_reflector=True):
+        """(payload, None) for a request to act on, or (None, reply) to send back.
+
+        The one place for what every browser-facing handler does first (v3.25.0):
+        refuse the reflector when the owner has asked for that, parse the body,
+        and insist it is a JSON OBJECT. Half the handlers had drifted from this.
+        Eleven never refused the reflector at all, although the docstring below
+        said every handler did, and four read the body with .get() outside their
+        try, so a JSON list raised AttributeError and IWS answered 500, which
+        Log_Error_Watch then counted as a server fault.
+        """
+        if refuse_reflector:
+            refused = self._refuse_reflector(action)
+            if refused:
+                return None, refused
+        body = action.props.get("request_body") or ""
+        try:
+            payload = json.loads(body) if body else {}
+        except Exception as exc:
+            return None, self._evo_reply({"ok": False, "error": f"bad JSON: {exc}"}, status=400)
+        if not isinstance(payload, dict):
+            return None, self._evo_reply(
+                {"ok": False, "error": "body must be a JSON object"}, status=400)
+        return payload, None
+
     def _refuse_reflector(self, action):
         """A 403 reply when this request came through the reflector and the
         user has asked for that to be refused — otherwise None (v3.1.0).
 
-        Every handler starts with this, so no dashboard data of any kind
+        Every browser-facing handler starts with this (through _request_body,
+        or directly when it takes no body), so no dashboard data of any kind
         crosses the reflector: not devices, not history, not the Sigen feed.
+        tests/test_reflector_guard.py holds every handler to it.
         The reply names the way in that does work, because a bare 403 on a
         phone tells the owner nothing about what to do next.
         """
@@ -5135,12 +5226,10 @@ class Plugin(indigo.PluginBase):
         Validates the action ID against an allowlist, then delegates to the
         EvoHome Heating Controller plugin via executeAction().
         """
-        body = action.props.get("request_body") or ""
-        try:
-            payload    = json.loads(body) if body else {}
-            action_id  = (payload.get("action_id") or "").strip()
-        except Exception as exc:
-            return self._evo_reply({"ok": False, "error": f"bad JSON: {exc}"}, status=400)
+        payload, _reply = self._request_body(action)
+        if _reply:
+            return _reply
+        action_id = str(payload.get("action_id") or "").strip()
 
         if action_id not in self._EVO_ALLOWED_ACTIONS:
             return self._evo_reply(
@@ -5255,6 +5344,17 @@ class Plugin(indigo.PluginBase):
     # it turns a six-second wait into one, once.
     HISTORY_TTL        = 30
     HISTORY_WAIT       = 0.15
+
+    # Solar string hours (v3.25.0): the last history read that still ran on the
+    # dispatch path. Today's chart moves as the day goes on; a past day's cannot.
+    SOLAR_HOURS_TODAY_TTL = 120
+    SOLAR_HOURS_WAIT      = 0.15
+
+    # A laundry deadline replans at once (v3.25.0). The script used to be exec'd
+    # on the dispatch path, and could run at the same moment as the loop's own
+    # tick of it. The page polls for the new plan when the reply says pending.
+    LAUNDRY_REPLAN_TTL  = 60
+    LAUNDRY_REPLAN_WAIT = 0.75
 
     def _offpath(self):
         """Lazily built, so a handler can never race startup()."""
@@ -5407,11 +5507,9 @@ class Plugin(indigo.PluginBase):
             return self._evo_reply({"error": "SigenEnergyManager is not installed",
                                     "reason": "sem_absent"}, status=503)
         import urllib.parse      # urlencode only — the fetching lives on a worker
-        body = action.props.get("request_body") or ""
-        try:
-            payload = json.loads(body) if body else {}
-        except Exception as exc:
-            return self._evo_reply({"error": f"bad JSON: {exc}"}, status=400)
+        payload, _reply = self._request_body(action, refuse_reflector=False)
+        if _reply:
+            return _reply
 
         path = str(payload.get("path") or "status").strip().lower()
         if path not in self._SIGEN_ALLOWED_PATHS:
@@ -5503,7 +5601,8 @@ class Plugin(indigo.PluginBase):
         go2 = getattr(self, "_go2rtc_proc", None)
         mj  = getattr(self, "_mjpeg_server", None)
         return {
-            "plugin_version": PLUGIN_VERSION,
+            # Info.plist, which is what Indigo shows (v3.25.0) — the constant can lag it.
+            "plugin_version": getattr(self, "pluginVersion", None) or PLUGIN_VERSION,
             "go2rtc":         bool(go2 is not None and go2.poll() is None),
             "mjpeg_proxy":    bool(mj is not None),
             "cameras":        len(CAMERAS),
@@ -6109,6 +6208,9 @@ class Plugin(indigo.PluginBase):
     def handleLogErrors(self, action, dev=None, callerWaitingForResult=True):
         """POST /message/com.clives.indigoplugin.dashboards/logErrors/
         Returns {ok, feed:{generatedLocal, errors, warnings, rows[]}, lastRun}."""
+        _refused = self._refuse_reflector(action)
+        if _refused:
+            return _refused
         out = {"ok": True, "now": time.time(), "feed": None, "lastRun": None}
         try:
             path = os.path.join(os.path.dirname(indigo.server.getInstallFolderPath()),
@@ -6571,6 +6673,9 @@ class Plugin(indigo.PluginBase):
         """POST /message/com.clives.indigoplugin.dashboards/getDashboardsConfig/
         Returns the config currently in force plus where it came from, and a
         device index for the editor's pickers. Bearer-authenticated by IWS."""
+        _refused = self._refuse_reflector(action)
+        if _refused:
+            return _refused
         try:
             # ONE walk over indigo.devices. The old code zipped a second
             # iteration against the first's list — a device added or removed
@@ -6618,14 +6723,10 @@ class Plugin(indigo.PluginBase):
         becomes the single source of truth) and applies what can be applied
         live. Camera changes need a plugin restart (go2rtc / pollers / proxy
         are built at startup) — the reply says so."""
-        body = action.props.get("request_body") or ""
-        try:
-            payload = json.loads(body) if body else {}
-            cfg     = payload.get("config")
-        except Exception as exc:
-            return self._evo_reply({"ok": False, "error": f"bad JSON: {exc}"}, status=400)
-        if not isinstance(payload, dict):
-            return self._evo_reply({"ok": False, "error": "body must be a JSON object"}, status=400)
+        payload, _reply = self._request_body(action)
+        if _reply:
+            return _reply
+        cfg = payload.get("config")
         if not isinstance(cfg, dict):
             return self._evo_reply({"ok": False, "error": "config must be an object"}, status=400)
         return self._apply_config(cfg)
@@ -6676,6 +6777,10 @@ class Plugin(indigo.PluginBase):
         extras = cfg.get("roomExtras")
         if extras is not None and not isinstance(extras, dict):
             errors.append("roomExtras must be an object keyed by room name")
+        elif isinstance(extras, dict):
+            for _room, _v in extras.items():
+                if not isinstance(_v, dict):
+                    errors.append(f"roomExtras for '{_room}' must be an object")
         hidden = cfg.get("hiddenScenes")
         if hidden is not None and not isinstance(hidden, list):
             errors.append("hiddenScenes must be a list")
@@ -7084,11 +7189,9 @@ class Plugin(indigo.PluginBase):
         _refused = self._refuse_reflector(action)
         if _refused:
             return _refused
-        body = action.props.get("request_body") or ""
-        try:
-            params = json.loads(body) if body else {}
-        except Exception as exc:
-            return self._evo_reply({"ok": False, "error": f"bad JSON: {exc}"}, status=400)
+        params, _reply = self._request_body(action, refuse_reflector=False)
+        if _reply:
+            return _reply
         # Off the dispatch path (v3.20.0). Measured 18-09-2026 with the
         # parameters the Graphs page actually sends — action=series,
         # maxPoints=240, the 720 h chip, against the biggest history table
@@ -7508,6 +7611,9 @@ class Plugin(indigo.PluginBase):
         Serves the laundry plan the companion script last worked out. Bearer-authed
         upstream by IWS like every /message route — see _run_appliance_scheduler for why
         this is not a static file under /public."""
+        _refused = self._refuse_reflector(action)
+        if _refused:
+            return _refused
         if not self._sigen_available():
             return self._evo_reply(
                 {"ok": False, "reason": "sem_absent",
@@ -7532,13 +7638,9 @@ class Plugin(indigo.PluginBase):
         Replans immediately and returns the new plan, so the page shows the answer to the
         question just asked rather than the previous one until the next tick.
         """
-        body = action.props.get("request_body") or ""
-        try:
-            payload = json.loads(body) if body else {}
-        except Exception as exc:
-            return self._evo_reply({"ok": False, "error": f"bad JSON: {exc}"}, status=400)
-        if not isinstance(payload, dict):
-            return self._evo_reply({"ok": False, "error": "body must be an object"}, status=400)
+        payload, _reply = self._request_body(action)
+        if _reply:
+            return _reply
 
         wanted = normalise_deadline(payload.get("deadline", ""))
         if wanted is None:
@@ -7565,9 +7667,28 @@ class Plugin(indigo.PluginBase):
             self.logger.error(f"[Laundry] could not set the deadline: {exc}")
             return self._evo_reply({"ok": False, "error": str(exc)}, status=500)
 
+        # A key of its own for every request: each deadline change must replan,
+        # never reuse the previous run's answer.
+        self._laundry_seq = getattr(self, "_laundry_seq", 0) + 1
+        state, plan = self._offpath_get(
+            f"laundry-replan:{self._laundry_seq}", self._replan_laundry,
+            self.LAUNDRY_REPLAN_TTL, wait=self.LAUNDRY_REPLAN_WAIT)
+        if state == "failed":
+            return self._evo_reply({"ok": False, "error": plan}, status=500)
+        reply = {"ok": True, "appliance": key, "deadline": wanted}
+        if state == "fresh":
+            reply["plan"] = plan
+        else:
+            # Still replanning. Hand back the plan as it stands so the page
+            # can tell when the new one lands (its "generated" changes).
+            reply["pending"] = True
+            reply["plan"] = self._read_laundry_plan()
+        return self._evo_reply(reply)
+
+    def _replan_laundry(self):
+        """Off-path producer: run the scheduler once and return its plan."""
         self._run_appliance_scheduler()
-        return self._evo_reply({"ok": True, "appliance": key, "deadline": wanted,
-                                "plan": self._read_laundry_plan()})
+        return self._read_laundry_plan()
 
     def handleSolarStringHours(self, action, dev=None, callerWaitingForResult=True):
         """POST /message/com.clives.indigoplugin.dashboards/solarStringHours/
@@ -7575,26 +7696,37 @@ class Plugin(indigo.PluginBase):
         upstream by IWS like every /message route. Cached 120 s — the chart
         polls with the page's 5-min history cycle, but several open pages
         must not each pay a history query."""
-        body = action.props.get("request_body") or ""
-        try:
-            params = json.loads(body) if body else {}
-        except Exception as exc:
-            return self._evo_reply({"ok": False, "error": f"bad JSON: {exc}"}, status=400)
+        params, _reply = self._request_body(action)
+        if _reply:
+            return _reply
         date_str = str(params.get("date") or "").strip()
         if not date_str:
             date_str = datetime.now().strftime("%Y-%m-%d")
-        cache = getattr(self, "_sol_hours_cache", None)
-        if cache and cache[0] == date_str and time.time() < cache[1]:
-            return self._evo_reply(cache[2])
+        # Validated here, on the dispatch path, so a bad date is a 400 and a 503
+        # can only mean "not ready yet" — the same split handleTimelineDay makes.
         try:
-            payload = self._solar_string_hours(date_str)
-        except ValueError as exc:
-            return self._evo_reply({"ok": False, "error": str(exc)}, status=400)
-        except Exception as exc:
-            self.logger.error(f"[SolarHours] build failed: {exc}")
-            return self._evo_reply({"ok": False, "error": str(exc)}, status=500)
-        self._sol_hours_cache = (date_str, time.time() + 120, payload)
-        return self._evo_reply(payload)
+            datetime.strptime(date_str, "%Y-%m-%d")
+        except ValueError:
+            return self._evo_reply(
+                {"ok": False, "error": "date must be YYYY-MM-DD"}, status=400)
+        # Off the dispatch path (v3.25.0), on the shared pool. It was the one
+        # history read 3.19/3.20 left inline: a PK-ranged aggregate over the
+        # inverter table, the biggest there is. The old one-slot cache also lost
+        # today's entry whenever someone looked at another day.
+        today = datetime.now().strftime("%Y-%m-%d")
+        ttl   = self.SOLAR_HOURS_TODAY_TTL if date_str >= today else self.TIMELINE_PAST_TTL
+        state, payload = self._offpath_get(
+            f"solarhours:{date_str}", lambda: self._solar_string_hours(date_str), ttl,
+            wait=self.SOLAR_HOURS_WAIT)
+        if state == "fresh":
+            return self._evo_reply(payload)
+        if state == "failed":
+            self.logger.debug(f"[SolarHours] build failed: {payload}")
+            return self._evo_reply({"ok": False, "error": payload}, status=500)
+        return self._evo_reply(
+            {"ok": False, "pending": True,
+             "error": "the solar chart is still being built — try again shortly"},
+            status=503)
 
     def handleTimelineDay(self, action, dev=None, callerWaitingForResult=True):
         """POST /message/com.clives.indigoplugin.dashboards/timelineDay/
@@ -7602,11 +7734,9 @@ class Plugin(indigo.PluginBase):
         _refused = self._refuse_reflector(action)
         if _refused:
             return _refused
-        body = action.props.get("request_body") or ""
-        try:
-            params = json.loads(body) if body else {}
-        except Exception as exc:
-            return self._evo_reply({"ok": False, "error": f"bad JSON: {exc}"}, status=400)
+        params, _reply = self._request_body(action, refuse_reflector=False)
+        if _reply:
+            return _reply
         date_str = str(params.get("date") or "").strip()
         if not date_str:
             date_str = datetime.now().strftime("%Y-%m-%d")
@@ -8934,13 +9064,9 @@ class Plugin(indigo.PluginBase):
         _refused = self._refuse_reflector(action)
         if _refused:
             return _refused
-        body = action.props.get("request_body") or ""
-        try:
-            payload = json.loads(body) if body else {}
-        except Exception as exc:
-            return self._evo_reply({"ok": False, "error": f"bad JSON: {exc}"}, status=400)
-        if not isinstance(payload, dict):
-            return self._evo_reply({"ok": False, "error": "body must be a JSON object"}, status=400)
+        payload, _reply = self._request_body(action, refuse_reflector=False)
+        if _reply:
+            return _reply
         try:
             out = self._mains_detail(payload.get("id"))
             return self._evo_reply(out, status=200 if out.get("ok") else 404)
@@ -8954,14 +9080,10 @@ class Plugin(indigo.PluginBase):
         never reaches the browser. NOTE: this is a speed bump for paired
         devices (kids on the iPad), NOT a security boundary — a paired
         browser already holds the full API key."""
-        body = action.props.get("request_body") or ""
-        try:
-            payload = json.loads(body) if body else {}
-            pin     = str(payload.get("pin") or "")
-        except Exception as exc:
-            return self._evo_reply({"ok": False, "error": f"bad JSON: {exc}"}, status=400)
-        if not isinstance(payload, dict):
-            return self._evo_reply({"ok": False, "error": "body must be a JSON object"}, status=400)
+        payload, _reply = self._request_body(action)
+        if _reply:
+            return _reply
+        pin = str(payload.get("pin") or "")
         if not self.control_pin:
             return self._evo_reply({"ok": True, "valid": True, "note": "no PIN configured"})
         import hmac
@@ -9050,13 +9172,9 @@ class Plugin(indigo.PluginBase):
         earlier one failed — a colour command works on a lamp that is off, it
         just is not visible yet — but a failure is RECORDED and returned, never
         swallowed the way the browser used to swallow it."""
-        body = action.props.get("request_body") or ""
-        try:
-            payload = json.loads(body) if body else {}
-        except Exception as exc:
-            return self._evo_reply({"ok": False, "error": f"bad JSON: {exc}"}, status=400)
-        if not isinstance(payload, dict):
-            return self._evo_reply({"ok": False, "error": "body must be an object"}, status=400)
+        payload, _reply = self._request_body(action)
+        if _reply:
+            return _reply
 
         try:
             dev_id = int(payload.get("deviceId"))
@@ -9230,14 +9348,10 @@ class Plugin(indigo.PluginBase):
         """POST /message/com.clives.indigoplugin.dashboards/burnSetupToken/
         Body: {"token": "<token>"}  (Bearer-authenticated by IWS upstream)
         Deletes the one-time setup files so a redeemed link cannot be reused."""
-        body = action.props.get("request_body") or ""
-        try:
-            payload = json.loads(body) if body else {}
-            token   = (payload.get("token") or "").strip()
-        except Exception as exc:
-            return self._evo_reply({"ok": False, "error": f"bad JSON: {exc}"}, status=400)
-        if not isinstance(payload, dict):
-            return self._evo_reply({"ok": False, "error": "body must be a JSON object"}, status=400)
+        payload, _reply = self._request_body(action)
+        if _reply:
+            return _reply
+        token = str(payload.get("token") or "").strip()
 
         if not self._SETUP_TOKEN_RE.match(token):
             return self._evo_reply({"ok": False, "error": "bad token format"}, status=400)

@@ -280,6 +280,9 @@
     <script src="dashboards-ui.js"></script>
     <script src="dashboards-gate.js"></script>
     <script src="dashboard.js"></script>
+    <!-- v3.25.0: _confirmToggle reports "No confirmation" through DashAction,
+         which this page never loaded, so the message could not appear. -->
+    <script src="dashboards-action.js"></script>
     <script>
     // ── Refresh status: drives Updated / Next refresh in both top + bottom bar.
     const POLL_INTERVAL_MS = 3000;
@@ -415,6 +418,8 @@
                     .sort((a, b) => a.name.localeCompare(b.name))
                     .map(d => renderRow(d)).join("") +
                 '</div>';
+            // A note painted on a row survives the next rebuild (v3.25.0).
+            if (window.DashAction) DashAction.repaint();
         }
 
     }
@@ -433,7 +438,7 @@
                    oninput="onSlider(this)"
                    onchange="onSliderCommit(this)">` : "";
         return `
-            <div class="device-row">
+            <div class="device-row" data-dsh-act-key="device:${d.id}">
                 <div class="device-info">
                     <div class="device-name">${escapeHtml(d.name)}</div>
                     <div class="device-state">${escapeHtml(describeState(d))}${wStr}</div>
@@ -493,11 +498,7 @@
         }, 300);
     }
 
-    function escapeHtml(t) {
-        const d = document.createElement("div");
-        d.textContent = String(t == null ? "" : t);
-        return d.innerHTML;
-    }
+    function escapeHtml(t) { return DashUI.esc(t); }   // v3.25.0: escapes quotes too
     </script>
 
     <footer class="bottombar">

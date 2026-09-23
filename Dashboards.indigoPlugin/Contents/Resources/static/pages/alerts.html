@@ -374,7 +374,7 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
     const EP = "/message/com.clives.indigoplugin.dashboards/logErrors/";
     const POLL_MS = 5 * 60 * 1000;
     const $ = id => document.getElementById(id);
-    const esc = t => { const d = document.createElement("div"); d.textContent = String(t == null ? "" : t); return d.innerHTML; };
+    const esc = t => DashUI.esc(t);   // v3.25.0: escapes quotes too
 
     function shortTime(s) {
         if (!s) return "";

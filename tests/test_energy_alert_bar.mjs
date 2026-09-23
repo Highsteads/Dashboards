@@ -70,6 +70,10 @@ globalThis.DashIcons = { svg: ICON };
 const require_ = createRequire(import.meta.url);
 require_(path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
                    "Resources", "static", "pages", "energy-calc.js"));
+// The page's esc() delegates to DashUI.esc (v3.25.0), so the real shared
+// module is loaded too, for the same reason.
+require_(path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
+                   "Resources", "static", "pages", "dashboards-ui.js"));
 
 // ── load the real functions ────────────────────────────────────────────────
 // updateAlerts calls savingSessionAlerts, so that and its helpers have to come

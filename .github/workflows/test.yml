@@ -26,9 +26,13 @@ jobs:
           ruff check .
       # The job is NAMED "tests" — until v2.73.0 it ran none, so the whole
       # 240-odd-check contract suite was manual-only and a push could land red.
+      # The bundle's own requirements too (v3.25.0). Without Pillow the real
+      # thumbnail-resize test skips here while it runs locally, so a green CI
+      # checked less than a green run on the Mac.
       - name: Contract tests (pytest)
         run: |
           pip install pytest
+          pip install -r "Dashboards.indigoPlugin/Contents/Server Plugin/requirements.txt"
           python -m pytest tests -q
 
       - name: Contract tests (the companion scripts this repo ships)

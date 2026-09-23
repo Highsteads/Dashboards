@@ -286,7 +286,7 @@ async function post(endpoint, body) {
     return d;
 }
 
-function esc(t) { const d = document.createElement("div"); d.textContent = String(t == null ? "" : t); return d.innerHTML; }
+function esc(t) { return DashUI.esc(t); }   // v3.25.0: escapes quotes too
 function has(v) { return v !== null && v !== undefined && v !== "" && !isNaN(Number(v)); }
 function num(v, dp) { return has(v) ? Number(v).toFixed(dp == null ? 1 : dp) : "&#8212;"; }
 function signed(v, dp) { const n = Number(v); return (n > 0 ? "+" : "") + n.toFixed(dp == null ? 2 : dp); }

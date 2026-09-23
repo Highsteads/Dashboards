@@ -1215,7 +1215,7 @@
             : "";
 
         return `
-            <div class="light-card ${onState ? 'on' : ''} ${isColourLamp ? 'is-colour' : ''}" ${cardAttrs}>
+            <div class="light-card ${onState ? 'on' : ''} ${isColourLamp ? 'is-colour' : ''}" data-dsh-act-key="device:${d.id}" ${cardAttrs}>
                 <div class="light-head">
                     <div class="head-text">
                         <div class="name-row">
@@ -1645,6 +1645,12 @@
     // renders disabled across re-renders until the cooldown clears.
     const _pulseCooldown = new Set();
     function _doorBtn(relayJson, pulse, action, door, status) {
+        // No relay to pulse (v3.25.0): the button can do nothing, so it is
+        // disabled and says what is missing. Two rooms sat like this for
+        // weeks, showing "Press to Activate" over a press that did nothing.
+        if (relayJson === "[]") {
+            return `<button class="door-btn" disabled title="No opener relay is set for this door in Settings">Not set up</button>`;
+        }
         const cooling = _pulseCooldown.has(relayJson);
         // The door's own contact is what confirms the press worked, so carry
         // enough of it on the button for pulseDoor to build a watch: which
@@ -2024,7 +2030,7 @@
             await indigo.applyColour(deviceId, { preset: key });
         } catch (e) {
             console.error("colour preset failed", e);
-            DashAction.note("colour:" + deviceId, "error",
+            DashAction.note("device:" + deviceId, "error",
                             "Failed — " + ((e && e.message) || "no response"));
         }
     }
@@ -2119,7 +2125,7 @@
             // A failed command used to strand the modal open with an
             // unhandled rejection — close it and say so instead.
             console.error("colour command failed", e);
-            DashAction.note("colour:" + id, "error",
+            DashAction.note("device:" + id, "error",
                             "Failed — " + ((e && e.message) || "no response"));
         } finally {
             closeColorPicker();
@@ -2235,11 +2241,7 @@
         }
     }
 
-    function escapeHtml(t) {
-        const d = document.createElement("div");
-        d.textContent = String(t == null ? "" : t);
-        return d.innerHTML;
-    }
+    function escapeHtml(t) { return DashUI.esc(t); }   // v3.25.0: escapes quotes too
     </script>
 
     <footer class="bottombar">

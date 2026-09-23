@@ -305,7 +305,18 @@ async function setDeadline(key, hhmm, btn) {
     if (btn) btn.textContent = "Working...";
     try {
         const d = await call("laundryDeadline", { appliance: key, deadline: hhmm });
-        if (d && d.ok && d.plan) { PLAN = d.plan; PLAN.ok = true; _lastGood = Date.now(); }
+        if (d && d.ok && d.pending) {
+            // Replanning on a background worker (v3.25.0). The plan it handed
+            // back is the old one; wait until its "generated" stamp moves.
+            const was = d.plan && d.plan.generated;
+            for (let i = 0; i < 20; i++) {
+                await new Promise(r => setTimeout(r, 1000));
+                const p = await call("laundryPlan");
+                if (p && p.generated && p.generated !== was) {
+                    PLAN = p; _lastGood = Date.now(); break;
+                }
+            }
+        } else if (d && d.ok && d.plan) { PLAN = d.plan; PLAN.ok = true; _lastGood = Date.now(); }
         else if (d && d.error) { throw new Error(d.error); }
     } catch (e) {
         console.warn("laundry deadline: " + e.message);

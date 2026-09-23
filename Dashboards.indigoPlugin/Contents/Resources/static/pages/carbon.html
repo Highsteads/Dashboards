@@ -170,7 +170,7 @@
             body: "{}" });
     }
 
-    function esc(t) { const d = document.createElement("div"); d.textContent = String(t==null?"":t); return d.innerHTML; }
+    function esc(t) { return DashUI.esc(t); }   // v3.25.0: escapes quotes too
     function num(v, dp) { return (v===null||v===undefined||isNaN(Number(v))) ? "—" : Number(v).toFixed(dp==null?0:dp); }
 
     // carbon-intensity index → colour + label

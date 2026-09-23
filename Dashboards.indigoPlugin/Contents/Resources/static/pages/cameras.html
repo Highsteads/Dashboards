@@ -1221,11 +1221,7 @@
         fetchFrame();
         // Auto-degraded tiles poll slower — the link that couldn't carry MJPEG
         // won't thank us for a 2s snapshot either.
-        const period = st.autoDegraded ? DEGRADED_POLL_MS
-                     : LINK === "home" ? POLL_MS
-                     : LINK === "reflector" ? (host === focusedHost ? REFLECTOR_FOCUS_MS : REFLECTOR_POLL_MS)
-                     : host === focusedHost ? FOCUS_POLL_MS
-                                            : REMOTE_POLL_MS;
+        const period = stillPeriodFor(host, st);
         // STAGGER the tiles across the period. Fired together, nine requests
         // queue against the browser's ~6-per-origin cap and the last few are
         // still in flight when the next tick cancels them — measured live, three
@@ -1360,16 +1356,23 @@
             st.imgEl.src = st.lastFrameDataUrl;
         }
     }
+    // How often a still tile refreshes. ONE copy (v3.25.0): the chip used to
+    // work this out for itself without the reflector branch, so away from home
+    // over the reflector it said "every 1 s" while the tile polled every 3-10 s.
+    function stillPeriodFor(host, st) {
+        return (st && st.autoDegraded) ? DEGRADED_POLL_MS
+             : LINK === "home" ? POLL_MS
+             : LINK === "reflector" ? (host === focusedHost ? REFLECTOR_FOCUS_MS : REFLECTOR_POLL_MS)
+             : host === focusedHost ? FOCUS_POLL_MS
+                                    : REMOTE_POLL_MS;
+    }
     function setMode(host, mode) {
         const st = camState[host]; if (!st || !st.modeEl) return;
         // The still chip states the tile's ACTUAL period from the same ladder
         // startStill uses. It used to hardcode POLL_MS, so away tiles polling
         // at 1 s wore a "↻ 2s" badge — spotted on CliveS's own screenshots
         // while the footer said "@1s" beside it.
-        const stillPeriod = st.autoDegraded ? DEGRADED_POLL_MS
-                          : LINK === "home" ? POLL_MS
-                          : host === focusedHost ? FOCUS_POLL_MS
-                                                 : REMOTE_POLL_MS;
+        const stillPeriod = stillPeriodFor(host, st);
         const labels = {
             live:    "live",
             webrtc:  "live · rtc",

@@ -1683,11 +1683,20 @@
             const key = (window.INDIGO_CONFIG || {}).apiKey || "";
             if (!key) return;   // guest-paired (no key): a bare Bearer is a 401, and three of those re-pair the browser (v2.95.1)
             const r = await _msg("/message/com.clives.indigoplugin.dashboards/solarStringHours/", "{}");
-            if (_authRefused(r) || !r.ok) return;
+            if (_authRefused(r)) return;
+            // 503 "pending" (v3.25.0): built on a background worker now. Look
+            // again shortly, a few times, rather than wait five minutes.
+            if (r.status === 503 && _wxHoursRetries < 6) {
+                _wxHoursRetries++;
+                setTimeout(_refreshStringHours, 2000);
+                return;
+            }
+            if (!r.ok) return;
             const d = await r.json();
-            if (d && d.ok) { _wxStringHours = d; renderWeatherSolar(); }
+            if (d && d.ok) { _wxHoursRetries = 0; _wxStringHours = d; renderWeatherSolar(); }
         } catch (_) { /* chart degrades to forecast-only — never blocks the hub */ }
     }
+    let _wxHoursRetries = 0;
 
     // Server-side "today" and minutes-of-day, from the payloads the server
     // stamps, with the browser as the fallback for an older plugin.

@@ -662,7 +662,7 @@ a,button,input,select,textarea{-webkit-tap-highlight-color:transparent}
   <!-- ═══ HISTORY ═══ -->
   <div class="sec-label">History</div>
   <section class="card">
-    <h2 data-help-title="Energy history" data-help="Half-hourly energy per slot over the selected window: solar and export above the line, import and home use below (as inflow/consumption).">Energy per half-hour</h2>
+    <h2 data-help-title="Energy history" data-help="Half-hourly energy per slot over the selected window. Above the line is where the power came from: solar, the battery and the grid. Below it is where it went: the house, into the battery, and out to the grid. The two roughly cancel in every slot.">Energy per half-hour</h2>
     <div class="chart-wrap"><canvas id="chart-energy"></canvas></div>
   </section>
   <section class="card" id="energy-replay-card" style="display:none">
@@ -767,7 +767,7 @@ const num    = DashCalc.num;
 /* DOM helpers moved to dashboards-ui.js so the hub page shares them. Aliased
    here rather than renaming several hundred call sites. */
 const setText = DashUI.setText;
-function esc(t) { return String(t == null ? '' : t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function esc(t) { return DashUI.esc(t); }   // v3.25.0: escapes quotes too
 
 const cssVar = DashUI.cssVar;
 const tweenNumber = DashUI.tweenNumber;
@@ -1153,14 +1153,23 @@ async function refreshStringHours() {
       headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
       body: '{}',
     });
+    /* 503 "pending" (v3.25.0): the chart is being built on a background
+       worker. Look again shortly, a few times, rather than wait five minutes. */
+    if (r.status === 503 && _solHoursRetries < 6) {
+      _solHoursRetries++;
+      setTimeout(refreshStringHours, 2000);
+      return;
+    }
     if (!r.ok) return;
     const d = await r.json();
     if (d && d.ok) {
+      _solHoursRetries = 0;
       _solStringHours = d;
       renderSolarHours();
     }
   } catch (e) { /* chart degrades to site-total bars */ }
 }
+let _solHoursRetries = 0;
 
 /* ── SOC sparkline ── */
 function renderSocSparkline(slots) {

@@ -32,6 +32,15 @@
     return v || fallback;
   }
 
+  /* HTML-escape for text AND attributes (v3.25.0). Pages each carried their
+     own, and most escaped via textContent -> innerHTML, which leaves quote
+     marks alone, so a name with a double quote in it broke any attribute it
+     was placed in. One version, escaping all five characters that matter. */
+  var ESC_MAP = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+  function esc(t) {
+    return String(t == null ? '' : t).replace(/[&<>"']/g, function (c) { return ESC_MAP[c]; });
+  }
+
   function setText(id, v) {
     var e = typeof id === 'string' ? doc.getElementById(id) : id;
     if (e && e.textContent !== v) e.textContent = v;
@@ -1102,6 +1111,7 @@
 
   var API = {
     cssVar: cssVar,
+    esc: esc,
     setText: setText,
     tweenNumber: tweenNumber,
     reducedMotion: reducedMotion,

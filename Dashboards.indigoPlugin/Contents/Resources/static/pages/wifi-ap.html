@@ -230,7 +230,7 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
     function fmtSat(v) { const n = num(v); return (n === null || n < 0) ? "—" : String(n); }
     function uptimeUi(s) { const n = num(s) || 0; const d = Math.floor(n/86400), h = Math.floor((n%86400)/3600), m = Math.floor((n%3600)/60); return d + "d " + h + "h " + m + "m"; }
     function fmtWidth(w) { const n = num(w); return [20, 40, 80, 160, 240, 320].includes(n) ? n + "MHz" : (n === null ? "" : n + "MHz"); }
-    function escapeHtml(t) { const d = document.createElement("div"); d.textContent = String(t == null ? "" : t); return d.innerHTML; }
+    function escapeHtml(t) { return DashUI.esc(t); }   // v3.25.0: escapes quotes too
     function fmtTxPower(v) { const s = String(v || "").trim(); return s ? s.charAt(0).toUpperCase() + s.slice(1) : "—"; }
     function fmtBool(v) { return v === true ? "Yes" : (v === false ? "No" : "—"); }
     function fmtVal(v) {

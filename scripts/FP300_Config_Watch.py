@@ -77,6 +77,23 @@ SENSOR_IDS = [
     623198824,    # Bedroom 1 Headboard Presence Sensor (ieee ...6944ec)
 ]
 
+# The z2m model this watch understands. Used ONLY to work out the denominator:
+# how many devices of this kind exist against how many are being watched.
+#
+# A guard that quietly covers less than its population is the failure this
+# estate keeps hitting — estate-check could not see disabled plugins, five
+# repos had a CI job named "tests" that ran none, and on 04-09-2026 this watch
+# was found covering 2 of 9 PS-S04D sensors with the other seven all drifted.
+# In each case the guard worked perfectly on what it looked at, and nothing
+# anywhere stated what it was not looking at.
+#
+# So the count is REPORTED every run and the unwatched set is remembered. New
+# ones raise a WARNING once, because a sensor added and never wired in here is
+# real drift; the standing seven do not, because leaving a sensor out can be a
+# deliberate choice and a permanent warning is one nobody reads.
+WATCHED_MODEL = "PS-S04D"
+Z2M_PLUGIN_ID = "com.clives.indigoplugin.z2mbridge"
+
 # Intended device-side configuration.
 #   indigo_state : the state name z2mbridge surfaces (camelCase)
 #   z2m_key      : the snake_case property name z2m accepts on .../set
@@ -362,6 +379,65 @@ def publish(sets, quiet=False):
 # ======================================
 # STATE
 # ======================================
+def discover_population():
+    """Every Indigo device of WATCHED_MODEL, as {id: name}.
+
+    Reads the model from the z2m plugin's props. Foreign plugin props read
+    EMPTY through `pluginProps` from another host, so this uses globalProps —
+    the estate rule. A device whose props cannot be read is left out rather
+    than guessed at, so the denominator can only ever under-state, never
+    invent a sensor that is not there.
+    """
+    model = _cfg("WATCHED_MODEL", "")
+    out = {}
+    if not model:
+        return out
+    try:
+        devices = indigo.devices
+    except Exception:
+        return out
+    for dev in devices:
+        try:
+            props = dev.globalProps.get(dev.pluginId, {}) or {}
+            if str(props.get("model") or "") == model:
+                out[dev.id] = dev.name
+        except Exception:
+            continue
+    return out
+
+
+def coverage_report(state, watched_ids, quiet=False):
+    """Say what this watch covers, and warn when something new is not covered.
+
+    Returns the unwatched {id: name}. The INFO line runs every time so the
+    denominator is never invisible; the WARNING fires only for ids that were
+    not in the population last run, so a deliberate omission stays quiet while
+    a newly added sensor does not.
+    """
+    population = discover_population()
+    if not population:
+        return {}
+    unwatched = {i: n for i, n in population.items() if i not in set(watched_ids)}
+    if not quiet:
+        log(f"FP300 Config Watch: watching {len(watched_ids)} of {len(population)} "
+            f"{_cfg('WATCHED_MODEL','')} sensors")
+    known = {int(i) for i in state.get("known_population", [])}
+    fresh = {i: n for i, n in unwatched.items() if i not in known}
+    if fresh and known:
+        # `known` empty means this is the first run since the check shipped —
+        # report the standing set as INFO, not as seven new faults.
+        log(f"FP300 Config Watch: {len(fresh)} sensor(s) of this model are NOT "
+            f"watched and were not here last run — "
+            f"{', '.join(sorted(fresh.values()))}. Add the id(s) to SENSOR_IDS, "
+            f"or leave them out deliberately and this will not ask again.",
+            level="WARNING")
+    elif unwatched and not quiet:
+        log(f"FP300 Config Watch: {len(unwatched)} not watched (unchanged) — "
+            f"{', '.join(sorted(unwatched.values()))}")
+    state["known_population"] = sorted(population)
+    return unwatched
+
+
 def load_state(path):
     try:
         with open(path, encoding="utf-8") as fh:
@@ -396,7 +472,15 @@ def main(dry_run=False, quiet=False):
 
     pending, drifted, healthy = {}, [], []
 
-    for dev_id in _cfg("SENSOR_IDS", []):
+    watched = list(_cfg("SENSOR_IDS", []))
+    try:
+        coverage_report(state, watched, quiet=quiet)
+    except Exception as exc:
+        # Coverage is diagnostics. It must never stop the watch doing its job.
+        log(f"FP300 Config Watch: coverage check failed ({exc}) — continuing",
+            level="WARNING")
+
+    for dev_id in watched:
         try:
             dev = indigo.devices[dev_id]
         except Exception:

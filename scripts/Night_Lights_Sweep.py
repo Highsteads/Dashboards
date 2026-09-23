@@ -9,11 +9,75 @@
 #              no command behind it, which is how the Hall Lamp burned from
 #              04:17 to 04:51 on 27-08-2026 after the bulb re-announced itself
 #              on the Zigbee network and came up at 100%. Had nobody got up it
-#              would have run until Lights_Off_Due_To_Lux_Level.py fired at
-#              06:20. This closes that gap.
-# Author:      CliveS & Claude Fable 5.1
-# Date:        02-09-2026 + UK Time Now
-# Version:     1.3
+#              would simply have burned on. Lights_Off_Due_To_Lux_Level.py was
+#              written to catch exactly that at dawn, but it was attached to no
+#              trigger until 14-09-2026 and had never once run, so on 27-08 there
+#              was nothing downstream to stop it. This closes that gap.
+# Author:      CliveS & Claude Opus 5
+# Date:        07-09-2026 + UK Time Now
+# Version:     1.6
+#
+# v1.6 (21-09-2026) — THE FIRE IS NO LONGER RE-SENT WHEN ITS PLUG SAYS IT IS
+#   OFF. Broadlink RF 1.4.0 lets Fire On/Off read the Living Room Fire Plug, and
+#   publishes the answer as measuredState: "on", "off" or "unknown". A plug
+#   reading standby (0.5 W against 37 W with the flame lit) is a measurement,
+#   not a belief, so the hourly belt-and-braces OFF has nothing to guard
+#   against — seven sends a night, every night, to a fire that was out.
+#   Only "off" skips. "unknown" (no meter, meter disabled, in error or silent)
+#   and a missing state both fall back to the old open-loop assert, so losing
+#   the plug can never stop the fire being turned off. "on" in a quiet room is
+#   now reported as what the plug reads, and the plugin itself confirms the OFF
+#   or warns that the fire ignored it.
+#
+# v1.5 (07-09-2026) — THE HOURLY FIRE LINE IS NO LONGER SHOUTED. Seven lines
+#   a night said the same thing: the room was quiet, the OFF code went out,
+#   and Indigo had already believed the fire was off. 23 of them in the three
+#   days to 07-09-2026 and not ONE was a drifted belief. That is the hourly
+#   belt-and-braces re-send doing exactly its job, which is to say it is what
+#   RAN, not what CHANGED. Two parts:
+#     (1) The message splits by whether anything was actually wrong. Indigo
+#         believing the fire was ON in a room quiet for the whole period is a
+#         drifted belief with a 1.5 kW heater behind it — the exact fault this
+#         function exists to catch, so it stays at INFO and is still seen. The
+#         believed-off re-send drops to DEBUG. Both keep the honest 'no RF
+#         return path' wording: the OFF code is still transmitted every time,
+#         and nothing about WHEN it is sent has changed.
+#     (2) log() gained the estate-standard DEBUG_LOGGING gate, because
+#         choosing DEBUG silences nothing on its own. MEASURED 07-09-2026:
+#         indigo.server.log(level=logging.DEBUG) reaches the event log like
+#         any other line, tagged source '<Plugin> Debug' — the v1.4
+#         'phase:sensorless-held' notice was written as DEBUG precisely to be
+#         quiet and had been visible all along. The gate only ever tests below
+#         INFO, so WARNING and ERROR stay audible by construction.
+#   The lights-off and lights-on scripts are untouched: when one of those
+#   turns the fire off it is reporting a change it made, and that stays INFO.
+#
+# v1.4 (06-09-2026) — IT NOW COVERS THE EVENING, which is when it was needed and
+#   was not there. The clock window was 00:00-06:00, so a light left on at 21:11
+#   had no backstop for nearly three hours. That is exactly what happened this
+#   evening: Living_Room_Lights_Off.py debounced away the run in which the room
+#   finally read empty, and the lamps, both plugs and the 1.5 kW fire ran on with
+#   nothing whatever watching. Three parts, and the last two are why this is not
+#   simply a smaller number:
+#     (1) The window WRAPS and opens at EVENING_START = 19:00 — the hour
+#         Living_Room_Lights_Off.py's own afternoon protection ends, so the
+#         backstop starts exactly where the room script itself becomes willing
+#         to act. `DEEP_NIGHT_START <= hour < DEEP_NIGHT_END` cannot express a
+#         window that crosses midnight; it silently reads False for every hour
+#         of it, so the comparison had to change too.
+#     (2) The evening demands a LONGER unbroken quiet run — 30 minutes against
+#         the deep night's 15. An empty lit room in the evening has innocent
+#         explanations that 3am does not, and the room scripts are still awake
+#         and will act first if they can. Being slower than the controller is
+#         the whole point of a backstop.
+#     (3) A zone with NO sensors of its own still waits for deep night. Hall and
+#         conservatory ride the whole-house quiet test, and that test knows
+#         nothing about the bedrooms or the bathroom — neither is a zone. At 3am
+#         that is right, because everyone is in bed. At 21:00 it would put out
+#         the lit pathway to the bedroom while somebody stood in the bathroom.
+#         So the sensored rooms gain the evening and the sensorless ones do not.
+#   `Nightime` still widens the window as before, and a Wallmote press is a real
+#   "we have gone to bed" signal, so it counts as deep night for (2) and (3).
 #
 # v1.3 (02-09-2026) — Living Room Right Presence Sensor (1899487413) joins the
 #   living_room zone beside Left and Centre.
@@ -119,7 +183,15 @@ if not isinstance(_MEM, dict):
 
 # The room must have been unoccupied, and the light on, for this long — proven
 # by an unbroken run of observations, not by two endpoints.
-QUIET_MINUTES = 15
+#
+# Two figures since v1.4. The deep-night one is the original. The evening one is
+# longer because an empty lit room at 21:00 has innocent explanations that it
+# does not have at 3am — somebody stepping out to the kitchen mid-programme, a
+# room script deliberately holding the lit pathway to the bedroom for two
+# minutes — and because the room scripts are awake and will act first if they
+# can. A backstop that acts as fast as the controller is not a backstop.
+QUIET_MINUTES         = 15
+EVENING_QUIET_MINUTES = 30
 
 # Discard every streak if the previous run was longer ago than this. The
 # schedule should tick every 2-5 minutes; at 10 the sweep stops acting rather
@@ -130,11 +202,23 @@ MAX_GAP_MINUTES = 10
 # gone quiet. One assertion an hour is plenty for a belief that rarely drifts.
 FIRE_REASSERT_MINUTES = 60
 
-# Only sweep in the small hours. Nightime alone is not enough to rely on: it is
-# set by a Wallmote press, so a night nobody pressed it would silently disable
-# the safety net. The clock window is the floor, the flag widens it.
+# Nightime alone is not enough to rely on: it is set by a Wallmote press, so a
+# night nobody pressed it would silently disable the safety net. The clock
+# window is the floor, the flag widens it.
+#
+# DEEP NIGHT is the phase in which the whole house can be assumed asleep, so a
+# zone with no sensors of its own may ride the whole-house quiet test.
 DEEP_NIGHT_START = 0     # 00:00
 DEEP_NIGHT_END   = 6     # 06:00 (exclusive)
+
+# EVENING extends the sweep back to 19:00 for zones judged by their OWN sensors.
+# 19:00 is not a round number picked for comfort: it is the hour
+# Living_Room_Lights_Off.py's afternoon protection window ends, i.e. the hour
+# that script itself becomes willing to shut the room down. Starting the
+# backstop there means the two agree by construction. Everything is still gated
+# on Lux_Level, so this never runs in daylight — which is what keeps a December
+# 16:00 dusk out of it.
+EVENING_START = 19       # 19:00, wrapping through midnight to DEEP_NIGHT_END
 
 VERIFY_MIN_SECONDS = 30       # never judge a turn-off on the tick that sent it
 
@@ -158,8 +242,8 @@ ZONES = {
                     106403094],   # Living Room Door Motion Sensor     (PIR)
         "lights":  [1765266302,   # Living Room Main Light
                     372666822,    # Living Room Colour Lamp
-                    515728864,    # Display Light Plug
-                    1293995000],  # Twigs Light Plug (carries the feature-wall shelf lights)
+                    515728864,    # Display Lights Plug
+                    1293995000],  # Twigs Plug (carries the feature-wall shelf lights)
     },
     "kitchen": {
         "sensors": [557577796,    # Kitchen Left Presence Sensor
@@ -223,6 +307,9 @@ TS_FMT = "%Y-%m-%d %H:%M:%S"
 # ======================================
 # LOGGING
 # ======================================
+# Set True to add the per-run DEBUG trace. INFO and above ALWAYS log — see
+# the note in log() for why the gate is needed at all.
+DEBUG_LOGGING = False
 
 _LOG_LEVELS = {
     "DEBUG":    logging.DEBUG,
@@ -245,6 +332,23 @@ def _lvl(level):
 
 
 def log(message, level="INFO"):
+    # DEBUG_LOGGING silences the DEBUG trace and NOTHING else.
+    #
+    # The gate has to exist because CHOOSING DEBUG SUPPRESSES NOTHING BY
+    # ITSELF. Measured 07-09-2026: indigo.server.log(level=logging.DEBUG)
+    # lands in the event log like any other line, tagged with the source
+    # '<Plugin> Debug'. So v1.4's 'phase:sensorless-held' notice — written as
+    # DEBUG for the express purpose of being quiet, and commented as such —
+    # had been printing every evening regardless. Indigo's own log level is
+    # not the script's to set, so the script has to hold the gate.
+    #
+    # The rule the levels follow: INFO says what CHANGED, DEBUG says what RAN.
+    #
+    # The gate only ever tests BELOW INFO, so a fault stays audible by
+    # construction — the 04-09-2026 lesson that a quiet flag must never
+    # silence a WARNING or an ERROR.
+    if _lvl(level) < logging.INFO and not DEBUG_LOGGING:
+        return
     indigo.server.log(
         f"[{datetime.now().strftime('%H:%M:%S.%f')[:-3]}] [Night Sweep] {message}",
         level=_lvl(level))
@@ -496,7 +600,7 @@ def verify_pending(state, now):
     state["pending_verify"] = pending
 
 
-def assert_fire_off(now, state, living_room_quiet_since):
+def assert_fire_off(now, state, living_room_quiet_since, quiet_needed=QUIET_MINUTES):
     """Send the fire's discrete OFF code, whatever Indigo believes.
 
     The relay is open loop: onOffState is the last thing transmitted, not a
@@ -506,7 +610,7 @@ def assert_fire_off(now, state, living_room_quiet_since):
     """
     if living_room_quiet_since is None:
         return
-    if (now - living_room_quiet_since) < timedelta(minutes=QUIET_MINUTES):
+    if (now - living_room_quiet_since) < timedelta(minutes=quiet_needed):
         return
 
     since = _age_min(state.get("fire_asserted_at"), now)
@@ -535,14 +639,46 @@ def assert_fire_off(now, state, living_room_quiet_since):
             level="WARNING")
         return
 
-    believed = "on" if fire.onState else "off"
+    # Broadlink RF 1.4.0 and later: a power meter on the fire turns the belief
+    # into a reading. Only a reading of "off" is trusted to skip the send —
+    # "unknown", or no such state at all, keeps the open-loop assert, so losing
+    # the plug can never stop the fire being turned off. The rate-limit clock is
+    # NOT reset here, so the moment the plug reads on the next tick acts.
+    measured = str(fire.states.get("measuredState", "") or "").strip().lower()
+    if measured == "off":
+        return
+
+    believed_on = fire.onState
     try:
         indigo.device.turnOff(fire)
         state["fire_asserted_at"] = now.timestamp()
-        # Honest wording: RF has no return path, so this is what was SENT.
-        log(f"Living room quiet — sent the fire's OFF code ({off_code}); "
-            f"Indigo believed it was {believed}. No RF return path, so this is "
-            f"not confirmation the fire received it.", level="INFO")
+        # INFO says what CHANGED, DEBUG says what RAN, and which of those this
+        # is depends entirely on what Indigo believed a moment ago.
+        #
+        # Believed ON, in a room quiet for the whole period: a drifted belief
+        # with a 1.5 kW heater behind it. That is the fault this function
+        # exists to catch, and it must be seen.
+        #
+        # Believed OFF: the hourly belt-and-braces re-send, changing nothing.
+        # It put seven identical lines in the log a night — 23 in the three
+        # days to 07-09-2026, not one of them a drift — which is the shape of
+        # a line nobody can read any more.
+        #
+        # Honest wording on BOTH paths: RF has no return path, so this is what
+        # was SENT, never what the fire received.
+        if measured == "on":
+            watts = fire.states.get("measuredWatts")
+            log(f"Living room quiet but the fire's plug reads {watts} W, so it is "
+                f"on — sent its OFF code ({off_code}). The plugin will say if "
+                f"the fire does not respond.", level="INFO")
+        elif believed_on:
+            log(f"Living room quiet but Indigo believed the fire was ON — "
+                f"sent its OFF code ({off_code}). No RF return path, so this "
+                f"is not confirmation the fire received it.", level="INFO")
+        else:
+            log(f"Living room quiet — re-sent the fire's OFF code ({off_code}); "
+                f"Indigo already believed it was off. No RF return path, so "
+                f"this is not confirmation the fire received it.", level="DEBUG")
     except Exception as e:
         log(f"Sending the fire OFF code raised: {e}", level="ERROR")
 
@@ -551,25 +687,50 @@ def assert_fire_off(now, state, living_room_quiet_since):
 # MAIN
 # ======================================
 
+def _in_hour_window(hour, start, end):
+    """True if `hour` falls in [start, end), correctly when the window WRAPS.
+
+    `start <= hour < end` is silently False for EVERY hour of a window that
+    crosses midnight, which is how an evening start of 19:00 would have read as
+    "never" rather than as an error.
+    """
+    if start == end:
+        return False
+    if start < end:
+        return start <= hour < end
+    return hour >= start or hour < end
+
+
 def night_now(now):
-    """True when the sweep should run at all."""
+    """(should_run, why, deep) — deep is True when the house can be assumed asleep.
+
+    `deep` gates the two things the evening must not have: the shorter quiet
+    period, and the whole-house fallback that sweeps rooms with no sensors of
+    their own. A Wallmote press (Nightime) is a real "we have gone to bed"
+    signal, so it counts as deep whatever the clock says.
+    """
     try:
         if str(indigo.variables[VARIABLE_IDS["lux_level"]].value).strip().lower() == "true":
-            return False, "it is daylight"
+            return False, "it is daylight", False
     except Exception as e:
         log(f"Could not read Lux_Level ({e}) — standing down", level="WARNING")
-        return False, "lux unreadable"
+        return False, "lux unreadable", False
 
-    in_window = DEEP_NIGHT_START <= now.hour < DEEP_NIGHT_END
+    deep_window    = _in_hour_window(now.hour, DEEP_NIGHT_START, DEEP_NIGHT_END)
+    evening_window = _in_hour_window(now.hour, EVENING_START, DEEP_NIGHT_END)
     nighttime = False
     try:
         nighttime = str(indigo.variables[VARIABLE_IDS["nighttime"]].value).strip().lower() == "true"
     except Exception as e:
         log(f"Could not read Nightime ({e}) — relying on the clock window only",
             level="WARNING")
-    if in_window or nighttime:
-        return True, "deep night" if in_window else "Nightime set"
-    return False, "not night yet"
+
+    deep = deep_window or nighttime
+    if deep:
+        return True, "deep night" if deep_window else "Nightime set", True
+    if evening_window:
+        return True, "evening", False
+    return False, "not night yet", False
 
 
 def main():
@@ -577,7 +738,8 @@ def main():
         return
 
     now = datetime.now()
-    ok, why = night_now(now)
+    ok, why, deep = night_now(now)
+    quiet_needed = QUIET_MINUTES if deep else EVENING_QUIET_MINUTES
     state = load_state()
     if not ok:
         # Daytime. Still check on last night's final turn-offs, and keep
@@ -615,10 +777,25 @@ def main():
     sensored = [v for v in verdicts.values() if v is not None]
     house_quiet = bool(sensored) and all(sensored)
 
-    # 2. A sensorless zone rides on the whole house being quiet.
-    for name, v in verdicts.items():
-        if v is None:
-            verdicts[name] = house_quiet
+    # 2. A sensorless zone rides on the whole house being quiet — but ONLY in
+    #    deep night. The whole-house test is built from the sensored zones, and
+    #    the bedrooms and the bathroom are not among them, so at 21:00 it would
+    #    read "house quiet" with somebody standing in the bathroom and put out
+    #    the lit pathway to the bedroom. At 3am the same test is sound, because
+    #    everyone being in bed is precisely what it is entitled to assume.
+    rode_the_house = {name for name, v in verdicts.items() if v is None}
+    for name in rode_the_house:
+        verdicts[name] = house_quiet if deep else False
+    # warn_once, not log: this is one standing fact about the phase, and the
+    # sweep ticks every two minutes — saying it plainly would put ~150 identical
+    # lines in the log every evening, and Log_Error_Watch.py counts each one.
+    if rode_the_house and not deep:
+        warn_once("phase:sensorless-held",
+                  f"Evening sweep — {', '.join(sorted(rode_the_house))} left alone "
+                  f"until deep night, having no sensors of their own",
+                  level="DEBUG")
+    else:
+        clear_once("phase:sensorless-held")
 
     turned_off, living_room_quiet_since = [], None
 
@@ -650,11 +827,12 @@ def main():
                 streaks[key] = now.timestamp()
                 continue
 
-            if since_min < QUIET_MINUTES:
+            if since_min < quiet_needed:
                 continue
 
             log(f"{dev.name} has been on in an empty {zone_name.replace('_', ' ')} "
-                f"for {int(since_min)} minutes — turning it off", level="INFO")
+                f"for {int(since_min)} minutes — turning it off "
+                f"({why}, threshold {quiet_needed} min)", level="INFO")
             if send_off(dev, zone_name, state, now):
                 turned_off.append(dev.name)
             streaks.pop(key, None)
@@ -668,7 +846,7 @@ def main():
         elif zone_name == "living_room":
             state["living_room_quiet_since"] = None
 
-    assert_fire_off(now, state, living_room_quiet_since)
+    assert_fire_off(now, state, living_room_quiet_since, quiet_needed)
 
     state["streaks"]  = streaks
     state["last_run"] = now.timestamp()

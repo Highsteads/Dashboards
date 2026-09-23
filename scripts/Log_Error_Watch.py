@@ -10,9 +10,32 @@
 #              one Pushover headline plus a full email, and the state file
 #              doubles as the feed for the Dashboards alerts page.
 #              Errors alert; warnings are recorded and shown but never pushed.
-# Author:      CliveS & Claude Fable 5.1
-# Date:        02-09-2026 + UK time now
-# Version:     1.5
+# Author:      CliveS & Claude Opus 5
+# Date:        18-09-2026 + UK time now
+# Version:     1.7
+#
+# v1.7 (18-09-2026): an IWS 500 whose client had already gone logs no address
+#   at all -- the line ends at "from " -- so it keyed to its own signature and
+#   arrived as a brand-new fault six times, while the identical address-bearing
+#   form sat accepted. normalise() now gives a missing address the same
+#   placeholder as a present one, so both land in one bucket.
+#
+# v1.6 (18-09-2026): the two Web Server mutes are GONE, replaced by a rule that
+#   has to find the restart it blames. Those mutes were written for the IWS
+#   wedge cascade -- a plugin restart 500s every file a browser asks for during
+#   the ~4m58s the loop is down -- and they were path-blind, so they hid every
+#   internal server error the server ever raised. Measured over September before
+#   changing anything: of 112 such errors only 26 fall inside a five-minute
+#   window after any plugin start or stop, and 84 of them are ONE file,
+#   /public/dashboards/changed.stamp, which the Dashboards plugin replaces every
+#   two to three seconds. So roughly four in five had nothing to do with the
+#   cascade, and the one signature that dominates the estate's error log had
+#   never once reached triage -- it alerted on 03-08-2026 and went quiet for 327
+#   occurrences. EXPLAINED_BY carries the replacement: an occurrence is excused
+#   only when the causing line is actually in the log beside it, the same
+#   standard RECOVERS already holds. Everything else now alerts. The dashboard
+#   says "explained" rather than "answered", because a restart does not answer
+#   anything -- it accounts for it.
 #
 # v1.5 (02-09-2026, Dashboards deep review lows): (1) two DIFFERENT errors
 #   from the same source milliseconds apart — "Drive Left Motion" and "Drive
@@ -93,6 +116,10 @@ QUIET_HOURS = 24
 # persistent fault cannot go quiet just because it was mentioned yesterday.
 RE_ALERT_HOURS = 24
 
+# How long after a plugin start/stop an IWS failure can still be blamed on
+# the restart. The wedge measures 4m58s; this is that plus slack.
+WEDGE_SECONDS = 310
+
 # Signatures untouched for this long are dropped from the state file.
 FORGET_DAYS = 30
 
@@ -106,12 +133,13 @@ ALERT_LEVELS = ("error",)
 # Populated 04-08-2026 from ten days of that evidence — 81% of everything the
 # watch had ever mailed was one of the four entries below.
 MUTED = [
-    # The IWS wedge cascade. A plugin restart while a browser is mid-poll takes
-    # the IWS loop down for 4m58s, and every static file requested in that
-    # window 500s. The named file is innocent and the fault clears itself, so
-    # there is nothing here to act on. Documented in the global CLAUDE.md.
-    ("Web Server", r"internal server error for request"),
-    ("Web Server", r"message handler failed"),
+    # The IWS wedge cascade USED to be muted here, both its 500s and its
+    # "message handler failed" twin. It is now EXPLAINED_BY instead: a mute
+    # cannot tell the cascade from anything else IWS raises, and measuring it
+    # showed four in five of those errors had no restart anywhere near them.
+    # See the v1.6 note at the top. Do not put a path-blind Web Server rule
+    # back here -- the thing it hides is the thing you need.
+    #
     # The same restart seen from the other side: an action fired at a plugin
     # that was still coming back up.
     ("Indigo Server", r"unable to execute action -- device plugin .* not running"),
@@ -139,6 +167,39 @@ RECOVERS = [
      r"command failed \(module might be asleep",
      r"\breceived\b.*\b(?:status update|is responding)\b",
      30),
+]
+
+# Errors a DIFFERENT source already explained, moments BEFORE. Each rule is
+# (source substring, failing-message regex,
+#  cause source substring, cause-message regex, seconds before, label).
+#
+# The mirror of RECOVERS, and held to the same standard: nothing is excused on
+# the strength of a rule alone. The causing line must actually be in the log,
+# from the named source, inside the window — so the day the cause stops
+# appearing, the error alerts. That is the whole difference between this and
+# the mute it replaced, which went quiet whether or not anything had happened.
+#
+# Deliberately NO quoted-subject constraint, unlike RECOVERS: the cause names a
+# plugin ("Sigenergy Manager 5.110.2") and the error names a file
+# (/public/dashboards/dashboard.js). They are about the same event and share no
+# subject, which is exactly why the two regexes have to be specific.
+#
+# An excused occurrence is still counted, still shown on the alerts card, and
+# still reported as "explained" with the reason — never dropped. A window that
+# mixes excused and unexcused occurrences alerts on the whole signature.
+EXPLAINED_BY = [
+    # The IWS wedge cascade. Restarting a plugin while a browser is mid-poll
+    # takes the IWS loop down for about 4m58s, and everything asked of it in
+    # that window 500s — whichever file the page happened to want. The file is
+    # innocent and the fault clears itself. WEDGE_SECONDS gives that measured
+    # 298s a little slack; widening it further starts excusing real faults,
+    # because the estate restarts a plugin roughly thirty times a day.
+    ("Web Server",
+     r"internal server error for request|message handler failed",
+     "Application",
+     r"^(?:Starting|Stopping|Reloading) plugin ",
+     WEDGE_SECONDS,
+     "IWS wedge after a plugin restart"),
 ]
 
 # This script's own summary line logs at WARNING when it finds something, which
@@ -247,6 +308,12 @@ _PATH_RE         = re.compile(r"(?<=\s)/\S+")
 _PLUGIN_ID_RE    = re.compile(r"\b[a-z][a-z0-9]*(?:\.[a-z0-9_\-]+){2,}\b")
 _NAMED_PLUGIN_RE = re.compile(r"(device plugin )(.+?)( not running)", re.I)
 _REFLECTOR_RE    = re.compile(r"reflector|indigodomo\.com", re.I)
+# IWS logs "... for request <path> from <client>" -- but when the connection
+# has already gone there is no peer to name, so the line ends at "from " with
+# nothing after it. That is the ABANDONED-REQUEST case, i.e. the very fault
+# the address-bearing form was accepted as. Without this the same fault sits
+# in two buckets and a verdict on one says nothing about the other.
+_EMPTY_ADDR_RE   = re.compile(r"\bfrom\s*$")
 
 
 def normalise(message):
@@ -256,7 +323,8 @@ def normalise(message):
     different static files, and one restart names whichever plugin happened to
     be mid-request — so a single event arrived as a dozen separate signatures,
     each of them brand new, each worth its own email. The varying part must
-    never reach the key.
+    never reach the key, and an ABSENT value normalises to the same
+    placeholder as a present one.
 
     Applied to the KEY only. The displayed message keeps its real filename and
     plugin name, so the email still says which one it was.
@@ -264,7 +332,8 @@ def normalise(message):
     text = _NAMED_PLUGIN_RE.sub(r"\1<plugin>\3", message)
     text = _PLUGIN_ID_RE.sub("<pluginid>", text)
     text = _PATH_RE.sub("<path>", text)
-    return re.sub(r"\d+", "#", text)
+    text = re.sub(r"\d+", "#", text)
+    return _EMPTY_ADDR_RE.sub("from #.#.#.#", text)
 
 
 def signature(base_src, message):
@@ -366,10 +435,71 @@ def mark_recovered(records, rules=None):
     return records
 
 
+def mark_explained(records, rules=None):
+    """Flag error records a DIFFERENT source already accounted for, moments
+    before. Sets rec["explained"] to the rule's label; records must be
+    chronological.
+
+    The mirror of mark_recovered, looking backwards instead of forwards, and
+    across sources instead of within one. An IWS 500 raised while the server is
+    restarting a plugin is a consequence of the restart, not a fault of its own,
+    and the log says so two lines up.
+
+    As with recovery, nothing is suppressed on the strength of a rule. Absent
+    the causing line the record stays an error and alerts, so the day these
+    500s start arriving on their own — which is what September's did, 86 times
+    out of 112 — the watch says so.
+    """
+    rules = rules or []
+    if not rules:
+        return records
+    for index, rec in enumerate(records):
+        base, level = classify(rec["src"], rec["tv"])
+        if level != "error":
+            continue
+        for rule in rules:
+            try:
+                src_match, fail_pattern, cause_src, cause_pattern, window, label = rule
+            except (ValueError, TypeError):
+                continue           # malformed rule excuses nothing
+            if src_match and src_match not in base:
+                continue
+            try:
+                if not re.search(fail_pattern, rec["msg"], re.I):
+                    continue
+            except re.error:
+                continue
+            for earlier in reversed(records[:index]):
+                gap = (rec["ts"] - earlier["ts"]).total_seconds()
+                if gap < 0 and -3660 <= gap and rec["ts"].month == 10:
+                    gap = 0.0      # the October fold hour; rows are in log order
+                if gap < 0:
+                    continue
+                if gap > window:
+                    break          # chronological, so nothing earlier can qualify
+                earlier_base, earlier_level = classify(earlier["src"], earlier["tv"])
+                if cause_src and cause_src not in earlier_base:
+                    continue
+                if earlier_level == "error":
+                    continue       # one fault never excuses another
+                try:
+                    if not re.search(cause_pattern, earlier["msg"], re.I):
+                        continue
+                except re.error:
+                    continue
+                rec["explained"] = label
+                break
+            if rec.get("explained"):
+                break
+    return records
+
+
 def _is_fail_line(message):
     """True when a message matches any RECOVERS fail pattern — a complete
     failure line in its own right, never the tail of the one before."""
-    for rule in _cfg("RECOVERS", RECOVERS) or []:
+    rules = list(_cfg("RECOVERS", RECOVERS) or [])
+    rules += list(_cfg("EXPLAINED_BY", EXPLAINED_BY) or [])
+    for rule in rules:
         try:
             if re.search(rule[1], str(message or ""), re.I):
                 return True
@@ -449,21 +579,31 @@ def collapse(records, muted=None, self_prefix=SELF_PREFIX):
                 "last":    rec["ts"],
                 "muted":   is_muted(base, rec["msg"], muted),
                 "recovered": 1 if rec.get("recovered") else 0,
+                "explained": 1 if rec.get("explained") else 0,
+                "reason":    rec.get("explained") or "",
             }
         else:
             entry["count"] += 1
             entry["last"] = max(entry["last"], rec["ts"])
             entry["first"] = min(entry["first"], rec["ts"])
             entry["recovered"] += 1 if rec.get("recovered") else 0
+            entry["explained"] += 1 if rec.get("explained") else 0
+            entry["reason"] = entry["reason"] or (rec.get("explained") or "")
             if entry["level"] == "warn" and level == "error":
                 entry["level"] = "error"
         out[key].setdefault("times", []).append(rec["ts"])
     # Quiet only when EVERY occurrence in this window was answered. One
     # unanswered failure among fifty recoveries is the one that matters, so a
     # partial recovery still alerts on the whole signature.
+    # Quiet only when EVERY occurrence in this window was accounted for, by the
+    # source answering it or by a rule finding its cause. Mixed windows alert:
+    # one unexplained 500 among fifty cascade ones is the one that matters.
     for entry in out.values():
         entry["recovered_all"] = bool(
             entry["count"] and entry["recovered"] == entry["count"])
+        entry["explained_all"] = bool(
+            entry["count"] and entry["explained"] == entry["count"])
+        entry["quiet"] = entry["recovered_all"] or entry["explained_all"]
     return out
 
 
@@ -486,7 +626,7 @@ def decide(current, known, now, quiet_hours=QUIET_HOURS,
     for key, cur in current.items():
         if cur["level"] not in alert_levels or cur.get("muted"):
             continue
-        if cur.get("recovered_all"):
+        if cur.get("recovered_all") or cur.get("explained_all"):
             continue
         prev = known.get(key)
         if prev is None:
@@ -520,15 +660,21 @@ def build_feed(current, now):
             # Shown, never hidden — the dashboard says "answered" rather than
             # pretending the failed attempt was never logged.
             "recovered": bool(entry.get("recovered_all")),
+            # Shown as "explained", never as "answered" — a plugin restart does
+            # not answer a 500, it accounts for it, and the card says which.
+            "explained": bool(entry.get("explained_all")),
+            "reason":    entry.get("reason") or "",
             "first":   _fmt(entry["first"]),
             "last":    _fmt(entry["last"]),
         })
     rows.sort(key=lambda r: (r["level"] != "error",
-                             r["muted"] or r["recovered"], -r["count"]))
+                             r["muted"] or r["recovered"] or r["explained"],
+                             -r["count"]))
 
     def _counts(level):
         return sum(1 for r in rows
-                   if r["level"] == level and not r["muted"] and not r["recovered"])
+                   if r["level"] == level and not r["muted"]
+                   and not r["recovered"] and not r["explained"])
 
     return {
         "generatedLocal": _fmt(now),
@@ -782,6 +928,9 @@ def main(dry_run=False, quiet=False):
     # Recovery is decided BEFORE collapse, because it needs the info rows that
     # collapse throws away — the success line is what proves the retry landed.
     records = mark_recovered(merge_continuations(rows), _cfg("RECOVERS", []))
+    # Explanation is decided BEFORE collapse for the same reason recovery is:
+    # the causing line is an INFO row, and collapse throws those away.
+    records = mark_explained(records, _cfg("EXPLAINED_BY", []))
     current = collapse(records, muted)
     state = load_state(state_path)
     known = state.get("signatures", {})
@@ -843,13 +992,18 @@ def main(dry_run=False, quiet=False):
             # The newest occurrence the source did NOT answer, carried forward
             # when this window answered every one — the triage feed skips a
             # recovered signature only when this is older than its cutoff.
-            "last_unanswered": (prev.get("last_unanswered") if entry.get("recovered_all")
+            "last_unanswered": (prev.get("last_unanswered") if entry.get("quiet")
                                 else _fmt(entry["last"])),
             # THIS WINDOW's verdict, deliberately not sticky — the run after a
             # genuine unanswered failure flips it back to False and the triage
             # feed picks the signature up again. A sticky flag would be an
             # exemption, which is the thing this must never become.
             "recovered":  bool(entry.get("recovered_all")),
+            # Same contract as `recovered` above — THIS window's verdict, never
+            # sticky. The run after a 500 with no restart behind it flips this
+            # back to False and the triage feed picks the signature up again.
+            "explained":  bool(entry.get("explained_all")),
+            "reason":     entry.get("reason") or "",
             "alerted_at": prev.get("alerted_at"),
             # A failed delivery stays pending until it is actually delivered —
             # it used to be reset to False whenever the signature reappeared

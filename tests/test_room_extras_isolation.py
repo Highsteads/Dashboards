@@ -1,0 +1,58 @@
+#! /usr/bin/env python
+# -*- coding: utf-8 -*-
+# Filename:    test_room_extras_isolation.py
+# Description: One room's roomExtras entry of the wrong shape must cost that
+#              room its extras and nothing more (v3.25.0). It used to raise out
+#              of _build_rooms_json every 30 s, so rooms.json went stale for
+#              every room in the house. The Settings save now refuses such an
+#              entry up front as well.
+# Author:      CliveS & Claude Opus 5.5
+# Date:        23-09-2026
+# Version:     1.0
+from conftest import bare_plugin
+
+SECTIONS = ("lights", "motion", "radiators", "windows", "sensors", "extras")
+
+
+def _room(**kw):
+    r = {k: [] for k in SECTIONS}
+    r.update(kw)
+    return r
+
+
+def _plugin(extras):
+    p = bare_plugin()
+    p.room_extras = extras
+    return p
+
+
+def test_a_bad_room_does_not_stop_the_good_ones():
+    p = _plugin({
+        "Kitchen": ["not", "an", "object"],                 # wrong shape entirely
+        "Hall": {"hideDeviceIds": [[1, 2]]},                # unhashable -> raises
+        "Lounge": {"hideDeviceIds": [11], "plugs": [12]},   # fine
+    })
+    rooms = {"Kitchen": _room(lights=[1]), "Hall": _room(lights=[3]),
+             "Lounge": _room(lights=[11, 12, 13])}
+    p._merge_room_extras(rooms)
+    assert rooms["Lounge"]["lights"] == [13]
+    assert rooms["Lounge"]["plugs"] == [12]
+    assert rooms["Kitchen"]["lights"] == [1]                 # untouched, not lost
+    assert p.logger.warning.call_count == 2
+    said = " ".join(str(c.args[0]) for c in p.logger.warning.call_args_list)
+    assert "Kitchen" in said and "Hall" in said
+
+
+def test_the_warning_is_once_per_fault_not_every_build():
+    p = _plugin({"Kitchen": 5})
+    for _ in range(3):
+        p._merge_room_extras({"Kitchen": _room()})
+    assert p.logger.warning.call_count == 1
+
+
+def test_include_and_hide_still_work():
+    p = _plugin({"Garage": {"include": {"sensors": [7]}, "hideDeviceIds": [8]}})
+    rooms = {"Garage": _room(sensors=[8], extras=[7])}
+    p._merge_room_extras(rooms)
+    assert rooms["Garage"]["sensors"] == [7]
+    assert rooms["Garage"]["extras"] == []

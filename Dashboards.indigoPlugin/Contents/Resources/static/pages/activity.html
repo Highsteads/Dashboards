@@ -176,7 +176,7 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
             body: "{}" });
     }
 
-    function esc(t) { const d = document.createElement("div"); d.textContent = String(t==null?"":t); return d.innerHTML; }
+    function esc(t) { return DashUI.esc(t); }   // v3.25.0: escapes quotes too
     // Resolved at RENDER time, not module time — this inline script runs
     // before dashboards-icons.js loads (it sits at the end of <body>), so a
     // constant built here would freeze every icon as "" for the page's life.

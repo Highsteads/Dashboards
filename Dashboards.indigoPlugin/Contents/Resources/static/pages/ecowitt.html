@@ -1120,11 +1120,7 @@
     }
 
 
-    function escapeHtml(t) {
-        const d = document.createElement("div");
-        d.textContent = String(t == null ? "" : t);
-        return d.innerHTML;
-    }
+    function escapeHtml(t) { return DashUI.esc(t); }   // v3.25.0: escapes quotes too
     </script>
 
     <footer class="bottombar">

@@ -573,7 +573,7 @@ const gbp = DashCalc.gbp;
    page carried its own older copies, which is exactly the drift the shared
    module exists to prevent. esc/_wireHelpTips stay local (not in DashUI). */
 const setText = DashUI.setText;
-function esc(t) { return String(t == null ? '' : t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function esc(t) { return DashUI.esc(t); }   // v3.25.0: escapes quotes too
 const cssVar = DashUI.cssVar;
 function fmtDate(iso) {
   if (!iso) return '';

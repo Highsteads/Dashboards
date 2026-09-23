@@ -58,6 +58,8 @@ function run(tariff) {
   vm.runInContext(fs.readFileSync(path.join(PAGES, "energy-calc.js"), "utf8")
     .replace(/^/, "var window = this;\n"), ctx);
   ctx.DashCalc = ctx.window.DashCalc;
+  // The page's esc() delegates to the shared DashUI.esc (v3.25.0).
+  vm.runInContext(fs.readFileSync(path.join(PAGES, "dashboards-ui.js"), "utf8"), ctx);
   vm.runInContext(extract("function esc("), ctx);
   vm.runInContext(extract("function tierRows("), ctx);
   vm.runInContext(extract("function renderTariffSide("), ctx);

@@ -1,13 +1,26 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 # Filename:    Drive_Lights_Sun.py
-# Description: The drive lights — Garage Light and Front Door Light — on at
-#              100% from sunset to sunrise, off the rest of the time. One
-#              script owns them; it replaces seven separate pieces of
+# Description: The outside lights — Garage Light, Front Door Light and Back Door
+#              Light — on at 100% from sunset to sunrise, off the rest of the
+#              time. One script owns them; it replaces seven separate pieces of
 #              automation that used to share the job between them.
+#
+#              The FILE is still called Drive_Lights_Sun because the Dashboards
+#              plugin ticks it by name; only the drive lights were here at the
+#              start.
 # Author:      CliveS & Claude Fable 5.1
 # Date:        02-09-2026 + UK Time Now
-# Version:     1.1
+# Version:     1.2
+#
+# v1.2 (09-09-2026): the Back Door Light joins them. It used to be driven by the
+#   side passage motion sensors — motion turns it on, a one-minute timer turns it
+#   off again — and all three of those sensors had been dead for months (the
+#   front one since October 2025) before anything noticed. The sensors, their
+#   triggers, the timer and both side-passage scripts are gone; the light is now
+#   simply on from sunset to sunrise like its neighbours. It is the same kind of
+#   device as the other two — a z2m Hue bulb reported as a DimmerDevice — so the
+#   loop below needed nothing but the extra entry.
 #
 # v1.1 (02-09-2026, Dashboards deep review): a bulb that reads back 98-99%
 #   after a setBrightness(100) is at full brightness — z2m maps the 0-254
@@ -50,6 +63,7 @@ from datetime import datetime, timedelta
 DEVICE_IDS = {
     "garage_light"     : 1641214619,   # "Garage Light"      (Hue A60, z2m)
     "front_door_light" : 1791262116,   # "Front Door Light"  (Hue A60, z2m)
+    "back_door_light"  : 10602184,     # "Back Door Light"   (z2mLight, added 09-09-2026)
 }
 
 BRIGHTNESS = 100        # per CliveS: full brightness, not a dimmed level
@@ -126,7 +140,7 @@ def owner_plugin_running(device):
 
 
 def apply(lit):
-    """Bring both lights to the wanted state. Commands only on a mismatch, so a
+    """Bring every light to the wanted state. Commands only on a mismatch, so a
     2-minute tick does not spam the Zigbee mesh all night."""
     changed = []
     for key, device_id in DEVICE_IDS.items():

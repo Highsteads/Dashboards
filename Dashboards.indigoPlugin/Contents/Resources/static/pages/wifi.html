@@ -243,7 +243,7 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
     function escapeAttr(t) { return escapeHtml(t).replace(/"/g, "&quot;"); }
     let _staleAll = false;    // controller unreachable: every AP's states are frozen
     function fmtWidth(w) { const n = num(w); return [20, 40, 80, 160, 240, 320].includes(n) ? n + "MHz" : (n === null ? "" : n + "MHz"); }   // same as wifi-ap.html: a 240 MHz 6 GHz radio showed blank here
-    function escapeHtml(t) { const d = document.createElement("div"); d.textContent = String(t == null ? "" : t); return d.innerHTML; }
+    function escapeHtml(t) { return DashUI.esc(t); }   // v3.25.0: escapes quotes too
     function fmtNum(v) { const n = Number(v); return (v === null || v === undefined || v === "" || isNaN(n)) ? "—" : (Math.round(n * 10) / 10); }
     function latClass(v) { const n = num(v); if (n === null) return ""; if (n >= 60) return "bad"; if (n >= 25) return "warn"; return "good"; }
     function loadClass(v) { const n = Number(v); if (isNaN(n)) return ""; if (n >= 90) return "bad"; if (n >= 75) return "warn"; return "good"; }
