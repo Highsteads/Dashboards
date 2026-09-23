@@ -359,7 +359,7 @@ function render(d) {
     if (ram.swap_used_mb != null) {
         const swCls = ram.swap_used_mb >= 1500 ? "bad" : ram.swap_used_mb >= 400 ? "warn" : "good";
         ramNote += ` Swap <b class="${swCls}">${num(ram.swap_used_mb/1024,2)} GB</b> of ${num((ram.swap_total_mb||0)/1024,1)} GB in use`;
-        ramNote += ram.swap_used_mb >= 400 ? " — the real pressure signal on a ${macGb} GB Mac." : ".";
+        ramNote += ram.swap_used_mb >= 400 ? ` — the real pressure signal on a ${macGb} GB Mac.` : ".";
     }
     html += meter("Memory", `${num(ram.used_gb)} / ${num(ram.total_gb)} GB · ${num(ram.used_pct,0)}%`,
         ram.used_pct, ramCls, ramNote);
@@ -394,7 +394,7 @@ function render(d) {
     const svcRow = (label, ok, okTxt, badTxt) =>
         `<div class="kv"><span>${label}</span><b class="${ok ? "good" : "bad"}">${ok ? okTxt : badTxt}</b></div>`;
     if (svc.cameras) {
-        html += svcRow("go2rtc transcoder", svc.go2rtc, "running", "not running");
+        html += svcRow("go2rtc (camera video)", svc.go2rtc, "running", "not running");
         html += svcRow("Camera proxy (:8177)", svc.proxy, "listening", "down");
         html += `<div class="kv"><span>Cameras configured</span><b>${svc.cameras}</b></div>`;
     } else {
