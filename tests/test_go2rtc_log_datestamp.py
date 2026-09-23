@@ -142,7 +142,7 @@ def test_config_builder_carries_no_time_key():
     like a fix while changing nothing."""
     import os
     sp = os.path.join(os.path.dirname(__file__), "..", "Dashboards.indigoPlugin",
-                      "Contents", "Server Plugin", "plugin.py")
+                      "Contents", "Server Plugin", "cameras_mixin.py")
     src = open(sp, encoding="utf-8").read()
     # The generated block is a list of literal yaml lines.
     assert '"  level: info"' in src, "log block moved — re-point this test"

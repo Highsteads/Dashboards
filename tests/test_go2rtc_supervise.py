@@ -35,7 +35,8 @@ def _sup(monkeypatch, wanted, proc, t=1000.0):
     p._start_go2rtc = lambda: starts.append(1)
     p._stamp_go2rtc_log = lambda *a, **k: None
     monkeypatch.setattr(plugin.time, "time", lambda: t)
-    monkeypatch.setattr(plugin, "log", lambda *a, **k: None)
+    import cameras_mixin
+    monkeypatch.setattr(cameras_mixin, "log", lambda *a, **k: None)
     return p, starts
 
 

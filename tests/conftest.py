@@ -73,6 +73,22 @@ def load_plugin_module():
     return plugin
 
 
+def plugin_source_files():
+    """Every module the Plugin class is built from (v3.32.0): plugin.py, the
+    *_mixin.py files it inherits, and dash_common.py / dash_util.py. A test
+    that reads the plugin's source reads all of them."""
+    import glob
+    here = os.path.abspath(SP)
+    return ([os.path.join(here, "plugin.py")]
+            + sorted(glob.glob(os.path.join(here, "*_mixin.py")))
+            + [os.path.join(here, "dash_common.py"), os.path.join(here, "dash_util.py")])
+
+
+def plugin_source():
+    """The text of plugin_source_files(), joined — still one valid module."""
+    return "\n\n".join(open(f, encoding="utf-8").read() for f in plugin_source_files())
+
+
 def bare_plugin():
     """A Plugin instance built WITHOUT running __init__ (which reads secrets,
     builds the config store, starts services). Instance methods that only read

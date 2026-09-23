@@ -48,9 +48,10 @@ def test_ticker_absent_or_erroring_reads_as_not_running(monkeypatch):
 
 
 def test_note_ticker_logs_only_changes(monkeypatch):
-    plugin = load_plugin_module()
+    load_plugin_module()
+    import scripts_mixin      # _note_ticker lives there since v3.32.0
     lines = []
-    monkeypatch.setattr(plugin, "log", lambda msg, **k: lines.append(msg))
+    monkeypatch.setattr(scripts_mixin, "log", lambda msg, **k: lines.append(msg))
     p = bare_plugin()
     state = {"running": False}
     p._ticker_running = lambda: state["running"]

@@ -16,7 +16,7 @@
 import json
 import os
 
-from conftest import load_plugin_module, bare_plugin
+from conftest import load_plugin_module, bare_plugin, plugin_source
 
 plugin = load_plugin_module()
 
@@ -70,7 +70,7 @@ def test_route_is_registered_in_actions_xml():
 
 
 def test_startup_sweeps_the_legacy_public_copy():
-    src = open(os.path.join(SP, "plugin.py"), encoding="utf-8").read()
+    src = plugin_source()
     i = src.find("def startup(self):")
     j = src.find("def stopConcurrentThread", i)
     body = src[i:j]

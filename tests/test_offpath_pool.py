@@ -29,7 +29,6 @@
 # Date:        18-09-2026 + UK time now
 # Version:     2.0
 
-import io
 import json
 import os
 import threading
@@ -37,7 +36,7 @@ import time
 
 import pytest
 
-from conftest import bare_plugin
+from conftest import bare_plugin, plugin_source
 
 SRC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..",
                    "Dashboards.indigoPlugin", "Contents", "Server Plugin", "plugin.py")
@@ -511,7 +510,7 @@ def test_the_guest_path_shares_the_history_cache(plug):
     30-day chart is 5-6 s of disk reads, and every guest request paid it
     afresh with no cache. It now uses the same key and producer as the main
     handler, with a long wait its own thread can afford."""
-    src = io.open(SRC, encoding="utf-8").read()
+    src = plugin_source()
     assert "plugin_self._history_key(flat)" in src
     assert "wait=plugin_self.GUEST_HISTORY_WAIT" in src
     assert "plugin_self._history_query(flat)" not in src, "a direct, uncached call is back"
@@ -555,7 +554,7 @@ def test_an_unreported_producer_failure_is_still_a_warning(plug):
 
 def test_startup_does_not_wait_for_go2rtc():
     import ast
-    tree = ast.parse(open(SRC, encoding="utf-8").read())
+    tree = ast.parse(plugin_source())
     startup = next(n for n in ast.walk(tree)
                    if isinstance(n, ast.FunctionDef) and n.name == "startup")
     direct = [n for n in ast.walk(startup) if isinstance(n, ast.Call)
@@ -586,7 +585,8 @@ def settle(monkeypatch):
     mod = sys.modules[type(bare_plugin()).__module__]
     monkeypatch.setattr(mod.time, "sleep", lambda s: None)
     lines = []
-    monkeypatch.setattr(mod, "log", lambda m, level="INFO": lines.append((level, m)))
+    import cameras_mixin      # the settle check lives there since v3.32.0
+    monkeypatch.setattr(cameras_mixin, "log", lambda m, level="INFO": lines.append((level, m)))
     p = bare_plugin()
     p._go2rtc_log_path = lambda: "go2rtc.log"
     p._cam_pool_closed = False

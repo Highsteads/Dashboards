@@ -31,9 +31,10 @@ def _setup(tmp_path, monkeypatch):
     (dst / "video-rtc.js").write_text("// go2rtc", encoding="utf-8")            # mirrored by versions before 3.26.0
     (dst / "rooms.json").write_text("{}", encoding="utf-8")                      # runtime data
     (dst / "cam-1.2.3.4.jpg").write_bytes(b"\xff\xd8")                           # snapshot
-    monkeypatch.setattr(plugin, "PAGES_SOURCE_DIR", str(src))
+    import publish_mixin      # the sync lives there since v3.32.0
+    monkeypatch.setattr(publish_mixin, "PAGES_SOURCE_DIR", str(src))
     monkeypatch.setattr(p, "_public_dashboards_dir", lambda: str(dst))
-    monkeypatch.setattr(plugin, "log", lambda *a, **k: None)
+    monkeypatch.setattr(publish_mixin, "log", lambda *a, **k: None)
     return plugin, p, src, dst
 
 

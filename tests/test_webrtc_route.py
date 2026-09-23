@@ -18,6 +18,7 @@ import threading
 from conftest import load_plugin_module, bare_plugin
 
 plugin = load_plugin_module()
+import cameras_mixin  # noqa: E402  (the go2rtc port is read there since v3.32.0)
 
 
 # ── Stub go2rtc ────────────────────────────────────────────────
@@ -54,12 +55,12 @@ def _with_stub(behaviour, fn):
     port = srv.server_address[1]
     t = threading.Thread(target=srv.serve_forever, daemon=True)
     t.start()
-    old = plugin.GO2RTC_API_PORT
-    plugin.GO2RTC_API_PORT = port
+    old = cameras_mixin.GO2RTC_API_PORT
+    cameras_mixin.GO2RTC_API_PORT = port
     try:
         return fn(port)
     finally:
-        plugin.GO2RTC_API_PORT = old
+        cameras_mixin.GO2RTC_API_PORT = old
         srv.shutdown()
         srv.server_close()
 
@@ -111,12 +112,12 @@ def test_empty_answer_is_an_error_not_a_success():
 
 def test_unreachable_go2rtc_maps_to_502():
     p = bare_plugin()
-    old = plugin.GO2RTC_API_PORT
-    plugin.GO2RTC_API_PORT = 1  # nothing listens on port 1
+    old = cameras_mixin.GO2RTC_API_PORT
+    cameras_mixin.GO2RTC_API_PORT = 1  # nothing listens on port 1
     try:
         status, _ctype, payload = p._forward_whep("garage", b"v=0")
     finally:
-        plugin.GO2RTC_API_PORT = old
+        cameras_mixin.GO2RTC_API_PORT = old
     assert status == 502
     assert b"unreachable" in payload
 
@@ -127,7 +128,7 @@ def test_unreachable_go2rtc_maps_to_502():
 # the source instead, the way the .mjs suites pin page behaviour.
 def _do_post_source():
     import inspect
-    src = inspect.getsource(plugin)
+    src = inspect.getsource(cameras_mixin)
     m = re.search(r"def do_POST\(self\):(.*?)def do_GET\(self\):", src, re.S)
     assert m, "do_POST not found ahead of do_GET"
     return m.group(1)
@@ -165,7 +166,7 @@ def test_handler_answer_is_cors_readable():
 
 def test_options_preflight_scoped_to_webrtc():
     import inspect
-    src = inspect.getsource(plugin)
+    src = inspect.getsource(cameras_mixin)
     m = re.search(r"def do_OPTIONS\(self\):(.*?)def do_POST\(self\):", src, re.S)
     assert m, "do_OPTIONS not found ahead of do_POST"
     body = m.group(1)

@@ -13,7 +13,8 @@ from conftest import bare_plugin, load_plugin_module
 
 
 def _plugin(monkeypatch, **legacy):
-    mod = load_plugin_module()
+    load_plugin_module()
+    import config_mixin as mod      # the import lives there since v3.32.0
     for k in ("DASHBOARDS_CAMERAS", "DASHBOARDS_MAIN_CAMERAS",
               "DASHBOARDS_ROOM_EXTRAS", "DASHBOARDS_HIDDEN_SCENES"):
         monkeypatch.setattr(mod, k, legacy.get(k, [] if "EXTRAS" not in k else {}))

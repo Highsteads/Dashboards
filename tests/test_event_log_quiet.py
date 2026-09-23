@@ -33,7 +33,7 @@ import re
 
 import pytest
 
-from conftest import SP, bare_plugin, load_plugin_module
+from conftest import SP, bare_plugin, load_plugin_module, plugin_source_files
 
 PLUGIN_PY = os.path.join(SP, "plugin.py")
 CONFIG_XML = os.path.join(SP, "PluginConfig.xml")
@@ -42,11 +42,8 @@ CONFIG_XML = os.path.join(SP, "PluginConfig.xml")
 def _tree():
     """plugin.py AND the mixin modules beside it (v3.30.0 split the plugin),
     parsed into one module so a check sees every method wherever it lives."""
-    import glob as _glob
-    here = os.path.dirname(PLUGIN_PY)
-    files = [PLUGIN_PY] + sorted(_glob.glob(os.path.join(here, "*_mixin.py")))
     body = []
-    for f in files:
+    for f in plugin_source_files():
         body.extend(ast.parse(io.open(f, encoding="utf-8").read()).body)
     return ast.Module(body=body, type_ignores=[])
 
@@ -430,7 +427,8 @@ def test_actions_taken_on_the_house_stay_in_the_event_log():
 def test_fault_recovery_notices_stay_in_the_event_log():
     """Log_Error_Watch suppresses on evidence of success, so the line that
     closes a fault matters as much as the one that raises it."""
-    src = io.open(PLUGIN_PY, encoding="utf-8").read()
+    from conftest import plugin_source
+    src = plugin_source()
     assert 'log(f"[Poller] {name} recovered")' in src
     assert 'recovered after {st[\'fail_count\']} failures")' in src
 
@@ -520,7 +518,8 @@ def mirrored():
     a leaked mirror would quietly attach itself to whatever ran next in the
     session - the trap the old module-level camera list used to set too.
     """
-    plugin = load_plugin_module()
+    load_plugin_module()
+    import dash_common as plugin    # log() and its mirror live there since v3.32.0
     before = plugin._FILE_MIRROR
     collector = _Collector()
     plugin._install_file_mirror(collector)
@@ -531,7 +530,8 @@ def mirrored():
 
 def test_the_mirror_fixture_leaves_nothing_behind():
     """Guards the fixture itself, before anything relies on it."""
-    plugin = load_plugin_module()
+    load_plugin_module()
+    import dash_common as plugin    # log() and its mirror live there since v3.32.0
     assert plugin._FILE_MIRROR is None
     assert not logging.getLogger("Plugin.eventlog").handlers
 
@@ -591,7 +591,8 @@ def test_installing_twice_still_writes_one_line(mirrored):
 def test_a_host_with_no_file_handler_still_logs_to_the_event_log():
     """The log directory can fail to be created. That must cost the mirror,
     never the event-log line."""
-    plugin = load_plugin_module()
+    load_plugin_module()
+    import dash_common as plugin    # log() and its mirror live there since v3.32.0
     plugin._install_file_mirror(None)
     plugin.indigo.server.log.reset_mock()
     plugin.log("still shouts", level="WARNING")

@@ -117,15 +117,21 @@ Dashboards/
 └── README.md                      the front page
 ```
 
-`plugin.py` holds the plugin's core: start-up and shutdown, cameras and the :8177 proxy, the
-settings store, page publishing and the endpoints that go with them. Four features live in mixin
-modules beside it, which `Plugin` inherits, so every method is still `self.<name>` and
+`plugin.py` holds the plugin's core: start-up and shutdown, the background loop, the rooms and
+scenes maps, the weather card, the liveness stamp and most of the page endpoints. Everything else
+lives in modules beside it, which `Plugin` inherits, so every method is still `self.<name>` and
 `Actions.xml` still names the same callbacks:
 
 | Module | What it holds |
 |---|---|
+| `cameras_mixin.py` | go2rtc, the :8177 MJPEG proxy and guest server, the snapshot poller and its thumbnails, and the stream and camera-health files |
+| `config_mixin.py` | The settings store (`dashboards_config.json`), the one-time import of legacy settings, and the Settings page's load and save |
+| `publish_mixin.py` | Copying the pages into `Web Assets/public/dashboards` and writing `config.js`, with its flags for optional plugins |
+| `health_mixin.py` | The System Health page: Mac vitals, storage, services and the device census |
+| `scripts_mixin.py` | The companion-script runner, its schedule and the hand-over to Script Ticker |
 | `history_mixin.py` | Everything that reads the SQL Logger history: Graphs, Timeline, the per-string solar hours, and the primary-key helpers that keep those queries off a full scan |
 | `mains_mixin.py` | The Mains and Meter pages: every 240 V meter and how far each can be trusted |
 | `insights_mixin.py` | Home Insights, the hub's "out of the ordinary" card |
 | `carbon_mixin.py` | The Carbon page's grid-intensity advice |
+| `dash_common.py` | The constants and the `log()` helper every module shares |
 | `dash_util.py` | Small pure helpers the modules share |

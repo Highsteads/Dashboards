@@ -1,0 +1,1382 @@
+#! /usr/bin/env python
+# -*- coding: utf-8 -*-
+# Filename:    cameras_mixin.py
+# Description: Cameras: the go2rtc video service, the :8177 MJPEG proxy and guest
+#              server, the snapshot poller and its thumbnails, and the
+#              stream and camera-health files the Cameras page reads.
+#              Split out of plugin.py in v3.32.0; Plugin inherits it.
+# Author:      CliveS & Claude Opus 5.5
+# Date:        23-09-2026
+# Version:     1.0
+
+try:
+    import indigo
+except ImportError:
+    pass
+
+import json
+import os
+import shutil
+import threading
+import time
+from datetime import datetime
+
+from dash_common import (
+    CAMERA_DEFAULT_STREAM,
+    CAMERA_HTTP_TIMEOUT,
+    CAMERA_POLL_MAX_WORKERS,
+    CAMERA_RETRY_DELAY,
+    CAMERA_SNAPSHOT_WIDTH,
+    CAMERA_THUMB_QUALITY,
+    CAMERA_THUMB_WIDTH,
+    GO2RTC_API_PORT,
+    GO2RTC_BIN,
+    GO2RTC_RTSP_PORT,
+    GO2RTC_WEBRTC_PORT,
+    MJPEG_PROXY_PORT,
+    MJPEG_UPSTREAM_TIMEOUT,
+    VENDOR_URLS,
+    log,
+)
+
+
+class CamerasMixin:
+    # --------------------------------------------------------
+    # MJPEG proxy (tiny HTTP server in a daemon thread)
+    # --------------------------------------------------------
+
+    # --------------------------------------------------------
+    # WebRTC signalling forward (WHEP) — v2.68.0
+    # --------------------------------------------------------
+    def _forward_whep(self, slug, body):
+        """Forward a WHEP SDP offer to go2rtc's loopback API and return
+        (status, content_type, payload_bytes) for the handler to relay.
+
+        Contract verified live against go2rtc 1.9.14 (30-Jul-2026):
+        POST /api/webrtc?src=<slug> with Content-Type: application/sdp
+        answers 201 Created, application/sdp, SDP answer in the body.
+        There is NO /api/whep alias (404). The RAW H.264 slug is used, NOT
+        <slug>_mjpeg — WebRTC takes the H.264 straight through with no
+        ffmpeg leg, and the answer negotiates H264 payload types.
+
+        This is a SHORT-LIVED request on one of the proxy's per-connection
+        threads: go2rtc answers in milliseconds (static candidates, no
+        gathering wait), and the MEDIA then flows browser<->go2rtc:8555
+        directly — it never transits the plugin process, so unlike /mjpeg
+        this holds zero long-lived plugin threads.
+        """
+        import urllib.request
+        import urllib.error
+        from urllib.parse import quote as _q
+        url = (f"http://127.0.0.1:{GO2RTC_API_PORT}/api/webrtc"
+               f"?src={_q(slug, safe='')}")
+        req = urllib.request.Request(
+            url, data=body, method="POST",
+            headers={"Content-Type": "application/sdp"})
+        try:
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                payload = resp.read()
+                ctype = resp.headers.get("Content-Type", "application/sdp")
+                if 200 <= resp.status < 300 and payload:
+                    return 200, ctype, payload
+                return 502, "text/plain", (
+                    f"go2rtc answered {resp.status} with no SDP".encode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            detail = b""
+            try:
+                detail = exc.read()[:200]
+            except Exception:
+                pass
+            return 502, "text/plain", (
+                f"go2rtc {exc.code}: ".encode("utf-8") + detail)
+        except TimeoutError:
+            return 504, "text/plain", b"go2rtc timed out"
+        except Exception as exc:
+            if "timed out" in str(exc).lower():
+                return 504, "text/plain", b"go2rtc timed out"
+            return 502, "text/plain", f"go2rtc unreachable: {exc}".encode("utf-8")
+
+    def _start_mjpeg_proxy(self):
+        """Bind a small HTTP server to MJPEG_PROXY_PORT and serve one endpoint
+        per camera. Each request opens an upstream MJPEG stream to the camera
+        (Digest auth) and pipes the multipart bytes straight to the client.
+        Per-request thread because socketserver's ThreadingMixIn handles each
+        connection on its own thread — fine for 3 cameras × a few viewers."""
+        # v1.20.1: the proxy also serves /bootstrap (LAN/Tailscale-only API-key
+        # seed for the dashboard pages), so it now starts even with no cameras
+        # configured — camera routes just 404 in that case.
+        cameras_enabled = bool(self.cam_user and self.cam_pass and self.cameras)
+        if not cameras_enabled and not self.api_key:
+            log("[MJPEG] No cameras configured and no API key — proxy disabled",
+                level="WARNING")
+            self._mjpeg_server = None
+            return
+        if not cameras_enabled:
+            if self.cameras:
+                log("[MJPEG] cameras are configured but DAHUA_USER/DAHUA_PASS are not "
+                    "set — camera routes disabled, /bootstrap only", level="WARNING")
+            else:
+                self.logger.info("[MJPEG] no cameras configured — /bootstrap only")
+
+        import http.server
+        import ipaddress
+        import socketserver
+        import threading
+        from urllib.parse import urlparse
+
+        # Map host → go2rtc stream slug. The MJPEG proxy targets go2rtc's
+        # transcoded-MJPEG endpoint (mainstream H.264 → MJPEG via ffmpeg) so
+        # the picture stays sharp regardless of how the camera's own MJPEG
+        # substream is configured. Goodbye Garage shimmer.
+        host_to_slug  = {c["host"]: self._cam_slug(c["name"]) for c in self.cameras}
+        allowed_hosts = set(host_to_slug.keys())
+        plugin_self   = self
+
+        class _Handler(http.server.BaseHTTPRequestHandler):
+            # Socket timeout (v2.95.2). StreamRequestHandler applies this to
+            # the request socket, so a client that connects and never sends a
+            # request line, or a viewer whose write side has stalled, is
+            # dropped after 30 s instead of pinning a handler thread — and,
+            # for /mjpeg, an ffmpeg transcode in go2rtc — for ever. A healthy
+            # MJPEG stream writes many times a second, so it never trips.
+            timeout = 30
+
+            # Silence default per-request access logging — we'd flood the event log.
+            def log_message(self, format, *args):
+                pass
+
+            def _client_is_private(self):
+                """True only for LAN / Tailscale / loopback sources. This port
+                is not fronted by the Indigo reflector and must not be exposed
+                through the router, but the explicit source check means a
+                mistaken port-forward still doesn't leak the key."""
+                try:
+                    addr = ipaddress.ip_address(self.client_address[0])
+                except Exception:
+                    return False
+                # is_private covers RFC1918 + loopback + link-local; Tailscale
+                # uses CGNAT 100.64.0.0/10 which is NOT is_private, so add it.
+                return addr.is_private or addr in ipaddress.ip_network("100.64.0.0/10")
+
+            def _echo_same_host_origin(self):
+                """Send Access-Control-Allow-Origin ONLY when the caller's Origin
+                is served from THIS SAME MACHINE (same hostname as the request
+                Host). Used on responses that carry a token/credential so a
+                drive-by page in a LAN/Tailnet browser (different hostname) can't
+                read the body cross-origin. Same guard as /bootstrap (v2.35.0);
+                extended to /guest-bootstrap + /streams in v2.36.0."""
+                from urllib.parse import urlparse as _up
+                origin = self.headers.get("Origin", "")
+                req_host = (self.headers.get("Host", "") or "").rsplit(":", 1)[0].strip("[]").lower()
+                origin_host = (_up(origin).hostname or "").lower() if origin else ""
+                if origin and req_host and origin_host == req_host:
+                    self.send_header("Access-Control-Allow-Origin", origin)
+                    self.send_header("Vary", "Origin")
+
+            # ── WebRTC signalling (WHEP) — v2.68.0 ─────────────────
+            # POST /webrtc/<host> forwards the browser's SDP offer to
+            # go2rtc's loopback API and relays the answer. Same security
+            # model as /mjpeg: private sources only, configured-camera
+            # allowlist, port never fronted by the reflector. The answer
+            # carries session ICE credentials and the LAN candidate — no
+            # camera passwords. Media never touches this process.
+            def do_OPTIONS(self):
+                # The page origin is :8176, this proxy is :8177, and an
+                # application/sdp POST is non-simple — Safari preflights.
+                # Without this handler the whole feature dies before the
+                # first byte of SDP is sent.
+                parsed = urlparse(self.path)
+                if parsed.path.startswith("/guest/"):
+                    # The guest routes are read with a custom X-Guest-Token
+                    # header, which makes every fetch non-simple, so the
+                    # browser preflights — and until 2.95.1 this 404'd the
+                    # preflight, which meant no browser could use the guest
+                    # tier at all. Same-host only, never "*".
+                    self.send_response(204)
+                    self._echo_same_host_origin()
+                    self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+                    self.send_header("Access-Control-Allow-Headers", "X-Guest-Token")
+                    self.send_header("Access-Control-Max-Age", "86400")
+                    self.end_headers()
+                    return
+                if not parsed.path.startswith("/webrtc/"):
+                    self.send_error(404, "not found")
+                    return
+                self.send_response(204)
+                self._echo_same_host_origin()      # same-host, not "*" (v2.95.1)
+                self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
+                self.send_header("Access-Control-Allow-Headers", "Content-Type")
+                self.send_header("Access-Control-Max-Age", "86400")
+                self.end_headers()
+
+            def do_POST(self):
+                parsed = urlparse(self.path)
+                if not parsed.path.startswith("/webrtc/"):
+                    self.send_error(404, "not found")
+                    return
+                if not self._client_is_private():
+                    self.send_error(403, "forbidden")
+                    return
+                host = parsed.path[len("/webrtc/"):]
+                if host not in allowed_hosts:
+                    self.send_error(403, "host not allowed")
+                    return
+                try:
+                    length = int(self.headers.get("Content-Length", ""))
+                except (TypeError, ValueError):
+                    self.send_error(400, "Content-Length required")
+                    return
+                # An SDP offer is 2-8 KB; 64 KB is generous. Reject BEFORE
+                # reading, so an oversized body cannot be pulled into memory.
+                if length <= 0 or length > 65536:
+                    self.send_error(400, "body size out of range")
+                    return
+                body = self.rfile.read(length)
+                status, ctype, payload = plugin_self._forward_whep(
+                    host_to_slug[host], body)
+                self.send_response(status)
+                self.send_header("Content-Type", ctype)
+                self.send_header("Cache-Control", "no-store")
+                self._echo_same_host_origin()      # same-host, not "*" (v2.95.1)
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+
+            def do_GET(self):
+                # Routes:
+                #   /mjpeg/<host>?subtype=N    → live multipart stream
+                #   /bootstrap                 → API-key seed (private sources only)
+                #   /healthz                   → "ok"
+                parsed = urlparse(self.path)
+                if parsed.path == "/healthz":
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/plain")
+                    self.end_headers()
+                    self.wfile.write(b"ok")
+                    return
+
+                # ── Guest tier (v2.1.0) — READ-ONLY data path ────────────
+                # Guest devices hold only the guest token, never the API key,
+                # so there is no control surface on them at all. The proxy
+                # fetches from IWS server-side with the real key and pipes the
+                # JSON through, keeping the response shape identical to
+                # /v2/api so the pages work unchanged. Private sources only;
+                # :8177 is never fronted by the reflector.
+                if parsed.path == "/guest-bootstrap":
+                    if not self._client_is_private():
+                        self.send_error(403, "forbidden")
+                        return
+                    payload = json.dumps({"guestToken": plugin_self.guest_token}).encode("utf-8")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    # v2.36.0 SECURITY: same-host-only CORS (was '*'). The guest
+                    # token is a credential — a drive-by LAN/Tailnet page must not
+                    # read it cross-origin and then reach the /guest/* read routes.
+                    self._echo_same_host_origin()
+                    self.send_header("Cache-Control", "no-store")
+                    self.send_header("Content-Length", str(len(payload)))
+                    self.end_headers()
+                    self.wfile.write(payload)
+                    plugin_self.logger.info(
+                        f"[Guest] Guest token issued to {self.client_address[0]}")
+                    return
+
+                if parsed.path.startswith("/guest/"):
+                    from urllib.parse import parse_qs
+                    qs = parse_qs(parsed.query or "")
+                    supplied = (self.headers.get("X-Guest-Token")
+                                or (qs.get("token") or [""])[0] or "")
+                    import hmac
+                    tok = plugin_self.guest_token or ""
+                    if not (self._client_is_private() and tok
+                            and hmac.compare_digest(str(supplied).encode("utf-8"),
+                                                    str(tok).encode("utf-8"))):   # constant-time (v2.38.0); bytes so non-ASCII cannot raise
+                        self.send_error(401, "guest token required")
+                        return
+
+                    def _send_json(payload_bytes, status=200):
+                        self.send_response(status)
+                        self.send_header("Content-Type", "application/json")
+                        # Same-host CORS (the v2.36.0 rule) — a wildcard let
+                        # any website open in the guest's browser read the
+                        # guest data cross-origin.
+                        self._echo_same_host_origin()
+                        self.send_header("Access-Control-Allow-Headers", "X-Guest-Token")
+                        self.send_header("Cache-Control", "no-store")
+                        self.send_header("Content-Length", str(len(payload_bytes)))
+                        self.end_headers()
+                        self.wfile.write(payload_bytes)
+
+                    sub = parsed.path[len("/guest/"):]
+                    if sub == "changedSince":
+                        # Served straight from the plugin's change ledger —
+                        # same payload shape as the IWS changedSince action.
+                        try:
+                            since = float((qs.get("since") or ["0"])[0])
+                        except ValueError:
+                            since = 0.0
+                        body = plugin_self._changed_since_payload(since)
+                        _send_json(json.dumps(body).encode("utf-8"))
+                        return
+
+                    if sub == "history":
+                        # Read-only history series for guest devices (v2.4.0).
+                        # Through the shared pool since v3.27.0: a 30-day chart
+                        # is 5-6 s of disk reads, and every guest request used
+                        # to pay it afresh. Now repeats within HISTORY_TTL share
+                        # one build — with the main pages too — and this thread,
+                        # being the proxy's own, can afford to wait for it.
+                        flat = {k: (v[0] if v else "") for k, v in qs.items()}
+                        state, got = plugin_self._offpath_get(
+                            plugin_self._history_key(flat),
+                            lambda: plugin_self._history_producer(flat),
+                            plugin_self.HISTORY_TTL, wait=plugin_self.GUEST_HISTORY_WAIT)
+                        if state == "fresh" and got.get("client_error"):
+                            _send_json(json.dumps({"ok": False, "error": got["client_error"]}
+                                                  ).encode("utf-8"), status=400)
+                        elif state == "fresh":
+                            _send_json(json.dumps(got["result"]).encode("utf-8"))
+                        elif state == "failed":
+                            self.send_error(500, f"history query failed: {got}")
+                        else:
+                            _send_json(json.dumps({"ok": False, "pending": True,
+                                                   "error": "the chart is still being built"}
+                                                  ).encode("utf-8"), status=503)
+                        return
+
+                    # Read-only passthroughs to IWS (server-side Bearer).
+                    iws_path = None
+                    if sub == "devices":
+                        iws_path = "/v2/api/indigo.devices"
+                    elif sub == "variables":
+                        iws_path = "/v2/api/indigo.variables"
+                    elif sub.startswith("device/"):
+                        dev_part = sub[len("device/"):]
+                        if dev_part.isdigit():
+                            iws_path = f"/v2/api/indigo.devices/{dev_part}"
+                    if iws_path is None:
+                        self.send_error(404, "unknown guest route")
+                        return
+                    import urllib.request
+                    try:
+                        req = urllib.request.Request(
+                            f"{plugin_self.api_url}{iws_path}",
+                            headers={"Authorization": f"Bearer {plugin_self.api_key}",
+                                     "Accept": "application/json"})
+                        with urllib.request.urlopen(req, timeout=8.0) as r:
+                            raw = r.read()
+                        # SCRUB before relaying (v2.95.1). The v2 API device
+                        # object carries pluginProps / globalProps / ownerProps,
+                        # and plugins keep credentials in props — the Email+
+                        # SMTP device's serverPassword among them — so the
+                        # "read-only, no control surface" guest tier was
+                        # handing the household mail password to anyone who
+                        # scanned the pairing QR. The pages read names, states
+                        # and the class fields only.
+                        try:
+                            body = plugin_self._guest_scrub(json.loads(raw))
+                            _send_json(json.dumps(body).encode("utf-8"))
+                        except ValueError:
+                            self.send_error(502, "IWS returned non-JSON")
+                    except Exception as exc:
+                        self.send_error(502, f"IWS fetch failed: {exc}")
+                    return
+
+                if parsed.path == "/bootstrap":
+                    # One-shot credential seed for dashboards-auth.js: a browser
+                    # on the LAN/Tailnet fetches this on first visit, stores the
+                    # key in localStorage and never asks again. Anything outside
+                    # the private ranges gets a 403 (and can't reach this port
+                    # anyway — the reflector only fronts IWS).
+                    if not (plugin_self.api_key and self._client_is_private()):
+                        self.send_error(403, "forbidden")
+                        return
+                    # v2.36.0 SECURITY: source-IP alone can't tell a guest-tier
+                    # device from a trusted one, so on a LAN any guest device
+                    # could self-upgrade by fetching the full key here. When key
+                    # auto-seed is turned off, /bootstrap is disabled entirely and
+                    # trusted devices pair via the one-time setup links instead —
+                    # making the guest boundary real. Default keeps auto-seed on.
+                    if not plugin_self.bootstrap_key_seed:
+                        self.send_error(403, "key auto-seed disabled — use a setup link")
+                        return
+                    # SECURITY (confirmed 14-Jul-2026): this response carries the
+                    # full Indigo API key, so it must NOT be readable cross-origin.
+                    # The old Access-Control-Allow-Origin:* let any website open in
+                    # a LAN/Tailnet browser fetch and read the key (the victim
+                    # browser is itself on a private IP, so _client_is_private
+                    # doesn't help). Echo an allow-origin ONLY when the caller's
+                    # Origin is served from THIS SAME MACHINE (same hostname as the
+                    # request Host) — that is the legitimate consumer,
+                    # dashboards-auth.js on the IWS web port fetching this proxy
+                    # cross-port. A drive-by page (evil.com) has a different
+                    # hostname, gets no CORS grant, and cannot read the body. A
+                    # same-host match would require already serving a page from the
+                    # Indigo box itself, i.e. a prior compromise.
+                    from urllib.parse import urlparse as _urlparse
+                    origin = self.headers.get("Origin", "")
+                    req_host = (self.headers.get("Host", "") or "").rsplit(":", 1)[0].strip("[]").lower()
+                    origin_host = (_urlparse(origin).hostname or "").lower() if origin else ""
+                    payload = json.dumps({"apiKey": plugin_self.api_key}).encode("utf-8")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    if origin and req_host and origin_host == req_host:
+                        self.send_header("Access-Control-Allow-Origin", origin)
+                        self.send_header("Vary", "Origin")
+                    self.send_header("Cache-Control", "no-store")
+                    self.send_header("Content-Length", str(len(payload)))
+                    self.end_headers()
+                    self.wfile.write(payload)
+                    # Once per client address per plugin run. A browser
+                    # re-fetches this on every page load, so at INFO it grew
+                    # with the number of tabs opened; a NEW address is the
+                    # part actually worth a line in the shared log.
+                    _ip = self.client_address[0]
+                    if plugin_self._note_bootstrap_seed(_ip):
+                        plugin_self.logger.info(f"[Bootstrap] API key seeded to {_ip}")
+                    else:
+                        plugin_self.logger.debug(f"[Bootstrap] API key re-seeded to {_ip}")
+                    return
+
+                if not parsed.path.startswith("/mjpeg/"):
+                    self.send_error(404, "not found")
+                    return
+                # Same source rule as every other route on this port
+                # (v2.95.1). It was the one route without it — the one
+                # carrying the bulkiest private data on the box.
+                if not self._client_is_private():
+                    self.send_error(403, "forbidden")
+                    return
+
+                host = parsed.path[len("/mjpeg/"):]
+                if host not in allowed_hosts:
+                    self.send_error(403, "host not allowed")
+                    return
+
+                slug = host_to_slug[host]
+                # All cameras go through go2rtc's ffmpeg-transcoded MJPEG —
+                # works the same for Dahua and Hikvision because go2rtc only
+                # cares about the RTSP source. Local connection, no auth.
+                import requests
+                upstream = (f"http://127.0.0.1:{GO2RTC_API_PORT}/api/stream.mjpeg"
+                            f"?src={slug}_mjpeg")
+                auth     = None
+
+                try:
+                    r = requests.get(
+                        upstream,
+                        auth=auth,
+                        stream=True,
+                        timeout=MJPEG_UPSTREAM_TIMEOUT,
+                    )
+                except Exception as exc:
+                    plugin_self.logger.warning(
+                        f"[MJPEG] {host} upstream connect failed: {exc}")
+                    self.send_error(502, "upstream connect failed")
+                    return
+
+                try:
+                    if r.status_code != 200:
+                        plugin_self.logger.warning(
+                            f"[MJPEG] {host} upstream HTTP {r.status_code}")
+                        self.send_error(502, f"upstream {r.status_code}")
+                        return
+
+                    ct = r.headers.get("Content-Type", "multipart/x-mixed-replace; boundary=myboundary")
+                    self.send_response(200)
+                    self.send_header("Content-Type", ct)
+                    self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+                    self.send_header("Pragma", "no-cache")
+                    self.send_header("Connection", "close")
+                    # CORS: the pages are same-host on another port, and the
+                    # cameras page sets crossOrigin="anonymous" on the <img>
+                    # so it can copy the last frame to a canvas — which makes
+                    # this header load-bearing. Same-host echo, not "*"
+                    # (v2.95.1): a wildcard let any page in a LAN browser read
+                    # the video cross-origin.
+                    self._echo_same_host_origin()
+                    self.end_headers()
+
+                    chunks = r.iter_content(chunk_size=16384)
+                    while True:
+                        try:
+                            chunk = next(chunks)
+                        except StopIteration:
+                            break
+                        except Exception as exc:
+                            # UPSTREAM died mid-stream (go2rtc restart, camera
+                            # drop). Ending quietly beats the per-client
+                            # traceback http.server printed when this raised
+                            # straight out of do_GET.
+                            plugin_self.logger.debug(
+                                f"[MJPEG] {host} upstream ended mid-stream: {exc}")
+                            break
+                        if not chunk:
+                            continue
+                        try:
+                            self.wfile.write(chunk)
+                        except (BrokenPipeError, ConnectionResetError, OSError):
+                            # Client disconnected — close the upstream and bail.
+                            break
+                finally:
+                    try:
+                        r.close()
+                    except Exception:
+                        pass
+
+        class _Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
+            daemon_threads      = True
+            allow_reuse_address = True
+
+        try:
+            srv = _Server(("0.0.0.0", MJPEG_PROXY_PORT), _Handler)
+        except Exception as exc:
+            log(f"[MJPEG] Could not bind :{MJPEG_PROXY_PORT}: {exc}", level="ERROR")
+            self._mjpeg_server = None
+            return
+
+        self._mjpeg_server = srv
+        thread = threading.Thread(target=srv.serve_forever, daemon=True, name="MjpegProxy")
+        thread.start()
+        self._activity(f"[MJPEG] Proxy listening on :{MJPEG_PROXY_PORT}")
+
+    def _stop_mjpeg_proxy(self):
+        if getattr(self, "_mjpeg_server", None):
+            try:
+                self._mjpeg_server.shutdown()
+                self._mjpeg_server.server_close()
+                self._activity("[MJPEG] Proxy stopped")
+            except Exception as exc:
+                log(f"[MJPEG] Shutdown error: {exc}", level="WARNING")
+            self._mjpeg_server = None
+
+    # --------------------------------------------------------
+    # go2rtc lifecycle (WebRTC backend for live.html)
+    # --------------------------------------------------------
+
+    def _go2rtc_dir(self):
+        """Per-plugin prefs folder. Indigo guarantees this path is writeable
+        and survives version upgrades."""
+        base = indigo.server.getInstallFolderPath()
+        d = os.path.join(base, "Preferences", "Plugins", self.pluginId, "go2rtc")
+        os.makedirs(d, exist_ok=True)
+        return d
+
+    def _go2rtc_config_path(self):
+        return os.path.join(self._go2rtc_dir(), "go2rtc.yaml")
+
+    def _go2rtc_log_path(self):
+        return os.path.join(self._go2rtc_dir(), "go2rtc.log")
+
+    def _write_go2rtc_config(self):
+        """Generate go2rtc.yaml from self.cameras + DAHUA_USER/PASS. Each camera
+        gets a stream name = sanitised display name; the RTSP URL pulls the
+        mainstream so go2rtc can repackage to WebRTC/MSE on demand."""
+        import shutil
+        from urllib.parse import quote
+        user_q = quote(self.cam_user, safe="")
+        pass_q = quote(self.cam_pass, safe="")
+
+        # Indigo's plugin host runs with a minimal PATH that excludes Homebrew,
+        # so go2rtc would otherwise fail with `exec: "ffmpeg": executable file
+        # not found`. Resolve the absolute path here and write it into the yaml.
+        ffmpeg_bin = (shutil.which("ffmpeg")
+                      or shutil.which("ffmpeg", path="/opt/homebrew/bin:/usr/local/bin")
+                      or "")
+
+        lines = [
+            "# Generated by Dashboards plugin — do not edit by hand.",
+            "",
+            "api:",
+            # LOOPBACK ONLY, and no wildcard origin. go2rtc's API needs no
+            # authentication and /api/streams returns each camera's full RTSP
+            # URL — which carries DAHUA_USER:DAHUA_PASS in clear text. Bound to
+            # ':1984' it answered every host on the LAN, and `origin: '*'` meant
+            # ANY web page open in ANY browser on the network could fetch it
+            # cross-origin and read the camera password. Every consumer in this
+            # plugin already dials 127.0.0.1, no dashboard page references the
+            # port, and live.html — the WebRTC page the wildcard was added for —
+            # was retired, so closing this costs nothing. The public view is
+            # streams.json, written through _sanitise_streams (v2.35.0), which
+            # drops producer URLs; this shuts the door the sanitiser was standing
+            # in front of. Live-confirmed exposed before the fix.
+            f"  listen: '127.0.0.1:{GO2RTC_API_PORT}'",
+            "",
+            "rtsp:",
+            f"  listen: '127.0.0.1:{GO2RTC_RTSP_PORT}'",   # only go2rtc's own ffmpeg leg dials it (v2.95.2)
+            "",
+            "webrtc:",
+            # UDP AND TCP on the same port (was '/tcp' = TCP-only until
+            # v2.68.0). UDP is WebRTC's normal path, it works over the
+            # Tailscale subnet route, and iOS Safari's ICE-over-TCP support
+            # is doubtful — the away live tile leads with UDP. The port is
+            # LAN-bound reachability either way: no port-forward, not
+            # fronted by the reflector.
+            f"  listen: ':{GO2RTC_WEBRTC_PORT}'",
+            "  candidates:",
+            f"    - {self.lan_ip}:{GO2RTC_WEBRTC_PORT}",
+            # The old 'stun:8555' line is deliberately GONE (v2.68.0): it
+            # made go2rtc advertise the WAN address in every SDP answer
+            # (live-confirmed 51.x.x.x:8555 in a real answer) — unreachable
+            # without a port-forward we refuse to add, so it was pure ICE
+            # noise plus a WAN-address leak to every LAN/Tailnet caller.
+            "",
+            "log:",
+            "  level: info",
+            # DO NOT add a `time:` key here hoping to date the lines — it does
+            # nothing. go2rtc's console writer hardcodes zerolog's TimeFormat to
+            # "15:04:05.000" (the literal is in the binary), so `time:` reaches
+            # structured output only. MEASURED 13-08-2026 by running go2rtc
+            # 1.9.14 twice on throwaway configs on unused ports, identical but
+            # for the key: both logged "09:31:35.010", no date either way.
+            # Dating is done by _stamp_go2rtc_log() instead.
+            #
+            # NB the first attempt to test this in place proved NOTHING and
+            # nearly shipped as fact: _start_go2rtc calls _write_go2rtc_config,
+            # so a hand-patched go2rtc.yaml is REGENERATED before the child
+            # starts and the key was gone before go2rtc ever read the file.
+            # Test a config change in isolation, not against a file the plugin
+            # owns and rewrites.
+            "",
+        ]
+        if ffmpeg_bin:
+            lines += [
+                "ffmpeg:",
+                f"  bin: {ffmpeg_bin}",
+                "",
+            ]
+        else:
+            log("[go2rtc] ffmpeg not found on PATH — MJPEG transcode will fail. "
+                "Install Homebrew ffmpeg (searched: PATH, /opt/homebrew/bin, /usr/local/bin).",
+                level="WARNING")
+        lines += ["streams:"]
+        # Two streams per camera:
+        #   <slug>        = H.264 RTSP source. Mainstream or sub2 per the
+        #                   camera's `stream` field in DASHBOARDS_CAMERAS
+        #                   (default sub2). Available for direct RTSP
+        #                   consumers; not used by the page after retiring
+        #                   live.html.
+        #   <slug>_mjpeg  = same source transcoded → MJPEG via ffmpeg.
+        #                   Consumed by the plugin's MJPEG proxy. With sub2
+        #                   as the source the transcode is roughly half the
+        #                   CPU of mainstream.
+        sub2_count = 0
+        main_count = 0
+        for cam in self.cameras:
+            slug   = self._cam_slug(cam["name"])
+            vendor = cam.get("vendor", "dahua")
+            stream = cam.get("stream", CAMERA_DEFAULT_STREAM)
+            tpl_key = f"rtsp_{stream}"
+            v_urls = VENDOR_URLS.get(vendor, VENDOR_URLS["dahua"])
+            tpl   = v_urls.get(tpl_key, v_urls["rtsp_main"])
+            rtsp  = tpl.format(user=user_q, pwd=pass_q, host=cam["host"])
+            lines.append(f"  {slug}: {rtsp}")
+            # ffmpeg: source is the named stream <slug>; #video=mjpeg adds an
+            # MJPEG re-encode in front of go2rtc's MJPEG consumer.
+            lines.append(f"  {slug}_mjpeg: ffmpeg:{slug}#video=mjpeg")
+            if stream == "sub2": sub2_count += 1
+            else:                main_count += 1
+
+        path = self._go2rtc_config_path()
+        # Create 0600 in one step (v2.38.0): this file holds the camera RTSP
+        # credentials, and a plain open()+chmod left a brief window where it was
+        # world-readable under the default umask.
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+        os.chmod(path, 0o600)        # ensure 0600 even if the file pre-existed
+        self._activity(f"[go2rtc] Wrote config {path} ({len(self.cameras)} streams: "
+                       f"{main_count} main, {sub2_count} sub2)")
+        return path
+
+    @staticmethod
+    def _cam_slug(name):
+        """Stable stream name for a camera: lowercase, spaces → underscores."""
+        return "".join(c if c.isalnum() else "_" for c in name.lower()).strip("_")
+
+    def _start_go2rtc(self, settle=True):
+        """Launch go2rtc as a subprocess. We don't keep stdout in memory —
+        it's redirected to a logfile so the event log stays clean.
+
+        settle=False (startup only, v3.23.1) skips the one-second
+        exited-immediately check here; the caller runs _go2rtc_settle_check()
+        on a background thread instead, so start-up does not wait on it."""
+        import urllib.request      # module-local: plugin.py never imports
+                                   # urllib at top level, and the orphan guard
+                                   # below silently NameError'd without this
+                                   # from v2.37.0 until v2.55.0.
+        # Intent, kept separately from the process handle (v2.95.1). The
+        # supervisor reads "handle is None" as "never started (no cameras)",
+        # but every failure path in here ALSO clears the handle — so a
+        # supervised restart that failed to bind (port still held for a
+        # second after a crash) read as 'never started' and supervision
+        # stopped for good. _go2rtc_wanted says whether there is anything to
+        # supervise at all; the handle says whether it is currently running.
+        self._go2rtc_wanted = False
+        if not self.cameras:
+            self._go2rtc_proc = None             # nothing to stream: quiet by design
+            return
+        if not (self.cam_user and self.cam_pass):
+            log("[go2rtc] cameras are configured but DAHUA_USER/DAHUA_PASS are not set — "
+                "WebRTC backend disabled", level="WARNING")
+            self._go2rtc_proc = None
+            return
+        # Binary resolution: PluginConfig `go2rtcPath` first, then the PATH,
+        # then the historical ~/bin/go2rtc — the pinned path was the only
+        # option before v2.73.0 and a Homebrew install simply never worked.
+        go2rtc_bin = ((self.pluginPrefs.get("go2rtcPath", "") or "").strip()
+                      or shutil.which("go2rtc") or GO2RTC_BIN)
+        self._go2rtc_bin = go2rtc_bin
+        if not os.path.isfile(go2rtc_bin) or not os.access(go2rtc_bin, os.X_OK):
+            log(f"[go2rtc] Binary not found or not executable at {go2rtc_bin} — "
+                f"live.html will not work. Install: download go2rtc_mac_arm64.zip "
+                f"from https://github.com/AlexxIT/go2rtc/releases", level="WARNING")
+            self._go2rtc_proc = None
+            return
+
+        try:
+            cfg = self._write_go2rtc_config()
+        except Exception as exc:
+            # A config-write failure must cost cameras only, never the whole
+            # startup chain — this ran unguarded inside startup() before.
+            log(f"[go2rtc] Could not write go2rtc.yaml: {exc} — cameras "
+                f"disabled until fixed", level="ERROR")
+            self._go2rtc_proc = None
+            return
+        # Everything a start needs is present from here on, so whatever
+        # happens below is a FAILURE to supervise, not an absence to ignore.
+        self._go2rtc_wanted = True
+        import subprocess
+        # Orphan guard (v2.37.0): go2rtc is deliberately detached
+        # (start_new_session=True) so it survives a plugin SIGTERM, and only
+        # _stop_go2rtc kills it. After an UNCLEAN plugin exit (kill -9, host
+        # crash, forced restart) the old instance keeps :1984/:8554/:8555, the
+        # new Popen fails to bind and dies into the logfile, and health checks
+        # then see the ORPHAN answering on the PREVIOUS config — so camera or
+        # credential edits silently never take effect. If anything is already
+        # answering on :1984 before we launch, kill our stale go2rtc first.
+        try:
+            with urllib.request.urlopen(
+                    f"http://127.0.0.1:{GO2RTC_API_PORT}/api", timeout=1.0) as _r:
+                if _r.status == 200:
+                    log("[go2rtc] Found an instance already on "
+                        f":{GO2RTC_API_PORT} (orphan from an unclean exit) — "
+                        "terminating it before starting fresh", level="WARNING")
+                    subprocess.run(["/usr/bin/pkill", "-f",
+                                    f"{go2rtc_bin} -config {cfg}"],
+                                   capture_output=True)
+                    time.sleep(0.5)
+        except (urllib.error.URLError, OSError, TimeoutError):
+            pass   # nothing answering on :1984 — the normal case
+        except Exception as exc:
+            # Anything else means the GUARD itself is broken, not that the port
+            # is free. Swallowing that silently is how this check sat dead from
+            # v2.37.0 to v2.55.0 — a missing import raised NameError straight
+            # into a bare `except Exception: pass` and looked exactly like the
+            # normal case. Never let a failed check pass as a passed check.
+            log(f"[go2rtc] orphan check failed to run ({type(exc).__name__}: "
+                f"{exc}) — starting anyway, but a stale instance would not "
+                f"have been detected", level="WARNING")
+        # Augment PATH so go2rtc can find ffmpeg (Indigo's plugin host PATH is
+        # minimal and excludes Homebrew). The yaml's `ffmpeg.bin` setting is
+        # the primary mechanism; this PATH augmentation is belt-and-braces in
+        # case ffmpeg calls out to other tools (e.g. ffprobe) without absolute paths.
+        env = os.environ.copy()
+        env["PATH"] = (
+            "/opt/homebrew/bin:/usr/local/bin:/opt/local/bin:"
+            + env.get("PATH", "")
+        )
+        try:
+            # Cap the go2rtc log (v2.38.0): it's append-only across every
+            # restart and ffmpeg is chatty, so it grew without bound. Start a
+            # fresh file whenever it passes ~5 MB (we only keep it for triage).
+            _logp = self._go2rtc_log_path()
+            try:
+                if os.path.exists(_logp) and os.path.getsize(_logp) > 5 * 1024 * 1024:
+                    open(_logp, "wb").close()
+            except OSError:
+                pass
+            # 0600, like go2rtc.yaml beside it (v2.95.1). go2rtc echoes every
+            # RTSP source URL — user:password@host — into its log at startup
+            # and on each reconnect: 562 copies of the camera password were
+            # sitting in a 0644 file that any local account, backup or
+            # support paste could read. Created private, and an existing
+            # file is healed on every start.
+            _old = getattr(self, "_go2rtc_logfile", None)
+            if _old is not None:                 # a supervised restart leaked one fd per start
+                try:
+                    _old.close()
+                except Exception:
+                    pass
+            _fd = os.open(_logp, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+            log_f = os.fdopen(_fd, "ab", buffering=0)
+            try:
+                os.chmod(_logp, 0o600)
+            except OSError:
+                pass
+            self._go2rtc_logfile = log_f
+            # Force one so a rotated (truncated) file opens dated, and so the
+            # very first line after a start can always be placed on a day.
+            self._go2rtc_log_day = None
+            self._stamp_go2rtc_log(force=True)
+            self._go2rtc_proc = subprocess.Popen(
+                [go2rtc_bin, "-config", cfg],
+                env=env,
+                stdout=log_f,
+                stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL,
+                close_fds=True,
+                start_new_session=True,    # so SIGTERM to plugin doesn't auto-kill it; we do that explicitly
+            )
+            self._activity(f"[go2rtc] Started (pid {self._go2rtc_proc.pid}) - "
+                           f"API http://127.0.0.1:{GO2RTC_API_PORT}/ (loopback only)")
+            if settle:
+                self._go2rtc_settle_check()
+        except Exception as exc:
+            log(f"[go2rtc] Could not start: {exc}", level="ERROR")
+            self._go2rtc_proc = None
+
+    def _stamp_go2rtc_log(self, force=False):
+        """Write a dated marker into go2rtc.log when the local date rolls over.
+
+        go2rtc stamps the TIME only and cannot be configured otherwise (see the
+        note in the config builder), so a line in a log spanning several days
+        cannot be placed on a day. That cost real diagnostic work on 13-08-2026:
+        the log held camera failures and there was no way to tell last night's
+        from the same failures a week earlier.
+
+        Deliberately markers, NOT a pipe. Reading the child's stdout through a
+        pipe to prefix each line would let a stalled reader fill the 64 KB pipe
+        buffer and BLOCK go2rtc — trading a logging nicety for a wedged camera
+        backend. Appending a line a day to the file the child already holds open
+        adds no failure mode at all: both ends append, and a marker that fails to
+        write costs nothing.
+        """
+        try:
+            handle = getattr(self, "_go2rtc_logfile", None)
+            if handle is None or handle.closed:
+                return
+            # NB `datetime` here is the CLASS (from datetime import datetime),
+            # not the module — datetime.datetime.now() raises AttributeError,
+            # which the except below would have swallowed into a marker that
+            # silently never appeared.
+            today = datetime.now().strftime("%Y-%m-%d %A")
+            if not force and today == getattr(self, "_go2rtc_log_day", None):
+                return
+            handle.write(f"===== {today} — date marker (go2rtc stamps time only) "
+                         f"=====\n".encode("utf-8"))
+            self._go2rtc_log_day = today
+        except Exception:
+            # Never let a log cosmetic touch the supervision path it rides on.
+            pass
+
+    def _go2rtc_settle_check(self):
+        """Catch an immediate bind failure (e.g. a port still held) rather
+        than reporting a phantom-healthy start. True if go2rtc is still up
+        a second after launch."""
+        proc = getattr(self, "_go2rtc_proc", None)
+        if proc is None:
+            return False
+        time.sleep(1.0)
+        if getattr(self, "_cam_pool_closed", False):
+            return False                 # shutting down: an exit now is ours
+        rc = proc.poll()
+        if rc is not None:
+            log(f"[go2rtc] Exited immediately (code {rc}) — likely a port "
+                f"still in use; see {self._go2rtc_log_path()}", level="ERROR")
+            if self._go2rtc_proc is proc:  # the supervisor may have moved on
+                self._go2rtc_proc = None
+            return False
+        return True
+
+    def _go2rtc_boot_bg(self):
+        """Start-up thread body (v3.23.1): the settle check. A failure is
+        logged, never allowed to vanish with the thread. (It also mirrored
+        go2rtc's video-rtc.js / video-stream.js into /public until v3.26.0;
+        no page has loaded them since live.html was retired.)"""
+        try:
+            self._go2rtc_settle_check()
+        except Exception as exc:
+            log(f"[go2rtc] settle check failed: {exc}", level="WARNING")
+
+    def _supervise_go2rtc(self):
+        """Restart go2rtc if it died mid-run. Until v2.72.0 a crash killed
+        every camera function — snapshots, MJPEG, WebRTC — SILENTLY until a
+        manual plugin restart (the only mid-run check was the /streams
+        consumer path, which merely errored). Called from the poller's 30 s
+        sweep; backoff stops a crash-looping binary from thrashing."""
+        proc = getattr(self, "_go2rtc_proc", None)
+        if proc is not None and proc.poll() is None:
+            # Healthy is the common case, and a healthy go2rtc can run for days
+            # (this one had been up since Tuesday), so the date marker has to go
+            # here rather than only on the restart path.
+            self._stamp_go2rtc_log()
+            return                      # healthy
+        if proc is None and not getattr(self, "_go2rtc_wanted", False):
+            return                      # never started: no cameras, no binary
+        # Either the process exited, or a previous start was WANTED and failed
+        # (a bind that lost the race with the old instance's port, say) and
+        # cleared the handle. Both retry under the same backoff. Until 2.95.1
+        # the second case took the 'never started' exit above, so one failed
+        # supervised restart switched supervision off for good — every camera
+        # function dead until someone restarted the plugin by hand, which is
+        # precisely the failure this method exists to remove.
+        now = time.time()
+        if now < getattr(self, "_go2rtc_retry_at", 0):
+            return
+        backoff = min(getattr(self, "_go2rtc_backoff", 30), 600)
+        self._go2rtc_retry_at = now + backoff
+        self._go2rtc_backoff = backoff * 2
+        if proc is not None:
+            log(f"[go2rtc] process died (exit {proc.returncode}) — restarting "
+                f"(retry in {backoff:.0f}s if it dies again)", level="WARNING")
+        else:
+            log(f"[go2rtc] last start failed — trying again "
+                f"(next retry in {backoff:.0f}s if this one fails)", level="WARNING")
+        self._go2rtc_proc = None
+        try:
+            self._start_go2rtc()
+            live = getattr(self, "_go2rtc_proc", None)
+            if live is not None and live.poll() is None:
+                self._go2rtc_backoff = 30           # healthy again — reset
+        except Exception as exc:
+            log(f"[go2rtc] supervised restart failed: {exc}", level="ERROR")
+
+    def _stop_go2rtc(self):
+        proc = getattr(self, "_go2rtc_proc", None)
+        if proc:
+            try:
+                proc.terminate()
+                # Short on purpose: this runs inside the plugin's ~20 s
+                # polite-quit budget alongside every other stop. go2rtc exits
+                # on SIGTERM in well under a second; if it has not gone in 2 s
+                # it is not going to, so kill it rather than wait.
+                try:
+                    proc.wait(timeout=2)
+                except Exception:
+                    proc.kill()
+                    try:
+                        proc.wait(timeout=1)
+                    except Exception:
+                        pass
+                self._activity(f"[go2rtc] Stopped (pid {proc.pid})")
+            except Exception as exc:
+                log(f"[go2rtc] Shutdown error: {exc}", level="WARNING")
+            self._go2rtc_proc = None
+        lf = getattr(self, "_go2rtc_logfile", None)
+        if lf:
+            try: lf.close()
+            except Exception: pass
+            self._go2rtc_logfile = None
+
+    # --------------------------------------------------------
+    # Camera snapshot poller (background thread via runConcurrentThread)
+    # --------------------------------------------------------
+
+    def _cam_jpg_path(self, host):
+        return os.path.join(self._public_dashboards_dir(), f"cam-{host}.jpg")
+
+    def _cam_thumb_path(self, host):
+        return os.path.join(self._public_dashboards_dir(), f"cam-{host}-thumb.jpg")
+
+    def _make_thumb(self, jpeg_bytes):
+        """Shrink a snapshot for the grid. Returns bytes, or None if it cannot.
+
+        None is a perfectly good answer — the page falls back to the full-size
+        picture, which is what it used before this existed. That matters because
+        Pillow is a declared requirement rather than a guaranteed one: if the
+        install failed, or the frame is malformed, the cameras should carry on
+        looking exactly as they always did rather than showing nothing.
+        """
+        if self._thumb_broken:
+            return None
+        try:
+            from PIL import Image
+            import io
+            with Image.open(io.BytesIO(jpeg_bytes)) as im:
+                if im.width <= CAMERA_THUMB_WIDTH:
+                    return None                   # already small; no point
+                h = max(1, round(im.height * CAMERA_THUMB_WIDTH / im.width))
+                im = im.convert("RGB").resize((CAMERA_THUMB_WIDTH, h), Image.BILINEAR)
+                out = io.BytesIO()
+                im.save(out, format="JPEG", quality=CAMERA_THUMB_QUALITY, optimize=False)
+                return out.getvalue()
+        except ImportError:
+            # Latch it: this cannot fix itself while the plugin is running, and
+            # nine failed imports every two seconds is nine log lines a second.
+            self._thumb_broken = True
+            log("[Cameras] Pillow is not available, so grid thumbnails are off and "
+                "the full-size pictures will be used instead. This costs about "
+                "three times the data on a slow link. Restart the plugin to let "
+                "Indigo install it from requirements.txt.", level="WARNING")
+            return None
+        except Exception as exc:
+            # A single bad frame must not latch the feature off for good.
+            now = time.time()
+            if (now - self._thumb_last_log) > 300:
+                self._thumb_last_log = now
+                log(f"[Cameras] Could not shrink a snapshot for the grid: {exc}", level="WARNING")
+            return None
+
+    def _snapshot_pool(self):
+        """The snapshot fetch pool, created on first use.
+
+        Built lazily rather than in startup() so a camera-less install never
+        spawns threads it has no work for, and reused across ticks rather than
+        rebuilt — at a 2 s interval a per-tick pool would churn nine threads
+        every two seconds for no reason. Returns None once shutdown has begun
+        so a tick already in flight stops submitting.
+        """
+        if getattr(self, "_cam_pool_closed", False):
+            return None
+        pool = getattr(self, "_cam_pool", None)
+        if pool is None:
+            from concurrent.futures import ThreadPoolExecutor
+            # One worker per camera: they are all blocked on network I/O, so
+            # this is wait time overlapped, not CPU contention.
+            workers = max(1, min(len(self.cameras) or 1, CAMERA_POLL_MAX_WORKERS))
+            pool = ThreadPoolExecutor(max_workers=workers,
+                                      thread_name_prefix="DashSnap")
+            self._cam_pool = pool
+            self.logger.debug(f"[Cameras] snapshot pool started ({workers} workers)")
+        return pool
+
+    def _stop_snapshot_pool(self):
+        """Stop accepting snapshots without waiting for in-flight fetches.
+
+        wait=False, cancel_futures=True: a worker blocked in requests.get()
+        against a slow or dead camera would otherwise hold shutdown for its
+        full timeout (15 s, plus a retry), and the plugin host has ~20 s in
+        total before Indigo force-kills it. Nothing is lost by not waiting —
+        the workers are daemon threads, and _write_atomic means a snapshot
+        file is either the old one or the new one, never half-written.
+        """
+        self._cam_pool_closed = True
+        pool = getattr(self, "_cam_pool", None)
+        if pool is None:
+            return
+        try:
+            pool.shutdown(wait=False, cancel_futures=True)
+        except Exception:
+            pass
+        self._cam_pool = None
+
+    def _fetch_one_snapshot(self, host):
+        """Fetch a single JPEG via go2rtc's /api/frame.jpeg endpoint. This
+        decodes one frame from the camera's RTSP stream (the same source
+        go2rtc uses for the live MJPEG transcode), so any camera that streams
+        will also snapshot — even cameras whose own /snapshot.cgi endpoint is
+        broken (e.g. the Patio 4K returns HTTP 500 directly). Bonus: removes
+        the vendor-specific snapshot URL handling — go2rtc does that work."""
+        import requests
+        cam  = next((c for c in self.cameras if c["host"] == host), None)
+        slug = self._cam_slug((cam or {}).get("name", host))
+        url  = (f"http://127.0.0.1:{GO2RTC_API_PORT}/api/frame.jpeg"
+                f"?src={slug}&width={CAMERA_SNAPSHOT_WIDTH}")
+
+        def attempt():
+            try:
+                r = requests.get(url, timeout=CAMERA_HTTP_TIMEOUT, stream=False)
+                if r.status_code != 200:
+                    return False, f"HTTP {r.status_code}"
+                ct = r.headers.get("Content-Type", "")
+                if "image" not in ct:
+                    if not r.content:
+                        # go2rtc answers an unreachable camera with an EMPTY
+                        # 200 (mjpeg.go logs the dial error and returns
+                        # without writing), so this is the camera, not
+                        # go2rtc. Say so rather than name a blank header.
+                        return False, ("no picture from the camera: go2rtc "
+                                       "could not reach it")
+                    return False, f"unexpected content-type {ct!r}"
+                return True, r.content
+            except Exception as exc:
+                return False, str(exc)
+
+        ok, payload = attempt()
+        if ok:
+            return ok, payload
+
+        # ONE retry, after a short pause. go2rtc spawns ffmpeg to rescale each
+        # frame and it occasionally exits 69 (EX_UNAVAILABLE), which comes back
+        # here as a bare HTTP 500. It is transient: MEASURED over 270 requests,
+        # 4 failed and ALL FOUR succeeded on a single retry 250 ms later, with
+        # none needing a second. Without the retry each one costs that camera a
+        # whole 2 s cycle — its file is simply not rewritten — and puts a
+        # warning in the log that reads like a broken camera when nothing is
+        # wrong. Retrying is also why the failure rate is not worth chasing
+        # further: it is 1.5% of requests and it fixes itself.
+        #
+        # Deliberately ONE retry, not a loop. If go2rtc is genuinely wedged, a
+        # retry loop across nine cameras every two seconds makes it worse, and
+        # the caller already backs the camera off after repeated failures.
+        time.sleep(CAMERA_RETRY_DELAY)
+        ok, retry_payload = attempt()
+        if ok:
+            return True, retry_payload
+        # Report the FIRST error — it is the more informative of the two, and
+        # keeps the log message stable for a camera that is really down.
+        return False, payload
+
+    def _write_atomic(self, path, data):
+        """Write bytes to a temp file then rename — avoids the browser ever
+        reading a half-written JPEG. The temp name carries the writing
+        thread's id: the stamp thread, the snapshot pool and MainThread all
+        use this helper, and two concurrent writers sharing one ".tmp" could
+        interleave (open/truncate/replace) into a torn or vanished file."""
+        tmp = f"{path}.tmp.{threading.get_ident()}"
+        with open(tmp, "wb") as f:
+            f.write(data)
+        os.replace(tmp, path)
+
+    @staticmethod
+    def _copy_atomic(src, dst):
+        """shutil.copy2 into a directory IWS is serving TRUNCATES the
+        destination and then fills it, so a browser that asks for the file
+        during that window gets a short read and IWS answers 500.
+
+        That is where the "internal server error for request
+        /public/dashboards/standalone-nav.js" lines came from: every one of
+        them lands within seconds of a plugin restart, which is exactly when
+        the startup sync rewrites all 38 assets under the browser's feet.
+        config.js has been written atomically since v2.37.0 for the same
+        reason — its comment claimed every sibling did too, and none did.
+
+        Temp file in the SAME directory so os.replace stays on one filesystem
+        and is therefore atomic; a reader sees the old file or the new one.
+        """
+        tmp = dst + ".tmp"
+        shutil.copy2(src, tmp)
+        os.replace(tmp, dst)
+
+    def _fetch_go2rtc_streams(self):
+        """Fetch go2rtc's full /api/streams JSON. Returns parsed dict or None
+        if go2rtc is unreachable."""
+        import urllib.request
+        try:
+            with urllib.request.urlopen(
+                f"http://127.0.0.1:{GO2RTC_API_PORT}/api/streams",
+                timeout=2.0) as r:
+                return json.loads(r.read().decode("utf-8"))
+        except Exception:
+            return None
+
+    def _write_streams_json(self, streams):
+        """Mirror go2rtc /api/streams to Web Assets/public/dashboards/streams.json
+        so the cameras page can read it same-origin (port 8176) instead of
+        cross-port fetching to 8177. iOS Safari blocks the cross-port fetch
+        in some configurations even with CORS headers.
+        Adds a _writeTs (Unix epoch, seconds, fractional) so the page can do
+        delta math against the actual write time — otherwise the page poll
+        cadence and the file write cadence interleave and bandwidth alternates
+        between the real value and 0."""
+        if streams is None:
+            return
+        try:
+            payload = self._sanitise_streams(streams)
+            payload["_writeTs"] = time.time()
+            # A deliberately small, credential-free health summary for the
+            # anonymous cameras page.  The raw go2rtc map above has already
+            # been sanitised; do not add URLs, exception text or client data.
+            payload["_cameraHealth"] = self._camera_health_payload(self.cameras, self._cam_state)
+            path = os.path.join(self._public_dashboards_dir(), "streams.json")
+            self._write_atomic(path, json.dumps(payload).encode("utf-8"))
+        except Exception as exc:
+            log(f"[Cameras] streams.json write failed: {exc}", level="WARNING")
+
+    # Fields a guest may see on a device or variable object. Everything the
+    # pages read (id, name, class, states, on/brightness, timestamps, folder)
+    # and nothing a plugin might keep a secret in.
+    _GUEST_DROP_KEYS = frozenset({"pluginProps", "globalProps", "ownerProps",
+                                  "sharedProps", "description", "configured",
+                                  "address"})
+
+    @classmethod
+    def _guest_scrub(cls, obj):
+        """Strip plugin props (and the other free-text fields) from a v2 API
+        payload before it is relayed to a guest-token holder. Works on a
+        single object, a list of them, or the {"objects": [...]} envelope,
+        and leaves anything else alone."""
+        if isinstance(obj, list):
+            return [cls._guest_scrub(o) for o in obj]
+        if isinstance(obj, dict):
+            return {k: (cls._guest_scrub(v) if isinstance(v, (list, dict)) else v)
+                    for k, v in obj.items() if k not in cls._GUEST_DROP_KEYS}
+        return obj
+
+    @staticmethod
+    def _sanitise_streams(streams):
+        """Strip producer source URLs before the go2rtc streams map is written
+        to the ANONYMOUS /public namespace. An RTSP producer url is
+        rtsp://<user>:<pass>@host/... — i.e. the camera admin credentials — and
+        /public is served with no auth even over the reflector, so writing them
+        there is an internet-readable leak (SECURITY, confirmed 14-Jul-2026;
+        same /public-secret class the config.js hardening in v1.20.0 fixed).
+        The cameras page only ever reads producers[].bytes_recv + consumers +
+        _writeTs, never the url, so dropping every producer 'url' key costs the
+        UI nothing."""
+        safe = {}
+        for name, info in (streams or {}).items():
+            if not isinstance(info, dict):
+                safe[name] = info
+                continue
+            entry = {}
+            for key, val in info.items():
+                if key == "producers" and isinstance(val, list):
+                    entry[key] = [
+                        {pk: pv for pk, pv in prod.items() if pk != "url"}
+                        if isinstance(prod, dict) else prod
+                        for prod in val
+                    ]
+                elif key == "consumers" and isinstance(val, list):
+                    # Each consumer entry carries the VIEWER's IP, user agent
+                    # and negotiated SDP — none of it needed by the pages
+                    # (nothing reads past the count) and none of it belongs in
+                    # the anonymous /public namespace.
+                    entry["consumers_n"] = len(val)
+                else:
+                    entry[key] = val
+            safe[name] = entry
+        return safe
+
+    @staticmethod
+    def _camera_health_payload(cameras, states):
+        """Return public-safe snapshot health, never upstream error details.
+
+        The UI needs to distinguish a camera that is currently retrying from
+        one that has not yet completed its first poll.  Timestamps are useful
+        for age display but are not identifying information; URLs, exception
+        messages and viewer data remain private.
+        """
+        out = {}
+        for cam in cameras or []:
+            host = cam.get("host") if isinstance(cam, dict) else None
+            if not host:
+                continue
+            st = (states or {}).get(host, {})
+            fails = max(0, int(st.get("fail_count", 0) or 0))
+            last_ok = st.get("last_ok")
+            last_failure = st.get("last_failure")
+            if last_ok is None and last_failure is None:
+                state = "unknown"
+            elif fails >= 3:
+                state = "offline"
+            elif fails:
+                state = "retrying"
+            else:
+                state = "ok"
+            out[host] = {
+                "state": state,
+                "consecutiveFailures": fails,
+                "lastOkTs": last_ok,
+                "lastFailureTs": last_failure,
+            }
+        return out
+
+    def _snapshot_worker(self, cam):
+        """Fetch and store ONE camera's snapshot. Runs on a pool thread.
+
+        Kept deliberately self-contained: it touches only this camera's own
+        entry in self._cam_state (pre-created on the caller's thread) and its
+        own file, so no two workers can contend for anything.
+        """
+        host = cam["host"]
+        st   = self._cam_state[host]
+        try:
+            ok, payload = self._fetch_one_snapshot(host)
+            now = time.time()
+            if ok:
+                try:
+                    self._write_atomic(self._cam_jpg_path(host), payload)
+                    # The grid's smaller copy. Written SECOND and separately so a
+                    # resize failure can never cost us the full-size picture,
+                    # which is the one thing here that must always be there.
+                    thumb = self._make_thumb(payload)
+                    if thumb:
+                        self._write_atomic(self._cam_thumb_path(host), thumb)
+                    st["ok_count"] += 1
+                    st["last_ok"] = now
+                    if st["fail_count"] >= 3:                 # camera came back
+                        log(f"[Cameras] {cam['name']} ({host}) recovered after {st['fail_count']} failures")
+                    st["fail_count"] = 0
+                except Exception as exc:
+                    log(f"[Cameras] Could not write snapshot for {host}: {exc}", level="ERROR")
+            else:
+                st["fail_count"] += 1
+                st["last_failure"] = now
+                # Log on 1st failure and then every 60s while it keeps failing.
+                if st["fail_count"] == 1 or (now - st["last_log"]) > 60:
+                    log(f"[Cameras] {cam['name']} ({host}) snapshot failed: {payload}", level="WARNING")
+                    st["last_log"] = now
+        finally:
+            with self._cam_inflight_lock:
+                self._cam_inflight.discard(host)
+
+    def _poll_cameras_once(self):
+        """One sweep over every configured camera, live-viewed or not. Logs
+        failures throttled (state stored in self._cam_state) so the event log
+        doesn't flood when a camera is offline for hours.
+
+        The fetches run CONCURRENTLY. Serially, nine cameras took longer than
+        the 2 s poll interval, so passes ran back-to-back and each camera was
+        only refreshed every ~4 s (measured: mean 4.1 s over a 30 s window
+        across all nine). That is the floor on how fresh a dashboard tile can
+        possibly be, and it is most of the "the stills are five to ten seconds
+        behind" report — a client polling every 3 s was re-fetching a file that
+        only changed every 4 s.
+
+        Fetching is pure network wait, so overlapping it costs nothing and the
+        pass takes as long as the SLOWEST camera rather than the sum of all
+        nine. A camera already in flight is not re-submitted, so a dead one
+        (15 s timeout) delays only itself and can never make passes pile up.
+        """
+        streams = self._fetch_go2rtc_streams()
+        # Mirror the streams JSON for the dashboard bandwidth indicator.
+        self._write_streams_json(streams)
+        # (rooms.json is rebuilt on the 30 s sweep, not here — rebuilding and
+        # rewriting it every 2 s cost a full folder+device enumeration and a
+        # disk write per camera tick for a file that changes on renames.)
+
+        pool = self._snapshot_pool()
+        if pool is None:                      # shutting down
+            return
+        for cam in self.cameras:
+            host = cam["host"]
+            # EVERY camera is snapshotted, including any with a live viewer.
+            #
+            # This used to skip a camera with an active MJPEG consumer, on the
+            # reasoning that whoever was watching the stream did not need the
+            # still. That stopped being true the moment off-LAN became
+            # all-stills: the live watcher and the still watcher are now
+            # usually DIFFERENT PEOPLE. One browser open at home held six
+            # streams and froze those six cameras' snapshots for everyone
+            # else — measured live at 294-298 s stale on exactly the six
+            # hosts that had consumers, while the three without were 0-2 s
+            # fresh. That is the "some tiles never update" report.
+            #
+            # The skip was added in v1.13.x against a real frame.jpeg-vs-ffmpeg
+            # race that produced HTTP 500s, but that race was on the `_mjpeg`
+            # DERIVED stream. The poller asks the RAW stream now, so it no
+            # longer applies: verified with a live consumer attached, six
+            # consecutive snapshots returned 200 at the correct 640x360 in
+            # 0.16-0.27 s and the live stream was undisturbed. The cost of
+            # always snapshotting is one ~25 KB loopback fetch per camera per
+            # tick, which is nothing next to a tile that never changes.
+            # Pre-create the state entry HERE, on this one thread, so the
+            # workers only ever read and mutate an entry that already exists.
+            self._cam_state.setdefault(host, {"ok_count": 0, "fail_count": 0, "last_log": 0,
+                                               "last_ok": None, "last_failure": None})
+            with self._cam_inflight_lock:
+                if host in self._cam_inflight:
+                    continue                  # previous fetch still running
+                self._cam_inflight.add(host)
+            try:
+                pool.submit(self._snapshot_worker, cam)
+            except Exception:
+                # Pool refused the work (shutting down) — release the slot so
+                # the camera is not left permanently marked in-flight.
+                with self._cam_inflight_lock:
+                    self._cam_inflight.discard(host)
+                if getattr(self, "_cam_pool_closed", False):
+                    return                     # shutdown race, not a fault
+                raise

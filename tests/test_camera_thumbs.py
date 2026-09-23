@@ -42,6 +42,8 @@ import re
 
 import pytest
 
+from conftest import plugin_source
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
                    "Server Plugin", "plugin.py")
@@ -51,8 +53,7 @@ REQS = os.path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
 
 @pytest.fixture(scope="module")
 def source():
-    with open(SRC, encoding="utf-8") as f:
-        return f.read()
+    return plugin_source()
 
 
 @pytest.fixture(scope="module")
@@ -122,7 +123,7 @@ def test_thumb_is_resized_locally_and_never_fetched(tree):
     )
     assert "_fetch_one_snapshot" not in names
 
-    src = ast.get_source_segment(open(SRC, encoding="utf-8").read(), node) or ""
+    src = ast.get_source_segment(plugin_source(), node) or ""
     assert "frame.jpeg" not in src, "_make_thumb must not build a go2rtc URL"
     assert "width=" not in src, "_make_thumb must not ask go2rtc for a width"
 
@@ -260,7 +261,7 @@ def test_resize_produces_a_valid_smaller_jpeg(source):
 def test_an_already_small_frame_is_not_upscaled(source):
     """Someone lowering CAMERA_SNAPSHOT_WIDTH below the thumb width should get
     no thumbnail rather than a blurry enlargement of one."""
-    node_src = open(SRC, encoding="utf-8").read()
+    node_src = plugin_source()
     tree_ = ast.parse(node_src)
     src = ast.get_source_segment(node_src, _func(tree_, "_make_thumb"))
     assert re.search(r"width\s*<=\s*CAMERA_THUMB_WIDTH", src), (
