@@ -8,7 +8,7 @@ Browser dashboards for [Indigo Domotics](https://www.indigodomo.com/), built for
 wall, a phone in your pocket and a Mac on the desk. No app to install, no cloud account,
 nothing leaving the house.
 
-<img src="https://img.shields.io/badge/version-3.41.0-5856d6" alt="Version 3.41.0">
+<img src="https://img.shields.io/badge/version-3.41.1-5856d6" alt="Version 3.41.1">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-21-0a84ff" alt="21 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
@@ -21,7 +21,7 @@ nothing leaving the house.
 
 ---
 
-**Version:** 3.41.0
+**Version:** 3.41.1
 
 **Documentation:** **[highsteads.github.io/Dashboards](https://highsteads.github.io/Dashboards/)** —
 getting started, configuration, a page of notes for every one of the 21 pages, cameras, remote
@@ -67,11 +67,11 @@ simulator, touching no live devices.
 The three most recent releases, word for word. Every release before these is in
 **[the version history](docs/changelog.md)**, which the documentation site also carries.
 
+**3.41.1** (23-Sep-2026) - **A radiator changed in quick taps no longer reports the change as refused.** Each press of + or − checked the radiator a couple of seconds later against its own value, so four quick taps from 8° to 12° had the first check find 12° where it expected 9° and say the setpoint was not accepted, when the radiator had taken every tap. Only the last press checks now. When a change really does not take, the message says what the radiator reports ("The radiator still says 8.0°") instead of guessing that the heating plugin had stopped. Affects the room pages and the Heating page.
+
 **3.41.0** (23-Sep-2026) - **The hub's favourites join the shared tiles.** A device favourite now behaves like the switches on the room pages: it flips the moment you press it, then checks with the device a few seconds later and puts itself back, with a note, if the command went nowhere. Before, it flipped and never checked, so a device that ignored the command still showed as switched. The hub and the room pages now share one memory of each door's last position, so a moving door is named Opening… or Closing… the same way on both. Reading tiles (a battery voltage, a temperature, when the doorbell last rang) are now plain displays rather than buttons, so a screen reader no longer offers them as something to press and Tab skips them.
 
 **3.40.0** (23-Sep-2026) - **Self-sufficiency says why it is low, and the demo's sun follows the season.** On a day the grid charges the battery overnight, the grid can supply more than the house uses, and self-sufficiency reads 0% on a sunny afternoon. The figure is still counted the same way, but the Energy tile and the hub now add "grid charged the battery", and tapping or hovering gives the numbers: how much came from the grid, how much the house used, and that the stored energy runs the house later. The online demo now works out today's sunrise and sunset instead of showing the summer day its weather sample came from. The screenshots on this page no longer show real people's names or a day's record of who was home: every live page is captured with the names replaced, and the Timeline from the demo. The capture tool also turned out never to have cleaned the plugin's own data (the web server labels those replies differently), and never touched MAC addresses; both are fixed and every screenshot has been retaken. The hub also stops waiting 30 seconds for its money figures after a plugin restart.
-
-**3.39.1** (23-Sep-2026) - **The online demo no longer thinks it came through the Indigo reflector.** Served from GitHub, its address looked like the reflector's, so the demo hub showed the reflector's slow-refresh note. Demo mode fetches nothing from a server, so it now counts as home.
 
 ## A look around
 

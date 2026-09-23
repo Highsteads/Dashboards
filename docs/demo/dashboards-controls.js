@@ -15,7 +15,7 @@
  *                zone.render(d, opts) / zone.bump(id, dir) and the helpers
  * Author:      CliveS & Claude Opus 5.5
  * Date:        23-09-2026
- * Version:     1.1 (pressDevice for the hub's favourite tiles)
+ * Version:     1.2 (only the last setpoint press checks; honest message); 1.1 (pressDevice)
  */
 (function (root) {
   'use strict';
@@ -135,6 +135,7 @@
   var READBACK_MS  = 2500;
   var TRV_STALE_MS = 3 * 3600 * 1000;   // flag a TRV unheard for more than 3 hours
   var pending = {};          // device id -> { v, t }
+  var presses = {};          // device id -> how many presses so far (see bump)
 
   function currentTemp(d) {
     var s = d.states || {};
@@ -236,7 +237,12 @@
      setpoints), rounded in the direction of the tap, chained from any value
      still pending, and READ BACK: a stopped heating plugin swallows the
      command without an error, and the tile used to show the new number as
-     if it had landed. */
+     if it had landed.
+
+     Only the LAST press on a radiator checks (v3.41.1). Every press used to
+     check its own value 2.5 s later, so four quick taps from 8 to 12 had the
+     first one find 12 where it expected 9 and report the change as refused
+     — when the radiator had taken all four. Live-found on an iPhone. */
   function bump(id, dir) {
     var el = root.document && root.document.getElementById('sp-' + id);
     if (!el || !api) return Promise.resolve(false);
@@ -247,15 +253,22 @@
     next = Math.max(SETPOINT_MIN, Math.min(SETPOINT_MAX, next));
     if (next === base) return Promise.resolve(false);          // at the clamp: nothing to send
     pending[id] = { v: next, t: Date.now() };
+    var mine = presses[id] = (presses[id] || 0) + 1;
     el.textContent = next.toFixed(0) + '°';
     return Promise.resolve(api.setHeatSetpoint(id, next)).then(function () {
       root.setTimeout(function () {
+        if (presses[id] !== mine) return;         // a later press will check instead
         Promise.resolve(api.getDevice(id)).then(function (d) {
+          if (presses[id] !== mine) return;
           var got = d ? setpoint(d) : null;
           if (got != null && Math.abs(got - next) >= 0.5) {
             delete pending[id];
-            el.textContent = got.toFixed(1) + '°';
-            var msg = 'Setpoint not accepted — is the heating plugin running?';
+            // The tile may have been redrawn by the poll since the press.
+            var live = root.document.getElementById('sp-' + id) || el;
+            live.textContent = got.toFixed(1) + '°';
+            // Say what is known — the radiator's own figure — not a guess at
+            // the cause, which the old wording blamed on the plugin.
+            var msg = 'The radiator still says ' + got.toFixed(1) + '° — the change did not take';
             try { if (root.DashAction) root.DashAction.note('device:' + id, 'error', msg); } catch (_) {}
             // The Heating page has its own message line and no DashAction.
             var t = root.document.getElementById('evo-toast');

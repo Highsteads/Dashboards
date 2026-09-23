@@ -114,6 +114,27 @@ console.log("\na setpoint step is read back");
     sent.length = 0; await T.zone.bump(7, 1);
     checkEq("a half degree rounds in the direction tapped", sent[0], 18);
     await flush();          // let its read-back fire here, not in the next section
+
+    // v3.41.1, found on an iPhone: four quick taps from 8 to 12 on a radiator
+    // that took every one. The first tap's check used to find 12 where it
+    // expected 9 and report the change as refused.
+    notes.length = 0;
+    let latest = 8;
+    T.bind({ setHeatSetpoint: async (id, v) => { latest = v; }, getDevice: async () => ({ setpointHeat: latest }) });
+    els["sp-11"] = { dataset: { sp: "8" }, textContent: "8.0°" };
+    for (let i = 0; i < 4; i++) await T.zone.bump(11, 1);
+    checkEq("four quick taps send 9, 10, 11, 12", latest, 12);
+    await flush();
+    check("a radiator that took every tap draws no complaint", !notes.length, JSON.stringify(notes));
+    checkEq("and the tile keeps showing 12", els["sp-11"].textContent, "12°");
+    // One tap the radiator ignores still gets its message, in its own words.
+    notes.length = 0;
+    T.bind({ setHeatSetpoint: async () => {}, getDevice: async () => ({ setpointHeat: 8 }) });
+    els["sp-12"] = { dataset: { sp: "8" }, textContent: "8.0°" };
+    await T.zone.bump(12, 1); await flush();
+    check("an ignored change is still reported",
+          notes.some(n => n[0] === "device:12" && /still says 8\.0°/.test(n[2])), JSON.stringify(notes));
+    check("and no longer blames the plugin", !notes.some(n => /plugin running/.test(n[2])));
 }
 
 console.log("\na device tile pressed on the hub (v3.41.0)");
