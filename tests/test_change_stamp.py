@@ -167,3 +167,32 @@ def test_shutdown_writes_sentinel_then_quiesces_before_teardown(tmp_path, monkey
     # requests.get() against go2rtc fails at once when its listener closes,
     # instead of running out a 15 s timeout while shutdown waits on it.
     assert seen["order"] == ["quiesce", "go2rtc", "pool", "mjpeg", "weather"]
+
+
+def test_a_device_change_is_written_by_the_stamp_thread_not_the_caller(tmp_path, monkeypatch):
+    """v3.27.0: device callbacks share IWS's one dispatch thread, so with the
+    stamp thread running they only wake it; the file is written over there."""
+    monkeypatch.setattr(plugin, "STAMP_PERIOD_SECONDS", 5.0)      # beats out of the way
+    monkeypatch.setattr(plugin, "STAMP_CHANGE_WRITE_GAP", 0.0)
+    p = _stamp_plugin(tmp_path)
+    writers = []
+    real = p._write_stamp_locked
+    def spy(state):
+        writers.append(threading.current_thread().name)
+        return real(state)
+    p._write_stamp_locked = spy
+    p._start_stamp_thread()
+    deadline = time.time() + 2
+    while not writers and time.time() < deadline:
+        time.sleep(0.01)
+    writers.clear()
+    p._dev_changes = {7: 123.0}
+    p._stamp_note_change()                       # from this (the "dispatch") thread
+    deadline = time.time() + 2
+    while not writers and time.time() < deadline:
+        time.sleep(0.01)
+    p._freeze_stamp()
+    p._stamp_thread.join(1)
+    assert writers and writers[0] == "dashboards-stamp", writers
+    assert threading.current_thread().name not in writers[:1]
+    assert _read(tmp_path)["state"] == "stopping"

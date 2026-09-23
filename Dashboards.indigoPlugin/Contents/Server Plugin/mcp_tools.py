@@ -169,7 +169,7 @@ def _indigo_folder_names():
 
 def _room_folder_view(plugin):
     configured = list(plugin._room_folders())
-    store = plugin._load_config_store() or {}
+    store = getattr(plugin, "cfg_store", None) or {}
     from_store = isinstance(store.get("roomFolders"), list) and bool(store.get("roomFolders"))
     existing = _indigo_folder_names()
     return {

@@ -34,7 +34,7 @@ def make_plugin():
     p._write_config_js = MagicMock()
     p._build_rooms_json = MagicMock()
     p._build_scenes_json = MagicMock()
-    p.cfg_loaded = False
+    p.cfg_store = {}
     return p, captured
 
 

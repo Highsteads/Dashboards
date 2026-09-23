@@ -128,6 +128,12 @@ LONGITUDE = 0.0
 # SIGEN_DASHBOARD_URL  — URL of an external Sigenergy mini-dashboard reached
 #                        via the "Open Legacy Sigen Dashboard" menu item.
 #                        Leave blank to disable the menu item.
+# DASHBOARDS_* below are READ ONCE, on the first start with no
+#                        dashboards_config.json (Dashboards 3.27.0+), and
+#                        copied into it. After that the dashboards' Settings
+#                        page owns them and these keys are no longer read.
+#                        A new install can simply leave them empty and use
+#                        Settings from the start.
 # DASHBOARDS_CAMERAS   — JSON string OR python list of camera dicts. Each
 #                        dict needs host, name, vendor ("dahua" or "hikvision").
 #                        Leave blank to disable the cameras grid + MJPEG

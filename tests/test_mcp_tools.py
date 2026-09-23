@@ -68,7 +68,7 @@ def make_plugin(monkeypatch, tmp_path, store=None, running=None,
     p._write_config_js   = MagicMock()
     p._build_rooms_json  = MagicMock()
     p._build_scenes_json = MagicMock()
-    p.cfg_loaded = bool(store)
+    p.cfg_store = dict(store or {})
 
     monkeypatch.setattr(mod, "CAMERAS", mod._parse_cameras(running or []))
     monkeypatch.setattr(mod, "SWAP_OUT_HOST", "")

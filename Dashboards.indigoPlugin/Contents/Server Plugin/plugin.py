@@ -18,9 +18,9 @@
 #              again handling Digest auth server-side. The page uses MJPEG
 #              for the live grid and falls back to the still snapshot if a
 #              stream connection fails.
-# Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.26.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
+# Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.27.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
 # Date:        23-09-2026
-# Version:     3.26.0
+# Version:     3.27.0
 #
 # Version history: docs/changelog.md (what each release does, for users) and
 # `git log` (why, for developers). The per-version engineering notes that sat
@@ -33,6 +33,7 @@ try:
 except ImportError:
     pass
 
+import collections
 import json
 import os
 import queue
@@ -163,7 +164,7 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION = "3.26.0"
+PLUGIN_VERSION = "3.27.0"
 # Pages are mirrored into Web Assets/public/dashboards/ so IWS serves them
 # WITHOUT HTTP Basic Auth. Indigo only treats the global /public/ namespace
 # as anonymous — per-plugin `public/` subfolders still require auth.
@@ -600,65 +601,46 @@ class Plugin(indigo.PluginBase):
         _install_file_mirror(getattr(self, "plugin_file_handler", None))
 
         # Credentials: IndigoSecrets.py first, PluginConfig fields as the
-        # documented fallback (v2.36.0 — the fields exist now; the intro label
-        # used to promise fallbacks that weren't there, stranding GUI-only users).
-        self.api_key     = (INDIGO_API_KEY or CLAUDEBRIDGE_BEARER_TOKEN
-                            or pluginPrefs.get("indigoApiKey", "")).strip()
-        # Blank means the local server (v2.95.2) — the Configure dialog has
-        # promised that since v2.0 and nothing implemented it: a blank URL
-        # 502'd every guest tile and failed Test Dashboards Setup.
-        self.api_url     = ((INDIGO_URL or pluginPrefs.get("indigoUrl", "")).strip()
-                            or "http://127.0.0.1:8176")
-        self.cam_user    = (DAHUA_USER or pluginPrefs.get("dahuaUser", "")).strip()
-        self.cam_pass    = (DAHUA_PASS or pluginPrefs.get("dahuaPass", "")).strip()
+        # documented fallback — resolved by the ONE helper the menu reload and
+        # the Configure save also use (v3.27.0; this block was a second copy).
+        # A blank URL means the local server (v2.95.2).
+        self._resolve_credentials(pluginPrefs, _sys.modules.get("IndigoSecrets"))
         # Log level (v2.36.0 — the PluginConfig field existed but was never
         # applied). Guarded coerce; bad/blank value falls back to INFO.
         self._apply_log_level(pluginPrefs.get("logLevel", 20))
 
-        # Sigen dashboard link target — empty means the "Open Legacy Sigen
-        # Dashboard" menu item is silently disabled. IndigoSecrets first,
-        # PluginConfig fallback.
-        self.sigen_legacy_url = (SIGEN_DASHBOARD_URL or pluginPrefs.get("sigenLegacyUrl", "")).strip()
+        # sigen_legacy_url comes from _resolve_credentials too: empty means
+        # the "Open Legacy Sigen Dashboard" menu item is silently disabled.
 
-        # v2.0.0 CONFIG TAKEOVER: if dashboards_config.json exists (written by
-        # the settings.html editor), it is the SINGLE source of truth for
-        # cameras / main mosaic / swap-out / room extras / hidden scenes.
-        # Without it, the legacy IndigoSecrets + PluginConfig path applies
-        # unchanged — fresh installs work exactly as before until first save.
-        self.cfg_store  = self._load_config_store()
-        self.cfg_loaded = bool(self.cfg_store)
+        # ONE settings store (v3.27.0): dashboards_config.json, written by the
+        # Settings page, held in memory as self.cfg_store and read from nowhere
+        # else. On the first start without it, the legacy IndigoSecrets
+        # DASHBOARDS_* keys and Configure fields are imported into it once.
+        # Until then there were two paths, every consumer branched between
+        # them, and some re-read the file from disk while others did not.
+        self.cfg_store = self._load_config_store()
+        if not self.cfg_store:
+            self.cfg_store = self._import_legacy_config(pluginPrefs)
+        store = self.cfg_store
 
         # Cameras — populate the module-level state so all existing reference
         # sites (go2rtc config, snapshot pollers, MJPEG proxy, etc.) see the
         # configured list.
         global CAMERAS, SWAP_OUT_HOST
-        if self.cfg_loaded:
-            cam_source = self.cfg_store.get("cameras") or []
-        else:
-            cam_source = DASHBOARDS_CAMERAS or pluginPrefs.get("camerasJson", "")
-        CAMERAS    = _parse_cameras(cam_source)
+        CAMERAS = _parse_cameras(store.get("cameras") or [])
         # Default swap-out = last entry in the list (the cam most likely to be
-        # safe to drop from the live MJPEG pool). Override via the editor or
-        # PluginConfig "swapOutHost" if a different cam is the better candidate.
-        if self.cfg_loaded:
-            swap_pref = (self.cfg_store.get("swapOutHost") or "").strip()
-        else:
-            swap_pref = (pluginPrefs.get("swapOutHost", "") or "").strip()
+        # safe to drop from the live MJPEG pool), unless Settings names one.
+        swap_pref = (store.get("swapOutHost") or "").strip()
         SWAP_OUT_HOST = swap_pref if swap_pref else (CAMERAS[-1]["host"] if CAMERAS else "")
 
-        # Main-mosaic cameras + per-room extras: store first, secrets fallback.
-        if self.cfg_loaded:
-            self.main_cameras = list(self.cfg_store.get("mainCameras") or [])
-            extras = self.cfg_store.get("roomExtras")
-        else:
-            self.main_cameras = list(DASHBOARDS_MAIN_CAMERAS or [])
-            extras = DASHBOARDS_ROOM_EXTRAS
+        self.main_cameras = list(store.get("mainCameras") or [])
+        extras = store.get("roomExtras")
         self.room_extras = extras if isinstance(extras, dict) else {}
 
         # Guest tier (v2.1.0): read-only token + per-tile PIN policy.
         self.guest_token  = self._load_guest_token()
-        self.control_pin  = str(self.cfg_store.get("controlPin") or "") if self.cfg_loaded else ""
-        self.pin_required = list(self.cfg_store.get("pinRequired") or []) if self.cfg_loaded else []
+        self.control_pin  = str(store.get("controlPin") or "")
+        self.pin_required = list(store.get("pinRequired") or [])
         # Bootstrap key auto-seed (v2.36.0). Default True = the LAN convenience
         # that seeds the API key to any private-source browser on first visit.
         # A deployment that runs guest-tier devices can set this False to make
@@ -692,7 +674,7 @@ class Plugin(indigo.PluginBase):
         # the hub. Edited in Settings, stored in dashboards_config.json, and
         # published into config.js (just ids + labels — not secret) so the hub
         # reads them straight from window.INDIGO_CONFIG with no extra fetch.
-        self.favourites = list(self.cfg_store.get("favourites") or []) if self.cfg_loaded else []
+        self.favourites = list(store.get("favourites") or [])
 
         # Custom links (v2.x): full-size hub tiles that open an arbitrary URL in a
         # new tab — e.g. the MQTT Explorer page, a Grafana board, a router admin
@@ -700,7 +682,7 @@ class Plugin(indigo.PluginBase):
         # dashboards_config.json, published into the public config.js. The URL is
         # NOT secret (just a link); never put a token in it — the target page
         # handles its own auth.
-        self.custom_links = list(self.cfg_store.get("customLinks") or []) if self.cfg_loaded else []
+        self.custom_links = list(store.get("customLinks") or [])
 
         # LAN IP — used by the go2rtc WebRTC config and the startup log line.
         # Detect once at __init__; the hostname doesn't change at runtime.
@@ -767,9 +749,39 @@ class Plugin(indigo.PluginBase):
         os.makedirs(d, exist_ok=True)
         return os.path.join(d, "dashboards_config.json")
 
+    def _import_legacy_config(self, prefs):
+        """Build dashboards_config.json ONCE from the legacy settings (v3.27.0).
+
+        Before this there were two ways to configure the plugin: the Settings
+        page, and IndigoSecrets DASHBOARDS_* keys backed by Configure fields.
+        Every consumer branched between them. Now the store is the only one:
+        on a start with no store, whatever the old sources hold is copied in,
+        saved, and used from then on. Editing those keys afterwards changes
+        nothing, and the log says so at the import."""
+        store = {
+            "cameras":      _parse_cameras(DASHBOARDS_CAMERAS or prefs.get("camerasJson", "")),
+            "swapOutHost":  (prefs.get("swapOutHost", "") or "").strip(),
+            "mainCameras":  list(DASHBOARDS_MAIN_CAMERAS or []),
+            "roomExtras":   DASHBOARDS_ROOM_EXTRAS if isinstance(DASHBOARDS_ROOM_EXTRAS, dict) else {},
+            "hiddenScenes": sorted(self._parse_hidden(
+                DASHBOARDS_HIDDEN_SCENES or prefs.get("hiddenScenesJson", ""))),
+        }
+        imported = [k for k, v in store.items() if v]
+        try:
+            store = self._save_config_store(store)
+        except Exception as exc:
+            log(f"[Config] could not create dashboards_config.json ({exc}) — using the "
+                f"imported settings for this run only", level="WARNING")
+            return store
+        if imported:
+            log(f"[Config] imported {', '.join(imported)} from IndigoSecrets / Configure "
+                f"into dashboards_config.json. The Settings page owns them from now on; "
+                f"the old DASHBOARDS_* keys are no longer read.")
+        return store
+
     def _load_config_store(self):
-        """Read dashboards_config.json. Returns {} when absent/invalid —
-        callers treat that as 'legacy mode' (IndigoSecrets + PluginConfig)."""
+        """Read dashboards_config.json. Returns {} when absent/invalid, and
+        __init__ then imports the legacy settings once."""
         try:
             path = self._config_store_path()
             if not os.path.isfile(path):
@@ -779,7 +791,8 @@ class Plugin(indigo.PluginBase):
             return data if isinstance(data, dict) else {}
         except Exception as exc:
             log(f"[Config] Could not read dashboards_config.json ({exc}) — "
-                "falling back to IndigoSecrets/PluginConfig", level="WARNING")
+                "starting from the legacy settings; fix or delete the file",
+                level="WARNING")
             return {}
 
     def _save_config_store(self, data):
@@ -819,7 +832,7 @@ class Plugin(indigo.PluginBase):
         # again, and the camera just added was silently deleted. Once the
         # store is in force it is the truth; the streams catch up at the
         # restart the save reply asks for.
-        store = self._load_config_store() if getattr(self, "cfg_loaded", False) else {}
+        store = getattr(self, "cfg_store", None) or {}
         if "cameras" in store:
             cams = _parse_cameras(store.get("cameras") or [])
         else:
@@ -842,7 +855,7 @@ class Plugin(indigo.PluginBase):
         # next Save silently deletes every unknown key (the recurring
         # whitelist trap, this time on the LOAD side).
         try:
-            for k, v in self._load_config_store().items():
+            for k, v in store.items():
                 if k not in out and not str(k).startswith("_"):
                     out[k] = v
         except Exception:
@@ -1039,15 +1052,8 @@ class Plugin(indigo.PluginBase):
         # v2.0.0: auto-discover the Sigenergy inverter device (the one with a
         # batterySoc state) so the hub's energy strip needs no hardcoded ID.
         # Harmless 0 on installs without SigenEnergyManager.
-        sigen_id = 0
-        try:
-            for d in indigo.devices.iter("com.clives.indigoplugin.sigenergy-energy-manager"):
-                if "batterySoc" in d.states:
-                    sigen_id = d.id
-                    break
-        except Exception:
-            pass
-        cfg["sigenDeviceId"] = sigen_id
+        inv = self._sigen_inverter()
+        cfg["sigenDeviceId"] = inv.id if inv is not None else 0
         # PIN policy (v2.1.0): WHICH devices need a PIN is published (harmless
         # id list); the PIN itself never leaves the server — dashboard.js
         # verifies entries via the Bearer-gated verifyPin endpoint.
@@ -1065,10 +1071,10 @@ class Plugin(indigo.PluginBase):
         cfg["colourPresets"] = {k: dict(v) for k, v in COLOUR_PRESETS.items()}
         # v2.96.0: install-specific presentation, all optional, all defaulted
         # so a fresh install reads as "Dashboards" rather than as one house.
-        try:
-            store = self._load_config_store()
-        except Exception:
-            store = {}
+        # From memory, not re-read from disk (v3.27.0): the Settings save
+        # updates cfg_store, and a hand edit of the file now needs a restart
+        # for EVERY setting, rather than for some and not others.
+        store = getattr(self, "cfg_store", None) or {}
         cfg["siteName"] = (str(store.get("siteName") or "").strip() or "Dashboards")[:40]
         vehicles = store.get("vehicles")
         cfg["vehicles"] = [
@@ -1112,7 +1118,7 @@ class Plugin(indigo.PluginBase):
         # Ecowitt page's solar-vs-PV cross-check. A number, not a secret —
         # replaces this house's 14.25 that used to be hardcoded in the page.
         try:
-            kwp = float(self._load_config_store().get("arrayKwp") or 0)
+            kwp = float(store.get("arrayKwp") or 0)
             if kwp > 0:
                 cfg["arrayKwp"] = kwp
         except (TypeError, ValueError):
@@ -1127,7 +1133,7 @@ class Plugin(indigo.PluginBase):
         # Read raw from the store: this handler doesn't model the key, and the
         # save path preserves it via the unknown-key pass-through.
         try:
-            watches = self._load_config_store().get("actionWatch")
+            watches = store.get("actionWatch")
             if isinstance(watches, dict) and watches:
                 cfg["actionWatch"] = {str(k): v for k, v in watches.items()}
         except Exception:
@@ -1471,15 +1477,27 @@ class Plugin(indigo.PluginBase):
 
                     if sub == "history":
                         # Read-only history series for guest devices (v2.4.0).
+                        # Through the shared pool since v3.27.0: a 30-day chart
+                        # is 5-6 s of disk reads, and every guest request used
+                        # to pay it afresh. Now repeats within HISTORY_TTL share
+                        # one build — with the main pages too — and this thread,
+                        # being the proxy's own, can afford to wait for it.
                         flat = {k: (v[0] if v else "") for k, v in qs.items()}
-                        try:
-                            body = plugin_self._history_query(flat)
-                            _send_json(json.dumps(body).encode("utf-8"))
-                        except ValueError as exc:
-                            _send_json(json.dumps({"ok": False, "error": str(exc)}).encode("utf-8"),
-                                       status=400)
-                        except Exception as exc:
-                            self.send_error(500, f"history query failed: {exc}")
+                        state, got = plugin_self._offpath_get(
+                            plugin_self._history_key(flat),
+                            lambda: plugin_self._history_producer(flat),
+                            plugin_self.HISTORY_TTL, wait=plugin_self.GUEST_HISTORY_WAIT)
+                        if state == "fresh" and got.get("client_error"):
+                            _send_json(json.dumps({"ok": False, "error": got["client_error"]}
+                                                  ).encode("utf-8"), status=400)
+                        elif state == "fresh":
+                            _send_json(json.dumps(got["result"]).encode("utf-8"))
+                        elif state == "failed":
+                            self.send_error(500, f"history query failed: {got}")
+                        else:
+                            _send_json(json.dumps({"ok": False, "pending": True,
+                                                   "error": "the chart is still being built"}
+                                                  ).encode("utf-8"), status=503)
                         return
 
                     # Read-only passthroughs to IWS (server-side Bearer).
@@ -2416,13 +2434,12 @@ class Plugin(indigo.PluginBase):
     # --------------------------------------------------------
 
     def _hidden_scenes(self):
-        """Resolve the scenes hide-list: IndigoSecrets.DASHBOARDS_HIDDEN_SCENES
-        first (JSON string or python list), PluginConfig hiddenScenesJson as
-        fallback. Returns a set of strings."""
-        if self.cfg_loaded:
-            src = self.cfg_store.get("hiddenScenes") or []
-        else:
-            src = DASHBOARDS_HIDDEN_SCENES or self.pluginPrefs.get("hiddenScenesJson", "")
+        """The scenes hide-list from the settings store, as a set of strings."""
+        return self._parse_hidden((getattr(self, "cfg_store", None) or {}).get("hiddenScenes") or [])
+
+    @staticmethod
+    def _parse_hidden(src):
+        """A hide-list given as a JSON string or a list -> set of strings."""
         if isinstance(src, str):
             s = src.strip()
             if not s:
@@ -2466,7 +2483,7 @@ class Plugin(indigo.PluginBase):
                 "_writeTs": time.time(),
             }
             path = os.path.join(self._public_dashboards_dir(), "scenes.json")
-            self._write_atomic(path, json.dumps(payload).encode("utf-8"))
+            self._write_json_if_changed(path, payload)
         except Exception as exc:
             log(f"[Scenes] scenes.json write failed: {exc}", level="WARNING")
 
@@ -2487,9 +2504,13 @@ class Plugin(indigo.PluginBase):
         "Garage", "Garden", "Hall", "Kitchen", "Living Room", "Utility Room",
     )
 
+    # The auto-classified sections of a room, in one place (v3.27.0) — the
+    # same six-name tuple used to be written out seven times.
+    ROOM_SECTIONS = ("lights", "motion", "radiators", "windows", "sensors", "extras")
+
     def _room_folders(self):
         try:
-            rf = self._load_config_store().get("roomFolders")
+            rf = (getattr(self, "cfg_store", None) or {}).get("roomFolders")
             if isinstance(rf, list) and rf:
                 return tuple(str(x) for x in rf)
         except Exception:
@@ -2660,20 +2681,9 @@ class Plugin(indigo.PluginBase):
                    "extras": "extras"}[cat]
             rooms[room][key].append(d.id)
 
-        # Stable sort within each section by device name for predictable UI.
-        # ID-based sections sort via indigo.devices[id].name. Cameras are dicts
-        # (host/name) so they're sorted by the name field directly.
-        try:
-            name_of = lambda i: (indigo.devices[i].name or "").lower()
-            ID_SECTIONS = ("lights", "motion", "radiators", "windows", "sensors", "extras")
-            for room in rooms.values():
-                for k in ID_SECTIONS:
-                    room[k].sort(key=name_of)
-                # Cameras keep DASHBOARDS_CAMERAS insertion order so the user
-                # controls placement per room by editing IndigoSecrets (no
-                # per-room alpha sort). "What I wrote, in that order."
-        except Exception:
-            pass
+        # Sections are sorted ONCE, after the extras merge below (a sort here
+        # as well was thrown away by that one until v3.27.0). Cameras keep the
+        # order they are listed in Settings: "what I wrote, in that order".
 
         # Merge per-room extras (DASHBOARDS_ROOM_EXTRAS) into the payload.
         # Order of operations:
@@ -2705,8 +2715,7 @@ class Plugin(indigo.PluginBase):
                 if not isinstance(cfg, dict):      # already warned about by the merge
                     cfg = {}
                 sort_order = cfg.get("sortOrder") or {}
-                for k in ("lights", "motion", "radiators",
-                          "windows", "sensors", "extras"):
+                for k in self.ROOM_SECTIONS:
                     explicit = sort_order.get(k) if isinstance(sort_order, dict) else None
                     if isinstance(explicit, (list, tuple)) and explicit:
                         # Listed-first (in the given order), then anything
@@ -2728,7 +2737,7 @@ class Plugin(indigo.PluginBase):
         }
         try:
             path = os.path.join(self._public_dashboards_dir(), "rooms.json")
-            self._write_atomic(path, json.dumps(payload, indent=2).encode("utf-8"))
+            self._write_json_if_changed(path, payload, indent=2)
         except Exception as exc:
             log(f"[Rooms] rooms.json write failed: {exc}", level="WARNING")
         return payload   # also return it so callers (e.g. timeline) can use it
@@ -2752,6 +2761,23 @@ class Plugin(indigo.PluginBase):
             except Exception as exc:
                 self._warn_room_extras(room_name, f"{type(exc).__name__}: {exc}")
 
+    def _write_json_if_changed(self, path, payload, indent=None):
+        """Write a rebuilt JSON file only when its content moved (v3.27.0).
+
+        rooms.json and scenes.json are rebuilt every 30 s and were rewritten
+        every time, because the `_writeTs` stamp inside them always changed.
+        Nothing reads that stamp on either file, so it is left out of the
+        comparison: the file, and its mtime, now change when the rooms or
+        scenes do. A missing file is always written."""
+        body = {k: v for k, v in payload.items() if k != "_writeTs"}
+        sig = json.dumps(body, sort_keys=True)
+        memo = self.__dict__.setdefault("_json_written", {})
+        if memo.get(path) == sig and os.path.isfile(path):
+            return False
+        self._write_atomic(path, json.dumps(payload, indent=indent).encode("utf-8"))
+        memo[path] = sig
+        return True
+
     def _warn_room_extras(self, room_name, why):
         """WARN once per room and fault for this plugin run, not every 30 s."""
         seen = self.__dict__.setdefault("_room_extras_warned", set())
@@ -2770,7 +2796,7 @@ class Plugin(indigo.PluginBase):
         # (1) hide
         hide_ids = set(cfg.get("hideDeviceIds") or [])
         if hide_ids:
-            for k in ("lights", "motion", "radiators", "windows", "sensors", "extras"):
+            for k in self.ROOM_SECTIONS:
                 room_data[k] = [i for i in room_data[k] if i not in hide_ids]
         # (2) include — append; dedupe per section; also pull the same
         # ID out of `extras` so it doesn't appear twice when rooms.json
@@ -2779,7 +2805,7 @@ class Plugin(indigo.PluginBase):
         if isinstance(include, dict):
             all_pinned = set()
             for section, ids in include.items():
-                if section not in ("lights", "motion", "radiators", "windows", "sensors", "extras"):
+                if section not in self.ROOM_SECTIONS:
                     continue
                 if not isinstance(ids, (list, tuple)):
                     continue
@@ -2820,8 +2846,7 @@ class Plugin(indigo.PluginBase):
             if plugs_clean:
                 room_data["plugs"] = plugs_clean
                 pinned = set(plugs_clean)
-                for k in ("lights", "motion", "radiators",
-                          "windows", "sensors", "extras"):
+                for k in self.ROOM_SECTIONS:
                     room_data[k] = [i for i in room_data[k]
                                     if i not in pinned]
         # (2f) fire — the living room fire, and anything else of that
@@ -2840,8 +2865,7 @@ class Plugin(indigo.PluginBase):
             if fire_clean:
                 room_data["fire"] = fire_clean
                 pinned = set(fire_clean)
-                for k in ("lights", "motion", "radiators",
-                          "windows", "sensors", "extras"):
+                for k in self.ROOM_SECTIONS:
                     room_data[k] = [i for i in room_data[k]
                                     if i not in pinned]
         # (2g) openLoop — devices whose state is a BELIEF, not a reading.
@@ -2894,8 +2918,7 @@ class Plugin(indigo.PluginBase):
                 if isinstance(sc, int):
                     auto_hide.add(sc)
             if auto_hide:
-                for k in ("lights", "motion", "radiators",
-                          "windows", "sensors", "extras"):
+                for k in self.ROOM_SECTIONS:
                     room_data[k] = [i for i in room_data[k]
                                     if i not in auto_hide]
 
@@ -3654,9 +3677,20 @@ class Plugin(indigo.PluginBase):
 
     def _stamp_note_change(self):
         """Leading-edge stamp write from a ledger callback, ≥1 s apart. A stamp
-        failure must never break device handling — swallow everything."""
+        failure must never break device handling — swallow everything.
+
+        With the stamp thread running, this only WAKES it (v3.27.0): device
+        callbacks run on the same single thread as every /message/ handler,
+        and a file write there can queue behind the disk while a long history
+        query is reading — measured at up to a second. The inline write below
+        is the fallback for when the thread is not running."""
         try:
             if self._stamp_stop.is_set():
+                return
+            wake = self.__dict__.get("_stamp_wake")
+            th = getattr(self, "_stamp_thread", None)
+            if wake is not None and th is not None and th.is_alive():
+                wake.set()
                 return
             if time.time() - self._stamp_last_write < STAMP_CHANGE_WRITE_GAP:
                 return
@@ -3667,6 +3701,7 @@ class Plugin(indigo.PluginBase):
             pass
 
     def _start_stamp_thread(self):
+        self._stamp_wake = threading.Event()     # set by _stamp_note_change
         self._stamp_thread = threading.Thread(
             target=self._stamp_thread_main,
             name="dashboards-stamp",
@@ -3683,7 +3718,19 @@ class Plugin(indigo.PluginBase):
                     self._write_stamp_locked("run")
             except Exception:
                 pass    # e.g. public dir briefly missing — try again next beat
-            if self._stamp_stop.wait(STAMP_PERIOD_SECONDS):
+            # The next beat, or sooner when a device changes (v3.27.0) — but
+            # never closer than STAMP_CHANGE_WRITE_GAP to the last write.
+            wake = self.__dict__.get("_stamp_wake")
+            if wake is None:
+                if self._stamp_stop.wait(STAMP_PERIOD_SECONDS):
+                    return
+                continue
+            if wake.wait(STAMP_PERIOD_SECONDS):
+                wake.clear()
+            if self._stamp_stop.is_set():
+                return
+            gap = STAMP_CHANGE_WRITE_GAP - (time.time() - self._stamp_last_write)
+            if gap > 0 and self._stamp_stop.wait(gap):
                 return
 
     def _freeze_stamp(self):
@@ -3691,6 +3738,9 @@ class Plugin(indigo.PluginBase):
         Idempotent; called from stopConcurrentThread AND shutdown."""
         try:
             self._stamp_stop.set()
+            wake = self.__dict__.get("_stamp_wake")
+            if wake is not None:
+                wake.set()               # a thread parked on it must see the stop
             with self._stamp_lock:
                 self._write_stamp_locked("stopping")
         except Exception:
@@ -3901,8 +3951,7 @@ class Plugin(indigo.PluginBase):
             # on a brand-new, perfectly healthy install.
             checks.append((label, bool(ok), detail, optional))
 
-        chk("Config source", True,
-            "settings store" if self.cfg_loaded else "IndigoSecrets/PluginConfig (legacy)")
+        chk("Config source", True, "dashboards_config.json (the Settings page)")
         chk("Indigo API URL", self.api_url, self.api_url or "not set — pages need it")
         chk("API key", self.api_key,
             "present" if self.api_key else "missing — pages cannot authenticate")
@@ -4203,6 +4252,7 @@ class Plugin(indigo.PluginBase):
     # it turns a six-second wait into one, once.
     HISTORY_TTL        = 30
     HISTORY_WAIT       = 0.15
+    GUEST_HISTORY_WAIT = 20.0      # the :8177 proxy's own thread may wait
 
     # Solar string hours (v3.25.0): the last history read that still ran on the
     # dispatch path. Today's chart moves as the day goes on; a past day's cannot.
@@ -4220,7 +4270,7 @@ class Plugin(indigo.PluginBase):
         st = getattr(self, "_offpath_store", None)
         if st is None:
             st = self._offpath_store = {
-                "cache":   {},        # key -> (produced_at, payload)
+                "cache":   collections.OrderedDict(),   # key -> (produced_at, payload), oldest first
                 "fail":    {},        # key -> (at, detail)
                 "waiters": {},        # key -> Event, present only while queued
                 "lock":    threading.Lock(),
@@ -4268,9 +4318,13 @@ class Plugin(indigo.PluginBase):
                     st["fail"][key] = (time.time(), str(exc))
             else:
                 with st["lock"]:
-                    if len(st["cache"]) > self.OFFPATH_CACHE_MAX:
-                        st["cache"].clear()
+                    # Least-recently-used out, one at a time (v3.27.0). It used
+                    # to clear EVERYTHING at the cap, which threw away timeline
+                    # days meant to be held for a whole day.
                     st["cache"][key] = (time.time(), payload)
+                    st["cache"].move_to_end(key)
+                    while len(st["cache"]) > self.OFFPATH_CACHE_MAX:
+                        st["cache"].popitem(last=False)
                     st["fail"].pop(key, None)
             finally:
                 with st["lock"]:
@@ -4293,13 +4347,16 @@ class Plugin(indigo.PluginBase):
         st  = self._offpath()
         with st["lock"]:
             hit = st["cache"].get(key)
-        if hit and time.time() - hit[0] < ttl:
-            return "fresh", hit[1]
-
-        with st["lock"]:
+            if hit and time.time() - hit[0] < ttl:
+                st["cache"].move_to_end(key)
+                return "fresh", hit[1]
             ev = st["waiters"].get(key)
             if ev is None:
                 ev = st["waiters"][key] = threading.Event()
+                # A failure from an EARLIER run must not answer for this one
+                # (v3.27.0): it used to be returned while the new run was still
+                # pending, and was only ever cleared by a success.
+                st["fail"].pop(key, None)
                 st["queue"].put((key, producer))
         ev.wait(self.OFFPATH_WAIT if wait is None else wait)
 
@@ -4311,6 +4368,42 @@ class Plugin(indigo.PluginBase):
         if fail:
             return "failed", fail[1]
         return "pending", None
+
+    def _offpath_swr(self, key, producer, ttl, fail_ttl, placeholder, on_fail):
+        """Stale-while-revalidate on the shared pool (v3.27.0). Never waits.
+
+        For data that is expensive to build and slow to change — carbon
+        intensity, home insights, mains offsets — where an answer from a few
+        minutes ago beats making the page wait. A fresh entry is returned as
+        is. A stale one is returned too, and ONE refresh is queued behind it.
+        With nothing cached yet, `placeholder` says it is being built.
+
+        A failure is remembered for `fail_ttl`, so a server without SQL Logger
+        or a carbon API that is down is not re-asked on every poll; while it
+        stands, a stale entry still wins, and with none `on_fail(detail)` says
+        what went wrong. `ttl` may be a function of the payload, for sources
+        that report their own failure in the reply rather than raising.
+
+        These three each used to run a thread and a cache of their own beside
+        this pool — three copies of the same idea, each with its own bugs."""
+        st  = self._offpath()
+        now = time.time()
+        with st["lock"]:
+            hit  = st["cache"].get(key)
+            fail = st["fail"].get(key)
+            if hit and now - hit[0] < (ttl(hit[1]) if callable(ttl) else ttl):
+                st["cache"].move_to_end(key)
+                return hit[1]
+            recent_fail = bool(fail and now - fail[0] < fail_ttl)
+            if not recent_fail and key not in st["waiters"]:
+                st["waiters"][key] = threading.Event()
+                st["fail"].pop(key, None)
+                st["queue"].put((key, producer))
+        if hit:
+            return hit[1]
+        if recent_fail:
+            return on_fail(fail[1])
+        return placeholder
 
     def _sigen_fetch(self, url):
         """One upstream round trip. Runs on an off-path worker, where blocking
@@ -4763,6 +4856,22 @@ class Plugin(indigo.PluginBase):
     _CARBON_API      = "https://api.carbonintensity.org.uk"
     _SIGEN_PLUGIN_ID = "com.clives.indigoplugin.sigenergy-energy-manager"
 
+    def _sigen_inverter(self):
+        """The Sigenergy inverter device, or None (v3.27.0).
+
+        ONE rule for every caller: a SigenEnergyManager device carrying both
+        batterySoc and pvPowerWatts. There used to be four copies that
+        disagreed: two walked every device in the house, one hardcoded the
+        plugin id, and each looked for a different state."""
+        try:
+            for d in indigo.devices.iter(self._SIGEN_PLUGIN_ID):
+                st = getattr(d, "states", {}) or {}
+                if "batterySoc" in st and "pvPowerWatts" in st:
+                    return d
+        except Exception:
+            return None
+        return None
+
     def handleCarbonAdvisor(self, action, dev=None, callerWaitingForResult=True):
         """POST /message/com.clives.indigoplugin.dashboards/carbonAdvisor/
         Returns {carbon, solar, tariff, advice}. Each section is defensive so a
@@ -4795,35 +4904,17 @@ class Plugin(indigo.PluginBase):
         return self._evo_reply(out)
 
     def _carbon_intensity(self):
-        """Current + 48h regional carbon intensity, stale-while-revalidate.
-        The reply always comes from cache; an expired cache returns the STALE
-        payload at once and refreshes on a daemon worker. The refresh used to
-        run its two 10 s fetches synchronously on the single dispatch thread,
-        freezing every other handler and callback for up to 20 s per miss."""
-        cache = getattr(self, "_carbon_cache", None)
-        nowm = time.time()
-        if cache and nowm < cache[0]:
-            return cache[1]
-        if not getattr(self, "_carbon_refreshing", False):
-            self._carbon_refreshing = True
-
-            def _work():
-                try:
-                    payload = self._carbon_fetch()
-                    ttl = 120 if "error" in payload else 600
-                    self._carbon_cache = (time.time() + ttl, payload)
-                except Exception as exc:
-                    self._carbon_cache = (time.time() + 120,
-                                          {"error": f"carbon refresh failed: {exc}"})
-                finally:
-                    self._carbon_refreshing = False
-
-            threading.Thread(target=_work, name="dashboards-carbon",
-                             daemon=True).start()
-        if cache:
-            return cache[1]
-        return {"error": "carbon data is being fetched — try again shortly",
-                "warming": True}
+        """Current + 48h regional carbon intensity, stale-while-revalidate on
+        the shared pool (v3.27.0; its own thread and cache before that). The
+        two 10 s API fetches never run on the dispatch thread. Cached 10 min,
+        or 2 min when the API reported a failure in its reply."""
+        return self._offpath_swr(
+            "carbon", self._carbon_fetch,
+            ttl=lambda p: 120 if isinstance(p, dict) and "error" in p else 600,
+            fail_ttl=120,
+            placeholder={"error": "carbon data is being fetched — try again shortly",
+                         "warming": True},
+            on_fail=lambda d: {"error": f"carbon refresh failed: {d}"})
 
     def _carbon_fetch(self):
         """One full carbon-API round trip → payload. Runs on the refresh
@@ -4894,14 +4985,7 @@ class Plugin(indigo.PluginBase):
         """Live solar/grid state from the Sigenergy inverter device (found by
         its pvPowerWatts state, so no hardcoded id). Empty dict if absent — the
         advisor then falls back to a carbon-only recommendation."""
-        inv = None
-        try:
-            for d in indigo.devices.iter(self._SIGEN_PLUGIN_ID):
-                if "pvPowerWatts" in d.states:
-                    inv = d
-                    break
-        except Exception:
-            return {}
+        inv = self._sigen_inverter()
         if inv is None:
             return {}
         # A disabled device's states are FROZEN and an errored one's are
@@ -5440,19 +5524,6 @@ class Plugin(indigo.PluginBase):
             self._start_weather_thread()
         except Exception as exc:
             self.logger.warning(f"[Prefs] weather thread restart failed: {exc}")
-        if not self.cfg_loaded:
-            # Compare against what is IN FORCE, not against pluginPrefs — the
-            # host may have merged the dialog's values into pluginPrefs before
-            # this callback, in which case the two always matched and the
-            # notice could never appear.
-            try:
-                new_cams = _parse_cameras(prefs.get("camerasJson", ""))
-            except Exception:
-                new_cams = None
-            old_cams = new_cams is not None and new_cams != CAMERAS
-            old_swap = (prefs.get("swapOutHost", "") or "").strip() != SWAP_OUT_HOST
-            if old_cams or old_swap:
-                self.logger.info("[Prefs] camera changes apply on the next plugin restart")
         if (self.cam_user, self.cam_pass) != old_creds and CAMERAS:
             self.logger.info("[Prefs] camera credentials changed — go2rtc and the snapshot "
                              "poller pick them up on the next plugin restart")
@@ -5561,7 +5632,7 @@ class Plugin(indigo.PluginBase):
             ]
             return self._evo_reply({
                 "ok":           True,
-                "source":       "store" if self.cfg_loaded else "legacy",
+                "source":       "store",
                 "config":       self._redact_pin(self._effective_config()),
                 "devices":      sorted(devices, key=lambda x: x["name"].lower()),
                 "actionGroups": sorted(action_groups,
@@ -5855,7 +5926,6 @@ class Plugin(indigo.PluginBase):
         old_cams = [dict(c) for c in CAMERAS]
         try:
             self.cfg_store  = self._save_config_store(clean)
-            self.cfg_loaded = True
         except Exception as exc:
             self.logger.error(f"[Config] Could not write dashboards_config.json: {exc}")
             return self._evo_reply({"ok": False, "error": f"write failed: {exc}"}, status=500)
@@ -6061,10 +6131,9 @@ class Plugin(indigo.PluginBase):
         # The time is SQLite scanning ~1.3 M rows in that id range with no
         # index to help, which is inherent — so the fix is where it runs.
         #
-        # NB the guest passthrough at /guest/history keeps calling
-        # _history_query directly, on purpose: it is served by the MJPEG
-        # proxy's own HTTP server on :8177, its own threads, so blocking there
-        # costs that one guest request and nothing else.
+        # The guest passthrough at /guest/history uses the same key and
+        # producer (v3.27.0), with a longer wait: it runs on the :8177 proxy's
+        # own threads, so waiting there holds up nothing else.
         try:
             dev_id = int(params.get("deviceId") or 0)
         except (ValueError, TypeError):
@@ -6270,14 +6339,10 @@ class Plugin(indigo.PluginBase):
         """Battery SOC + solar-power trace for the day, 5-min samples. Uses the
         same raw-ts / epoch approach as the lanes (index-friendly)."""
         start_epoch, start_utc, end_utc = bounds
-        inv = None
-        for d in indigo.devices:
-            st = getattr(d, "states", {}) or {}
-            if "batterySoc" in st and "pvPowerWatts" in st:
-                inv = d.id
-                break
-        if inv is None:
+        dev = self._sigen_inverter()
+        if dev is None:
             return None
+        inv = dev.id
         table = f"device_history_{inv}"
         # Artefact-filtered, so the startswith fallbacks below cannot land on a
         # dead "batterysoc_<epoch>" left behind by a logged type change.
@@ -6412,14 +6477,10 @@ class Plugin(indigo.PluginBase):
         start_utc = datetime.fromtimestamp(start_epoch, timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         end_utc = datetime.fromtimestamp(end_epoch, timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
-        inv = None
-        for d in indigo.devices:
-            st = getattr(d, "states", {}) or {}
-            if "pvPowerWatts" in st and "batterySoc" in st:
-                inv = d.id
-                break
-        if inv is None:
+        dev = self._sigen_inverter()
+        if dev is None:
             return {"ok": True, "date": date_str, "hours": [], "site": []}
+        inv = dev.id
 
         try:
             conn = hist.connect()
@@ -7071,21 +7132,6 @@ class Plugin(indigo.PluginBase):
         return {"ok": True, "generated": now, "insights": insights[:8],
                 "checked": checked}
 
-    def _insights_build_bg(self):
-        """Background build on a daemon thread — a slow build must NEVER hold
-        an IWS worker (the first synchronous build wedged IWS for ~3 min)."""
-        try:
-            out = self._home_insights()
-            self._insights_cache = (time.time() + 900, out)
-        except Exception as exc:
-            self.logger.warning(f"[Insights] background build failed: {exc}")
-            # Negative-cache the failure. Without it a SQL-Logger-less install
-            # spawned a fresh failing build thread (and a warning line) every
-            # 20 s for ever — the page retries fast while it sees "building".
-            self._insights_cache = (time.time() + 300,
-                                    {"ok": False, "insights": [], "checked": {},
-                                     "error": f"insights unavailable: {exc}"})
-
     def handleHomeInsights(self, action, dev=None, callerWaitingForResult=True):
         """POST /message/com.clives.indigoplugin.dashboards/homeInsights/
         Bearer-authed by IWS. Stale-while-revalidate: always answers instantly
@@ -7095,20 +7141,14 @@ class Plugin(indigo.PluginBase):
         _refused = self._refuse_reflector(action)
         if _refused:
             return _refused
-        cache = getattr(self, "_insights_cache", None)
-        nowm = time.time()
-        if cache and cache[0] > nowm:
-            return self._evo_reply(cache[1])
-        th = getattr(self, "_insights_thread", None)
-        if not (th and th.is_alive()):
-            th = threading.Thread(target=self._insights_build_bg,
-                                  name="insights-build", daemon=True)
-            self._insights_thread = th
-            th.start()
-        if cache:
-            return self._evo_reply(cache[1])      # stale beats blocking
-        return self._evo_reply({"ok": True, "building": True,
-                                "insights": [], "checked": {}})
+        # On the shared pool (v3.27.0). A failure is remembered for five
+        # minutes: without that a SQL-Logger-less install would retry the
+        # build, and warn, on every 20 s poll for ever.
+        return self._evo_reply(self._offpath_swr(
+            "insights", self._home_insights, ttl=900, fail_ttl=300,
+            placeholder={"ok": True, "building": True, "insights": [], "checked": {}},
+            on_fail=lambda d: {"ok": False, "insights": [], "checked": {},
+                               "error": f"insights unavailable: {d}"}))
 
     # --------------------------------------------------------
     # Mains metering (v3.7.0) — the instrument page.
@@ -7750,32 +7790,15 @@ class Plugin(indigo.PluginBase):
         as "this meter has no offset": those are different facts and rendering
         them the same way is how an absence starts reading as a measurement.
         """
-        cache = getattr(self, "_mains_cache", None)
-        if cache and cache[0] > time.time():
-            return cache[1]
-        th = getattr(self, "_mains_thread", None)
-        if not (th and th.is_alive()):
-            th = threading.Thread(target=self._mains_offsets_bg,
-                                  name="mains-offsets", daemon=True)
-            self._mains_thread = th
-            th.start()
-        # An EXPIRED cache still beats nothing while the rebuild runs: a
-        # calibration offset measured six hours ago has not moved since.
-        return (cache[1] if cache else {"ok": True, "building": True,
-                                        "meters": {}, "spread": None})
-
-    def _mains_offsets_bg(self):
-        """Background build — a multi-table history sweep must NEVER hold an
-        IWS worker. Failures are negative-cached so a history-less install does
-        not spawn a fresh failing thread on every poll."""
-        try:
-            self._mains_cache = (time.time() + self.MAINS_OFFSET_TTL_SECONDS,
-                                 self._mains_offsets())
-        except Exception as exc:
-            self.logger.warning(f"[Mains] offset build failed: {exc}")
-            self._mains_cache = (time.time() + 600,
-                                 {"ok": False, "meters": {}, "spread": None,
-                                  "error": f"offsets unavailable: {exc}"})
+        # On the shared pool (v3.27.0). An expired entry still beats nothing
+        # while the rebuild runs: a calibration offset measured six hours ago
+        # has not moved since. Failures are remembered for ten minutes.
+        return self._offpath_swr(
+            "mains-offsets", self._mains_offsets,
+            ttl=self.MAINS_OFFSET_TTL_SECONDS, fail_ttl=600,
+            placeholder={"ok": True, "building": True, "meters": {}, "spread": None},
+            on_fail=lambda d: {"ok": False, "meters": {}, "spread": None,
+                               "error": f"offsets unavailable: {d}"})
 
     def handleMainsMeters(self, action, dev=None, callerWaitingForResult=True):
         """POST /message/com.clives.indigoplugin.dashboards/mainsMeters/

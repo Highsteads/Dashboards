@@ -85,6 +85,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_laundry_deadline.py` | Contract test for the Laundry page's deadline validation. |
 | `test_laundry_page.mjs` | Contract test for laundry.html's own logic — the freshness readout, the |
 | `test_laundry_replan_offpath.py` | A laundry deadline replans on the off-path pool, not on IWS's |
+| `test_legacy_config_import.py` | One settings store (v3.27.0). A first start with no |
 | `test_link_class.mjs` | Contract test for DashUI.linkClass / measuredClass — how the |
 | `test_log_watch_alive.py` | The plugin ticks Log_Error_Watch.py hourly, so the plugin is |
 | `test_mains_meters.py` | Contract tests for the Mains instrument page's pure helpers |

@@ -56,3 +56,19 @@ def test_include_and_hide_still_work():
     p._merge_room_extras(rooms)
     assert rooms["Garage"]["sensors"] == [7]
     assert rooms["Garage"]["extras"] == []
+
+
+def test_a_rebuilt_json_file_is_written_only_when_it_changes(tmp_path):
+    """v3.27.0: rooms.json and scenes.json were rewritten every 30 s because
+    the _writeTs inside them always moved. Now only a real change writes."""
+    p = bare_plugin()
+    writes = []
+    p._write_atomic = lambda path, data: (writes.append(path), open(path, "wb").write(data))
+    path = str(tmp_path / "rooms.json")
+    assert p._write_json_if_changed(path, {"_writeTs": 1, "rooms": {"Hall": [1]}}) is True
+    assert p._write_json_if_changed(path, {"_writeTs": 2, "rooms": {"Hall": [1]}}) is False
+    assert p._write_json_if_changed(path, {"_writeTs": 3, "rooms": {"Hall": [1, 2]}}) is True
+    import os
+    os.remove(path)                                   # someone deleted it
+    assert p._write_json_if_changed(path, {"_writeTs": 4, "rooms": {"Hall": [1, 2]}}) is True
+    assert len(writes) == 3

@@ -65,12 +65,31 @@ def test_carbon_solar_reads_a_live_inverter(monkeypatch):
 
 
 def test_carbon_solar_disabled_or_errored_inverter_is_unknown(monkeypatch):
-    live = dict(pvPowerWatts="3200", homePowerWatts="800", gridPowerWatts="-2400")
+    # batterySoc is part of the identity: _sigen_inverter (v3.27.0) looks for a
+    # device carrying both it and pvPowerWatts, as the real inverter does.
+    live = dict(pvPowerWatts="3200", homePowerWatts="800", gridPowerWatts="-2400", batterySoc="50")
     assert _solar(monkeypatch, _inv(enabled=False, **live)) == {}
     assert _solar(monkeypatch, _inv(error="Modbus timeout", **live)) == {}
 
 
 def test_carbon_solar_absent_state_is_not_zero(monkeypatch):
-    assert _solar(monkeypatch, _inv(pvPowerWatts="3200", homePowerWatts="")) == {}
-    out = _solar(monkeypatch, _inv(pvPowerWatts="3200", homePowerWatts="800", gridPowerWatts="-2400"))
+    assert _solar(monkeypatch, _inv(pvPowerWatts="3200", homePowerWatts="", batterySoc="")) == {}
+    out = _solar(monkeypatch, _inv(pvPowerWatts="3200", homePowerWatts="800", gridPowerWatts="-2400",
+                                   batterySoc=""))
     assert out["soc"] is None and out["battery_w"] is None
+
+
+def test_sigen_inverter_needs_both_states(monkeypatch):
+    """v3.27.0: one lookup for every caller — a SigenEnergyManager device that
+    carries BOTH batterySoc and pvPowerWatts. Four copies used to disagree."""
+    plugin = load_plugin_module(); p = bare_plugin()
+    half = _inv(pvPowerWatts="1")
+    whole = _inv(pvPowerWatts="1", batterySoc="50")
+    monkeypatch.setattr(plugin.indigo.devices, "iter", lambda pid: [half, whole])
+    assert p._sigen_inverter() is whole
+    monkeypatch.setattr(plugin.indigo.devices, "iter", lambda pid: [half])
+    assert p._sigen_inverter() is None
+    def boom(pid):
+        raise RuntimeError("server busy")
+    monkeypatch.setattr(plugin.indigo.devices, "iter", boom)
+    assert p._sigen_inverter() is None

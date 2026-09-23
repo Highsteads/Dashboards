@@ -44,7 +44,6 @@ def test_secrets_win_over_prefs():
 def _prefs_plugin(monkeypatch):
     plugin = load_plugin_module()
     p = bare_plugin()
-    p.cfg_loaded = True
     p.cam_user = p.cam_pass = ""
     p.pluginPrefs = {}
     p._write_config_js = MagicMock()

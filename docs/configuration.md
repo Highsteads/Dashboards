@@ -132,19 +132,24 @@ model can be set in the raw-JSON box.
 ## Credentials in `IndigoSecrets.py`
 
 If you already use `IndigoSecrets.py` with the author's other plugins, these are the keys this one
-looks for. The repo ships `IndigoSecrets_example.py` with empty placeholders. Every key has a
-matching Configure field, and installs that have saved from the Settings page read cameras, main
-cameras, room extras and hidden scenes from `dashboards_config.json` instead.
+looks for. The repo ships `IndigoSecrets_example.py` with empty placeholders.
+
+Cameras, main cameras, room extras and hidden scenes live in `dashboards_config.json`, which the
+Settings page writes. The four `DASHBOARDS_*` keys below are read **once**: on the first start with
+no `dashboards_config.json` (3.27.0 and later), the plugin copies them, and the old Configure fields
+for cameras, the swap-out camera and hidden scenes, into that file and says so in the log. From then
+on the Settings page owns them and the keys are no longer read. A hand edit of
+`dashboards_config.json` takes effect at the next plugin restart.
 
 | Key | Used for |
 |---|---|
 | `INDIGO_URL` | REST API base URL |
 | `INDIGO_API_KEY` | REST API Bearer token (`CLAUDEBRIDGE_BEARER_TOKEN` is accepted as an alias) |
 | `DAHUA_USER` / `DAHUA_PASS` | Camera credentials |
-| `DASHBOARDS_CAMERAS` | The camera list |
-| `DASHBOARDS_MAIN_CAMERAS` | Host addresses for the hub's strip (must also be in the camera list) |
-| `DASHBOARDS_ROOM_EXTRAS` | The per-room extras dictionary |
-| `DASHBOARDS_HIDDEN_SCENES` | Action groups to keep off the Scenes page |
+| `DASHBOARDS_CAMERAS` | The camera list (imported once, see above) |
+| `DASHBOARDS_MAIN_CAMERAS` | Host addresses for the hub's strip (imported once) |
+| `DASHBOARDS_ROOM_EXTRAS` | The per-room extras dictionary (imported once) |
+| `DASHBOARDS_HIDDEN_SCENES` | Action groups to keep off the Scenes page (imported once) |
 | `SIGEN_DASHBOARD_URL` | The legacy Sigenergy mini-dashboard link |
 | `OWM_API_KEY` / `LATITUDE` / `LONGITUDE` | OpenWeatherMap and your site's coordinates |
 | `HISTORY_PG_HOST` / `_PORT` / `_USER` / `_PASSWORD` / `_DATABASE` | PostgreSQL, when the SQL Logger writes to Postgres |

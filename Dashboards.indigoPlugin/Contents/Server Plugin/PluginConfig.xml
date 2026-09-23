@@ -43,27 +43,8 @@
 
 	<Field id="sep1" type="separator"/>
 
-	<Field id="camerasJson" type="textfield" defaultValue="">
-		<Label>Cameras (JSON):</Label>
-	</Field>
-	<Field id="hlpCameras" type="label" fontSize="mini" alignWithControl="true">
-		<Label>Optional JSON list of camera objects. Each object needs host, name, vendor ("dahua" or "hikvision"). Read from IndigoSecrets.DASHBOARDS_CAMERAS first; this field is a fallback. Example: [{"host":"192.168.1.50","name":"Front Door","vendor":"dahua"},{"host":"192.168.1.51","name":"Drive","vendor":"hikvision"}]. Leave blank to disable the cameras grid and go2rtc (the :8177 proxy still runs, for /bootstrap only). All cams share DAHUA_USER / DAHUA_PASS from IndigoSecrets (despite the name, those creds also work for Hikvision).</Label>
-	</Field>
-
-	<Field id="swapOutHost" type="textfield" defaultValue="">
-		<Label>Swap-Out Host (optional):</Label>
-	</Field>
-	<Field id="hlpSwapOut" type="label" fontSize="mini" alignWithControl="true">
-		<Label>Optional. Host of the camera that gets bumped from live MJPEG to a still snapshot when the user peeks at a tail-of-list camera. Defaults to the LAST entry in the Cameras list. Override only if a different cam is the better drop candidate.</Label>
-	</Field>
-
-	<Field id="sep2" type="separator"/>
-
-	<Field id="hiddenScenesJson" type="textfield" defaultValue="">
-		<Label>Hidden Scenes (JSON):</Label>
-	</Field>
-	<Field id="hlpHiddenScenes" type="label" fontSize="mini" alignWithControl="true">
-		<Label>Optional JSON list of action groups to hide from the Scenes page. Entries match an action group name, an action group ID, or "folder:Folder Name" to hide a whole folder. Read from IndigoSecrets.DASHBOARDS_HIDDEN_SCENES first; this field is a fallback. Example: ["Internal Reset", "folder:Maintenance"]</Label>
+	<Field id="hlpSettingsStore" type="label" fontSize="mini">
+		<Label>Cameras, the hub's camera strip, room extras and hidden scenes are set on the dashboards' own Settings page (menu: Open Dashboards, then Settings). On the first start after upgrading from a version that read them here or from IndigoSecrets DASHBOARDS_* keys, the plugin copies those values into the Settings page's file once.</Label>
 	</Field>
 
 	<Field id="sep_carbon" type="separator"/>

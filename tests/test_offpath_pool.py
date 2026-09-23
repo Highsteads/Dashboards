@@ -203,7 +203,93 @@ def test_a_producer_that_raises_does_not_kill_the_worker(plug):
 def test_the_cache_is_capped(plug):
     for i in range(plug.OFFPATH_CACHE_MAX + 5):
         plug._offpath_get(f"k{i}", lambda i=i: {"v": i}, 30)
-    assert len(plug._offpath()["cache"]) <= plug.OFFPATH_CACHE_MAX + 1
+    assert len(plug._offpath()["cache"]) <= plug.OFFPATH_CACHE_MAX
+
+
+def test_the_cap_evicts_the_oldest_not_everything(plug):
+    """v3.27.0: reaching the cap used to clear the WHOLE cache, throwing out
+    timeline days meant to be held for a day. Now the least recently used goes."""
+    plug._offpath_get("keep", lambda: {"v": "keep"}, 3600)
+    for i in range(plug.OFFPATH_CACHE_MAX - 2):
+        plug._offpath_get(f"k{i}", lambda i=i: {"v": i}, 30)
+    plug._offpath_get("keep", lambda: {"v": "rebuilt"}, 3600)      # touched: recently used
+    for i in range(10):
+        plug._offpath_get(f"more{i}", lambda i=i: {"v": i}, 30)
+    cache = plug._offpath()["cache"]
+    assert "keep" in cache and cache["keep"][1] == {"v": "keep"}
+    assert "k0" not in cache, "the oldest untouched entry is the one that goes"
+
+
+def test_an_old_failure_does_not_answer_for_a_new_run(plug):
+    """v3.27.0: a failure recorded once was returned to every later caller
+    while their own run was still pending, until something succeeded."""
+    def explode():
+        raise ValueError("kaboom")
+    assert plug._offpath_get("x", explode, 30)[0] == "failed"
+    gate = threading.Event()
+    def slow_ok():
+        gate.wait(2)
+        return {"v": 1}
+    state, _ = plug._offpath_get("x", slow_ok, 30, wait=0.05)
+    gate.set()
+    assert state == "pending", f"got {state}: the earlier failure answered for this run"
+
+
+def test_swr_placeholder_then_value_then_stale_while_refreshing(plug):
+    ph = {"building": True}
+    calls = []
+    gate = threading.Event()
+    def build():
+        calls.append(1)
+        if len(calls) > 1:
+            gate.wait(2)                  # the refresh is slow
+        return {"n": len(calls)}
+    kw = dict(ttl=0.2, fail_ttl=60, placeholder=ph, on_fail=lambda d: {"err": d})
+    assert plug._offpath_swr("s", build, **kw) is ph            # nothing yet: never waits
+    deadline = time.time() + 2
+    while plug._offpath_swr("s", build, **kw) is ph and time.time() < deadline:
+        time.sleep(0.02)
+    time.sleep(0.25)                                            # let it go stale
+    t0 = time.monotonic()
+    assert plug._offpath_swr("s", build, **kw) == {"n": 1}      # stale, served at once
+    assert time.monotonic() - t0 < 0.1, "a stale answer must never wait for the refresh"
+    assert plug._offpath_swr("s", build, **kw) == {"n": 1}      # still refreshing: one job
+    gate.set()
+    deadline = time.time() + 2
+    while plug._offpath_swr("s", build, **kw) != {"n": 2} and time.time() < deadline:
+        time.sleep(0.02)
+    assert plug._offpath_swr("s", build, **kw) == {"n": 2}
+    assert len(calls) == 2, "two stale reads queued one refresh, not two"
+
+
+def test_swr_remembers_a_failure_and_does_not_hammer(plug):
+    calls = []
+    def boom():
+        calls.append(1)
+        raise RuntimeError("no SQL Logger")
+    kw = dict(ttl=60, fail_ttl=60, placeholder={"building": True},
+              on_fail=lambda d: {"error": d})
+    plug._offpath_swr("f", boom, **kw)
+    time.sleep(0.2)
+    for _ in range(5):
+        assert plug._offpath_swr("f", boom, **kw) == {"error": "no SQL Logger"}
+    assert len(calls) == 1, "a remembered failure must not be retried on every poll"
+
+
+def test_swr_ttl_can_depend_on_the_payload(plug):
+    """Carbon reports an API failure inside its reply; that reply is kept for
+    less time than a good one."""
+    plug._offpath_swr("c", lambda: {"error": "api down"},
+                      ttl=lambda p: 0.05 if "error" in p else 600, fail_ttl=60,
+                      placeholder={}, on_fail=lambda d: {})
+    time.sleep(0.2)
+    st = plug._offpath()
+    ts, payload = st["cache"]["c"]
+    plug._offpath_swr("c", lambda: {"ok": 1},
+                      ttl=lambda p: 0.05 if "error" in p else 600, fail_ttl=60,
+                      placeholder={}, on_fail=lambda d: {})
+    time.sleep(0.2)
+    assert st["cache"]["c"][1] == {"ok": 1}, "the short-lived error reply was refreshed"
 
 
 def test_stopping_the_workers_ends_them(plug):
@@ -419,12 +505,17 @@ def test_a_real_failure_is_a_500(plug, monkeypatch):
     assert history(plug)["status"] == 500
 
 
-def test_the_guest_path_still_calls_the_query_directly(plug):
-    """Deliberate: /guest/history is served by the MJPEG proxy's own HTTP
-    server on its own threads, so blocking there costs that one request and
-    not the web server. Routing it through the pool would be churn."""
+def test_the_guest_path_shares_the_history_cache(plug):
+    """v3.27.0 reversed the earlier choice. /guest/history runs on the :8177
+    proxy's own threads, so blocking there never hurt the web server — but a
+    30-day chart is 5-6 s of disk reads, and every guest request paid it
+    afresh with no cache. It now uses the same key and producer as the main
+    handler, with a long wait its own thread can afford."""
     src = io.open(SRC, encoding="utf-8").read()
-    assert "plugin_self._history_query(flat)" in src
+    assert "plugin_self._history_key(flat)" in src
+    assert "wait=plugin_self.GUEST_HISTORY_WAIT" in src
+    assert "plugin_self._history_query(flat)" not in src, "a direct, uncached call is back"
+    assert plug.GUEST_HISTORY_WAIT >= 5
 
 
 # ── one fault, one log line (v3.23.1) ───────────────────────────────────────

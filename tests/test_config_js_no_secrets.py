@@ -34,7 +34,7 @@ def _write(tmp_path):
     p.sigen_legacy_url = ""
     p.lan_ip = "192.168.1.10"
     p.pluginVersion = "0.0.0-test"
-    p._load_config_store = lambda: {"arrayKwp": 14.25}
+    p.cfg_store = {"arrayKwp": 14.25}
     p._public_dashboards_dir = lambda: str(tmp_path)
     p._write_config_js()
     return (tmp_path / "config.js").read_text(encoding="utf-8")
