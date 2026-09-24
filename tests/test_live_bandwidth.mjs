@@ -197,6 +197,40 @@ await section("DashRTC stall", async () => {
     check("a healthy picture is left alone", fails3.length === 0, JSON.stringify(fails3));
 });
 
+console.log("\n1c. the stream is asked to PLAY: autoplay alone left the hub paused (24-09-2026)");
+await section("DashRTC play", async () => {
+    const pcs = [];
+    const win = { RTCPeerConnection: makePCClass(pcs), MediaStream: class {},
+                  location: { protocol: "http:", hostname: "x", host: "x" },
+                  fetch: () => new Promise(() => {}), document: { createElement: () => makeVideoEl() } };
+    const R = loadRTC(win);
+
+    // A browser that does not autoplay: the video stays paused until play().
+    const v = makeVideoEl();
+    v.paused = true; v.plays = 0;
+    v.play = () => { v.plays++; v.paused = false; return Promise.resolve(); };
+    const h = R.start("a", v, { url: "/w", stallMs: 20, onFail: () => {} });
+    pcs[0].fire("track");
+    check("the stream arriving asks the video to play", v.plays >= 1 && v.paused === false,
+          `plays=${v.plays} paused=${v.paused}`);
+    h.stop();
+
+    // A browser that refuses to play: the first frame still shows (a paused
+    // video draws it), then the check names the real fault, not a stall.
+    const fails = [];
+    const v2 = makeVideoEl();
+    v2.paused = true; v2.plays = 0;
+    v2.play = () => { v2.plays++; return Promise.reject(new Error("NotAllowedError")); };
+    v2.requestVideoFrameCallback = f => { v2._frame = f; };
+    R.start("b", v2, { url: "/w", stallMs: 20, onFail: w => fails.push(w) });
+    pcs[1].fire("track");
+    v2._frame();
+    await tick(80);
+    check("a video that will not play fails as 'video would not play'",
+          fails[0] === "video would not play", JSON.stringify(fails));
+    check("…after asking again on each look", v2.plays >= 2, `plays=${v2.plays}`);
+});
+
 // ── 2. the bandwidth decision ──────────────────────────────────────────────
 console.log("\n2. DashRTC.decide: the speed decides, never the address, never the reflector");
 await section("DashRTC.decide", async () => {

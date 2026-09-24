@@ -62,6 +62,19 @@
     return null;
   }
 
+  /* Ask the <video> to play, and swallow the refusal. autoplay alone is not
+     enough: headless Chrome leaves a MediaStream video paused, and WebKit
+     may not autoplay one it cannot see, and the hub keeps its video at
+     opacity 0 until the first frame. A paused video still shows its first
+     frame, so it reads as live while the clock never moves (24-09-2026:
+     every hub tile failed as "video stalled" 3.5 s after going live). */
+  function playVideo(video) {
+    try {
+      var p = video.play();
+      if (p && p.catch) p.catch(function () {});
+    } catch (e) {}
+  }
+
   function supported() {
     return !!root && ('RTCPeerConnection' in root);
   }
@@ -149,6 +162,7 @@
     pc.addEventListener('track', function (e) {
       if (h.stopped) return;
       video.srcObject = e.streams[0] || new root.MediaStream([e.track]);
+      playVideo(video);
     });
     pc.addEventListener('connectionstatechange', function () {
       if (h.stopped) return;
@@ -188,6 +202,13 @@
         var lastFrames = frameCount(video), slow = 0;
         stallTimer = setInterval(function () {
           if (h.stopped) return;
+          if (video.paused) {
+            // Not a stall: nothing asked it to play, or the browser refused.
+            // Ask again, and give up only if it still will not after two looks.
+            playVideo(video);
+            if (++misses >= 2) { fail('video would not play'); return; }
+            return;
+          }
           if (video.currentTime > lastTime) { lastTime = video.currentTime; misses = 0; }
           else if (++misses >= 2) { fail('video stalled'); return; }
           var frames = frameCount(video);
@@ -469,6 +490,7 @@
     url: url,
     makeVideo: makeVideo,
     start: start,
+    playVideo: playVideo,
     ICE_MS: ICE_MS,
     FRAME_MS: FRAME_MS,
     POOR_FPS: POOR_FPS,

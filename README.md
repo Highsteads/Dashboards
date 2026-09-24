@@ -8,7 +8,7 @@ Browser dashboards for [Indigo Domotics](https://www.indigodomo.com/), built for
 wall, a phone in your pocket and a Mac on the desk. No app to install, no cloud account,
 nothing leaving the house.
 
-<img src="https://img.shields.io/badge/version-3.45.0-5856d6" alt="Version 3.45.0">
+<img src="https://img.shields.io/badge/version-3.45.1-5856d6" alt="Version 3.45.1">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-21-0a84ff" alt="21 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
@@ -21,7 +21,7 @@ nothing leaving the house.
 
 ---
 
-**Version:** 3.45.0
+**Version:** 3.45.1
 
 **Documentation:** **[highsteads.github.io/Dashboards](https://highsteads.github.io/Dashboards/)** —
 getting started, configuration, a page of notes for every one of the 21 pages, cameras, remote
@@ -67,11 +67,11 @@ simulator, touching no live devices.
 The three most recent releases, word for word. Every release before these is in
 **[the version history](docs/changelog.md)**, which the documentation site also carries.
 
+**3.45.1** (24-Sep-2026) - **The hub's cameras really are live now.** 3.45.0 decided correctly that the connection was fast enough, then dropped every stream about three seconds later as frozen. The video was never told to play: it relied on the browser starting it by itself, and a browser may not start a video it cannot yet see, which the hub's is until its first picture arrives. A paused video still shows its first frame, so each tile looked live for a moment before the freeze check took it back to stills. The video is now asked to play the moment the stream arrives, and a video the browser refuses to play is reported as that rather than as frozen.
+
 **3.45.0** (24-Sep-2026) - **The hub's cameras are live again, chosen by the speed of your connection.** The four cameras on the hub play live video wherever your connection can carry it, instead of pictures that were a few seconds behind. What decides it is now a measurement, not your address: the page times a few full-size pictures from the plugin and goes live when the connection carries about 11 Mbit/s, enough for four streams with room to spare. So a laptop or phone that is always on Tailscale gets live video on a fast link and stills on a slow one, where before Tailscale always meant stills on the hub and one live tile on the Cameras page. The Cameras page uses the same measurement to decide how many tiles can be live at once. A stream that freezes or crawls drops back to its still straight away and tries again later, every stream stops when the page is hidden, and nothing ever plays over the Indigo reflector.
 
 **3.44.0** (24-Sep-2026) - **Kinder to your network, easier by keyboard, and the PIN stays hidden.** The hub's camera strip and the room pages now refresh their pictures the way the Cameras page does, asking only whether the picture has changed, so an unchanged frame costs a few bytes instead of a whole image. The file the pages read for camera health now carries only that health, and no longer lists go2rtc's internal stream addresses. Pictures of cameras you have removed are tidied away at start-up, and go2rtc's log is kept to a sensible size while it runs, not only when it starts. Camera tiles can be reached with the Tab key and opened with Enter, and switches and sliders on the Active page are named for screen readers. The control PIN is typed into a hidden field with a number keypad, and a new tickbox removes it. A brightness change that did not take now puts the slider back where the light really is, pages notice a device change without comparing the whole device list each time, and the home-network link follows the address and port in your Indigo URL.
-
-**3.43.1** (24-Sep-2026) - **Fifty-odd smaller fixes from the same review.** Pages no longer show a disabled or silent device's last value as if it were live, on the hub's reading favourites, presence chips, heating averages and the solar rows. The hub's Doors & Windows card no longer shows a green all-clear when no sensor could be read, and it retries the room list instead of saying Loading for ever. A room's All On and All Off buttons now say when a light did not respond, and tapping quickly between days, years or charts can no longer paint one answer under another's label. The camera page no longer drops every tile to full-size pictures because one thumbnail is missing, a closed live tile no longer opens a stream behind your back, and camera health stops polling while the page sleeps. Behind the scenes the plugin checks the camera list when it loads, cleans up after itself when a write fails, keeps a slow Sigenergy reply from holding up everything else, places the Timeline correctly on the day the clocks change, and ignores readings from the inverter once they stop updating. Controls have proper names for screen readers, the Postgres password field is masked, and the online demo's Cameras page shows its pictures again.
 
 ## A look around
 
