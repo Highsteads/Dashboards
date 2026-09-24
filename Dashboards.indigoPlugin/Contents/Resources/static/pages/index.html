@@ -201,6 +201,19 @@
         .home-cam-frame img {
             width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none;
         }
+        /* Live video (v3.45.0), where the connection carries it, laid over
+           the still. Invisible until its first frame, so the still shows
+           through while it connects, and gone again the moment it fails. No
+           pointer events: a tap still reaches the link to the Cameras page. */
+        .home-cam-frame video {
+            position: absolute; inset: 0; width: 100%; height: 100%;
+            object-fit: cover; display: block; pointer-events: none;
+            opacity: 0; transition: opacity .3s ease;
+        }
+        .home-cam-frame.is-live video { opacity: 1; }
+        /* The refresh badge describes the still, which is hidden while live. */
+        .home-cam-frame.is-live .cam-badge { display: none; }
+        @media (prefers-reduced-motion: reduce) { .home-cam-frame video { transition: none; } }
 
         .dash-row {
             display: grid; gap: 10px; max-width: 900px; margin: 0 auto 16px;
@@ -500,6 +513,7 @@
     <script src="dashboard.js"></script>
     <script src="energy-calc.js"></script>
     <script src="dashboards-ui.js"></script>
+    <script src="dashboards-webrtc.js"></script>
     <script src="dashboards-icons.js"></script>
     <script src="dashboards-action.js"></script>
     <script src="dashboards-controls.js"></script>
@@ -870,29 +884,156 @@
     }
 
     // ── Camera strip (rendered ONCE) ───────────────────────────
-    // Stills only, since v3.35.0. The strip used to open a live MJPEG stream
-    // per tile wherever a bandwidth probe said the link could carry it: about
-    // 17 Mbit/s for four tiles, on the page you land on, to show pictures the
-    // size of a stamp. It now polls the snapshots the plugin already writes,
-    // at thumbnail size, and cross-fades each new frame in (DashUI.swapImage)
-    // so a two-second still reads as moving rather than blinking. Live video
-    // is one tap away on the Cameras page.
+    // Live video wherever the connection is fast enough, stills where it is
+    // not, and never over the reflector (v3.45.0).
     //
-    //   home       every 2 s — it is all on the LAN
+    // Every tile starts as a still: the snapshot the plugin already writes,
+    // at thumbnail size, cross-faded in (DashUI.swapImage). Then the page
+    // MEASURES the connection to the Indigo box (DashRTC.decide, the rule the
+    // Cameras page uses too). If it carries all the tiles live with room to
+    // spare, each tile opens a live WebRTC stream (DashRTC.start) laid over
+    // its still. The still shows until the first video frame, and comes back
+    // if the stream fails, stops or crawls; that tile tries live again after
+    // a minute, then two, up to five.
+    //
+    // The address is not the test. Stills only (v3.35.0) was chosen when live
+    // meant MJPEG, about 17 Mbit/s for four tiles. WebRTC relays the cameras'
+    // own H.264 at about 1.4 Mbit/s a tile, and a phone that keeps Tailscale
+    // on arrives from a tunnel address at home and away alike, so only a
+    // measurement can say whether the pipe carries it.
+    //
+    // Where it does not, the stills poll as before, by how the page is reached:
+    //   home       every 2 s
     //   vpn        every 3 s
     //   reflector  every 15 s, pausing after ten idle minutes, because
     //              Indigo's servers carry every byte (v2.96.1)
+    // Over the reflector the strip never goes live, whatever the measurement.
+    // A hidden or closed page holds no stream; showing it again asks again.
+    // The demo shows stills.
     let _stripTimers = [];
     let _measuredLink = null;    // set once the link has been timed, not guessed
     let _stripIdle  = false;     // reflector only: pictures paused until a tap (v2.96.1)
     let _stripGuard = null;
 
     document.addEventListener("visibilitychange", () => {
-        if (!document.hidden) {
-            loadSummary();
-            if (_heavyStarted) { _refreshInsights(); _refreshLogWatch(); _refreshCamHealth(); }
-        }
+        // A hidden page holds no live camera stream; showing it again asks
+        // again (a fresh reading is reused, an old one re-measured).
+        if (document.hidden) { _hubStopAllLive(); return; }
+        loadSummary();
+        if (_heavyStarted) { _refreshInsights(); _refreshLogWatch(); _refreshCamHealth(); }
+        _hubDecide();
     });
+    window.addEventListener("pagehide", () => { _hubStopAllLive(); });
+    // Back from the back-forward cache: the page never reloaded, so ask again.
+    window.addEventListener("pageshow", (e) => { if (e.persisted) _hubDecide(); });
+    // The network changed under the page (where the browser says so): drop
+    // the streams, measure the new connection, then decide again.
+    if (window.DashRTC && DashRTC.watchConnection) {
+        DashRTC.watchConnection(() => { _hubStopAllLive(); _hubVerdict = null; _hubDecide(); });
+    }
+
+    // ── Live video on the strip (v3.45.0) ──────────────────────
+    const HUB_LIVE_RETRY_MS     = 60000;    // first retry after a failure
+    const HUB_LIVE_RETRY_MAX_MS = 300000;   // back-off ceiling (5 min)
+    const HUB_LIVE_STALL_MS     = 1500;     // how often the video clock is looked at
+    let _hubLive     = {};                  // host -> { rtc, video, frame, fails, retry }
+    let _hubVerdict  = null;                // DashRTC.decide's answer; null = not decided
+    let _hubDeciding = null;
+
+    // Pure, so the test can ask it every case. Live only on a MEASURED
+    // verdict that carries the tiles, never over the reflector (asked again
+    // here, not trusted from the verdict), never in the demo, a hidden page
+    // or a browser without WebRTC.
+    function _hubLiveWanted(verdict, o) {
+        return !!(verdict && verdict.live) && o.link !== "reflector"
+            && !o.demo && !o.hidden && !!o.canRtc && !!o.hasPath;
+    }
+    function _hubLiveAllowed() {
+        const cfg = window.CAMERA_CONFIG || {};
+        return _hubLiveWanted(_hubVerdict, {
+            link:    window.DashUI && DashUI.linkClass ? DashUI.linkClass() : "reflector",
+            demo:    !!(window.DashUI && DashUI.isDemo && DashUI.isDemo()),
+            hidden:  document.hidden,
+            canRtc:  ("RTCPeerConnection" in window) && !!window.DashRTC,
+            hasPath: !!cfg.webrtcPath,
+        });
+    }
+    // Ask the shared rule whether this connection carries the strip live.
+    // Single flight; the answer lands in _hubVerdict and the strip follows it.
+    function _hubDecide() {
+        if (_hubDeciding) return _hubDeciding;
+        const hosts = (window.CAMERA_CONFIG || {}).mainCameras || [];
+        if (!hosts.length || !window.DashRTC || document.hidden) return Promise.resolve();
+        _hubDeciding = DashRTC.decide(hosts.length, { hosts })
+            .then(v => {
+                _hubVerdict = v;
+                console.info(`[hub] cameras ${v.live ? "live" : "stills"}: `
+                           + (v.mbps == null ? v.why : `${v.mbps} Mbit/s measured, ${v.needMbps.toFixed(1)} needed`));
+            })
+            .catch(() => { _hubVerdict = null; })
+            .then(() => { _hubDeciding = null; _hubSyncLive(); });
+        return _hubDeciding;
+    }
+    function _hubStopLive(host) {
+        const s = _hubLive[host]; if (!s) return;
+        if (s.retry) { clearTimeout(s.retry); s.retry = null; }
+        if (s.rtc)   { s.rtc.stop(); s.rtc = null; }
+        if (s.frame) s.frame.classList.remove("is-live");     // the still shows again
+        if (s.video) {
+            try { s.video.srcObject = null; } catch (e) {}
+            s.video.remove();
+            s.video = null;
+        }
+    }
+    function _hubStopAllLive() { Object.keys(_hubLive).forEach(_hubStopLive); }
+    function _hubStartLive(frame, host) {
+        const s = _hubLive[host] || (_hubLive[host] = { rtc: null, video: null, frame: null, fails: 0, retry: null });
+        _hubStopLive(host);
+        if (!_hubLiveAllowed() || !frame.isConnected) return;
+        const video = DashRTC.makeVideo();
+        frame.appendChild(video);
+        s.video = video;
+        s.frame = frame;
+        const rtc = DashRTC.start(host, video, {
+            url: DashRTC.url(host, window.CAMERA_CONFIG || {}),
+            stallMs: HUB_LIVE_STALL_MS,
+            onLive: () => {
+                if (s.rtc !== rtc) return;
+                s.fails = 0;                        // a working stream forgives the past
+                frame.classList.add("is-live");
+            },
+            onFail: (why) => { if (s.rtc === rtc) _hubLiveFailed(host, why); },
+        });
+        s.rtc = rtc;
+    }
+    function _hubLiveFailed(host, why) {
+        const s = _hubLive[host]; if (!s) return;
+        const frame = s.frame;
+        _hubStopLive(host);
+        s.fails += 1;
+        const wait = Math.min(HUB_LIVE_RETRY_MS * s.fails, HUB_LIVE_RETRY_MAX_MS);
+        console.warn(`[hub] ${host} live video ${why}; showing stills, trying again in ${Math.round(wait / 1000)}s`);
+        // A fresh still at once: the one underneath stopped updating while
+        // the video played.
+        const img = frame && frame.querySelector("img[data-host]");
+        if (img && window._hubSwapIn) window._hubSwapIn(img, true);
+        s.retry = setTimeout(() => {
+            s.retry = null;
+            if (frame && frame.isConnected) _hubStartLive(frame, host);
+        }, wait);
+    }
+    // Bring the strip into line with the verdict: start every tile that is
+    // neither live, connecting nor waiting out a back-off, or stop them all.
+    function _hubSyncLive() {
+        if (!_hubLiveAllowed()) { _hubStopAllLive(); return; }
+        const mount = document.getElementById("cameras-mosaic");
+        if (!mount) return;
+        mount.querySelectorAll(".home-cam-frame[data-host]").forEach(frame => {
+            const s = _hubLive[frame.dataset.host];
+            if (s && (s.rtc || s.retry)) return;
+            _hubStartLive(frame, frame.dataset.host);
+        });
+    }
 
     // Where the pictures are. They used to be cam-<host>.jpg in the
     // anonymous public folder, named in the anonymous config.js, so anyone
@@ -912,6 +1053,8 @@
         if (!_stripPats) setTimeout(() => { renderCamerasOnce().catch(() => {}); }, 60000);
     }
     function _paintStrip(mount, hosts, names, pats) {
+        _hubStopAllLive();                  // the tiles are about to be replaced
+        _hubLive = {};
         if (!pats) {
             _stripTimers.forEach(t => { clearInterval(t); clearTimeout(t); });
             _stripTimers = [];
@@ -957,7 +1100,7 @@
             const badge = link === "home" ? "" : `<span class="cam-badge">${pollMs / 1000}s</span>`;
             return `
                 <a class="home-cam" href="cameras.html" title="${escapeAttr(name)}">
-                    <div class="home-cam-frame">
+                    <div class="home-cam-frame" data-host="${escapeAttr(host)}">
                         <img crossorigin="anonymous" alt="${escapeAttr(name)}"
                              data-host="${escapeAttr(host)}">
                         ${badge}
@@ -975,6 +1118,9 @@
             // The strip is rebuilt on resize, so a pending stagger timer can
             // outlive the tile it was made for.
             if (!img.isConnected) return;
+            // The live video is showing: the still under it is not seen, so
+            // it is not fetched. A failed stream asks for one straight away.
+            if (img.parentNode && img.parentNode.classList.contains("is-live")) return;
             const next = url(still, img.dataset.host);
             DashUI.refreshStill(img, next).catch(e => {
                 // No thumbnail on the server (404): it has nothing to shrink
@@ -994,6 +1140,8 @@
                 _stripTimers.push(setInterval(() => swapIn(img), pollMs));
             }, offset));
         });
+        // Live video over each still, where the connection carries it.
+        if (_hubVerdict) _hubSyncLive(); else _hubDecide();
     }
     function escapeAttr(s) {
         return String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");

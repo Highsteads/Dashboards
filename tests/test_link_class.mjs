@@ -22,7 +22,7 @@
 //              this locks what ships rather than a copy of it.
 // Author:      CliveS & Claude Opus 5
 // Date:        29-07-2026
-// Version:     1.0
+// Version:     1.1 (v3.45.0: the camera policy table follows the measured speed)
 //
 // Run: node tests/test_link_class.mjs   (exit 0 = pass)
 
@@ -223,13 +223,12 @@ for (const [host, rtt, want, why] of CASES) {
   console.log(`  ${onResume ? "ok  " : "FAIL"} cameras.html re-measures when the page comes back`);
 }
 
-// ---- link class -> camera policy ---------------------------------------
+// ---- measured speed -> camera policy (v3.45.0) ---------------------------
 // Pinned because this behaviour has been got wrong three times. Live video is
-// WebRTC since v3.36.0: a pool of six at home, ONE tile (the focused one) on a
-// measured tunnel link, none over the reflector and none on an unmeasured
-// guess. The near/far tunnel bands no longer differ: WebRTC drops frames on a
-// thin link instead of queueing behind them, which is what made MJPEG unsafe
-// on 5G.
+// WebRTC since v3.36.0, and since v3.45.0 how many tiles stream follows the
+// MEASURED speed (DashRTC.tilesCarried), not the address class: a phone that
+// keeps Tailscale on reads 'vpn' at home and away. The reflector still never
+// streams, and an unmeasured link opens nothing.
 {
   const camSrc = fs.readFileSync(path.join(HERE, "..", "Dashboards.indigoPlugin",
     "Contents", "Resources", "static", "pages", "cameras.html"), "utf8");
@@ -243,29 +242,31 @@ for (const [host, rtt, want, why] of CASES) {
                 cfg: { livePoolSize: 6, webrtcPath: "/webrtc/{host}" },
                 window: { RTCPeerConnection: function () {} },
                 LINK: null, LIVE_POOL_SIZE: null, DEFAULT_LIVE: null, WEBRTC_FOCUS: null, LAST_RTT: null,
-                DEFAULT_LIVE_SET: null, LIVE_FOLLOWS_FOCUS: null, Set, Math, console,
+                LAST_TILES: null, DEFAULT_LIVE_SET: null, LIVE_FOLLOWS_FOCUS: null, Set, Math, console,
                 RTT_TUNNEL_MS: Number(/RTT_TUNNEL_MS\s*=\s*(\d+)/.exec(camSrc)[1]) };
   vm.createContext(box);
   vm.runInContext(camSrc.slice(start, end), box);
-  for (const [cls, rtt, wantLive, why] of [
-        ["home",      21, 6, "on the LAN, tunnel off"],
-        ["vpn",      116, 1, "MEASURED: at home with Tailscale up — one live tile"],
-        ["vpn",      245, 1, "MEASURED: 5G with Tailscale up — one live tile too"],
-        ["vpn",     null, 0, "UNMEASURED must never assume the expensive case"],
-        ["reflector", 10, 0, "the reflector fronts neither video port"],
+  for (const [cls, rtt, tiles, wantLive, why] of [
+        ["home",      21,   20, 6, "on the LAN, fast"],
+        ["vpn",      116,   20, 6, "Tailscale at home, measured fast — the full pool"],
+        ["vpn",      245,    3, 3, "a tunnel carrying three — three fixed live tiles"],
+        ["vpn",      245,    1, 1, "a tunnel carrying one — the focused tile"],
+        ["home",      21,    0, 0, "a LAN address measured slow gets stills"],
+        ["vpn",     null, null, 0, "UNMEASURED must never assume the expensive case"],
+        ["reflector", 10,   20, 0, "the reflector never streams, however fast"],
       ]) {
-    vm.runInContext(`setPolicy(${JSON.stringify(cls)}, ${JSON.stringify(rtt)})`, box);
+    vm.runInContext(`setPolicy(${JSON.stringify(cls)}, ${JSON.stringify(rtt)}, ${JSON.stringify(tiles)})`, box);
     const got = box.LIVE_POOL_SIZE + (box.WEBRTC_FOCUS ? 1 : 0);
     const ok = got === wantLive;
     ok ? pass++ : fail++;
-    console.log(`  ${ok ? "ok  " : "FAIL"} ${cls.padEnd(9)} ${String(rtt).padStart(4)}ms -> ` +
+    console.log(`  ${ok ? "ok  " : "FAIL"} ${cls.padEnd(9)} ${String(rtt).padStart(4)}ms ${String(tiles).padStart(4)} carried -> ` +
                 `${got} live ${ok ? "" : `(want ${wantLive}) `}— ${why}`);
   }
   // With no live tile there is nothing for the focus to carry.
-  vm.runInContext('setPolicy("vpn", 245)', box);
+  vm.runInContext('setPolicy("vpn", 245, 0)', box);
   const ok = box.LIVE_FOLLOWS_FOCUS === false;
   ok ? pass++ : fail++;
-  console.log(`  ${ok ? "ok  " : "FAIL"} off-LAN has no live slot to follow the focus`);
+  console.log(`  ${ok ? "ok  " : "FAIL"} a slow link has no live slot to follow the focus`);
 }
 
 // ---- wi-fi association beats timing ------------------------------------

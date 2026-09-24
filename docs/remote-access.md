@@ -15,8 +15,10 @@ the private-client gate on port 8177 accepts Tailscale's `100.64.0.0/10` range a
 Why this plugin needs it:
 
 - **Live cameras only work remotely this way.** WebRTC is set up on port 8177 and streams on 8555,
-  which nothing else fronts — without Tailscale you get every data page and the stills but no live
-  video; over Tailscale the tile at the top of the Cameras page goes live.
+  which nothing else fronts. Without Tailscale you get every data page and the stills but no live
+  video. Over Tailscale the pages time the connection and go live wherever it is fast enough, and
+  stay on stills where it is not, so a phone that keeps Tailscale on at home gets every camera
+  live there.
 - **No pairing ceremony.** A new browser on the tailnet auto-pairs on first visit, exactly as at
   home. Any other way in, you would need a one-time setup link or to type the API key.
 - **Nothing exposed.** No port forwarding, no public attack surface, WireGuard encryption end to
@@ -74,7 +76,8 @@ server, the reflector included, so the camera stills sit in a folder named by a 
 makes for each install. Only a browser holding the API key is told that name. In earlier versions they were
 `cam-<host>.jpg` in the open folder, and anyone with the reflector address could watch them.
 
-**What the plugin does about it.** A page that can see it was reached through the reflector polls
+**What the plugin does about it.** Live video never goes over the reflector, whatever the
+connection's speed. A page that can see it was reached through the reflector polls
 at a tenth of the home rate, stops altogether after ten minutes untouched, and shows a banner with
 the LAN link. The plugin notes each device that arrives over the reflector, once an hour, in its
 log, naming the device and the LAN address it should use instead. And **Refuse the reflector**

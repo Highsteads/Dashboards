@@ -24,7 +24,7 @@ frame, the mode badge and the camera's address.
 **Grid.** The remaining cameras, four across, each with the same strip.
 
 **Footer.** Camera count, last update, total bandwidth, a health word, then a second line giving the
-detected connection ("home network"), the measured link, the live-versus-still split, and the build
+detected connection ("home network"), the measured round trip and speed, the live-versus-still split, and the build
 number. Under that, a link reading "this device is: not set" — tapping it pins how this particular
 browser should behave rather than leaving it to detection.
 
@@ -36,9 +36,11 @@ Each tile shows one of these as a badge:
 - **2s**, **5s** — polling the still image at that interval. A tile that could not hold its live
   video drops to the longer one, says "SLOW LINK", and tries live again later.
 
-The page assumes it is remote until it can prove otherwise. At home up to six tiles are live; away
-over a VPN only the tile at the top is, and it follows the tile you tap; over the reflector none
-are. The state dot has four
+The page shows stills until it has timed the connection, then lets as many tiles go live as the
+speed carries with room to spare, up to six: a fast connection gets all six, one with room for a
+few gets that many, and one with room for only one gets the tile at the top, which follows the tile
+you tap. It judges by speed, not by address, so a phone that keeps Tailscale on gets the full six at
+home. Over the reflector none are live, however fast. The state dot has four
 states: grey before anything has arrived, green with live frames, amber when connected but frames
 have stalled, red when unreachable. A tile that cannot get a still says so on the tile itself
 ("No snapshot (HTTP 404)") rather than staying a blank square.

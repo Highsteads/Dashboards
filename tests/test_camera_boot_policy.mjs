@@ -23,7 +23,7 @@
 //              not the constant's name; COUNT call sites.
 // Author:      CliveS & Claude Fable 5
 // Date:        30-07-2026
-// Version:     1.0
+// Version:     1.1 (v3.45.0: the cached verdict carries the measured live count)
 //
 // Run: node tests/test_camera_boot_policy.mjs   (exit 0 = pass)
 
@@ -68,42 +68,48 @@ function runBoot({ addrClass, stored, now }) {
         localStorage: { getItem: () => stored, setItem: () => {} },
         POLICY_CACHE_KEY: "dash_cam_policy",
         POLICY_CACHE_MS: 60000,
-        setPolicy: (cls, ms) => calls.push([cls, ms]),
+        setPolicy: (cls, ms, tiles) => calls.push([cls, ms, tiles]),
+        LAST_MBPS: null,
     };
     vm.createContext(ctx);
     vm.runInContext(fn("bootPolicy") + "\nbootPolicy();", ctx);
     return calls;
 }
 const NOW = 1_800_000_000_000;
-const cacheJson = (cls, ms, atDelta) =>
-    JSON.stringify({ cls, ms, at: NOW - atDelta });
+const cacheJson = (cls, ms, atDelta, tiles = 6) =>
+    JSON.stringify({ cls, ms, tiles, mbps: 40, at: NOW - atDelta });
 
 console.log("\nbootPolicy decides from the cached MEASURED verdict, executed for real");
 {
     check(JSON.stringify(runBoot({ addrClass: "home", stored: null, now: NOW }))
-              === JSON.stringify([["vpn", null]]),
+              === JSON.stringify([["vpn", null, null]]),
           "no cache -> conservative all-stills, even on a home address",
           "the home address is exactly what lies over a Tailscale subnet route");
     check(JSON.stringify(runBoot({ addrClass: "home",
                                    stored: cacheJson("home", 21, 1000), now: NOW }))
-              === JSON.stringify([["home", 21]]),
+              === JSON.stringify([["home", 21, 6]]),
           "a fresh cached verdict is trusted");
     check(JSON.stringify(runBoot({ addrClass: "vpn",
                                    stored: cacheJson("home", 116, 1000), now: NOW }))
-              === JSON.stringify([["home", 116]]),
+              === JSON.stringify([["home", 116, 6]]),
           "the cache beats the address class for non-reflector addresses");
     check(JSON.stringify(runBoot({ addrClass: "home",
                                    stored: cacheJson("home", 21, 61000), now: NOW }))
-              === JSON.stringify([["vpn", null]]),
+              === JSON.stringify([["vpn", null, null]]),
           "a cache older than 60 s is IGNORED",
           "an unbounded 'home' verdict re-opens six streams on 5G hours later");
     check(JSON.stringify(runBoot({ addrClass: "reflector",
                                    stored: cacheJson("home", 21, 1000), now: NOW }))
-              === JSON.stringify([["reflector", undefined]]),
+              === JSON.stringify([["reflector", undefined, undefined]]),
           "a reflector address is authoritative, whatever the cache says",
           "no probe can make a reflector address local");
+    check(JSON.stringify(runBoot({ addrClass: "vpn",
+                                   stored: JSON.stringify({ cls: "home", ms: 21, at: NOW - 1000 }), now: NOW }))
+              === JSON.stringify([["home", 21, null]]),
+          "a verdict cached before v3.45.0 (no tiles) opens no stream",
+          "the live count comes only from a measured speed");
     check(JSON.stringify(runBoot({ addrClass: "home", stored: "{corrupt", now: NOW }))
-              === JSON.stringify([["vpn", null]]),
+              === JSON.stringify([["vpn", null, null]]),
           "a corrupt cache falls through to conservative, not a throw");
 }
 
@@ -131,13 +137,18 @@ console.log("\nthe boot path itself can no longer act on the address guess");
 console.log("\nmeasureAndApply feeds the cache and is single-flight");
 {
     const ma = fn("measureAndApply");
-    const cacheAt = ma.indexOf("cachePolicy(effective, ms)");
+    const cacheAt = ma.indexOf("cachePolicy(effective, ms, tiles, LAST_MBPS)");
     // v2.95.1: setPolicy is the ONE owner of the derivation. It is applied
     // unconditionally and the relayout decision compares the tuple it sets
     // (LINK, LIVE_POOL_SIZE, WEBRTC_FOCUS) before and after — a live COUNT
     // compare could never see the WebRTC band engage, because that band has
     // a live count of zero, the same as the conservative boot policy.
-    const applyAt  = ma.indexOf("setPolicy(effective, ms)");
+    const applyAt  = ma.indexOf("setPolicy(effective, ms, tiles)");
+    // v3.45.0: the live count is the MEASURED speed, from the shared rule.
+    check(/DashRTC\.measure\(\{\s*hosts\s*\}\)/.test(ma)
+              && /const tiles = \(bw && window\.DashRTC\) \? DashRTC\.tilesCarried\(bw\.mbps\) : null/.test(ma),
+          "measureAndApply sizes the pool from DashRTC's measured speed",
+          "the address class said nothing about the pipe for a phone on Tailscale");
     const decideAt = ma.indexOf("before.some(");
     check(cacheAt >= 0, "the verdict is cached");
     check(decideAt >= 0 && cacheAt < decideAt,

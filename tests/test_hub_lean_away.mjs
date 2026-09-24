@@ -19,7 +19,7 @@
 //                 double every poll for the life of the page.
 // Author:      CliveS & Claude Opus 5
 // Date:        02-09-2026
-// Version:     2.2 (v3.35.0: the strip is stills only, so the budget checks became stills checks); 2.1 (v3.26.0: the constant-false _leanHub went; this now checks it stays gone)
+// Version:     2.3 (v3.45.0: live video on the strip is decided by measured speed, see test_live_bandwidth.mjs); 2.2 (v3.35.0: the strip is stills only, so the budget checks became stills checks); 2.1 (v3.26.0: the constant-false _leanHub went; this now checks it stays gone)
 //
 // Run: node tests/test_hub_lean_away.mjs   (exit 0 = pass)
 
@@ -72,7 +72,7 @@ console.log("\n_goFull shows everything, on every verdict");
           "unknown used to mean lean, which hid the cameras on a slow probe");
 }
 
-console.log("\nthe strip is stills only (v3.35.0)");
+console.log("\nthe strip's stills (v3.35.0; live video over them since v3.45.0 is test_live_bandwidth.mjs)");
 check("no live MJPEG address is built on the hub", !/mjpegPort|mjpegPath/.test(src),
       "four live tiles were about 17 Mbit/s on the landing page");
 check("no stream budget machinery left", !/_liveBudget|_applyStreamBudget|streamBudget|_hubDemoteTile/.test(src));

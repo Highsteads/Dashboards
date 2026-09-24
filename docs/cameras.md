@@ -81,18 +81,25 @@ Each tile on the Cameras page carries a badge:
 - **2s**, **5s** — polling the still picture at that interval. A tile that could not hold its live
   video drops to stills, says "SLOW LINK", and tries live again after a minute, then less often.
 
-The page assumes it is remote until it can prove otherwise. At home up to `livePoolSize` tiles
-(default six) are live and the rest are stills; over a VPN only the tile you have tapped to the top
-is live; over the Indigo reflector nothing is, because it fronts neither video port. A link at the
-bottom of the page, "this device is", pins how this particular browser should behave rather than
-leaving it to detection.
+Whether a tile goes live depends on how fast the connection is, not on where you are. The page
+shows stills until it has timed the connection, by downloading a few full-size stills from the
+server at once. It then lets as many tiles go live as that speed carries at twice what each one
+needs, up to `livePoolSize` (default six): a fast link gets them all, a slower one fewer, and one
+with room for a single stream gets the tile you have tapped to the top. A link too slow for even
+one gets stills everywhere. Over the Indigo reflector nothing is live, however fast, because it
+fronts neither video port and Indigo's servers would carry every byte. The timing is kept for three
+minutes and taken again after that when you come back to the page, or at once where the browser
+says the network has changed. A link at the bottom of the page, "this device is", tells the page
+when this browser is on the house wi-fi, which sets how often the stills refresh.
 
 After ten minutes with nobody touching the page, everything stops. Tap anywhere to start it again.
 
 ## Bandwidth
 
-A live tile on substream 2 is roughly 1 Mbit/s and a mainstream one about 1.5; the Cameras page
-keeps a live kB/s figure in its header, counted from what this browser actually receives, so the
+A live tile on substream 2 is roughly 1 Mbit/s and a mainstream one about 1.5. Six live tiles
+measured about 1 MB/s together, so the pages allow 1.4 Mbit/s a tile and want twice that spare
+before going live: about 11 Mbit/s for the hub's four and 17 for six. The Cameras page keeps a live
+kB/s figure in its header, counted from what this browser actually receives, so the
 number is visible before it becomes a phone bill. Over the Indigo reflector the pages poll at a
 tenth of the home rate, and the plugin can refuse the reflector entirely; see
 [Remote access](remote-access.md). Live video only works remotely over Tailscale, because nothing
@@ -100,10 +107,11 @@ else reaches ports 8177 and 8555.
 
 ## The hub strip and the room pages
 
-The hub carries a strip of up to four cameras — the ones marked "main" in the configuration — as
-stills that cross-fade from frame to frame. A camera with a `room` in its entry also appears on that
-room's page, the same way. Neither streams: tap a tile and the Cameras page opens with it live at
-the top.
+The hub carries a strip of up to four cameras, the ones marked "main" in the configuration. Where
+the connection is fast enough for all of them, by the same timing as the Cameras page, each plays
+live video over its still. Where it is not, and always over the reflector, they are stills that
+cross-fade from frame to frame. A camera with a `room` in its entry also appears on that room's
+page, as a still that does not stream. Tap a tile and the Cameras page opens with it at the top.
 
 ## Things worth knowing
 

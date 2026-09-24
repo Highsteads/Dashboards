@@ -309,6 +309,8 @@
     <script src="config.js" onerror="window.INDIGO_CONFIG_MISSING=true"></script>
     <!-- for DashUI.linkClass(): the live pool depends on how we got here -->
     <script src="dashboards-ui.js"></script>
+    <!-- DashRTC: one live WebRTC tile, shared with the hub's camera strip -->
+    <script src="dashboards-webrtc.js"></script>
     <!-- Supplies the API key from this browser's own storage. Needed to ask
          Indigo whether this phone is on the house wi-fi — see homeByPresence().
          That question is asked over the AUTHENTICATED /v2/api, never published
@@ -359,8 +361,8 @@
     // already small, never gets a thumbnail — so that only moves its own tile
     // (see wantsFullSize).
     let thumbsAvailable = true;
-    // The plugin's own port: WebRTC signalling only since v3.36.0.
-    const proxyPort    = cfg.proxyPort || 8177;
+    // The plugin's own port (cfg.proxyPort) carries WebRTC signalling only;
+    // DashRTC.url builds the address from it.
     // The plugin refreshes each snapshot every 2s, so asking faster than that
     // just re-fetches the same bytes. Off the LAN we ask every 3s instead.
     const POLL_MS      = Math.max(1000, (cfg.pollSeconds || 10) * 1000);
@@ -490,18 +492,24 @@
 
     // ── Live pool ──────────────────────────────────────────────
     // The first N cameras run live WebRTC and the rest snapshot-poll every
-    // POLL_MS. How big N is depends on how the page was reached:
-    //   home       the configured pool (6) — it is all on the LAN.
-    //   vpn        ONE, the focused tile (WEBRTC_FOCUS). The rest poll.
-    //   reflector  NONE. Neither the signalling port nor go2rtc's media port
-    //              is fronted by the reflector, so a live tile cannot connect.
+    // POLL_MS. How big N is depends on the MEASURED speed of the connection
+    // (v3.45.0; DashRTC.measure, the rule the hub strip uses too), not on the
+    // address: a phone that keeps Tailscale on arrives from a tunnel address
+    // at home and away alike.
+    //   fast enough for the pool   the configured pool (6)
+    //   fast enough for some       that many, fixed on the first cameras
+    //   fast enough for one        ONE, the focused tile (WEBRTC_FOCUS)
+    //   slower, or not measured    none; every tile polls a still
+    //   reflector                  NONE, whatever the speed. Neither the
+    //              signalling port nor go2rtc's media port is fronted by the
+    //              reflector, and Indigo's servers would carry every byte.
     //
-    // Off the LAN the one live tile FOLLOWS the tile you tap to the top — see
-    // focusTile. At home the pool is fixed and tapping only changes the layout.
-    // Policy is now MUTABLE, because the address is only an opening guess: a
-    // LAN address reached over a VPN subnet route is indistinguishable from
-    // the LAN itself, so the real class only arrives once the link has been
-    // measured (DashUI.measuredClass). applyPolicy() re-lays-out when it does.
+    // With one live tile it FOLLOWS the tile you tap to the top — see
+    // focusTile. With more the pool is fixed and tapping only changes the
+    // layout. The link CLASS (home / vpn / reflector) still sets how often the
+    // stills poll and what the footer calls the connection.
+    // Policy is MUTABLE: boot uses the last measured verdict (or all stills)
+    // and measureAndApply() re-lays-out when a measurement changes it.
     let LINK = window.DashUI ? DashUI.linkClass() : "home";
     let _idlePaused = false;      // reflector only: stills stopped until a tap (v2.96.1)
     let _idleGuard  = null;
@@ -525,7 +533,12 @@
     // uses it now: both bands get the same single WebRTC tile.
     const RTT_TUNNEL_MS = 150;
 
-    function setPolicy(cls, rttMs) {
+    // How many live tiles the measured speed carries (DashRTC.tilesCarried);
+    // null until measured, and an unmeasured link opens no stream.
+    let LAST_TILES   = null;
+    let LAST_MBPS    = null;
+
+    function setPolicy(cls, rttMs, liveTiles) {
         LINK = cls;
         // typeof-guarded: the contract tests eval setPolicy on its own.
         if (cls === "reflector" && typeof _armIdleGuard === "function") _armIdleGuard();
@@ -533,23 +546,29 @@
         // so a live tile there cannot connect at all, whatever the timing
         // says. A browser without WebRTC gets stills everywhere.
         LAST_RTT     = (rttMs == null ? null : rttMs);
+        LAST_TILES   = (liveTiles == null ? null : liveTiles);
         WEBRTC_FOCUS = false;
         const canRtc = "RTCPeerConnection" in window;
-        if (cls === "home" && canRtc) {
-            // A CONFIGURED zero must mean zero — `|| 6` turned it back into
-            // the default (the falsy-number trap).
-            const poolCfg = Number.isFinite(+cfg.livePoolSize) ? Math.max(0, +cfg.livePoolSize) : 6;
-            LIVE_POOL_SIZE = Math.min(poolCfg, hosts.length);
-        } else if (cls === "vpn" && rttMs != null && cfg.webrtcPath && hosts.length && canRtc) {
-            // MEASURED tunnel link, near or far: the focused tile streams
-            // WebRTC (see WEBRTC_FOCUS above), everything else stills.
-            // rttMs != null is load-bearing: an UNMEASURED link (boot's
-            // conservative guess) must not open any stream.
+        // A CONFIGURED zero must mean zero — `|| 6` turned it back into
+        // the default (the falsy-number trap).
+        const poolCfg = Number.isFinite(+cfg.livePoolSize) ? Math.max(0, +cfg.livePoolSize) : 6;
+        const pool    = Math.min(poolCfg, hosts.length);
+        // liveTiles == null is load-bearing: an UNMEASURED link (boot's
+        // conservative guess) must not open any stream. The address class no
+        // longer grants anything; only the reflector takes it away.
+        const carried = (cls === "reflector" || !canRtc || !cfg.webrtcPath || liveTiles == null)
+            ? 0 : Math.max(0, Math.floor(+liveTiles) || 0);
+        if (carried >= 2 || (carried >= 1 && pool <= 1)) {
+            // The measured speed carries more than one stream: a fixed pool,
+            // as big as the connection allows and no bigger than configured.
+            LIVE_POOL_SIZE = Math.min(pool, carried);
+        } else if (carried === 1 && hosts.length) {
+            // Room for one: the focused tile streams WebRTC (see
+            // WEBRTC_FOCUS above), everything else stills.
             LIVE_POOL_SIZE = 0;
-            WEBRTC_FOCUS   = true;
+            WEBRTC_FOCUS   = pool > 0;
         } else {
-            // Includes an unknown round trip: never assume the expensive case
-            // when we have not measured.
+            // Too slow, not measured, the reflector, or no WebRTC: stills.
             LIVE_POOL_SIZE = 0;
         }
         DEFAULT_LIVE     = hosts.slice(0, LIVE_POOL_SIZE);
@@ -575,10 +594,12 @@
     // upgrade lands in under a second.
     const POLICY_CACHE_KEY = "dash_cam_policy";
     const POLICY_CACHE_MS  = 60000;
-    function cachePolicy(cls, ms) {
+    function cachePolicy(cls, ms, tiles, mbps) {
         try {
             localStorage.setItem(POLICY_CACHE_KEY,
-                JSON.stringify({ cls: cls, ms: ms == null ? null : ms, at: Date.now() }));
+                JSON.stringify({ cls: cls, ms: ms == null ? null : ms,
+                                 tiles: tiles == null ? null : tiles,
+                                 mbps: mbps == null ? null : mbps, at: Date.now() }));
         } catch (e) { /* private browsing — the measurement still runs */ }
     }
     function bootPolicy() {
@@ -592,11 +613,13 @@
         try {
             const c = JSON.parse(localStorage.getItem(POLICY_CACHE_KEY) || "null");
             if (c && c.cls && Date.now() - c.at <= POLICY_CACHE_MS) {
-                setPolicy(c.cls, c.ms);
+                // A verdict cached before v3.45.0 has no tiles: it opens nothing.
+                setPolicy(c.cls, c.ms, c.tiles == null ? null : c.tiles);
+                LAST_MBPS = c.mbps == null ? null : c.mbps;
                 return;
             }
         } catch (e) { /* unreadable cache — fall through to conservative */ }
-        setPolicy("vpn", null);   // conservative: 0 live until measured
+        setPolicy("vpn", null, null);   // conservative: 0 live until measured
     }
     bootPolicy();
     // Published by the plugin into config.js each startup; "?" means the page
@@ -629,10 +652,12 @@
         if (WEBRTC_FOCUS) bits.push("1 live");
         if (LIVE_POOL_SIZE) bits.push(`${LIVE_POOL_SIZE} live`);
         if (stills) bits.push(`${stills} still @${still / 1000}s`);
-        // The measured round trip is shown because it is the whole basis of the
-        // decision — if this ever misjudges the link, the number says why.
+        // The measured speed is shown because it is the whole basis of the
+        // live decision, and the round trip because it sets the still rate —
+        // if either is ever misjudged, the number says why.
         const rtt = (rttMs === undefined || rttMs === null) ? "" : ` · ${Math.round(rttMs)}ms`;
-        el.textContent = `${label}${rtt} · ${bits.join(" + ") || "no cameras"} · build ${PAGE_BUILD}`;
+        const bw  = LAST_MBPS == null ? "" : ` · ${Math.round(LAST_MBPS)} Mbit/s`;
+        el.textContent = `${label}${rtt}${bw} · ${bits.join(" + ") || "no cameras"} · build ${PAGE_BUILD}`;
     }
     renderPolicy();
 
@@ -730,22 +755,21 @@
     // ── WebRTC tiles ───────────────────────────────────────────
     // Media: browser <-> go2rtc :8555 directly (UDP+TCP mux), reachable on
     // the LAN address over the Tailscale subnet route. Signalling: one POST
-    // to the plugin proxy, which forwards to go2rtc's loopback API. Video
-    // only — the cameras' AAC audio cannot negotiate in WebRTC and is not
-    // worth an ffmpeg leg. The <img> stays in the DOM underneath as the
-    // poster: the last still remains visible until the first video frame.
+    // to the plugin proxy, which forwards to go2rtc's loopback API. The peer
+    // connection itself — the ICE wait, the per-attempt abort, the two
+    // first-frame triggers, the stall and failure timers — lives in
+    // dashboards-webrtc.js (DashRTC, v3.45.0), shared with the hub's strip.
+    // This page keeps the tile: the <video> in the frame, the mode chip, the
+    // retry ladder. The <img> stays in the DOM underneath as the poster: the
+    // last still remains visible until the first video frame.
     const WEBRTC_ICE_MS   = 5000;    // no connection by then → fall back
     const WEBRTC_FRAME_MS = 8000;    // connected but no frame → fall back
     function webrtcUrl(host) {
-        const path = (cfg.webrtcPath || "/webrtc/{host}").replace("{host}", host);
-        return `${location.protocol}//${location.hostname}:${proxyPort}${path}`;
+        return DashRTC.url(host, cfg);
     }
     function stopWebrtc(st) {
-        if (st.webrtcIceTimer)   { clearTimeout(st.webrtcIceTimer);   st.webrtcIceTimer   = null; }
-        if (st.webrtcFrameTimer) { clearTimeout(st.webrtcFrameTimer); st.webrtcFrameTimer = null; }
-        if (st.webrtcDiscTimer)  { clearTimeout(st.webrtcDiscTimer);  st.webrtcDiscTimer  = null; }
-        if (st.webrtcAbort)      { try { st.webrtcAbort.abort(); } catch (e) {} st.webrtcAbort = null; }
-        if (st.pc) { try { st.pc.close(); } catch (e) {} st.pc = null; }
+        if (st.rtc) { st.rtc.stop(); st.rtc = null; }
+        st.pc = null;
         if (st.videoEl) {
             try { st.videoEl.srcObject = null; } catch (e) {}
             st.videoEl.remove();
@@ -777,7 +801,7 @@
     }
     function startWebrtc(host) {
         const st = camState[host]; if (!st) return;
-        if (!("RTCPeerConnection" in window)) { startStill(host); return; }
+        if (!("RTCPeerConnection" in window) || !window.DashRTC) { startStill(host); return; }
         clearTileTimers(st);
         releaseFrameUrl(st);
         stopWebrtc(st);
@@ -785,50 +809,14 @@
         st.paused = false;
         st.frameEl.classList.remove("paused");
         st.frameEl.classList.add("connecting");
-        const video = document.createElement("video");
-        video.muted    = true;                    // iOS: required for autoplay
-        video.autoplay = true;
-        video.setAttribute("playsinline", "");    // iOS: no fullscreen takeover
+        const video = DashRTC.makeVideo();
         st.frameEl.appendChild(video);
         st.videoEl = video;
-        const pc = new RTCPeerConnection({ iceServers: [] });
-        st.pc = pc;
-        pc.addTransceiver("video", { direction: "recvonly" });
-        pc.addEventListener("track", (e) => {
-            video.srcObject = e.streams[0] || new MediaStream([e.track]);
-        });
         // Generation guard: any restart of this tile orphans these callbacks.
         const gen = (st.gen = (st.gen || 0) + 1);
-        const dead = (why) => {
-            if (st.gen === gen && st.mode === "webrtc") webrtcFallback(host, why);
-        };
-        pc.addEventListener("connectionstatechange", () => {
-            if (pc.connectionState === "failed") { dead("connection failed"); return; }
-            if (pc.connectionState === "disconnected") {
-                // Transient by definition (a consent-freshness lapse on a
-                // mobile link usually returns to connected within seconds);
-                // acting on it at once cost a 60 s backoff for nothing.
-                clearTimeout(st.webrtcDiscTimer);
-                st.webrtcDiscTimer = setTimeout(() => {
-                    if (st.gen === gen && pc.connectionState === "disconnected") dead("connection disconnected");
-                }, 5000);
-            } else if (pc.connectionState === "connected") {
-                clearTimeout(st.webrtcDiscTimer);
-            }
-        });
-        st.webrtcIceTimer = setTimeout(() => {
-            if (st.gen === gen && pc.connectionState !== "connected") {
-                dead(`no connection in ${WEBRTC_ICE_MS / 1000}s`);
-            }
-        }, WEBRTC_ICE_MS);
-        st.webrtcFrameTimer = setTimeout(() => {
-            if (st.gen === gen && !st.webrtcGotFrame) {
-                dead(`no frame in ${WEBRTC_FRAME_MS / 1000}s`);
-            }
-        }, WEBRTC_FRAME_MS);
         const firstFrame = () => {
             if (st.gen !== gen || st.mode !== "webrtc") return;
-            if (st.webrtcGotFrame) return;       // two triggers race; first wins
+            if (st.webrtcGotFrame) return;       // DashRTC reports once; belt and braces
             st.webrtcGotFrame = true;
             st.webrtcFails    = 0;               // a working stream forgives the past
             if (st.autoDegraded) {               // a pool tile back from stills
@@ -848,56 +836,17 @@
             st.dotEl.classList.add("ok");
             markRefreshed();                     // a real frame arrived
         };
-        // TWO triggers for "the first frame is here", because they cover
-        // different truths: requestVideoFrameCallback fires on a COMPOSITED
-        // frame — the visual moment — but a hidden or occluded page
-        // composites nothing, so on it a healthy stream would sit
-        // "connecting" until the no-frame timer wrongly killed it (found
-        // live: the pane's hidden tab decoded 720p happily while rVFC
-        // stayed silent). timeupdate fires whenever the MEDIA CLOCK
-        // advances, visible or not. First one wins; firstFrame is
-        // idempotent.
-        if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(firstFrame);
-        video.addEventListener("timeupdate", () => {
-            if (video.currentTime > 0) firstFrame();
+        const dead = (why) => {
+            if (st.gen === gen && st.mode === "webrtc") webrtcFallback(host, why);
+        };
+        st.rtc = DashRTC.start(host, video, {
+            url: webrtcUrl(host),
+            iceMs: WEBRTC_ICE_MS,
+            frameMs: WEBRTC_FRAME_MS,
+            onLive: firstFrame,
+            onFail: dead,
         });
-        (async () => {
-            const offer = await pc.createOffer();
-            await pc.setLocalDescription(offer);
-            // Host-only candidates gather in milliseconds; cap the wait.
-            await new Promise((r) => {
-                if (pc.iceGatheringState === "complete") return r();
-                pc.addEventListener("icegatheringstatechange", () => {
-                    if (pc.iceGatheringState === "complete") r();
-                });
-                setTimeout(r, 1000);
-            });
-            // Torn down during the ICE wait (a quick tile change, the tab
-            // going to the background): stopWebrtc had no request to abort
-            // then, so without this the offer still went out and opened a
-            // go2rtc session nobody would ever read.
-            if (st.gen !== gen || st.pc !== pc || pc.signalingState === "closed") return;
-            // This generation's own controller. Assigned to the tile so
-            // stopWebrtc can cancel it, and cleared only while it is still
-            // this one — an older chain must never clear or overwrite a newer
-            // generation's.
-            const ctrl = new AbortController();
-            st.webrtcAbort = ctrl;
-            let r;
-            try {
-                r = await fetch(webrtcUrl(host), {
-                    method: "POST",
-                    headers: { "Content-Type": "application/sdp" },
-                    body: pc.localDescription.sdp,
-                    signal: ctrl.signal,           // stopWebrtc cancels a fallback's orphaned offer
-                });
-            } finally {
-                if (st.webrtcAbort === ctrl) st.webrtcAbort = null;
-            }
-            if (st.gen !== gen || pc.signalingState === "closed") return;
-            if (!r.ok) throw new Error(`signalling ${r.status}`);
-            await pc.setRemoteDescription({ type: "answer", sdp: await r.text() });
-        })().catch((e) => dead(e && e.message ? e.message : "negotiation failed"));
+        st.pc = st.rtc.pc;                       // the byte counter reads its stats
         setMode(host, "webrtc");
         if (st.bwEl) st.bwEl.style.visibility = "visible";
     }
@@ -1810,17 +1759,20 @@
             DashUI.measuredClass(),
             DashUI.probeRtt ? DashUI.probeRtt() : Promise.resolve(null),
             homeByPresence(),
-        ]).then(([cls, ms, presence]) => {
-            // Wi-fi association BEATS timing when we have it. A phone the
-            // controller can see on the house wi-fi is on the house wi-fi,
-            // whatever a tunnel does to the round trip — the traffic never
-            // leaves the building, so the full live pool is affordable.
+            // The speed of the connection: the live decision (v3.45.0).
+            // Null over the reflector, in the demo, or when it could not be
+            // measured, and null opens no stream.
+            window.DashRTC ? DashRTC.measure({ hosts }) : Promise.resolve(null),
+        ]).then(([cls, ms, presence, bw]) => {
+            // Wi-fi association BEATS timing for the link CLASS when we have
+            // it: a phone the controller can see on the house wi-fi is on the
+            // house wi-fi, whatever a tunnel does to the round trip, so its
+            // stills poll at the home rate and the footer says so. It no
+            // longer decides live video — the measured speed does (v3.45.0).
             //
             // Both must agree, though. Presence is required to be recent AND
             // the round trip must still be inside the tunnel band, so a stale
-            // "home" from the controller cannot on its own open six streams on
-            // mobile data. Belt and braces, because that is the failure that
-            // stalled his phone in the first place.
+            // "home" from the controller cannot relabel a mobile link.
             let effective = cls, why = "";
             if (presence && presence.home && cls !== "reflector"
                     && ms != null && ms <= RTT_TUNNEL_MS) {
@@ -1831,7 +1783,9 @@
             // Remember the verdict — changed or not — so the next boot (or a
             // resume within 60 s) starts from a MEASURED answer instead of the
             // address guess. See bootPolicy.
-            cachePolicy(effective, ms);
+            const tiles = (bw && window.DashRTC) ? DashRTC.tilesCarried(bw.mbps) : null;
+            LAST_MBPS = bw ? bw.mbps : null;
+            cachePolicy(effective, ms, tiles, LAST_MBPS);
             // setPolicy is the ONE owner of the derivation (v2.95.1). This used
             // to recompute a live COUNT here and relayout only when that count
             // or the class changed — but the WebRTC band has a live count of
@@ -1843,10 +1797,11 @@
             // built for. Now: apply the policy, then relayout if ANY of the
             // three things it decides moved.
             const before = [LINK, LIVE_POOL_SIZE, WEBRTC_FOCUS];
-            setPolicy(effective, ms);
+            setPolicy(effective, ms, tiles);
             const after = [LINK, LIVE_POOL_SIZE, WEBRTC_FOCUS];
             if (before.some((v, i) => v !== after[i])) {
-                console.info(`[cameras] link measured at ${Math.round(ms)}ms${why} — `
+                console.info(`[cameras] link measured at ${Math.round(ms)}ms`
+                           + `${bw ? `, ${bw.mbps} Mbit/s` : ""}${why} — `
                            + `${before[0]} -> ${after[0]}, ${after[1]} live`
                            + `${after[2] ? ", webrtc focus" : ""}`);
                 relayoutAll();
@@ -1939,6 +1894,15 @@
         if (window.DashUI && DashUI.forgetRtt) DashUI.forgetRtt();
         measureAndApply();
     });
+    // The network changed under the page, where the browser says so (not
+    // Safari): DashRTC has already dropped its speed reading, so measure the
+    // new connection and let the result re-lay-out the tiles.
+    if (window.DashRTC && DashRTC.watchConnection) {
+        DashRTC.watchConnection(() => {
+            if (window.DashUI && DashUI.forgetRtt) DashUI.forgetRtt();
+            if (!document.hidden) measureAndApply();
+        });
+    }
 
     // ── Boot ──────────────────────────────────────────────────
     if (!hosts.length) {

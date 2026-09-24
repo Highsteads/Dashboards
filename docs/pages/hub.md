@@ -34,12 +34,18 @@ and puts itself right, with a note, if the command went nowhere), a reading (sho
 it is a display, not a button), a door tile (shows
 the door's state and acts on it), a room shortcut or a group.
 
-**Camera strip.** Up to four tiles from the cameras marked "main", as stills that cross-fade from
-one frame to the next: every two seconds at home, every three over a VPN and every fifteen over the
-reflector, where the strip also pauses after ten idle minutes. It never streams — live video is one
-tap away on the [Cameras](cameras.md) page. The page assumes it is remote until it can prove
-otherwise. Each tile asks for its picture only if it has changed, so a camera that is offline costs
-a few bytes a tick rather than the whole picture again.
+**Camera strip.** Up to four tiles from the cameras marked "main". Each tile starts as a still, and
+the page then times how fast the connection to the Indigo server really is. If it can carry all the
+tiles as live video with room to spare (about 11 Mbit/s for four), each tile plays live video over
+its still. If not, the tiles stay as stills that cross-fade from one frame to the next: every two
+seconds at home, every three over a VPN and every fifteen over the reflector, where the strip also
+pauses after ten idle minutes. It judges by speed, not by address, so a phone that keeps Tailscale
+on gets live video at home and wherever else the connection is fast enough. Over the reflector it
+never streams, however fast the connection. A tile whose video stops or slows to a crawl goes back
+to its still and tries again a minute later, then two, up to five. Hiding the page stops every
+stream. A tap on any tile opens the [Cameras](cameras.md) page. Each still is asked for only if it
+has changed, so a camera that is offline costs a few bytes a tick rather than the whole picture
+again.
 
 **Energy · now.** The power-flow diagram — solar, grid, home and battery around a central node, the
 flowing edges showing which way the power is going and how much. Underneath, today's totals and
@@ -96,8 +102,9 @@ control anything at all.
 
 ## Worth knowing
 
-- The camera strip is the page's whole bandwidth story. It decides live-versus-poll from how it was
-  reached, and gets it wrong in the safe direction.
+- The camera strip is the page's whole bandwidth story. It decides live-versus-still by timing the
+  connection, keeps the answer for three minutes, and times it again after that when you come back
+  to the page. Until it knows, it shows stills.
 - The build number under the greeting is the fastest way to tell whether a wall tablet is running
   old JavaScript after an upgrade.
 - Demo mode enters through this page, so the hub is also what `demo.html` shows.

@@ -7,7 +7,7 @@
 //              ~/Archive/Dashboards-review-2026-09-24.md).
 // Author:      CliveS & Claude Opus 5.5
 // Date:        24-09-2026
-// Version:     1.0
+// Version:     1.1 (3.45.0: [70] runs the page's tile against the shared DashRTC module)
 //
 // Run: node tests/test_page_lows.mjs   (exit 0 = pass)
 
@@ -275,32 +275,43 @@ await section(async () => {
     }
     const mkTile = () => ({ frameEl: { classList: { add() {}, remove() {} }, appendChild() {} }, imgEl: { style: {} },
                             dotEl: { classList: { add() {}, remove() {} } }, bwEl: { style: {} } });
+    const fakeFetch = (url, opts) => { fetches.push(opts); return new Promise(() => {}); };
+    // The peer connection moved into dashboards-webrtc.js (DashRTC, v3.45.0),
+    // so the page's own startWebrtc/stopWebrtc run here against the REAL
+    // shared module rather than a copy of it.
+    const win = { RTCPeerConnection: FakePC, MediaStream: class {}, fetch: fakeFetch,
+                  location: { protocol: "http:", hostname: "x" },
+                  document: { createElement: () => ({ setAttribute() {}, addEventListener() {}, remove() {}, style: {} }) } };
     const ctx = {
         console, Promise, Date, Error, AbortController,
         setTimeout: (f, ms) => (ms >= 1000 ? 0 : setTimeout(f, ms)), clearTimeout() {},
-        window: { RTCPeerConnection: FakePC }, RTCPeerConnection: FakePC, MediaStream: class {},
-        document: { createElement: () => ({ setAttribute() {}, addEventListener() {}, remove() {}, style: {} }) },
-        camState: { h: mkTile() },
+        window: win, RTCPeerConnection: FakePC, MediaStream: class {},
+        document: win.document,
+        camState: { h: mkTile() }, cfg: {},
         clearTileTimers() {}, releaseFrameUrl() {}, setMode() {}, markRefreshed() {}, webrtcFallback() {},
-        webrtcUrl: h => "/webrtc/" + h, WEBRTC_ICE_MS: 8000, WEBRTC_FRAME_MS: 12000,
+        WEBRTC_ICE_MS: 8000, WEBRTC_FRAME_MS: 12000,
         startStill() {},
-        fetch: (url, opts) => { fetches.push(opts); return new Promise(() => {}); },
+        fetch: fakeFetch,
     };
     vm.createContext(ctx);
-    vm.runInContext(extractFn(src, "stopWebrtc") + "\n" + extractFn(src, "startWebrtc")
+    vm.runInContext(read("dashboards-webrtc.js"), ctx);
+    ctx.DashRTC = win.DashRTC;
+    vm.runInContext(extractFn(src, "webrtcUrl") + "\n" + extractFn(src, "stopWebrtc") + "\n" + extractFn(src, "startWebrtc")
         + "\nglobalThis.__w = { startWebrtc, stopWebrtc };", ctx);
     ctx.__w.startWebrtc("h");
     await tick();
+    const first = ctx.camState.h.rtc;
     ctx.__w.stopWebrtc(ctx.camState.h);           // torn down while ICE gathers
     pcs[0].finishIce();
     await tick();
     check("no signalling POST goes out for a stopped tile", fetches.length === 0, `${fetches.length} sent`);
+    check("and the stopped stream is closed", first.stopped && pcs[0].signalingState === "closed");
     ctx.__w.startWebrtc("h");                    // a fresh start works as before
     await tick();
     pcs[1].finishIce();
     await tick();
     check("a live tile still sends its offer, with its own abort signal",
-          fetches.length === 1 && ctx.camState.h.webrtcAbort && fetches[0].signal === ctx.camState.h.webrtcAbort.signal);
+          fetches.length === 1 && ctx.camState.h.rtc.ctrl && fetches[0].signal === ctx.camState.h.rtc.ctrl.signal);
 });
 
 // ── [71] [72] X1 the Cameras page's wiring ─────────────────────────────────
