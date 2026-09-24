@@ -265,6 +265,66 @@ await section("DashRTC play", async () => {
     check("…after asking again on each look", v2.plays >= 2, `plays=${v2.plays}`);
 });
 
+console.log("\n1d. iOS: the video is marked for inline autoplay, and a missing frame says why");
+await section("DashRTC iOS", async () => {
+    const pcs = [];
+    const win = { RTCPeerConnection: makePCClass(pcs), MediaStream: class {},
+                  location: { protocol: "http:", hostname: "x", host: "x" },
+                  fetch: () => new Promise(() => {}), document: { createElement: () => makeVideoEl() } };
+    const R = loadRTC(win);
+    const v = R.makeVideo();
+    check("makeVideo carries the muted, autoplay and inline ATTRIBUTES iOS reads, prefixed one too",
+          ["muted", "autoplay", "playsinline", "webkit-playsinline"].every(k => k in v.attrs) && v.defaultMuted === true,
+          JSON.stringify(Object.keys(v.attrs)));
+
+    // A refused play() is remembered and named.
+    const v2 = makeVideoEl();
+    v2.paused = true;
+    v2.play = () => Promise.reject(Object.assign(new Error("no"), { name: "NotAllowedError" }));
+    R.playVideo(v2);
+    await tick();
+    check("a refused play() is remembered by name", v2._playRefused === "NotAllowedError");
+
+    // The detail from the connection's own statistics.
+    const stats = new Map([
+        ["in", { type: "inbound-rtp", kind: "video", bytesReceived: 1300000, framesDecoded: 0, codecId: "c1" }],
+        ["c1", { type: "codec", id: "c1", mimeType: "video/H264" }],
+    ]);
+    const detail = await R.noFrameDetail({ getStats: async () => stats }, v2);
+    check("the detail names the refusal, what arrived, what decoded and the codec",
+          detail === "playback refused: NotAllowedError, 1.2 MB received, 0 decoded, H264", detail);
+    const none = await R.noFrameDetail({ getStats: async () => new Map() }, { paused: true });
+    check("…and says when no video arrived at all", none === "paused, no video received", none);
+
+    // The no-frame failure carries it.
+    const fails = [];
+    const v3 = makeVideoEl();
+    v3.paused = true;
+    v3.play = () => Promise.reject(Object.assign(new Error("no"), { name: "NotAllowedError" }));
+    R.start("a", v3, { url: "/w", frameMs: 30, iceMs: 1000, onFail: w => fails.push(w) });
+    pcs[pcs.length - 1].getStats = async () => stats;
+    pcs[pcs.length - 1].fire("track");
+    await tick(80);
+    check("'no frame' says why", /^no frame in 0\.03s \(playback refused: NotAllowedError/.test(fails[0] || ""),
+          JSON.stringify(fails));
+    check("…and asks the video to play again once it has data",
+          (v3.listeners.loadedmetadata || []).length === 1 && (v3.listeners.canplay || []).length === 1);
+});
+
+console.log("\n1e. the Cameras page names a failed live stream, not the link");
+await section("cameras badge", async () => {
+    const src = read("cameras.html");
+    const i = src.indexOf("function degradeToStill");
+    const body = src.slice(i, src.indexOf("\n    }\n", i));
+    check("degradeToStill keeps the reason", /st\.degradeWhy\s*=\s*why/.test(body));
+    // Run the real label expression against both kinds of reason.
+    const m = src.match(/still:\s*st\.autoDegraded\s*\?([\s\S]*?):\s*"↻ " \+ \(stillPeriod \/ 1000\) \+ "s",/);
+    check("the still label is where it was", !!m);
+    const label = why => new Function("st", "stillPeriod", "return " + m[1])({ autoDegraded: true, degradeWhy: why }, 5000);
+    check("a failed WebRTC stream reads 'live failed'", label("WebRTC no frame in 8s") === "↻ 5s · live failed", label("WebRTC no frame in 8s"));
+    check("a slow-link degrade still reads 'slow link'", label("stalled 3 times") === "↻ 5s · slow link", label("stalled 3 times"));
+});
+
 // ── 2. the bandwidth decision ──────────────────────────────────────────────
 console.log("\n2. DashRTC.decide: the speed decides, never the address, never the reflector");
 await section("DashRTC.decide", async () => {

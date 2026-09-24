@@ -71,8 +71,40 @@
   function playVideo(video) {
     try {
       var p = video.play();
-      if (p && p.catch) p.catch(function () {});
-    } catch (e) {}
+      // Remembered, not thrown: a refusal (iOS in Low Power Mode refuses
+      // even a muted inline video) is named in the failure message.
+      if (p && p.then) p.then(function () { video._playRefused = null; },
+                              function (e) { video._playRefused = (e && e.name) || 'refused'; });
+    } catch (e) { video._playRefused = (e && e.name) || 'refused'; }
+  }
+
+  /* Why no frame came, for the failure message: whether the browser refused
+     to play, whether any video arrived and whether any was decoded, and in
+     which codec. Resolves a short text, or "" when the stats cannot say. */
+  function noFrameDetail(pc, video) {
+    var parts = [];
+    if (video && video._playRefused) parts.push('playback refused: ' + video._playRefused);
+    else if (video && video.paused) parts.push('paused');
+    if (!pc || !pc.getStats) return Promise.resolve(parts.join(', '));
+    var timeout = new Promise(function (r) { setTimeout(function () { r(null); }, 1000); });
+    return Promise.race([pc.getStats().catch(function () { return null; }), timeout]).then(function (report) {
+      if (!report || !report.forEach) return parts.join(', ');
+      var inbound = null, codecs = {};
+      report.forEach(function (r) {
+        if (r.type === 'inbound-rtp' && (r.kind === 'video' || r.mediaType === 'video')) inbound = r;
+        if (r.type === 'codec') codecs[r.id] = r.mimeType;
+      });
+      if (inbound) {
+        var kb = Math.round((inbound.bytesReceived || 0) / 1024);
+        parts.push(kb >= 1024 ? (Math.round(kb / 102.4) / 10) + ' MB received' : kb + ' KB received');
+        parts.push((inbound.framesDecoded || 0) + ' decoded');
+        var mime = codecs[inbound.codecId];
+        if (mime) parts.push(String(mime).replace(/^video\//, ''));
+      } else {
+        parts.push('no video received');
+      }
+      return parts.join(', ');
+    });
   }
 
   function supported() {
@@ -99,8 +131,14 @@
   function makeVideo() {
     var video = root.document.createElement('video');
     video.muted    = true;
+    video.defaultMuted = true;
     video.autoplay = true;
+    // The attributes as well as the properties: iOS judges autoplay partly
+    // on the markup, and an older WebKit only knows the prefixed inline one.
+    video.setAttribute('muted', '');
+    video.setAttribute('autoplay', '');
     video.setAttribute('playsinline', '');
+    video.setAttribute('webkit-playsinline', '');
     return video;
   }
 
@@ -164,6 +202,13 @@
       video.srcObject = e.streams[0] || new root.MediaStream([e.track]);
       playVideo(video);
     });
+    // And again once there is something to play: WebKit can refuse a play()
+    // asked for before the stream has any data, then never try by itself.
+    ['loadedmetadata', 'canplay'].forEach(function (ev) {
+      if (video && video.addEventListener) {
+        video.addEventListener(ev, function () { if (!h.stopped && video.paused) playVideo(video); });
+      }
+    });
     pc.addEventListener('connectionstatechange', function () {
       if (h.stopped) return;
       if (pc.connectionState === 'failed') { fail('connection failed'); return; }
@@ -185,7 +230,12 @@
       }
     }, iceMs);
     frameTimer = setTimeout(function () {
-      if (!h.stopped && !h.gotFrame) fail('no frame in ' + (frameMs / 1000) + 's');
+      if (h.stopped || h.gotFrame) return;
+      noFrameDetail(pc, video).then(function (detail) {
+        if (!h.stopped && !h.gotFrame) {
+          fail('no frame in ' + (frameMs / 1000) + 's' + (detail ? ' (' + detail + ')' : ''));
+        }
+      });
     }, frameMs);
 
     var firstFrame = function () {
@@ -514,6 +564,7 @@
     makeVideo: makeVideo,
     start: start,
     playVideo: playVideo,
+    noFrameDetail: noFrameDetail,
     ICE_MS: ICE_MS,
     FRAME_MS: FRAME_MS,
     POOR_FPS: POOR_FPS,

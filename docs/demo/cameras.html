@@ -1065,6 +1065,7 @@
         st.degradeCount  = (st.degradeCount || 0) + 1;
         st.degradesSinceRecovery = (st.degradesSinceRecovery || 0) + 1;   // reset by a recovery, counted towards parking (v2.95.4)
         st.autoDegraded  = true;
+        st.degradeWhy    = why;
         st.degradedAt    = Date.now();
         st.retryAfterMs  = Math.min(LIVE_RETRY_BASE_MS * st.degradeCount, LIVE_RETRY_MAX_MS);
         console.warn(`[cameras] ${host} ${why} — falling back to ${DEGRADED_POLL_MS/1000}s stills`
@@ -1182,13 +1183,19 @@
             webrtc:  "live",
             // A tile dropped by the slow-link watchdog says so, so it's obvious
             // why it isn't moving and that it wasn't a configuration choice.
+            // A failed live stream says so rather than blaming the link:
+            // iPhones measuring 305 Mbit/s wore "slow link" when the stream
+            // had connected and never shown a frame (24-09-2026). The full
+            // reason is on the chip's tooltip.
             still:   st.autoDegraded
-                        ? "↻ " + (stillPeriod / 1000) + "s · slow link"
+                        ? "↻ " + (stillPeriod / 1000) + "s · "
+                              + (/^WebRTC /.test(st.degradeWhy || "") ? "live failed" : "slow link")
                         : "↻ " + (stillPeriod / 1000) + "s",   // e.g. "↻ 1s"
             off:     "off",
             paused:  "paused",
         };
         st.modeEl.textContent = labels[mode] || mode;
+        st.modeEl.title = (mode === "still" && st.autoDegraded && st.degradeWhy) ? st.degradeWhy : "";
         st.modeEl.setAttribute("data-mode", mode);
     }
 
