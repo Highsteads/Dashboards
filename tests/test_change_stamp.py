@@ -55,6 +55,8 @@ def test_stamp_schema_and_atomicity(tmp_path):
     assert d["state"] == "run"
     assert d["hwm"] == 60.0
     assert isinstance(d["ts"], float) and d["ts"] > 0
+    # 3.45.8: the running build, which an open page compares with its own.
+    assert "build" in d and d["build"] == str(getattr(p, "pluginVersion", "") or "")
     # _write_atomic must leave no temp residue behind.
     leftovers = [f for f in os.listdir(str(tmp_path))
                  if f != plugin.STAMP_FILENAME]

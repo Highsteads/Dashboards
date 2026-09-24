@@ -63,6 +63,38 @@
         return "ok";
     }
 
+    // A newer plugin under an open page (3.45.8). The stamp says which build
+    // the server runs; config.js told the page which build it was loaded
+    // with. When they differ the page is running old code — a Safari web app
+    // left open on the Mac mini ran 3.45.0 for hours after 3.45.7 was in —
+    // so reload, once per build, and only while the page is on screen.
+    // Once per build (sessionStorage) so a stale cache can never cause a
+    // reload loop; the second attempt adds the build to the address, which
+    // no cache can answer with the old page.
+    let _reloadPending = false;
+    function maybeReloadForBuild(build) {
+        const mine = window.DASHBOARDS_BUILD;
+        if (!mine || build === mine || _reloadPending) return;
+        let tries = 0;
+        try { tries = Number(sessionStorage.getItem("dash_reload_" + build) || 0); } catch (e) {}
+        if (tries >= 2) return;                       // gave it two goes; leave it be
+        try { sessionStorage.setItem("dash_reload_" + build, String(tries + 1)); } catch (e) {}
+        _reloadPending = true;
+        const go = () => {
+            if (tries === 0) { location.reload(); return; }
+            const u = new URL(location.href);
+            u.searchParams.set("build", build);
+            location.replace(u.toString());
+        };
+        if (!document.hidden) { go(); return; }
+        const onShow = () => {
+            if (document.hidden) return;
+            document.removeEventListener("visibilitychange", onShow);
+            go();
+        };
+        document.addEventListener("visibilitychange", onShow);
+    }
+
     async function fetchStamp() {
         const ctrl = new AbortController();
         const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
@@ -77,6 +109,7 @@
                 if (st.boot) st.bootFlag = true;   // a RE-boot, not first sight
                 st.boot = j.boot;
             }
+            if (j.build) maybeReloadForBuild(String(j.build));
             const firstSight = st.lastTs === 0;
             // Any CHANGE is an advance (v2.95.3), not only an increase: a
             // server clock stepped back after an NTP correction made every
