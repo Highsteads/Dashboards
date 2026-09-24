@@ -113,12 +113,30 @@
       } catch (e) { if (!h.stopped) _blocked.push(h); }
     });
   }
+  /* Videos cleared to play by a gesture. iOS lifts its restriction on an
+     element once play() has been called on it inside a touch, even with no
+     stream yet, so a page that must open NEW streams after a tap takes its
+     elements from here (makeVideo does) and they then start by themselves. */
+  var _blessed = [];
+  var _gestureCbs = [];
+  function blessVideos(n) {
+    for (var i = 0; i < n; i++) {
+      var v = _newVideo();
+      try { var p = v.play(); if (p && p.catch) p.catch(function () {}); } catch (e) {}
+      _blessed.push(v);
+    }
+  }
+  /* cb runs inside every tap, click or key press on the page (after any
+     waiting stream has been started), so a page can bless and restart. */
+  function onGesture(cb) { _gestureCbs.push(cb); }
   (function listenForGesture() {
     var doc = root && root.document;
     if (!doc || !doc.addEventListener) return;
     ['touchend', 'click', 'keydown'].forEach(function (ev) {
-      doc.addEventListener(ev, function () { if (_blocked.length) unblockAll(); },
-                           { capture: true, passive: true });
+      doc.addEventListener(ev, function () {
+        if (_blocked.length) unblockAll();
+        _gestureCbs.forEach(function (cb) { try { cb(); } catch (e) {} });
+      }, { capture: true, passive: true });
     });
   })();
 
@@ -151,6 +169,23 @@
     });
   }
 
+  /* Whether any video has arrived on this connection (bytes or decoded
+     frames), from its own statistics. Resolves false when they cannot say. */
+  function receivedVideo(pc) {
+    if (!pc || !pc.getStats) return Promise.resolve(false);
+    var timeout = new Promise(function (r) { setTimeout(function () { r(null); }, 1000); });
+    return Promise.race([pc.getStats().catch(function () { return null; }), timeout]).then(function (report) {
+      var got = false;
+      if (report && report.forEach) {
+        report.forEach(function (r) {
+          if (r.type === 'inbound-rtp' && (r.kind === 'video' || r.mediaType === 'video')
+              && ((r.bytesReceived || 0) > 0 || (r.framesDecoded || 0) > 0)) got = true;
+        });
+      }
+      return got;
+    });
+  }
+
   function supported() {
     return !!root && ('RTCPeerConnection' in root);
   }
@@ -173,6 +208,10 @@
   /* A <video> ready for a live tile: muted and inline, which iOS requires
      before it will autoplay, and without taking over the screen. */
   function makeVideo() {
+    if (_blessed.length) return _blessed.shift();
+    return _newVideo();
+  }
+  function _newVideo() {
     var video = root.document.createElement('video');
     video.muted    = true;
     video.defaultMuted = true;
@@ -242,12 +281,15 @@
     // A refusal to play is not a failure: the stream is fine, it only needs
     // a tap. Stop the no-frame clock, remember the stream for the next
     // gesture, and tell the page so it can say "tap to start".
-    var onRefused = function (name) {
-      if (h.stopped || h.blocked || name !== 'NotAllowedError') return;
+    var block = function () {
+      if (h.stopped || h.blocked) return;
       h.blocked = true;
       if (frameTimer) { clearTimeout(frameTimer); frameTimer = null; }
       _blocked.push(h);
       if (opts.onBlocked) opts.onBlocked();
+    };
+    var onRefused = function (name) {
+      if (name === 'NotAllowedError') block();
     };
 
     var pc = new root.RTCPeerConnection({ iceServers: [] });
@@ -289,6 +331,24 @@
     }, iceMs);
     frameTimer = setTimeout(function () {
       if (h.stopped || h.gotFrame) return;
+      frameTimer = null;
+      // Video arriving but the element still paused is not a dead stream:
+      // it is a browser waiting for a touch before it will play. CliveS's
+      // iPhone in 3.45.6: "paused, 856 KB received, 76 decoded" with no
+      // refusal at all, because iOS neither autoplayed nor fired canplay.
+      // Keep it and wait for the next tap; fail only a stream with nothing.
+      if (video && video.paused) {
+        receivedVideo(pc).then(function (got) {
+          if (h.stopped || h.gotFrame) return;
+          if (got) { block(); return; }
+          noFrameDetail(pc, video).then(function (detail) {
+            if (!h.stopped && !h.gotFrame) {
+              fail('no frame in ' + (frameMs / 1000) + 's' + (detail ? ' (' + detail + ')' : ''));
+            }
+          });
+        });
+        return;
+      }
       noFrameDetail(pc, video).then(function (detail) {
         if (!h.stopped && !h.gotFrame) {
           fail('no frame in ' + (frameMs / 1000) + 's' + (detail ? ' (' + detail + ')' : ''));
@@ -624,6 +684,8 @@
     start: start,
     playVideo: playVideo,
     unblockAll: unblockAll,
+    blessVideos: blessVideos,
+    onGesture: onGesture,
     blockedCount: blockedCount,
     noFrameDetail: noFrameDetail,
     ICE_MS: ICE_MS,

@@ -819,6 +819,7 @@
             if (st.gen !== gen || st.mode !== "webrtc") return;
             if (st.webrtcGotFrame) return;       // DashRTC reports once; belt and braces
             st.webrtcGotFrame = true;
+            st.needsTap       = false;           // playing, so no longer waiting for a tap
             st.webrtcFails    = 0;               // a working stream forgives the past
             if (st.autoDegraded) {               // a pool tile back from stills
                 st.autoDegraded = false;
@@ -846,10 +847,11 @@
             frameMs: WEBRTC_FRAME_MS,
             onLive: () => { firstFrame(); _liveTapNote(); },
             onFail: (why) => { dead(why); _liveTapNote(); },
-            // The browser would not start the video by itself (iOS in Low
-            // Power Mode): the stream stays connected and the next tap starts
-            // it, so say so rather than fall back to stills.
-            onBlocked: () => _liveTapNote(),
+            // The browser will not start the video until the page is touched
+            // (CliveS's iPhone). Not a failure: the tile goes back to its
+            // NORMAL stills, not the slow degraded ones, and the next tap
+            // opens live again (see the onGesture hook below).
+            onBlocked: () => { if (st.gen === gen && st.mode === "webrtc") _waitForTap(host); },
         });
         st.pc = st.rtc.pc;                       // the byte counter reads its stats
         setMode(host, "webrtc");
@@ -865,7 +867,28 @@
     // for a tap and gone once none is.
     function _liveTapNote() {
         const el = document.getElementById("live-tap");
-        if (el) el.hidden = !(window.DashRTC && DashRTC.blockedCount && DashRTC.blockedCount() > 0);
+        const waiting = Object.values(camState).some(st => st && st.needsTap)
+            || !!(window.DashRTC && DashRTC.blockedCount && DashRTC.blockedCount() > 0);
+        if (el) el.hidden = !waiting;
+    }
+    function _waitForTap(host) {
+        const st = camState[host]; if (!st) return;
+        st.needsTap = true;
+        startStill(host);                    // its usual cadence, not DEGRADED_POLL_MS
+        setMode(host, "still");
+        _liveTapNote();
+    }
+    // A tap anywhere: clear fresh video elements to play (inside the gesture,
+    // which is what iOS asks for), then open live again on every tile that
+    // was waiting for it.
+    if (window.DashRTC && DashRTC.onGesture) {
+        DashRTC.onGesture(() => {
+            const waiting = Object.keys(camState).filter(h => camState[h] && camState[h].needsTap);
+            if (!waiting.length) return;
+            DashRTC.blessVideos(waiting.length);
+            waiting.forEach(h => { camState[h].needsTap = false; startWebrtc(h); });
+            _liveTapNote();
+        });
     }
     function startLive(host) {
         startWebrtc(host);

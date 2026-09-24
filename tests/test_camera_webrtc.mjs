@@ -123,7 +123,9 @@ console.log("\nnegotiation shape (the shared DashRTC module)");
     check(/iceServers:\s*\[\]/.test(rtc),
           "no STUN servers",
           "the only reachable candidate is go2rtc's LAN host candidate");
-    const mv = fn("makeVideo", rtcCode);
+    // makeVideo hands out a gesture-blessed element first (3.45.7); the new
+    // element itself is built by _newVideo.
+    const mv = fn("_newVideo", rtcCode);
     check(/video\.muted\s*=\s*true/.test(mv) && /setAttribute\(\s*["']playsinline["']/.test(mv),
           "muted + playsinline — iOS autoplay requirements");
     check(/body:\s*pc\.localDescription\.sdp/.test(rtc),

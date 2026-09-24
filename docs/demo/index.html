@@ -940,6 +940,8 @@
     const HUB_LIVE_RETRY_MS     = 60000;    // first retry after a failure
     const HUB_LIVE_RETRY_MAX_MS = 300000;   // back-off ceiling (5 min)
     const HUB_LIVE_STALL_MS     = 1500;     // how often the video clock is looked at
+    const HUB_FAST_STILL_MS     = 1000;     // still period once the link is fast enough for live
+    let _stripPollMs = null;                // the period the strip's stills are running at
     const HUB_TAP_NOTE = "Tap anywhere on the page to start the live video. iPhones and iPads often will not start video until the page has been touched.";
     let _hubLive     = {};                  // host -> { rtc, video, frame, fails, retry }
     let _hubVerdict  = null;                // DashRTC.decide's answer; null = not decided
@@ -987,6 +989,12 @@
             .then(v => {
                 _hubVerdict = v;
                 _hubNote(_hubVerdictNote(v));
+                // Fast enough for live: rebuild the strip so its stills run at
+                // a second too (they were started before the link was measured).
+                // Waited for, so the streams start once, on the rebuilt tiles.
+                if (v.live && _stripPollMs && _stripPollMs > HUB_FAST_STILL_MS) {
+                    return renderCamerasOnce().catch(() => {});
+                }
                 console.info(`[hub] cameras ${v.live ? "live" : "stills"}: `
                            + (v.mbps == null ? v.why : `${v.mbps} Mbit/s measured, ${v.needMbps.toFixed(1)} needed`));
             })
@@ -1104,7 +1112,13 @@
         // route looks identical to the real thing, so assume remote.
         const guess  = window.DashUI ? DashUI.linkClass() : "home";
         const link   = _measuredLink || (guess === "home" ? "vpn" : guess);
-        const pollMs = DashUI.stillPollMs(link);
+        // A connection measured fast enough for live video can take a still
+        // a second: that is what shows while a phone waits for a tap before
+        // it will play the video (3.45.7), and nothing is fetched under a
+        // tile that is live.
+        let pollMs = DashUI.stillPollMs(link);
+        if (_hubVerdict && _hubVerdict.live) pollMs = Math.min(pollMs, HUB_FAST_STILL_MS);
+        _stripPollMs = pollMs;
         if (link === "reflector" && !_stripGuard && window.DashUI && DashUI.idleGuard) {
             _stripGuard = DashUI.idleGuard(10 * 60 * 1000,
                 () => { _stripIdle = true;  mount.classList.add("cam-paused"); },

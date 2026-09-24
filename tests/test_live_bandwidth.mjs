@@ -322,12 +322,27 @@ await section("DashRTC iOS", async () => {
     v3.paused = true;
     v3.play = () => Promise.reject(Object.assign(new Error("no"), { name: "AbortError" }));
     R.start("a", v3, { url: "/w", frameMs: 30, iceMs: 1000, playGraceMs: 0, onFail: w => fails.push(w) });
-    pcs[pcs.length - 1].getStats = async () => stats;
+    pcs[pcs.length - 1].getStats = async () => new Map();     // nothing arrived
     pcs[pcs.length - 1].fire("track");
     v3.fire("canplay");
     await tick(80);
-    check("'no frame' says why", /^no frame in 0\.03s \(playback refused: AbortError/.test(fails[0] || ""),
+    check("'no frame' says why", fails[0] === "no frame in 0.03s (playback refused: AbortError, no video received)",
           JSON.stringify(fails));
+
+    // CliveS's iPhone on 3.45.6: paused, no refusal at all (iOS neither
+    // autoplayed nor fired canplay), but video arriving. That waits for a
+    // tap; it is not a dead stream.
+    const fails7 = [], ev7 = [];
+    const v7 = makeVideoEl();
+    v7.paused = true; v7.play = () => new Promise(() => {});   // never asked, never answers
+    const h7 = R.start("c", v7, { url: "/w", frameMs: 30, iceMs: 1000,
+                                  onFail: w => fails7.push(w), onBlocked: () => ev7.push("blocked") });
+    pcs[pcs.length - 1].getStats = async () => stats;
+    pcs[pcs.length - 1].fire("track");
+    await tick(80);
+    check("a paused stream that has video waits for a tap instead of failing",
+          fails7.length === 0 && ev7[0] === "blocked" && !h7.stopped, JSON.stringify({ fails7, ev7 }));
+    h7.stop();
     check("…and it was asked to play only once it could", (v3.listeners.canplay || []).length === 1
           && !(v3.listeners.loadedmetadata || []).length);
 
@@ -356,6 +371,26 @@ await section("DashRTC iOS", async () => {
     check("a tap plays it and it goes live", events.includes("live") && R.blockedCount() === 0,
           JSON.stringify(events));
     h4.stop();
+});
+
+console.log("\n1f. a tap clears fresh videos to play, for pages that must open new streams");
+await section("DashRTC bless", async () => {
+    const made = [];
+    const win = { RTCPeerConnection: makePCClass([]), MediaStream: class {},
+                  location: { protocol: "http:", hostname: "x", host: "x" },
+                  document: { createElement: () => { const v = makeVideoEl(); v.plays = 0;
+                                                      v.play = () => { v.plays++; return Promise.resolve(); };
+                                                      made.push(v); return v; } } };
+    const R = loadRTC(win);
+    R.blessVideos(2);
+    check("blessVideos calls play() on each new element (inside the gesture)",
+          made.length === 2 && made.every(v => v.plays === 1));
+    const a = R.makeVideo(), b = R.makeVideo(), c = R.makeVideo();
+    check("makeVideo hands out the blessed ones first, then fresh ones",
+          a === made[0] && b === made[1] && c === made[2] && c.plays === 0);
+    let fired = 0;
+    R.onGesture(() => fired++);
+    check("onGesture registers a callback for the page", typeof R.onGesture === "function" && fired === 0);
 });
 
 console.log("\n1e. the Cameras page names a failed live stream, not the link");

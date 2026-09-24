@@ -81,7 +81,10 @@ check("the poll rate still follows the MEASURED link",
       /const link\s+= _measuredLink \|\| \(guess === "home" \? "vpn" : guess\);/.test(src) &&
       // The 2 / 3 / 15 s rule moved into DashUI.stillPollMs (24-09-2026) so
       // the room page shares it; test_page_shared_helpers pins the values.
-      /const pollMs = DashUI\.stillPollMs\(link\);/.test(src),
+      /let pollMs = DashUI\.stillPollMs\(link\);/.test(src) &&
+      // ...and a link measured fast enough for live runs the stills at a
+      // second while a phone waits for a tap (3.45.7).
+      /if \(_hubVerdict && _hubVerdict\.live\) pollMs = Math\.min\(pollMs, HUB_FAST_STILL_MS\);/.test(src),
       "a guessed LAN address may be a Tailscale route");
 check("the strip is drawn after the measurement lands",
       /\.then\(cls => \{ _measuredLink = cls; _goFull\(\); \}\)/.test(src));
