@@ -29,7 +29,6 @@ window.CAMERA_CONFIG = {
               "192.0.2.3": "Garage", "192.0.2.4": "Back Garden"},
     "slugs": {"192.0.2.1": "front_door", "192.0.2.2": "drive",
               "192.0.2.3": "garage", "192.0.2.4": "back_garden"},
-    "imagePattern": "demo-cam.svg",
     "pollSeconds": 9999, "livePoolSize": 0,
     "mainCameras": ["192.0.2.1", "192.0.2.2", "192.0.2.3", "192.0.2.4"],
     "swapOutHost": ""

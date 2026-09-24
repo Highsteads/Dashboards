@@ -176,11 +176,14 @@
     function start() {
         indigo = new IndigoAPI();
         DashTile.bind(indigo);
-        indigo.onAuthFailure(() => { IndigoAPI.clearConfig(); location.href = "index.html"; });
+        // Three consecutive refusals, not one, before the key is forgotten;
+        // a reflector refusal is shown, never counted (DashUI.authStrikes).
+        const auth = DashUI.authStrikes();
+        indigo.onAuthFailure(auth.fail);
         document.querySelectorAll("#filters .filter-pill").forEach(b => {
             b.addEventListener("click", () => setFilter(b.dataset.filter));
         });
-        indigo.observeAll(devices => { lastDevices = devices; render(); }, POLL_INTERVAL_MS, undefined, markRefreshed);
+        indigo.observeAll(devices => { lastDevices = devices; render(); }, POLL_INTERVAL_MS, undefined, () => { auth.ok(); markRefreshed(); });
     }
 
     function setFilter(f) {
@@ -249,9 +252,16 @@
 
         // Total live draw across every metered switchable device that's on — the
         // house's switchable load right now (independent of the category filter).
+        // A plug its plugin has marked unreachable keeps its last watts and its
+        // last on-state (ShellyDirect changes only deviceOnline), so it is left
+        // out of the total rather than counted for as long as it stays away
+        // (DashTile.isReachable).
         const onDevices = base.filter(d => DashTile.isOn(d.onState));
-        const totalW = onDevices.reduce((a, d) => a + (getWatts(d) || 0), 0);
-        const header = `<div class="active-total">${I("bolt")} <b>${fmtW(totalW)}</b> drawn now · ${onDevices.length} on</div>`;
+        const liveOn = onDevices.filter(d => DashTile.isReachable(d));
+        const totalW = liveOn.reduce((a, d) => a + (getWatts(d) || 0), 0);
+        const away = onDevices.length - liveOn.length;
+        const header = `<div class="active-total">${I("bolt")} <b>${fmtW(totalW)}</b> drawn now · ${liveOn.length} on`
+            + (away ? ` · ${away} not answering` : "") + `</div>`;
 
         const list = document.getElementById("list");
         if (filtered.length === 0) {
@@ -276,7 +286,10 @@
     function renderRow(d) {
         const isDimmer = /Dimmer/.test(d.class || "");
         const w = getWatts(d);
-        const wStr = (DashTile.isOn(d.onState) && w != null && w >= 0.5) ? ` · ${fmtW(w)}` : "";
+        const reachable = DashTile.isReachable(d);
+        const wStr = (DashTile.isOn(d.onState) && w != null && w >= 0.5)
+            ? (reachable ? ` · ${fmtW(w)}` : ` · ${fmtW(w)} last sent, not answering`)
+            : (reachable ? "" : " · not answering");
         const slider = isDimmer ? `
             <input type="range" class="brightness" min="0" max="100"
                    onpointerdown="window._sliderDragging = true"

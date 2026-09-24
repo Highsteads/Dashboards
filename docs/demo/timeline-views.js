@@ -214,6 +214,12 @@
         const api = new (typeof IndigoAPI !== "undefined" ? IndigoAPI : root.IndigoAPI)();
         let DEVICES = [], byName = {}, chart = null, ready = null, wantState = null;
         const current = { id: 0, state: "", hours: 24, types: {} };
+        // Request order. Replies render in the order they FINISH, and a
+        // 30-day series takes 5-6 s against well under a second for 24 h, so an
+        // older, slower reply used to land last and draw 30 days under a lit
+        // 24 h chip, or one device's states under another device's name.
+        // Every request takes a ticket; only the newest may paint.
+        let drawSeq = 0;
 
         function prettyState(s) {
             const dev = DEVICES.find(d => d.id === current.id);
@@ -231,12 +237,14 @@
             $(".stats").innerHTML = "";
         }
         async function pickDevice(id) {
+            const seq = ++drawSeq;
             current.id = id;
             const sel = $("#c-state");
             sel.disabled = true;
             sel.innerHTML = "<option>Loading&hellip;</option>";
             try {
                 const res = await api.getHistoryStates(id);
+                if (seq !== drawSeq) return;            // a later pick or draw owns the chart
                 const states = res.states || [];
                 current.types = res.types || {};
                 if (!states.length) throw new Error("nothing recorded");
@@ -249,6 +257,7 @@
                 current.state = sel.value;
                 draw();
             } catch (e) {
+                if (seq !== drawSeq) return;
                 sel.innerHTML = "<option>&mdash;</option>";
                 const noDb = String((e && e.message) || "").indexOf("SQL Logger") !== -1;
                 setStatus(noDb ? "SQL Logger not running" : "Nothing recorded for that device");
@@ -258,10 +267,15 @@
         }
         async function draw() {
             if (!current.id || !current.state) return;
+            const seq = ++drawSeq;
+            // What THIS request asked for, so the axis labels describe what is
+            // drawn, not whatever the chips say by the time it paints.
+            const hours = current.hours;
             setStatus("Loading\u2026");
             let res;
-            try { res = await api.getHistory(current.id, current.state, current.hours); }
-            catch (e) { setStatus("Query failed: " + e.message); return; }
+            try { res = await api.getHistory(current.id, current.state, hours); }
+            catch (e) { if (seq === drawSeq) setStatus("Query failed: " + e.message); return; }
+            if (seq !== drawSeq) return;
             const pts = res.points || [];
             if (!pts.length) {
                 setStatus((DEVICES.find(d => d.id === current.id) || {}).name || "");
@@ -295,7 +309,7 @@
                     scales: {
                         x: { grid: { display: false }, ticks: { maxTicksLimit: 8, color: muted,
                              callback: (v, i) => { const d = labels[i]; if (!d) return "";
-                                 return current.hours <= 48 ? pad(d.getHours()) + ":" + pad(d.getMinutes()) : d.getDate() + "/" + (d.getMonth() + 1); } } },
+                                 return hours <= 48 ? pad(d.getHours()) + ":" + pad(d.getMinutes()) : d.getDate() + "/" + (d.getMonth() + 1); } } },
                         y: isBool ? { min: 0, max: 1, ticks: { stepSize: 1, color: muted, callback: v => (v ? "on" : "off") }, grid: { color: grid } }
                                   : { ticks: { color: muted }, grid: { color: grid } },
                     },

@@ -46,7 +46,10 @@ have stalled, red when unreachable. A tile that cannot get a still says so on th
 ## Where the pictures come from
 
 Live video comes from go2rtc over WebRTC, set up by one request to the plugin's own port 8177
-(`/webrtc/<host>`); stills are `cam-<host>.jpg`, which the plugin writes to the web server. Camera hosts, vendors, stream names and room membership all come from the configuration;
+(`/webrtc/<host>`). Stills are `cam-<host>.jpg` and its smaller `-thumb.jpg`, which the plugin
+writes into a private folder on the web server; the page asks the plugin where that folder is, and
+only a browser holding the API key gets an answer. If the page cannot find out, every still tile
+says "No picture" rather than guess. Camera hosts, vendors, stream names and room membership all come from the configuration;
 changing them needs a plugin restart. The state dots come from Indigo's `/v2/api`.
 
 ## Refresh

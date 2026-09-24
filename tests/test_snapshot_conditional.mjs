@@ -340,8 +340,8 @@ console.log("\nthe hub strip — smallest tiles, landing page, biggest win");
     const hub = fs.readFileSync(path.join(HERE, "..", "Dashboards.indigoPlugin",
         "Contents", "Resources", "static", "pages", "index.html"), "utf8");
     const hubCode = hub.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
-    check(/cfg\.thumbPattern/.test(hubCode),
-          "the hub's four camera tiles use the thumbnail");
+    check(/pats\.thumbPattern/.test(hubCode) && !/cfg\.(thumb|image)Pattern/.test(hubCode),
+          "the hub's four camera tiles use the thumbnail, from cameraStills, not config.js");
     check(/still\s*=\s*full/.test(hubCode),
           "and fall back to the full picture if a thumbnail will not load");
     check(/data-full=/.test(hubCode) && /onerror=/.test(hubCode),

@@ -40,6 +40,19 @@ console.log("\nnothing wrong");
 checkEq("no sources, nothing listed", items({}).length, 0);
 checkEq("zero counts list nothing", items({ devices: { errors: 0, lowBatt: 0 }, log: { errors: 0 }, cams: { a: { state: "ok" } } }).length, 0);
 
+console.log("\nthe camera service itself (24-09-2026)");
+{
+    // A health summary that has stopped being written, or was written while
+    // go2rtc was down, used to leave the chip silent through a full outage.
+    const down = items({ camService: "down" });
+    checkEq("go2rtc down is one red item", [down.length, down[0] && down[0].level], [1, "bad"]);
+    check("and says the camera service is not running", /camera service is not running/.test(down[0].title));
+    const stale = items({ camService: "stale" });
+    checkEq("a frozen summary is amber, not all well", [stale.length, stale[0] && stale[0].level], [1, "warn"]);
+    checkEq("so is no summary at all", items({ camService: "unknown" }).length, 1);
+    checkEq("a live service adds nothing", items({ camService: null, cams: { a: { state: "ok" } } }).length, 0);
+}
+
 console.log("\neach source speaks in words");
 {
     const got = items({ devices: { errors: 1, lowBatt: 3 } });
@@ -109,7 +122,7 @@ console.log("\nthe chip and its list");
         escapeAttr: s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;"),
     };
     vm.createContext(c);
-    vm.runInContext(`let INSIGHTS = null, LOGFEED = null, CAMHEALTH = null, DEVCOUNTS = null, _attOpen = false, _attBtn = null;
+    vm.runInContext(`let INSIGHTS = null, LOGFEED = null, CAMHEALTH = null, CAMSERVICE = null, DEVCOUNTS = null, _attOpen = false, _attBtn = null;
         ${extractFn(src, "attentionItems")}
         ${extractFn(src, "renderAttention")}
         globalThis.set = (k, v) => { if (k === "dev") DEVCOUNTS = v; if (k === "log") LOGFEED = v; };

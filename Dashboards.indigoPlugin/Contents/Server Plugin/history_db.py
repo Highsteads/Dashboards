@@ -255,13 +255,20 @@ class _Psql:
         if self.cfg.get("password"):
             env["PGPASSWORD"] = str(self.cfg["password"])
         env.setdefault("PGCONNECT_TIMEOUT", "5")
+        # Fix psql's output encoding, and decode it as UTF-8 ourselves. Inside
+        # IndigoPluginHost3 the preferred encoding is US-ASCII, so text=True
+        # alone raised UnicodeDecodeError on the first degree sign or accented
+        # name in any cell, and the whole read failed (a ValueError, which the
+        # Graphs page then reported as a 400).
+        env.setdefault("PGCLIENTENCODING", "UTF8")
         try:
             # 10 s, not 30: this subprocess runs on the plugin's SINGLE
             # dispatch thread, so its worst case freezes every handler and
             # callback for the duration. A healthy indexed Postgres answers
             # these queries in milliseconds; ten seconds already means
             # something is wrong, and thirty tripled the damage.
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=10, env=env)
+            r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
+                               errors="replace", timeout=10, env=env)
         except subprocess.TimeoutExpired:
             raise HistoryUnavailable("the PostgreSQL query timed out after 10s")
         except OSError as exc:

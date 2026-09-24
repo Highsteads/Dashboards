@@ -257,11 +257,11 @@
     function start() {
         indigo = new IndigoAPI();
         DashTile.bind(indigo);
-        indigo.onAuthFailure(() => {
-            IndigoAPI.clearConfig();
-            location.href = "index.html";
-        });
-        indigo.observeAll(d => render(d), POLL_INTERVAL_MS, undefined, markRefreshed);
+        // Three consecutive refusals, not one, before the key is forgotten;
+        // a reflector refusal is shown, never counted (DashUI.authStrikes).
+        const auth = DashUI.authStrikes();
+        indigo.onAuthFailure(auth.fail);
+        indigo.observeAll(d => render(d), POLL_INTERVAL_MS, undefined, () => { auth.ok(); markRefreshed(); });
     }
 
     // The zone tile and its helpers are shared with the room pages (v3.37.0).

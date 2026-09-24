@@ -76,10 +76,12 @@ console.log("\nthe strip is stills only (v3.35.0)");
 check("no live MJPEG address is built on the hub", !/mjpegPort|mjpegPath/.test(src),
       "four live tiles were about 17 Mbit/s on the landing page");
 check("no stream budget machinery left", !/_liveBudget|_applyStreamBudget|streamBudget|_hubDemoteTile/.test(src));
-check("frames cross-fade through DashUI.swapImage", /DashUI\.swapImage\(img, url\)/.test(src));
+check("frames cross-fade through DashUI.swapImage", /DashUI\.swapImage\(img, next\)/.test(src));
 check("the poll rate still follows the MEASURED link",
       /const link\s+= _measuredLink \|\| \(guess === "home" \? "vpn" : guess\);/.test(src) &&
-      /link === "home" \? 2000 : link === "reflector" \? 15000 : 3000/.test(src),
+      // The 2 / 3 / 15 s rule moved into DashUI.stillPollMs (24-09-2026) so
+      // the room page shares it; test_page_shared_helpers pins the values.
+      /const pollMs = DashUI\.stillPollMs\(link\);/.test(src),
       "a guessed LAN address may be a Tailscale route");
 check("the strip is drawn after the measurement lands",
       /\.then\(cls => \{ _measuredLink = cls; _goFull\(\); \}\)/.test(src));
@@ -91,7 +93,7 @@ console.log("\nstill idempotent");
     const ctx = {
         _heavyStarted: false, _heavyTimers: [],
         _refreshStringHours: () => {}, _refreshInsights: () => {}, _refreshLogWatch: () => {}, _refreshCamHealth: () => {},
-        renderCamerasOnce: () => n++, setInterval: () => 0,
+        renderCamerasOnce: () => { n++; return Promise.resolve(); }, setInterval: () => 0, console,
     };
     vm.createContext(ctx);
     vm.runInContext(fn + "\nstartHeavyRefreshers(); startHeavyRefreshers();", ctx);

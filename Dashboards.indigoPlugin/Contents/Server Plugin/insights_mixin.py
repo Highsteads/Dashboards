@@ -242,7 +242,7 @@ class InsightsMixin:
                         continue
                     row = conn.execute(
                         f'SELECT "{col}" FROM "{table}" '
-                        f'WHERE id < ? AND "{col}" IS NOT NULL AND "{col}" != "" '
+                        f'WHERE id < ? AND "{col}" IS NOT NULL AND CAST("{col}" AS TEXT) != \'\' '
                         f'ORDER BY id DESC LIMIT 1', (b_week,)).fetchone()
                     if not row:
                         continue          # < a week of history — no trend yet
@@ -314,7 +314,7 @@ class InsightsMixin:
                             f'SELECT avg(CAST("{col}" AS REAL)), count(*) '
                             f'FROM "{table}" '
                             f'WHERE id >= ? AND id < ? AND {hist.hour_of()} = ? '
-                            f'  AND "{col}" IS NOT NULL AND "{col}" != ""',
+                            f'  AND "{col}" IS NOT NULL AND CAST("{col}" AS TEXT) != \'\'',
                             (b_fort, b_today, utc_hour)).fetchone()
                         ins = self._insight_room_temp(room, temp_now, usual, samples or 0)
                         if ins:

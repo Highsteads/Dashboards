@@ -363,6 +363,10 @@
             width: 100%; height: 100%; object-fit: cover; display: block;
             pointer-events: none;
         }
+        .camera-frame.no-picture::after {
+            content: "No picture"; position: absolute; inset: 0; display: flex;
+            align-items: center; justify-content: center; color: #aaa; font-size: 13px;
+        }
 
         .motion-card {
             background: var(--card-bg); border-radius: var(--r-md); padding: 14px 16px;
@@ -653,6 +657,7 @@
         // get re-rendered IN PLACE into per-door slots below, so the camera
         // picture keeps going while door status / button label still update.
         renderRoomCameras();
+        _bootRoomStills();
         return room;
     }
 
@@ -670,10 +675,10 @@
     async function start() {
         indigo = new IndigoAPI();
         DashTile.bind(indigo);
-        indigo.onAuthFailure(() => {
-            IndigoAPI.clearConfig();
-            location.href = "index.html";
-        });
+        // Three consecutive refusals, not one, before the key is forgotten;
+        // a reflector refusal is shown, never counted (DashUI.authStrikes).
+        const auth = DashUI.authStrikes();
+        indigo.onAuthFailure(auth.fail);
         // Load rooms.json BEFORE we start polling devices — otherwise the
         // first render() runs with empty Sets and shows an empty page until
         // the second poll arrives.
@@ -696,7 +701,7 @@
                 Capabilities.load("catalog.json");
             }
         } catch (e) { console.warn("capabilities load failed", e); }
-        indigo.observeAll(d => render(d), POLL_INTERVAL_MS, undefined, markRefreshed);
+        indigo.observeAll(d => render(d), POLL_INTERVAL_MS, undefined, () => { auth.ok(); markRefreshed(); });
     }
 
     function formatWhen(iso) { return DashUI.ago(iso); }   // v3.28.0: one wording, rounding down
@@ -862,7 +867,12 @@
         // "relay". Dimmability is a separate fact from which control leads.
         const isDimmer = cap ? (cap.control === "dimmer" || cap.control === "color")
                              : /Dimmer/.test(d.class || "");
-        const onState  = DashTile.isOn(d.onState);
+        // A disabled or errored device's state is frozen, not live:
+        // show a dash and the reason, and take the controls away — Indigo
+        // ignores a press on a disabled device, and a working-looking switch
+        // said nothing about why.
+        const why      = DashTile.unknownReason(d);
+        const onState  = !why && DashTile.isOn(d.onState);
         const bri      = d.brightness != null ? parseInt(d.brightness) : (onState ? 100 : 0);
         const fillPct  = isDimmer ? bri : (onState ? 100 : 0);
         const sliderBg = `linear-gradient(to right, var(--accent) ${fillPct}%, var(--off-color) ${fillPct}%)`;
@@ -874,12 +884,12 @@
         // the living room fire is configured into Lights (so "All Off" reaches
         // it), not into the Fire section, and a FIRE_IDS test never matched it.
         const fireLine = fireSubtitle(d);
-        const subtitle = fireLine ? fireLine.text : isDimmer
+        const subtitle = why ? `— · ${why}` : fireLine ? fireLine.text : isDimmer
             ? (onState ? `${bri}% · dimmer` : "Off · dimmer")
             : (onState ? (showPower ? `On · ${watts} W` : "On · relay") : "Off · relay");
         const stateCls = fireLine && fireLine.heater ? " heater-on" : "";
 
-        const sliderHtml = isDimmer ? `
+        const sliderHtml = isDimmer && !why ? `
             <div class="brightness-row" onclick="event.stopPropagation()">
                 <input type="range" class="brightness" min="0" max="100"
                        onpointerdown="window._sliderDragging = true"
@@ -896,7 +906,7 @@
         // that opens the full colour picker modal. Detection is by capability
         // flags, NOT by hardcoded device ID — so any new colour lamp gets
         // these controls automatically.
-        const isColourLamp = lightSupportsColour(d);
+        const isColourLamp = !why && lightSupportsColour(d);
         const currentColour = colorSwatchCss(d);
         const chipsHtml = isColourLamp ? `
             <div class="presets" onclick="event.stopPropagation()">
@@ -914,7 +924,7 @@
             : "";
 
         return `
-            <div class="light-card ${onState ? 'on' : ''} ${isColourLamp ? 'is-colour' : ''}" data-dsh-act-key="device:${d.id}" ${cardAttrs}>
+            <div class="light-card ${onState ? 'on' : ''} ${isColourLamp ? 'is-colour' : ''}${why ? ' unknown' : ''}" data-dsh-act-key="device:${d.id}" ${cardAttrs}>
                 <div class="light-head">
                     <div class="head-text">
                         <div class="name-row">
@@ -926,6 +936,7 @@
                     </div>
                     <label class="toggle" onclick="event.stopPropagation()">
                         <input type="checkbox" data-id="${d.id}" ${onState ? 'checked' : ''}
+                               ${why ? `disabled aria-disabled="true" title="${why === "disabled" ? "Disabled in Indigo" : "The device reports an error"}"` : ""}
                                onchange="DashTile.toggle(this)">
                         <span class="slider"></span>
                     </label>
@@ -1022,9 +1033,7 @@
     // stopped used to paint a confident "Closed" — the None == False trap.
     function renderMotion(d, wording) {
         const on = DashTile.state(d.onState);
-        const why = d.enabled === false ? "disabled"
-                  : (d.errorState || "").trim() ? "error"
-                  : on === null ? "no reading" : "";
+        const why = DashTile.unknownReason(d) || (on === null ? "no reading" : "");
         const active = !why && on === true;
         const w = wording || _motionWording(d);
         const stateTxt = why ? `— · ${why}` : (active ? w.on : w.off);
@@ -1059,13 +1068,18 @@
         // for a voltage-only monitor (e.g. a Shelly UNI ADC watching a 12 V
         // car battery — it reports `voltage` / `voltage.ui` and no temp+humidity).
         let primaryStr = "—";
-        if (isFinite(temp)) {
+        const why = DashTile.unknownReason(d);
+        if (why) {
+            // Frozen, not current: a disabled sensor used to show a
+            // weeks-old temperature as though it were today's.
+            primaryStr = `— · ${why}`;
+        } else if (isFinite(temp)) {
             primaryStr = `${temp.toFixed(1)}°C`;
         } else if (isFinite(volt)) {
             primaryStr = s["voltage.ui"] || `${volt.toFixed(2)} V`;
         }
         return `
-            <div class="env-card">
+            <div class="env-card${why ? ' unknown' : ''}">
                 <div class="env-info">
                     <div class="name-row">
                         <div class="env-name">${escapeHtml(prettyMotionName(d.name))}</div>
@@ -1074,8 +1088,8 @@
                     </div>
                     <div class="env-readouts">
                         <span class="env-temp">${escapeHtml(primaryStr)}</span>
-                        ${humStr ? `<span class="env-sep">·</span><span class="env-humidity">${humStr} humidity</span>` : ""}
-                        ${battStr ? `<span class="env-meta">${battStr}</span>` : ""}
+                        ${humStr && !why ? `<span class="env-sep">·</span><span class="env-humidity">${humStr} humidity</span>` : ""}
+                        ${battStr && !why ? `<span class="env-meta">${battStr}</span>` : ""}
                     </div>
                 </div>
             </div>`;
@@ -1099,10 +1113,15 @@
         const mst   = (mon || {}).states || {};
         const cst   = (cyc || {}).states || {};
 
+        // A disabled or errored device's readings are frozen: a
+        // disabled plug read 'On' with its last watts, with no reason given.
+        const why = (mon && DashTile.unknownReason(mon)) || (cyc && DashTile.unknownReason(cyc)) || "";
         // Pill — cycle state takes priority; falls back to monitor on/off.
-        const cycleState = (cst.cycleState || "").toString().toLowerCase();
+        const cycleState = why ? "" : (cst.cycleState || "").toString().toLowerCase();
         let pillCls = "", pillTxt = "—";
-        if (cycleState) {
+        if (why) {
+            pillTxt = `— · ${why}`;
+        } else if (cycleState) {
             pillCls =
                 cycleState === "running"   ? "running" :
                 cycleState === "doorready" ? "ready"   : "";
@@ -1119,7 +1138,7 @@
 
         // Wattage — only if the monitor device exposes powerWatts.
         const watts = parseFloat(mst.powerWatts);
-        const hasWatts = isFinite(watts);
+        const hasWatts = !why && isFinite(watts);
         const wattsStr = hasWatts ? `${watts.toFixed(0)} W` : "";
         const live     = hasWatts && watts >= 1.0;
 
@@ -1145,7 +1164,7 @@
             : "";
 
         return `
-            <div class="appliance-card">
+            <div class="appliance-card${why ? ' unknown' : ''}">
                 <div class="appliance-head">
                     <div class="appliance-name">${escapeHtml(spec.label || "Appliance")}</div>
                     <span class="appliance-pill ${pillCls}">${escapeHtml(pillTxt)}</span>
@@ -1158,28 +1177,86 @@
     // Stills that cross-fade from frame to frame (v3.36.0). This page used to
     // open a live MJPEG stream per camera wherever a bandwidth probe said the
     // link could carry it — three at once on the Drive page. Live video is
-    // one tap away on the Cameras page, which is what the tile opens. The
-    // stills come from /public, which anything that could load this page can
-    // fetch, so they cannot fail for want of bandwidth.
-    const ROOM_STILL_MS = 3000;
+    // one tap away on the Cameras page, which is what the tile opens.
+    //
+    // Now the hub strip's rules, not a flat 3 s full-size poll on every
+    // link. Where the pictures are comes from DashUI.cameraStills (a private
+    // folder only a browser holding the key is told about); the thumbnail is
+    // used, falling back to the full picture; the interval follows the link
+    // (DashUI.stillPollMs: 2 s home, 3 s VPN, 15 s reflector); and on the
+    // reflector the pictures pause after ten idle minutes. When the location
+    // cannot be had the tile shows "No picture", never a guessed public name.
     const _roomStillTimers = [];
-    function _roomStillSrc(host) { return `cam-${host}.jpg?_t=${Date.now()}`; }
+    let _roomStills = null;          // {imagePattern, thumbPattern} once known
+    let _roomStillsAsked = false;    // true once cameraStills has answered, either way
+    let _roomStillThumb = true;      // demoted for the page on a thumbnail failure
+    let _roomStillIdle = false;
+    let _roomStillGuard = null;
+    function _roomLink() {
+        const guess = window.DashUI ? DashUI.linkClass() : "home";
+        // An address that looks local is only a guess until measured; poll
+        // at the VPN rate until then, as the hub does.
+        return guess === "home" ? (window.__roomMeasuredLink || "vpn") : guess;
+    }
+    function _roomStillSrc(host) {
+        if (!_roomStills) return "";
+        const pat = _roomStillThumb ? _roomStills.thumbPattern : _roomStills.imagePattern;
+        return DashUI.stillUrl(pat, host) + `?_t=${Date.now()}`;
+    }
+    function _roomNoPicture(img) {
+        const frame = img && img.closest(".camera-frame");
+        if (frame) frame.classList.add("no-picture");
+    }
     function _startRoomStill(img) {
         if (!img || img.dataset.polling === "1") return;
         const card = img.closest("[data-cam-host]");
         if (!card) return;
+        if (!_roomStills) { if (_roomStillsAsked) _roomNoPicture(img); return; }
         img.dataset.polling = "1";
         const host = card.dataset.camHost;
         const swap = () => {
-            if (document.hidden || !img.isConnected) return;
+            if (document.hidden || !img.isConnected || _roomStillIdle) return;
             const url = _roomStillSrc(host);
-            if (window.DashUI && DashUI.swapImage) { DashUI.swapImage(img, url).catch(() => {}); return; }
+            const fallBack = () => {
+                // No thumbnail on this server: the full picture for the page.
+                if (_roomStillThumb) { _roomStillThumb = false; swap(); }
+            };
+            if (window.DashUI && DashUI.swapImage) { DashUI.swapImage(img, url).catch(fallBack); return; }
             const next = new Image();
             next.crossOrigin = "anonymous";
             next.onload = () => { img.src = next.src; };
+            next.onerror = fallBack;
             next.src = url;
         };
-        _roomStillTimers.push(setInterval(swap, ROOM_STILL_MS));
+        const link = _roomLink();
+        if (link === "reflector" && !_roomStillGuard && DashUI.idleGuard) {
+            _roomStillGuard = DashUI.idleGuard(10 * 60 * 1000,
+                () => { _roomStillIdle = true; },
+                () => { _roomStillIdle = false; });
+        }
+        if (!img.getAttribute("src")) swap();
+        _roomStillTimers.push(setInterval(swap, DashUI.stillPollMs(link)));
+    }
+
+    // Once per room load: time the link (as the hub does, raced against a
+    // timeout so a hung probe cannot hold the pictures up), learn where the
+    // stills are, then start every tile.
+    async function _bootRoomStills() {
+        if (!ROOM_CAMERAS.length || !window.DashUI) return;
+        if (DashUI.measuredClass) {
+            try {
+                window.__roomMeasuredLink = await Promise.race([DashUI.measuredClass(),
+                    new Promise((_, no) => setTimeout(() => no(new Error("probe timeout")), 8000))]);
+            } catch (e) { /* stays on the VPN rate */ }
+        }
+        _roomStills = DashUI.cameraStills ? await DashUI.cameraStills() : null;
+        _roomStillsAsked = true;
+        _roomStillTimers.forEach(clearInterval);
+        _roomStillTimers.length = 0;
+        document.querySelectorAll("#cameras-section .camera-frame img").forEach(img => {
+            img.dataset.polling = "";
+            _startRoomStill(img);
+        });
     }
 
     function renderRoomCamera(cam) {
@@ -1193,7 +1270,7 @@
         return `
             <div class="camera-card" data-cam-host="${escapeHtml(cam.host)}" onclick="openRoomCamera(this.dataset.camHost)">
                 <div class="camera-frame">
-                    <img crossorigin="anonymous" alt="${escapeHtml(cam.name)}" src="${_roomStillSrc(cam.host)}">
+                    <img crossorigin="anonymous" alt="${escapeHtml(cam.name)}"${_roomStills ? ` src="${escapeHtml(_roomStillSrc(cam.host))}"` : ""}>
                 </div>
             </div>`;
     }

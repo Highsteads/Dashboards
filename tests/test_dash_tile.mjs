@@ -52,7 +52,7 @@ console.log("\na toggle is confirmed from the device");
     const notes = [];
     box.DashAction.note = (k, ph, txt) => notes.push([k, ph, txt]);
     let deviceOn = false;
-    T.bind({ toggle: async () => {}, getDevice: async () => ({ onState: deviceOn }) });
+    T.bind({ turnOn: async () => {}, turnOff: async () => {}, getDevice: async () => ({ onState: deviceOn }) });
     const el = { dataset: { id: "7" }, checked: true, disabled: false };
     await T.toggle(el);
     check("the switch is held while it sends", el.disabled === true);
@@ -64,7 +64,7 @@ console.log("\na toggle is confirmed from the device");
     const el2 = { dataset: { id: "8" }, checked: true, disabled: false };
     await T.toggle(el2); await flush();
     check("a device that did follow is left alone", el2.checked === true && !notes.length);
-    T.bind({ toggle: async () => { throw new Error("no"); }, getDevice: async () => ({}) });
+    T.bind({ turnOn: async () => { throw new Error("no"); }, turnOff: async () => { throw new Error("no"); }, getDevice: async () => ({}) });
     const el3 = { dataset: { id: "9" }, checked: true, disabled: false };
     await T.toggle(el3); await flush();
     check("a failed send puts the switch back at once", el3.checked === false);
@@ -146,7 +146,7 @@ console.log("\na device tile pressed on the hub (v3.41.0)");
                  toggle: (c, f) => (f === undefined ? (cls.has(c) ? cls.delete(c) : cls.add(c)) : (f ? cls.add(c) : cls.delete(c))) },
                  querySelector: () => st, cls }; };
     let reported = true;
-    const api = { toggle: async () => {}, getDevice: async () => ({ onState: reported }) };
+    const api = { turnOn: async () => {}, turnOff: async () => {}, getDevice: async () => ({ onState: reported }) };
     const t = mkTile(false);
     const p = T.pressDevice(t, 5, { api, key: "device:5" });
     check("busy while it sends", t.cls.has("busy"));
@@ -163,12 +163,48 @@ console.log("\na device tile pressed on the hub (v3.41.0)");
     check("and says so", notes.some(n => n[0] === "device:6" && n[1] === "timeout"));
     notes.length = 0;
     const t3 = mkTile(true);
-    const ok = await T.pressDevice(t3, 7, { api: { toggle: async () => { throw Object.assign(new Error("offline"), { status: 0 }); } }, key: "device:7" });
+    const ok = await T.pressDevice(t3, 7, { api: { turnOff: async () => { throw Object.assign(new Error("offline"), { status: 0 }); } }, key: "device:7" });
     check("a failed send changes nothing", ok === false && t3.cls.has("on"));
     check("and names the failure", notes.some(n => n[0] === "device:7" && n[1] === "error" && /offline/.test(n[2])));
     notes.length = 0;
-    await T.pressDevice(mkTile(true), 8, { api: { toggle: async () => { throw Object.assign(new Error("x"), { status: 401 }); } } });
+    await T.pressDevice(mkTile(true), 8, { api: { turnOff: async () => { throw Object.assign(new Error("x"), { status: 401 }); } } });
     check("an auth failure is left to the page", !notes.length);
+}
+
+console.log("\na press sends the state asked for, never a toggle");
+{
+    // A light a motion rule had just switched on went OFF when somebody tapped
+    // it on: the page sent a toggle. The switch and the hub tile know the
+    // intent, so they send turnOn or turnOff.
+    const sent = [];
+    const api = { turnOn: async id => { sent.push(["on", id]); }, turnOff: async id => { sent.push(["off", id]); },
+                  toggle: async id => { sent.push(["toggle", id]); }, getDevice: async () => ({}) };
+    T.bind(api);
+    await T.toggle({ dataset: { id: "3" }, checked: true, disabled: false });
+    await T.toggle({ dataset: { id: "4" }, checked: false, disabled: false });
+    const mk = on => { const cls = new Set(on ? ["on"] : []);
+        return { isConnected: true, classList: { contains: c => cls.has(c), add: c => cls.add(c), remove: c => cls.delete(c),
+                 toggle: (c, f) => (f ? cls.add(c) : cls.delete(c)) }, querySelector: () => null }; };
+    await T.pressDevice(mk(false), 5, { api });
+    await T.pressDevice(mk(true), 6, { api });
+    await flush();
+    checkEq("switch on -> turnOn, switch off -> turnOff, tile off -> turnOn, tile on -> turnOff",
+            sent, [["on", 3], ["off", 4], ["on", 5], ["off", 6]]);
+}
+
+console.log("\nreachability and the unknown reason");
+{
+    check("no reachability state means reachable", T.isReachable({ states: { powerWatts: 5 } }));
+    check("ShellyDirect deviceOnline false is unreachable", !T.isReachable({ states: { deviceOnline: false } }));
+    check("and the v2 API's string \"false\" too", !T.isReachable({ states: { deviceOnline: "false" } }));
+    check("\"False\" as well", !T.isReachable({ states: { deviceOnline: "False" } }));
+    check("Tasmota availability Offline", !T.isReachable({ states: { availability: "Offline" } }));
+    check("z2m availability online is reachable", T.isReachable({ states: { availability: "online" } }));
+    check("ESPHome connected false", !T.isReachable({ states: { connected: false } }));
+    check("an errorState", !T.isReachable({ errorState: "timeout", states: {} }));
+    checkEq("disabled", T.unknownReason({ enabled: false }), "disabled");
+    checkEq("error", T.unknownReason({ enabled: true, errorState: "comm" }), "error");
+    checkEq("live", T.unknownReason({ enabled: true, errorState: "" }), "");
 }
 
 console.log("\none memory of each door (v3.41.0)");

@@ -297,6 +297,10 @@ function render(d) {
     if (loadCls)      issues.push([loadCls, `${I("gear")} Load ${num(l1,2)} on ${cores} cores`]);
     if (errs.length)  issues.push(["bad", `${I("warn")} ${errs.length} device${errs.length===1?"":"s"} in error`]);
     if (lb.length)    issues.push(["warn", `${I("battery")} ${lb.length} low batter${lb.length===1?"y":"ies"}`]);
+    // A crashed plugin freezes every device it owns, so it belongs in the
+    // headline, not only in the gauge further down. Disabled is a
+    // choice and stays out.
+    if (crashed)      issues.push(["bad", `${I("plug")} ${crashed} plugin${crashed===1?"":"s"} not running`]);
     if (svc.cameras && (!svc.go2rtc || !svc.proxy))
                       issues.push(["warn", `${I("camera")} Camera service down`]);
     const worst = issues.some(i => i[0] === "bad") ? "bad" : issues.length ? "warn" : "good";

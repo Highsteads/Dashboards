@@ -340,20 +340,13 @@
     // mph (the two readings a UK reader wants in imperial and metric
     // respectively); temperature and pressure are shown as published, with
     // the published label, and the temperature colour bands work in °C.
+    // The rules themselves live in DashUI.wx, shared with the hub's
+    // Weather card, which had kept the old m/s assumption.
     const IN_TO_MM  = 25.4;
-    const WIND_TO_MPH = { "m/s": 2.23694, "ms": 2.23694, "km/h": 0.621371, "kmh": 0.621371,
-                          "mph": 1, "kts": 1.15078, "kn": 1.15078, "knots": 1.15078 };
-    function windMph(v, unit) {
-        if (v == null) return null;
-        const f = WIND_TO_MPH[String(unit || "").toLowerCase()];
-        return f == null ? null : v * f;   // unknown unit: say nothing rather than a wrong number
-    }
-    function tempUnit(s)  { return /f/i.test(String(s.temperatureUnit || "")) ? "°F" : "°C"; }
-    function tempC(v, s)  { return v == null ? null : (tempUnit(s) === "°F" ? (v - 32) / 1.8 : v); }
-    function pressUnit(s) {
-        const u = String(s.pressureRelativeUnit || s.pressureAbsoluteUnit || "hPa").trim();
-        return u || "hPa";
-    }
+    const windMph   = DashUI.wx.windMph;
+    const tempUnit  = DashUI.wx.tempUnit;
+    const tempC     = DashUI.wx.tempC;
+    const pressUnit = DashUI.wx.pressUnit;
 
     let indigo = null;
 
@@ -365,16 +358,19 @@
 
     function start() {
         indigo = new IndigoAPI();
-        indigo.onAuthFailure(() => {
-            IndigoAPI.clearConfig();
-            location.href = "index.html";
-        });
+        // Three consecutive refusals, not one, before the key is forgotten;
+        // a reflector refusal is shown, never counted (DashUI.authStrikes).
+        const auth = DashUI.authStrikes();
+        indigo.onAuthFailure(auth.fail);
         // The error banner REPLACES #content, and the change-callback only
         // fires when device JSON changes — so one failed tick used to wedge
         // the page on "Connection error" until the next estate-wide change.
         // onOk (every successful poll) clears the banner by re-rendering.
         let _errShown = false;
         indigo.observeAll(d => render(d), POLL_INTERVAL_MS, e => {
+            // The last known readings while the plugin restarts: keep them on
+            // screen; the "Updated" clock going stale says they are not live.
+            if (e && e.fromCache) return;
             _errShown = true;
             const c = document.getElementById("content");
             if (c) c.innerHTML =
@@ -384,6 +380,7 @@
                  </div>`;
             console.error("[ecowitt] tick failed:", e);
         }, d => {
+            auth.ok();
             markRefreshed();
             if (_errShown) { _errShown = false; render(d); }
         });

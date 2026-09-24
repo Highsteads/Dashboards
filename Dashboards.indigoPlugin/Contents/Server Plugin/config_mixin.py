@@ -88,6 +88,43 @@ class ConfigMixin:
             log(f"[Guest] Could not persist guest token ({exc})", level="WARNING")
         return tok
 
+    # Camera stills live in /public/dashboards/stills-<this>/ — see
+    # _ensure_stills_token. 32 lowercase hex characters, nothing else.
+    _STILLS_TOKEN_RE = re.compile(r"^[0-9a-f]{32}$")
+
+    def _stills_token(self):
+        """The current stills folder token, or "" before startup has made one."""
+        tok = str((getattr(self, "cfg_store", None) or {}).get("stillsToken") or "")
+        return tok if self._STILLS_TOKEN_RE.match(tok) else ""
+
+    def _ensure_stills_token(self):
+        """Make sure the store holds the per-install stills token, and return it.
+
+        /public is anonymous, and reachable over the reflector, so the camera
+        stills used to be readable by anyone who knew the fixed names
+        (cam-<host>.jpg, published in config.js). They now sit in a folder
+        named by this random token, which is handed out only through the
+        Bearer-authenticated cameraStills action. Kept in the 0600 store so it
+        survives restarts; the Settings page never sees it and cannot set it
+        (_effective_config and _apply_config see to that). If the store cannot
+        be saved the token still works for this run, and the next start picks
+        a new folder."""
+        tok = self._stills_token()
+        if tok:
+            return tok
+        tok = _stdlib_secrets.token_hex(16)
+        new = dict(getattr(self, "cfg_store", None) or {})
+        new["stillsToken"] = tok
+        try:
+            self.cfg_store = self._save_config_store(new)
+        except Exception as exc:
+            self.cfg_store = new
+            if not getattr(self, "_store_unreadable", ""):
+                log(f"[Cameras] could not save the camera stills folder name ({exc}); "
+                    f"it holds for this run and a new one is chosen at the next start",
+                    level="WARNING")
+        return tok
+
     def _config_store_path(self):
         """Plugin-owned config file. Lives in the per-plugin Preferences
         folder (NOT /public — no need to publish it), survives upgrades."""
@@ -126,30 +163,104 @@ class ConfigMixin:
                 f"the old DASHBOARDS_* keys are no longer read.")
         return store
 
+    # Set by _load_config_store when dashboards_config.json exists but cannot
+    # be read. While it is set, _save_config_store refuses to write.
+    _store_unreadable = ""
+
     def _load_config_store(self):
-        """Read dashboards_config.json. Returns {} when absent/invalid, and
-        __init__ then imports the legacy settings once."""
+        """Read dashboards_config.json.
+
+        Returns {} when the file is ABSENT, and __init__ then imports the
+        legacy settings once. A file that is PRESENT but will not parse, or is
+        not a JSON object, is a different case and must not be treated as
+        absent: the import used to run, save, and in saving copy the broken
+        file over the one good .bak, so one typo in a hand edit plus a restart
+        lost the cameras, favourites and the control PIN for good. Now it logs
+        an ERROR naming the file, copies it aside once, returns {} and sets
+        _store_unreadable, which stops __init__ importing and stops every
+        save until the file is fixed and the plugin restarted."""
         try:
             path = self._config_store_path()
-            if not os.path.isfile(path):
-                return {}
+        except Exception as exc:
+            log(f"[Config] Could not locate dashboards_config.json ({exc})", level="WARNING")
+            return {}
+        if not os.path.isfile(path):
+            return {}
+        try:
             with open(path, encoding="utf-8") as f:
                 data = json.load(f)
-            return data if isinstance(data, dict) else {}
+            if isinstance(data, dict):
+                return data
+            problem = f"it holds a JSON {type(data).__name__}, not an object"
         except Exception as exc:
-            log(f"[Config] Could not read dashboards_config.json ({exc}) — "
-                "starting from the legacy settings; fix or delete the file",
+            problem = str(exc)
+        self._store_unreadable = path
+        aside = self._set_aside_unreadable_store(path)
+        log(f"[Config] {path} could not be read ({problem}). The dashboards are running "
+            f"with no saved settings, and Settings will refuse to save so the file is "
+            f"not overwritten. Fix the file (or restore {os.path.basename(path)}.bak) and "
+            f"restart the plugin."
+            + (f" A copy of the unreadable file is at {aside}." if aside else ""),
+            level="ERROR")
+        return {}
+
+    @staticmethod
+    def _set_aside_unreadable_store(path):
+        """Copy an unreadable store to <name>.corrupt-<unix seconds> (0600), a
+        name no save ever writes. Once per distinct content: a copy with the
+        same bytes already beside it is reused, so a restart loop does not fill
+        the folder. Returns the copy's path, or "" when it could not be made."""
+        try:
+            with open(path, "rb") as f:
+                raw = f.read()
+            folder, base = os.path.split(path)
+            for name in sorted(os.listdir(folder)):
+                if name.startswith(base + ".corrupt-"):
+                    other = os.path.join(folder, name)
+                    try:
+                        with open(other, "rb") as f:
+                            if f.read() == raw:
+                                return other
+                    except OSError:
+                        continue
+            dest = f"{path}.corrupt-{int(time.time())}"
+            fd = os.open(dest, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(fd, "wb") as f:
+                f.write(raw)
+            return dest
+        except Exception as exc:
+            log(f"[Config] could not copy the unreadable dashboards_config.json aside: {exc}",
                 level="WARNING")
-            return {}
+            return ""
+
+    @staticmethod
+    def _reads_as_store(path):
+        """True when the file at path parses as a JSON object."""
+        try:
+            with open(path, encoding="utf-8") as f:
+                return isinstance(json.load(f), dict)
+        except Exception:
+            return False
 
     def _save_config_store(self, data):
         """Atomically persist the editor's config. Raises on failure.
         Keeps a one-deep .bak of the PREVIOUS good config first, so a bad save
         (e.g. an empty form harvested after a failed load — the settings page
-        guards against this client-side too) is always recoverable by hand."""
+        guards against this client-side too) is always recoverable by hand.
+
+        Refuses outright while the store read at startup was unreadable (see
+        _load_config_store): the Settings page gets an error rather than
+        replacing the file with whatever it happened to be showing. And the
+        .bak is only taken from a file that parses — copying a broken file
+        over it destroyed the one good copy."""
+        if getattr(self, "_store_unreadable", ""):
+            raise RuntimeError(
+                "dashboards_config.json could not be read when the plugin started, so "
+                "saving is switched off to avoid overwriting it. Fix the file and "
+                "restart the plugin")
         path = self._config_store_path()
         try:
-            if os.path.isfile(path):
+            if os.path.isfile(path) and self._reads_as_store(path):
                 import shutil
                 shutil.copy2(path, path + ".bak")
                 os.chmod(path + ".bak", 0o600)
@@ -203,7 +314,9 @@ class ConfigMixin:
         # whitelist trap, this time on the LOAD side).
         try:
             for k, v in store.items():
-                if k not in out and not str(k).startswith("_"):
+                # stillsToken names the private stills folder: it stays on
+                # the server, and _apply_config carries it over on a save.
+                if k not in out and not str(k).startswith("_") and k != "stillsToken":
                     out[k] = v
         except Exception:
             pass
@@ -365,6 +478,13 @@ class ConfigMixin:
                   "hiddenScenes", "controlPin", "pinRequired", "favourites",
                   "customLinks"}
         clean = {k: v for k, v in cfg.items() if k not in _known}
+        # The stills folder token is the server's, never the client's: a
+        # Settings save can neither set nor clear it, and the running value is
+        # carried over so the folder the pages were told about stays put.
+        clean.pop("stillsToken", None)
+        _stills_tok = self._stills_token()
+        if _stills_tok:
+            clean["stillsToken"] = _stills_tok
         clean.update({
             "cameras":      cameras,
             "mainCameras":  list(main_cams),

@@ -1307,6 +1307,202 @@
     };
   }
 
+  /* ---- authStrikes: when a refusal means the key is really wrong -------
+     A single 401/403 used to wipe the stored key on six pages and send the
+     reader back to pairing. One transient refusal (an IWS restart, a proxy
+     hiccup) was enough, and re-pairing away from home needs a setup link, so
+     somebody out of the house was locked out until they got back. The hub had
+     already moved to three strikes; this is that counter, shared.
+
+       var auth = DashUI.authStrikes();
+       indigo.onAuthFailure(auth.fail);           // each 401/403
+       ... onOk: function () { auth.ok(); }       // each successful poll
+
+     THREE CONSECUTIVE refusals trip it (a success in between starts again).
+     A 403 whose body says reason "reflector_blocked" is not a bad key at all:
+     the server was told to refuse the reflector. It is shown as that refusal
+     and never counted, so a phone on the reflector keeps its key for the
+     day it is back on the home network.
+     opts: limit (3), onTrip() (default: forget the key, go to the hub),
+           onRefused(err) (default: a banner naming the home address). */
+  var REFLECTOR_REFUSED = 'reflector_blocked';
+  function isReflectorRefusal(err) {
+    if (!err) return false;
+    if (err.reason === REFLECTOR_REFUSED) return true;
+    var b = err.body;
+    return !!(b && typeof b === 'object' && b.reason === REFLECTOR_REFUSED);
+  }
+  function showRefusal(err) {
+    var d = root.document;
+    if (!d || typeof d.getElementById !== 'function' || !d.body) return;
+    if (d.getElementById('dash-refusal')) return;
+    var lan = (err && err.body && err.body.lanURL) || lanUrl(
+      ((root.location && root.location.pathname) || '').split('/').pop() || 'index.html');
+    var el = d.createElement('div');
+    el.id = 'dash-refusal';
+    el.setAttribute('role', 'alert');
+    el.style.cssText = 'margin:8px auto;max-width:900px;padding:10px 14px;border-radius:10px;' +
+      'background:var(--warn-bg,#fff4e0);color:var(--text,#222);font-size:14px;line-height:1.45';
+    el.innerHTML = 'This server does not answer the dashboards over the Indigo reflector, ' +
+      'so what is shown here will not update.' +
+      (lan ? ' At home, or with the VPN connected, use <a href="' + esc(lan) + '">' + esc(lan) + '</a>.' : '');
+    d.body.insertBefore(el, d.body.firstChild);
+  }
+  function authStrikes(opts) {
+    var o = opts || {};
+    var limit = o.limit || 3;
+    var fails = 0;
+    function trip() {
+      if (typeof o.onTrip === 'function') { o.onTrip(); return; }
+      /* global IndigoAPI */
+      var C = (typeof IndigoAPI === 'function') ? IndigoAPI : root.IndigoAPI;
+      try { if (C && typeof C.clearConfig === 'function') C.clearConfig(); } catch (e) { /* storage blocked */ }
+      if (root.location) root.location.href = 'index.html';
+    }
+    return {
+      /* Returns what it decided: 'refused', 'counted' or 'tripped'. */
+      fail: function (err) {
+        if (isReflectorRefusal(err)) {
+          try { (typeof o.onRefused === 'function' ? o.onRefused : showRefusal)(err); } catch (e) { /* presentation */ }
+          return 'refused';
+        }
+        fails += 1;
+        if (fails < limit) return 'counted';
+        fails = 0;
+        trip();
+        return 'tripped';
+      },
+      ok: function () { fails = 0; },
+      count: function () { return fails; }
+    };
+  }
+
+  /* ---- cameraStills: where this install's camera pictures are ----------
+     The snapshot poller used to write cam-<host>.jpg straight into /public,
+     and config.js (also anonymous) named the pattern, so anyone who could
+     reach the web server could watch every camera. The stills now live in a
+     folder named by a per-install secret, and only the Bearer-authenticated
+     cameraStills action says what it is. ONE ask per page, shared by every
+     caller. Resolves to {imagePattern, thumbPattern} or null — and null
+     means "show no picture", never "guess the old public name". A failure is
+     not remembered, so a page can ask again later. */
+  var _stillsAsk = null;
+  function cameraStills() {
+    if (_stillsAsk) return _stillsAsk;
+    var p = message('cameraStills', {}, { pendingMs: 20000 }).then(function (d) {
+      if (!d || d.ok === false || typeof d.imagePattern !== 'string' || !d.imagePattern
+          || d.imagePattern.indexOf('{host}') < 0) return null;
+      var thumb = (typeof d.thumbPattern === 'string' && d.thumbPattern.indexOf('{host}') >= 0)
+        ? d.thumbPattern : d.imagePattern;
+      return { imagePattern: d.imagePattern, thumbPattern: thumb };
+    }, function () { return null; });
+    _stillsAsk = p;
+    p.then(function (v) { if (!v && _stillsAsk === p) _stillsAsk = null; });
+    return p;
+  }
+  /* The picture for one host from a pattern. Relative to the page, as the
+     hub and room pages always resolved it (they live in /public/dashboards/,
+     and so does the online demo's placeholder). '' when there is no pattern. */
+  function stillUrl(pattern, host) {
+    if (!pattern) return '';
+    return String(pattern).split('{host}').join(String(host));
+  }
+  /* How often a page polls a still, by link: the hub's rule, shared with the
+     room page. The reflector is carried by Indigo's own servers, so it is
+     asked five times less often and pauses when nobody touches the page. */
+  function stillPollMs(link) {
+    return link === 'home' ? 2000 : link === 'reflector' ? 15000 : 3000;
+  }
+
+  /* ---- camera health: is streams.json still being written? -------------
+     streams.json carries _cameraHealth, _writeTs (server clock, seconds) and,
+     since the stills moved, _go2rtcUp. A page that painted _cameraHealth alone showed
+     "health OK" through a full go2rtc outage, because the plugin stopped
+     rewriting the file and the last healthy summary stayed on screen.
+     The tracker judges freshness by _writeTs ADVANCING between reads, on this
+     device's own clock, so a phone whose clock is wrong cannot fake it. The
+     first read has nothing to compare with, so it falls back to the clocks
+     with a wide margin. feed(data, nowMs) returns {state, health}:
+       'ok'      being written, go2rtc up — health is the summary
+       'down'    written, but go2rtc (the camera service) is not answering
+       'stale'   not rewritten for longer than staleMs
+       'unknown' no file, or no write time in it                        */
+  var CAM_HEALTH_STALE_MS = 60000;
+  var CAM_HEALTH_FIRST_READ_SKEW_MS = 10 * 60000;
+  function cameraHealthTracker(staleMs) {
+    var limit = staleMs || CAM_HEALTH_STALE_MS;
+    var lastTs = null, seenAt = 0;
+    return {
+      feed: function (data, nowMs) {
+        var now = nowMs == null ? Date.now() : nowMs;
+        if (!data || typeof data !== 'object') return { state: 'unknown', health: null };
+        var ts = Number(data._writeTs);
+        if (!isFinite(ts) || ts <= 0) return { state: 'unknown', health: null };
+        if (ts !== lastTs) {
+          var first = lastTs === null;
+          lastTs = ts; seenAt = now;
+          if (first && now - ts * 1000 > CAM_HEALTH_FIRST_READ_SKEW_MS) {
+            return { state: 'stale', health: null };
+          }
+        } else if (now - seenAt > limit) {
+          return { state: 'stale', health: null };
+        }
+        if (data._go2rtcUp === false) return { state: 'down', health: null };
+        var h = data._cameraHealth;
+        return { state: 'ok', health: (h && typeof h === 'object') ? h : null };
+      }
+    };
+  }
+
+  /* ---- weather station units (were ecowitt.html's own) ----------
+     The Ecowitt plugin publishes each reading in the unit its Configure
+     dialog chose and names it in a sibling state. The hub's Weather card
+     assumed m/s, degrees C and hPa, so on the plugin's DEFAULT (km/h) it
+     printed wind about 1.6 times too high as mph. One set of rules now. */
+  var WIND_TO_MPH = { 'm/s': 2.23694, 'ms': 2.23694, 'km/h': 0.621371, 'kmh': 0.621371,
+                      'mph': 1, 'kts': 1.15078, 'kn': 1.15078, 'knots': 1.15078 };
+  var PRESS_TO_HPA = { 'hpa': 1, 'mbar': 1, 'mb': 1, 'kpa': 10, 'inhg': 33.8639, 'mmhg': 1.33322 };
+  var wx = {
+    windMph: function (v, unit) {
+      if (v == null || !isFinite(v)) return null;
+      var f = WIND_TO_MPH[String(unit || '').toLowerCase()];
+      return f == null ? null : v * f;   // unknown unit: say nothing rather than a wrong number
+    },
+    tempUnit: function (s) { return /f/i.test(String((s || {}).temperatureUnit || '')) ? '°F' : '°C'; },
+    tempC: function (v, s) {
+      if (v == null || !isFinite(v)) return null;
+      return wx.tempUnit(s) === '°F' ? (v - 32) / 1.8 : v;
+    },
+    pressUnit: function (s) {
+      s = s || {};
+      var u = String(s.pressureRelativeUnit || s.pressureAbsoluteUnit || 'hPa').trim();
+      return u || 'hPa';
+    },
+    /* A pressure in hPa, whatever it was published in — for trends and
+       thresholds, which are set in hPa. null for a unit it does not know. */
+    pressHpa: function (v, s) {
+      if (v == null || !isFinite(v)) return null;
+      var f = PRESS_TO_HPA[wx.pressUnit(s).toLowerCase()];
+      return f == null ? null : v * f;
+    },
+    rainMm: function (v, unit) {
+      if (v == null || !isFinite(v)) return null;
+      var u = String(unit || '').toLowerCase();
+      return (u === 'in' || u === 'inch' || u === 'inches') ? v * 25.4 : v;
+    }
+  };
+
+  /* ---- UniFi access point: is its reading live? ------------------------
+     One rule for wifi.html and wifi-ap.html, which used to disagree about
+     the same AP (the list said stale, the detail page said online). A
+     reading is stale when the controller is not Connected, or the AP is
+     disabled or in error. controller may be null (none found). */
+  function unifiStale(ap, controller) {
+    if (!ap) return true;
+    if (controller && String((controller.states || {}).status || '') !== 'Connected') return true;
+    return ap.enabled === false || !!String(ap.errorState || '').trim();
+  }
+
   var API = {
     cssVar: cssVar,
     esc: esc,
@@ -1328,6 +1524,14 @@
     STRING_STACK_ORDER: STRING_STACK_ORDER,
     message: message,
     poll: poll,
+    authStrikes: authStrikes,
+    isReflectorRefusal: isReflectorRefusal,
+    cameraStills: cameraStills,
+    stillUrl: stillUrl,
+    stillPollMs: stillPollMs,
+    cameraHealthTracker: cameraHealthTracker,
+    wx: wx,
+    unifiStale: unifiStale,
     linkClass: linkClass,
     pressFeedback: pressFeedback,
     isScrollTouch: isScrollTouch,

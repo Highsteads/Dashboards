@@ -63,14 +63,14 @@ window.CAMERA_CONFIG = {
               "192.0.2.3": "Garage", "192.0.2.4": "Back Garden"},
     "slugs": {"192.0.2.1": "front_door", "192.0.2.2": "drive",
               "192.0.2.3": "garage", "192.0.2.4": "back_garden"},
-    "imagePattern": "demo-cam.svg",
     "pollSeconds": 9999, "livePoolSize": 0,
     "mainCameras": ["192.0.2.1", "192.0.2.2", "192.0.2.3", "192.0.2.4"],
     "swapOutHost": ""
 };
 EOF
 
-# Camera placeholder image.
+# Camera placeholder image. Pages learn where stills are from the cameraStills
+# action, which the demo answers from demo-data/api/cameraStills.json.
 cat > "$DOCS/demo-cam.svg" << 'EOF'
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360">
   <rect width="640" height="360" fill="#1c1c2e"/>

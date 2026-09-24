@@ -95,6 +95,77 @@ class CamerasMixin:
                 return 504, "text/plain", b"go2rtc timed out"
             return 502, "text/plain", f"go2rtc unreachable: {exc}".encode("utf-8")
 
+    _PRIVATE_DNS_SUFFIXES = ("local", "lan", "home", "internal", "localdomain", "home.arpa")
+
+    def _proxy_host_allowed(self, host_header):
+        """True when a request's Host header names THIS machine.
+
+        The :8177 server hands out the API key (/bootstrap) and the guest
+        token, and its only cross-origin guard compares the Origin's host with
+        the Host header. DNS rebinding beats that: a hostile page at
+        attacker.example re-points its own name at this Mac's LAN address, so
+        the browser sends Host and Origin both as attacker.example, from a
+        private source address, and the check passes. A rebinding attacker
+        cannot choose the Host header, though, only the name, so refusing any
+        name that is not ours closes it.
+
+        Accepted: IP literals (v4 or v6, with or without a port), localhost,
+        this Mac's hostname, its short name, and the short name under .local
+        or another private suffix (.lan, .home ...), any *.ts.net (Tailscale
+        MagicDNS) name, and the host of the configured Indigo URL. Everything
+        else, a missing or malformed header included, is refused."""
+        import ipaddress
+        import socket
+        from urllib.parse import urlparse
+
+        h = (host_header or "").strip().lower()
+        if not h:
+            return False
+        if h.startswith("["):                        # [v6] or [v6]:port
+            end = h.find("]")
+            if end < 0:
+                return False
+            name, rest = h[1:end], h[end + 1:]
+            if rest and not (rest.startswith(":") and rest[1:].isdigit()):
+                return False
+        elif h.count(":") == 1:                      # name:port or v4:port
+            name, port = h.split(":")
+            if not port.isdigit():
+                return False
+        else:                                        # bare name, or a bare v6 literal
+            name = h
+        name = name.rstrip(".")
+        if not name:
+            return False
+        try:
+            ipaddress.ip_address(name)
+            return True
+        except ValueError:
+            pass
+        if name == "localhost" or name.endswith(".ts.net"):
+            return True
+        allowed = set()
+        try:
+            own = socket.gethostname().lower().rstrip(".")
+            if own:
+                short = own.split(".")[0]
+                allowed.add(own)
+                # The short name, and the short name under a suffix no public
+                # registrar hands out — what a home router's DNS usually calls
+                # the Mac (indigo.lan, indigo.home). An attacker cannot own a
+                # name there, so rebinding cannot use it.
+                allowed.add(short)
+                allowed.update(f"{short}.{sfx}" for sfx in self._PRIVATE_DNS_SUFFIXES)
+        except Exception:
+            pass
+        try:
+            api_host = (urlparse(getattr(self, "api_url", "") or "").hostname or "")
+            if api_host:
+                allowed.add(api_host.lower().rstrip("."))
+        except Exception:
+            pass
+        return name in allowed
+
     def _start_proxy(self):
         """Bind a small HTTP server to PROXY_PORT for the routes the pages
         cannot reach through IWS: WebRTC signalling (POST /webrtc/<host>),
@@ -139,6 +210,15 @@ class CamerasMixin:
             def log_message(self, format, *args):
                 pass
 
+            def _host_refused(self):
+                """Refuse (421) a request whose Host is not this machine —
+                see _proxy_host_allowed. Every do_* method calls this FIRST,
+                before any route is looked at. No body beyond the status."""
+                if plugin_self._proxy_host_allowed(self.headers.get("Host", "")):
+                    return False
+                self.send_error(421, "misdirected request")
+                return True
+
             def _client_is_private(self):
                 """True only for LAN / Tailscale / loopback sources. This port
                 is not fronted by the Indigo reflector and must not be exposed
@@ -175,6 +255,8 @@ class CamerasMixin:
             # carries session ICE credentials and the LAN candidate — no
             # camera passwords. Media never touches this process.
             def do_OPTIONS(self):
+                if self._host_refused():
+                    return
                 # The page origin is :8176, this proxy is :8177, and an
                 # application/sdp POST is non-simple — Safari preflights.
                 # Without this handler the whole feature dies before the
@@ -204,6 +286,8 @@ class CamerasMixin:
                 self.end_headers()
 
             def do_POST(self):
+                if self._host_refused():
+                    return
                 parsed = urlparse(self.path)
                 if not parsed.path.startswith("/webrtc/"):
                     self.send_error(404, "not found")
@@ -237,6 +321,8 @@ class CamerasMixin:
                 self.wfile.write(payload)
 
             def do_GET(self):
+                if self._host_refused():
+                    return
                 # Routes:
                 #   /bootstrap                 → API-key seed (private sources only)
                 #   /healthz                   → "ok"
@@ -403,9 +489,12 @@ class CamerasMixin:
                     # request Host) — that is the legitimate consumer,
                     # dashboards-auth.js on the IWS web port fetching this proxy
                     # cross-port. A drive-by page (evil.com) has a different
-                    # hostname, gets no CORS grant, and cannot read the body. A
-                    # same-host match would require already serving a page from the
-                    # Indigo box itself, i.e. a prior compromise.
+                    # hostname, gets no CORS grant, and cannot read the body.
+                    # That comparison alone does NOT stop DNS rebinding: a page
+                    # whose own name has been re-pointed at this Mac sends a
+                    # matching Host and Origin (or is simply same-origin on
+                    # :8177). The Host check at the top of do_GET is what
+                    # refuses that — see _proxy_host_allowed.
                     from urllib.parse import urlparse as _urlparse
                     origin = self.headers.get("Origin", "")
                     req_host = (self.headers.get("Host", "") or "").rsplit(":", 1)[0].strip("[]").lower()
@@ -877,11 +966,80 @@ class CamerasMixin:
     # Camera snapshot poller (background thread via runConcurrentThread)
     # --------------------------------------------------------
 
+    def _stills_dir(self):
+        """/public/dashboards/stills-<token>/ — where the snapshot poller
+        writes. The token comes from the settings store (_ensure_stills_token),
+        so the folder name is known only to callers of cameraStills."""
+        tok = self._stills_token() or self._ensure_stills_token()
+        return os.path.join(self._public_dashboards_dir(), f"stills-{tok}")
+
     def _cam_jpg_path(self, host):
-        return os.path.join(self._public_dashboards_dir(), f"cam-{host}.jpg")
+        return os.path.join(self._stills_dir(), f"cam-{host}.jpg")
 
     def _cam_thumb_path(self, host):
-        return os.path.join(self._public_dashboards_dir(), f"cam-{host}-thumb.jpg")
+        return os.path.join(self._stills_dir(), f"cam-{host}-thumb.jpg")
+
+    def _sweep_legacy_stills(self):
+        """At startup: remove every still not in the current token's folder.
+
+        That is the cam-*.jpg files older versions wrote straight into
+        /public/dashboards (guessable, and readable by anyone), and any
+        stills-* folder left by an earlier token. Then make the current folder,
+        so a page told about it never meets a 404 before the first poll."""
+        tok = self._stills_token()
+        if not tok:
+            return
+        pub  = self._public_dashboards_dir()
+        keep = f"stills-{tok}"
+        removed = 0
+        try:
+            names = os.listdir(pub)
+        except OSError:
+            names = []
+        for name in names:
+            full = os.path.join(pub, name)
+            try:
+                if (name.startswith("cam-") and (name.endswith(".jpg") or ".jpg.tmp" in name)
+                        and os.path.isfile(full)):
+                    os.remove(full)
+                    removed += 1
+                elif name.startswith("stills-") and name != keep:
+                    if os.path.isdir(full) and not os.path.islink(full):
+                        shutil.rmtree(full)
+                    else:
+                        os.remove(full)
+                    removed += 1
+            except OSError as exc:
+                log(f"[Cameras] could not remove the old still {name}: {exc}", level="WARNING")
+        try:
+            os.makedirs(os.path.join(pub, keep), exist_ok=True)
+        except OSError as exc:
+            log(f"[Cameras] could not create the stills folder: {exc}", level="WARNING")
+        if removed:
+            self.logger.info(f"[Cameras] removed {removed} old camera still(s) from "
+                             f"the public folder")
+
+    def handleCameraStills(self, action, dev=None, callerWaitingForResult=True):
+        """POST /message/com.clives.indigoplugin.dashboards/cameraStills/
+        No body needed. Bearer-authenticated by IWS. Answers where the camera
+        stills are: {"ok": true, "imagePattern": "stills-<token>/cam-{host}.jpg",
+        "thumbPattern": "stills-<token>/cam-{host}-thumb.jpg"}. Replaces the
+        fixed patterns config.js used to publish anonymously. No I/O — the
+        token is already in memory."""
+        _payload, _reply = self._request_body(action)
+        if _reply:
+            return _reply
+        tok = self._stills_token()
+        if not tok:
+            return self._evo_reply({"ok": False,
+                                    "error": "the camera stills folder is not set up yet"},
+                                   status=503)
+        folder = f"stills-{tok}"
+        return self._evo_reply({
+            "ok":           True,
+            "imagePattern": f"{folder}/cam-{{host}}.jpg",
+            "thumbPattern": f"{folder}/cam-{{host}}-thumb.jpg",
+        })
 
     def _make_thumb(self, jpeg_bytes):
         """Shrink a snapshot for the grid. Returns bytes, or None if it cannot.
@@ -1073,12 +1231,17 @@ class CamerasMixin:
         Adds a _writeTs (Unix epoch, seconds, fractional) so the page can do
         delta math against the actual write time — otherwise the page poll
         cadence and the file write cadence interleave and bandwidth alternates
-        between the real value and 0."""
-        if streams is None:
-            return
+        between the real value and 0.
+
+        Written EVERY tick, go2rtc up or down. It is the only carrier of
+        _cameraHealth, and returning early while go2rtc was unreachable froze
+        the last healthy summary on screen through the very outage it should
+        report. _go2rtcUp says which case this is; an old _writeTs means the
+        plugin itself has stopped writing."""
         try:
-            payload = self._sanitise_streams(streams)
+            payload = self._sanitise_streams(streams or {})
             payload["_writeTs"] = time.time()
+            payload["_go2rtcUp"] = streams is not None
             # A deliberately small, credential-free health summary for the
             # anonymous cameras page.  The raw go2rtc map above has already
             # been sanitised; do not add URLs, exception text or client data.
@@ -1191,7 +1354,9 @@ class CamerasMixin:
             now = time.time()
             if ok:
                 try:
-                    self._write_atomic(self._cam_jpg_path(host), payload)
+                    full_path = self._cam_jpg_path(host)
+                    os.makedirs(os.path.dirname(full_path), exist_ok=True)
+                    self._write_atomic(full_path, payload)
                     # The grid's smaller copy. Written SECOND and separately so a
                     # resize failure can never cost us the full-size picture,
                     # which is the one thing here that must always be there.

@@ -251,6 +251,22 @@ class ScriptsMixin:
                     exec(compile(src, path, "exec"), g)
                 finally:
                     _sys.path[:] = saved_path
+        except SystemExit as exc:
+            # sys.exit() / exit() in a script raises SystemExit, a
+            # BaseException: it went straight past the handler below, past
+            # step() and out of runConcurrentThread, which ended every camera
+            # poll and script tick until the next restart. Code None or 0 is
+            # a script finishing early on purpose; anything else is a failure,
+            # reported the same way as an exception.
+            if exc.code in (None, 0):
+                if errors.pop(key, None):
+                    self.logger.info(f"{tag} recovered")
+                return True
+            text = f"SystemExit: {exc.code}"
+            if errors.get(key) != text:
+                errors[key] = text
+                self.logger.warning(f"{tag} tick failed: the script called sys.exit({exc.code!r})")
+            return False
         except Exception as exc:               # noqa: BLE001 — isolate, report once
             text = f"{type(exc).__name__}: {exc}"
             if errors.get(key) != text:

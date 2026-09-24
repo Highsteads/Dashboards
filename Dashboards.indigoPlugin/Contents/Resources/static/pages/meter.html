@@ -577,11 +577,17 @@ function renderEnergy(d) {
       will their uptimes.</div></section>`;
 }
 
+/* What drawHistory drew, kept so every later paint carries it.
+   The chart used to be written into the page once, and the next poll whose
+   HTML differed (the hero's "last heard" changes almost every time) replaced
+   #content with empty placeholders — the chart lasted one poll, and the pill
+   said "loading" for good. renderHistory now emits what was drawn. */
+const _hist = { "hist-watts": "", "hist-volts": "", note: "" };
 function renderHistory(id, sources) {
     return `<section class="card">
-      <h2>The last 24 hours <span class="pill" id="hist-note">loading&#8230;</span></h2>
-      <div id="hist-watts" class="spark-wrap"></div>
-      <div id="hist-volts" class="spark-wrap"></div>
+      <h2>The last 24 hours <span class="pill" id="hist-note">${_hist.note ? esc(_hist.note) : "loading&#8230;"}</span></h2>
+      <div id="hist-watts" class="spark-wrap">${_hist["hist-watts"]}</div>
+      <div id="hist-volts" class="spark-wrap">${_hist["hist-volts"]}</div>
       <div class="note">Averaged into buckets from the logger's own history, which records
       a value only when it changes. A flat line means nothing changed, not that nothing was
       recorded.</div></section>`;
@@ -627,28 +633,34 @@ function renderProps(d) {
 
 async function drawHistory(d) {
     const src = (d.meter && d.meter.sources) || {};
-    const note = document.getElementById("hist-note");
     const jobs = [
         ["hist-watts", src.watts, "Power (W)", "--home-load", 1],
         ["hist-volts", src.volts, "Voltage (V)", "--solar", 1],
     ];
     let drawn = 0;
-    for (const [elId, state, label, colour, dp] of jobs) {
+    // Looked up AFTER each await, never before: a poll may have repainted
+    // #content in between, and the element held from before is detached.
+    const put = (elId, html) => {
+        _hist[elId] = html;
         const el = document.getElementById(elId);
-        if (!el) continue;
-        if (!state) { el.innerHTML = ""; continue; }
+        if (el) el.innerHTML = html;
+    };
+    for (const [elId, state, label, colour, dp] of jobs) {
+        if (!state) { put(elId, ""); continue; }
         try {
             const r = await post("historyQuery",
                 { action: "series", deviceId: DEV_ID, state: state, hours: 24, maxPoints: 180 });
-            el.innerHTML = `<div class="gauge-lab" style="margin-top:10px">${label}</div>`
-                + sparkline(r.points, colour, dp);
+            put(elId, `<div class="gauge-lab" style="margin-top:10px">${label}</div>`
+                + sparkline(r.points, colour, dp));
             drawn++;
         } catch (e) {
-            el.innerHTML = `<div class="gauge-lab" style="margin-top:10px">${label}</div>
-                <div class="empty">${esc(e.message)}</div>`;
+            put(elId, `<div class="gauge-lab" style="margin-top:10px">${label}</div>
+                <div class="empty">${esc(e.message)}</div>`);
         }
     }
-    if (note) note.textContent = drawn ? "from the logger" : "no history";
+    _hist.note = drawn ? "from the logger" : "no history";
+    const note = document.getElementById("hist-note");
+    if (note) note.textContent = _hist.note;
 }
 
 function render(d) {

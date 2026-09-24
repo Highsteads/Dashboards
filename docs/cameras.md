@@ -14,8 +14,16 @@ seconds.
 
 ```
 Camera → RTSP (H.264) → go2rtc ──WebRTC :8555──→ Browser <video>      (live tiles)
-                          └─ ffmpeg → cam-<host>.jpg → Browser <img>   (stills)
+                          └─ ffmpeg → stills-<token>/cam-<host>.jpg → Browser <img>   (stills)
 ```
+
+The stills live in a private folder under `/public/dashboards/`, named by a secret the plugin
+makes for each install. The web server hands out anything in `/public` to anyone who asks, so the
+name is the protection: only a browser holding the API key is told it, by the plugin's
+`cameraStills` action, and nothing anonymous (not `config.js`, not any page) contains it. In earlier
+versions the pictures were `cam-<host>.jpg` straight in `/public/dashboards/`, and `config.js` spelled
+out the pattern, so anyone who could reach the web server could watch every camera. The plugin
+deletes those old files, and any folder left by an earlier secret, when it starts.
 
 Until 3.36.0 live tiles were MJPEG: go2rtc ran an ffmpeg process per camera to re-encode the
 video as a stream of JPEGs. WebRTC uses about a third of the bandwidth, drops frames on a slow link
@@ -52,8 +60,8 @@ Pillow (thumbnails) installs itself from `requirements.txt` the first time the p
                 │ frame.jpeg        │ WebRTC (UDP or TCP), straight to the browser
    ┌────────────▼─────────┐         │
    │ Plugin snapshot poll │         │      ┌──────────────────────────────┐
-   │ → cam-<host>.jpg     │         │      │ Plugin server :8177          │
-   │   in /public         │         │      │ POST /webrtc/<host> → go2rtc │
+   │ → cam-<host>.jpg in  │         │      │ Plugin server :8177          │
+   │   a private folder   │         │      │ POST /webrtc/<host> → go2rtc │
    └────────────┬─────────┘         │      │ (sets each stream up, only)  │
                 │                   │      └──────────────┬───────────────┘
          ┌──────▼───────────────────▼──────────────────────▼──┐

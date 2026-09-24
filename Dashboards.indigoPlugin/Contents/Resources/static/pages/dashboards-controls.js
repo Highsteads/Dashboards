@@ -43,9 +43,45 @@
   }
   function isOn(v) { return state(v) === true; }
 
+  /* Can this device's readings be believed right now? An Indigo
+     state is a LAST KNOWN VALUE: a plug that drops off the network keeps its
+     last watts and its last on-state, and each plugin says "I cannot reach
+     it" in its own way — ShellyDirect deviceOnline (a bool, or the string
+     "false" through the v2 API), Tasmota and z2m availability "offline",
+     ESPHome connected false — plus Indigo's own errorState. Absent means
+     reachable: a device that never reports reachability is not marked down. */
+  function isReachable(d) {
+    if (!d) return false;
+    if (String(d.errorState || '').trim()) return false;
+    var s = d.states || {};
+    var flag = function (v) { return v === false || String(v).toLowerCase() === 'false'; };
+    if ('deviceOnline' in s && flag(s.deviceOnline)) return false;
+    if ('connected' in s && flag(s.connected)) return false;
+    if ('availability' in s && String(s.availability).toLowerCase() === 'offline') return false;
+    return true;
+  }
+
+  /* Why a tile cannot show a device as live: 'disabled', 'error', or ''.
+     The room page's motion tile had this rule; light, sensor and appliance
+     tiles painted a disabled device's frozen state as current. */
+  function unknownReason(d) {
+    if (!d) return 'no reading';
+    if (d.enabled === false) return 'disabled';
+    if (String(d.errorState || '').trim()) return 'error';
+    return '';
+  }
+
   /* ---- toggle and brightness ------------------------------------------ */
   var CONFIRM_MS = 4000;
   var debounce = {};
+
+  /* Send the state the reader ASKED FOR, never a toggle. A toggle flips
+     whatever the device is now, so a light a motion rule had just switched
+     on went OFF when somebody tapped it on, and the failure veil then blamed
+     the device. The control knows the intent; this sends it. */
+  function command(a, id, wantOn) {
+    return wantOn ? a.turnOn(id) : a.turnOff(id);
+  }
 
   function toggle(el) {
     if (!api) return Promise.resolve();
@@ -53,7 +89,7 @@
     var id = parseInt(el.dataset.id, 10);
     var expected = el.checked;
     var done = function () { root.setTimeout(function () { el.disabled = false; }, 500); };
-    return Promise.resolve(api.toggle(id))
+    return Promise.resolve(command(api, id, expected))
       .then(function () { confirmToggle(el, id, expected); })
       .catch(function () { el.checked = !el.checked; })
       .then(done);
@@ -96,7 +132,7 @@
     if (!a || !el) return Promise.resolve(false);
     var expected = !el.classList.contains('on');
     el.classList.add('busy');
-    return Promise.resolve(a.toggle(id)).then(function () {
+    return Promise.resolve(command(a, id, expected)).then(function () {
       paintTile(el, expected);
       confirmFromDevice(a, id, expected, function (actual) {
         if (el.isConnected !== false) paintTile(el, actual);
@@ -288,6 +324,8 @@
     bind: bind,
     state: state,
     isOn: isOn,
+    isReachable: isReachable,
+    unknownReason: unknownReason,
     toggle: toggle,
     pressDevice: pressDevice,
     slide: slide,

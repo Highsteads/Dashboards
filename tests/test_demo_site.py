@@ -113,3 +113,14 @@ def test_demo_mode_answers_before_the_liveness_gate():
     src = (PAGES / "dashboards-ui.js").read_text(encoding="utf-8")
     fn = src[src.index("async function message("):]
     assert fn.index("if (key === 'demo') return demoMessage(name, body);") < fn.index("DashGate")
+
+
+def test_the_demo_stills_location_is_invented_not_captured():
+    """The real cameraStills reply names this install's private stills folder
+    (stills-<token>), which exists only so that nobody without the key can
+    find the pictures. The demo answers with its placeholder instead."""
+    reply = _load("cameraStills")
+    assert reply["ok"] is True
+    for key in ("imagePattern", "thumbPattern"):
+        assert "stills-" not in reply[key], reply
+        assert (DEMO / reply[key].replace("{host}", "x")).is_file(), reply[key]

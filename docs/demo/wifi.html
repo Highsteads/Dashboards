@@ -170,8 +170,11 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
     if (!IndigoAPI.isConfigured()) { location.href = "index.html"; } else { start(); }
     function start() {
         indigo = new IndigoAPI();
-        indigo.onAuthFailure(() => { IndigoAPI.clearConfig(); location.href = "index.html"; });
-        indigo.observeAll(d => render(d), POLL_INTERVAL_MS, undefined, markRefreshed);
+        // Three consecutive refusals, not one, before the key is forgotten;
+        // a reflector refusal is shown, never counted (DashUI.authStrikes).
+        const auth = DashUI.authStrikes();
+        indigo.onAuthFailure(auth.fail);
+        indigo.observeAll(d => render(d), POLL_INTERVAL_MS, undefined, () => { auth.ok(); markRefreshed(); });
     }
 
     // ── helpers ──────────────────────────────────────────────────────────
@@ -184,6 +187,7 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
     function formatWhen(iso) { return DashUI.ago(iso, { bad: "" }); }   // v3.28.0: one wording, rounding down
     function escapeAttr(t) { return escapeHtml(t).replace(/"/g, "&quot;"); }
     let _staleAll = false;    // controller unreachable: every AP's states are frozen
+    let _controller = null;   // for DashUI.unifiStale — the one stale rule, shared with wifi-ap.html
     function fmtWidth(w) { const n = num(w); return [20, 40, 80, 160, 240, 320].includes(n) ? n + "MHz" : (n === null ? "" : n + "MHz"); }   // same as wifi-ap.html: a 240 MHz 6 GHz radio showed blank here
     function escapeHtml(t) { return DashUI.esc(t); }   // v3.25.0: escapes quotes too
     function fmtNum(v) { const n = Number(v); return (v === null || v === undefined || v === "" || isNaN(n)) ? "—" : (Math.round(n * 10) / 10); }
@@ -275,6 +279,7 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
         // as they were, so "● online · 66 clients" is a photograph, not a
         // reading (v2.95.3).
         _staleAll = !!(controller && String((controller.states || {}).status || "") !== "Connected");
+        _controller = controller || null;
         if (controller) {
             html += renderController(controller);
             html += renderInternet(controller);
@@ -322,7 +327,7 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
 
     function renderAP(d) {
         const s = d.states || {};
-        const stale = _staleAll || d.enabled === false || !!(d.errorState || "").trim();
+        const stale = DashUI.unifiStale(d, _controller);
         const online = d.onState === true && !stale;
         const rebooted = s.rebooted === true;
         const flags = String(s.auditFlags || "").split(",").map(x => x.trim()).filter(Boolean);

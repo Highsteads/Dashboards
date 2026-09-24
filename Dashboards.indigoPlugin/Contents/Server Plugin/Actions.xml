@@ -143,6 +143,17 @@
         <CallbackMethod>handleBurnSetupToken</CallbackMethod>
     </Action>
 
+    <!-- POST /message/com.clives.indigoplugin.dashboards/cameraStills/
+         No body. Answers {"ok": true, "imagePattern", "thumbPattern"}: where
+         the camera stills are. They sit in /public/dashboards/stills-<token>/,
+         a folder named by a per-install secret, so this Bearer-authed reply is
+         the only way to learn it. config.js (anonymous) no longer carries the
+         patterns. -->
+    <Action id="cameraStills" uiPath="hidden">
+        <Name>Camera Stills Location</Name>
+        <CallbackMethod>handleCameraStills</CallbackMethod>
+    </Action>
+
     <!-- POST /message/com.clives.indigoplugin.dashboards/changedSince/
          Body: {"since": <server epoch float>}
          Returns device IDs changed/deleted after `since` (fed by

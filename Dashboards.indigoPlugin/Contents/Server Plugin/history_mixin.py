@@ -631,9 +631,14 @@ class HistoryMixin:
         # inverter table, the biggest there is. The old one-slot cache also lost
         # today's entry whenever someone looked at another day.
         today = datetime.now().strftime("%Y-%m-%d")
-        ttl   = self.SOLAR_HOURS_TODAY_TTL if date_str >= today else self.TIMELINE_PAST_TTL
+        live  = date_str >= today
+        ttl   = self.SOLAR_HOURS_TODAY_TTL if live else self.TIMELINE_PAST_TTL
+        # Completeness is part of the key, as in handleTimelineDay: an entry
+        # built while this was today holds a part day scaled to the hour it
+        # was built, and must never be handed out as the finished day.
         state, payload = self._offpath_get(
-            f"solarhours:{date_str}", lambda: self._solar_string_hours(date_str), ttl,
+            f"solarhours:{date_str}:{'live' if live else 'final'}",
+            lambda: self._solar_string_hours(date_str), ttl,
             wait=self.SOLAR_HOURS_WAIT)
         if state == "fresh":
             return self._evo_reply(payload)
@@ -680,9 +685,15 @@ class HistoryMixin:
         # A past day cannot change, so it is cached for the session; today's is
         # still being written, so it gets a minute.
         today = datetime.now().strftime("%Y-%m-%d")
-        ttl   = self.TIMELINE_TODAY_TTL if date_str >= today else self.TIMELINE_PAST_TTL
+        live  = date_str >= today
+        ttl   = self.TIMELINE_TODAY_TTL if live else self.TIMELINE_PAST_TTL
+        # Whether the day was complete when it was built goes in the KEY. The
+        # reader picks the TTL, so with the date alone an entry built at 9pm
+        # as "today" was read after midnight with the day-long past TTL and
+        # served as the finished day, cut off at 9pm, for up to 24 hours.
         state, payload = self._offpath_get(
-            f"timeline:{date_str}", lambda: self._timeline_day(date_str), ttl,
+            f"timeline:{date_str}:{'live' if live else 'final'}",
+            lambda: self._timeline_day(date_str), ttl,
             wait=self.TIMELINE_WAIT)
         if state == "fresh":
             return self._evo_reply(payload)

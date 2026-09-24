@@ -527,10 +527,18 @@
     advance(devices);
   }
 
+  /* dashboard.js declares `class IndigoAPI` at the top level of a classic
+     script. That binding is shared between scripts but is NOT a property of
+     window, so root.IndigoAPI is always undefined in a real page and
+     selfPoll never had a client (the Scenes page's watches could only ever
+     time out). Read the global binding first; root.IndigoAPI stays as the
+     fallback for a harness that sets it. */
   function api() {
     if (_api) return _api;
-    if (typeof root.IndigoAPI !== 'function') return null;
-    try { _api = new root.IndigoAPI(); } catch (e) { _api = null; }
+    /* global IndigoAPI */
+    var C = (typeof IndigoAPI === 'function') ? IndigoAPI : root.IndigoAPI;
+    if (typeof C !== 'function') return null;
+    try { _api = new C(); } catch (e) { _api = null; }
     return _api;
   }
 
@@ -617,6 +625,9 @@
     repaint();
     ensureTimer();
 
+    /* A caller that hands us its client (scenes.html) lends it to selfPoll
+       too, so a watch it starts can advance without a page feeding it. */
+    if (opts.api && !_api) _api = opts.api;
     var p;
     try {
       if (typeof opts.exec === 'function') {

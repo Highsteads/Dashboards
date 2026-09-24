@@ -312,17 +312,16 @@ class PublishMixin:
 
         # Cameras: only publish host list + display names to the browser. The
         # plugin polls each camera itself with Digest auth and writes the JPEGs
-        # as static files into the public folder, so credentials never leave
-        # the server.
+        # as static files into a token-named folder under /public, so
+        # credentials never leave the server and the pictures are not at a
+        # name anyone can guess.
         cam_cfg = {
             "hosts":          [c["host"] for c in self.cameras],
             "names":          {c["host"]: c["name"] for c in self.cameras},
             "slugs":          {c["host"]: self._cam_slug(c["name"]) for c in self.cameras},
-            "imagePattern":   "cam-{host}.jpg",            # snapshot fallback
-            # The smaller copy the grid uses. Sent as a separate pattern rather
-            # than derived on the page so a future change of naming needs one
-            # edit here, not one in every page that shows a camera.
-            "thumbPattern":   "cam-{host}-thumb.jpg",
+            # No imagePattern / thumbPattern here any more: the stills live in
+            # a folder named by a secret token, and this file is anonymous. A
+            # page asks the Bearer-authenticated cameraStills action for them.
             "thumbWidth":     CAMERA_THUMB_WIDTH,
             "pollSeconds":    CAMERA_POLL_SECONDS,
             "proxyPort":      PROXY_PORT,                  # the plugin's own port: WebRTC signalling

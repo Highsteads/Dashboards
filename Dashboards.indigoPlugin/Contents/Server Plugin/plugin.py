@@ -19,7 +19,7 @@
 #              are not live poll the snapshots.
 # Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.42.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
 # Date:        23-09-2026
-# Version:     3.42.0
+# Version:     3.43.0
 #
 # Version history: docs/changelog.md (what each release does, for users) and
 # `git log` (why, for developers). The per-version engineering notes that sat
@@ -103,7 +103,7 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION = "3.42.0"
+PLUGIN_VERSION = "3.43.0"
 
 import logging
 from dash_common import (  # noqa: E402
@@ -184,7 +184,9 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         # Until then there were two paths, every consumer branched between
         # them, and some re-read the file from disk while others did not.
         self.cfg_store = self._load_config_store()
-        if not self.cfg_store:
+        # Only when the file is ABSENT. A present but unreadable one has been
+        # set aside and logged, and importing over it would save.
+        if not self.cfg_store and not self._store_unreadable:
             self.cfg_store = self._import_legacy_config(pluginPrefs)
         store = self.cfg_store
 
@@ -1029,6 +1031,15 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         self._dev_deleted  = {}                              # dev id -> epoch
         indigo.devices.subscribeToChanges()
         self._sync_pages_to_public()
+        # Camera stills live in a token-named folder under /public (the old
+        # cam-<host>.jpg names were guessable and published in config.js).
+        # Make the token if this install has none, then clear every still
+        # outside its folder.
+        try:
+            self._ensure_stills_token()
+            self._sweep_legacy_stills()
+        except Exception as exc:
+            log(f"[Cameras] could not set up the stills folder: {exc}", level="WARNING")
         # v2.71.0: presence data moved OUT of the anonymous /public namespace
         # (14 nights of bedroom occupancy were internet-readable over the
         # reflector). Sweep the old copy so every install heals on upgrade —
@@ -1106,6 +1117,16 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         # host was force-killed, this function never finished, and go2rtc was
         # left orphaned for the next boot's port-conflict path to hunt.
         self._cam_pool_closed = True
+        # Setup links carry the API key in an anonymous /public file, and the
+        # Web Server plugin keeps serving it after this one stops. The 10-minute
+        # expiry is only enforced by this plugin's loop, so a link made just
+        # before a disable or uninstall stayed readable for good. One listing
+        # and at most two unlinks — it fits the teardown budget.
+        try:
+            self._cleanup_setup_links(force_all=True)
+        except Exception as exc:
+            log(f"[SetupLink] could not remove setup links at shutdown: {exc}",
+                level="WARNING")
         self._stop_go2rtc()
         self._stop_snapshot_pool()
         self._stop_proxy()

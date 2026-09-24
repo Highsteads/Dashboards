@@ -70,7 +70,7 @@ key from this browser.
 | Weather | `weather.json`, written by the plugin from OpenWeatherMap |
 | Energy, solar, money, VPP | `sigenApi` — the plugin's proxy to SigenEnergyManager |
 | Needs a look | devices from the poll, `logErrors`, `homeInsights`, and the camera health in `streams.json` |
-| Camera stills | The snapshots the plugin writes to `/public/dashboards` |
+| Camera stills | The snapshots the plugin writes to a private folder under `/public/dashboards`, found through the `cameraStills` action |
 
 ## Refresh
 

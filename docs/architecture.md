@@ -51,7 +51,8 @@ The shared scripts, in the order a page loads them:
   `laundryDeadline`, `evoHomeAction`, `applyColour`, `verifyPin`,
   `getDashboardsConfig` and `saveDashboardsConfig`, `burnSetupToken`, and `mcp_tool_invoke`.
 - **Files the plugin writes** under `/public/dashboards/`: `config.js`, `rooms.json`, `weather.json`,
-  `scenes.json`, the camera stills and thumbnails, and `changed.stamp` — the liveness stamp,
+  `scenes.json`, the camera stills and thumbnails (in a `stills-<token>` folder that only the
+  Bearer-authenticated `cameraStills` action names), and `changed.stamp` — the liveness stamp,
   rewritten every two seconds and flipped to "stopping" on shutdown. A static file cannot stall the
   web server, which is why the gate reads that rather than asking the plugin.
 - **The plugin's proxy on port 8177** for camera streams and stills, guest pairing and WebRTC

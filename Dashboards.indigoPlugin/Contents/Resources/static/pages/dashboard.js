@@ -101,6 +101,13 @@ class IndigoAPI {
             }
             if (r.status === 401 || r.status === 403) {
                 const err = new IndigoAPIError("Auth failed", r.status);
+                // Carry the plugin's reply, so an auth handler can tell a
+                // wrong key from the server refusing the reflector (403,
+                // reason "reflector_blocked") — which is not a bad key.
+                let body = null;
+                try { body = await r.clone().json(); } catch (e) { body = null; }
+                err.body = body;
+                err.reason = (body && typeof body === "object" && body.reason) || "";
                 this._authH.forEach(h => h(err)); throw err;
             }
             if (r.status === 503) {
@@ -453,7 +460,18 @@ class IndigoAPI {
                 // onOk fires on EVERY successful poll (cb only on change) —
                 // it exists so a page's "Updated" clock can tell the truth
                 // instead of advancing on a blind timer through an outage.
-                if (onOk) { try { onOk(d); } catch {} }
+                // A list served from the cache while the plugin is down is
+                // NOT a successful poll: it is the last known states, and
+                // stamping "Updated" on it showed frozen readings under a
+                // clock that kept moving. It goes to onErr instead.
+                if (d && d.fromCache) {
+                    if (onErr) {
+                        const err = new IndigoAPIError(
+                            "Showing the last known states: the Dashboards plugin is restarting", 0);
+                        err.fromCache = true;
+                        try { onErr(err); } catch {}
+                    }
+                } else if (onOk) { try { onOk(d); } catch {} }
                 const j = JSON.stringify(d);
                 if (j !== last) { last = j; cb(d); }
             } catch (e) {

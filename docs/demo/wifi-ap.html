@@ -159,8 +159,11 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
     else { start(); }
     function start() {
         indigo = new IndigoAPI();
-        indigo.onAuthFailure(() => { IndigoAPI.clearConfig(); location.href = "index.html"; });
-        indigo.observeAll(d => render(d), POLL_INTERVAL_MS, undefined, markRefreshed);
+        // Three consecutive refusals, not one, before the key is forgotten;
+        // a reflector refusal is shown, never counted (DashUI.authStrikes).
+        const auth = DashUI.authStrikes();
+        indigo.onAuthFailure(auth.fail);
+        indigo.observeAll(d => render(d), POLL_INTERVAL_MS, undefined, () => { auth.ok(); markRefreshed(); });
     }
 
     // ── helpers (shared shape with wifi.html) ───────────────────────────────
@@ -206,13 +209,21 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
         }
         _lastDevice = d;
         const s = d.states || {};
-        const online = d.onState === true;
+        // The list page's stale rule, shared: with the controller
+        // unreachable, or the AP disabled or in error, its states are a
+        // photograph. This page used to say "online" over them while the
+        // list said "stale" about the same AP.
+        const controller = (devices || []).find(x => x.deviceTypeId === "unifiController") || null;
+        const stale = DashUI.unifiStale(d, controller);
+        const staleWhy = d.enabled === false ? "disabled"
+                       : String(d.errorState || "").trim() ? "in error" : "controller unreachable";
+        const online = d.onState === true && !stale;
         const name = String(d.name || "").replace(/^UniFi AP /, "");
         document.title = name + " · WiFi";
         document.getElementById("ap-title").textContent = name;
 
         const flags = String(s.auditFlags || "").split(",").map(x => x.trim()).filter(Boolean);
-        const banner = online ? (flags.length ? "has-issues" : "") : "bad";
+        const banner = stale ? "has-issues" : online ? (flags.length ? "has-issues" : "") : "bad";
         // worst (highest) channel utilisation across this AP's active bands
         const utilVals = [num(s.band24Utilisation), num(s.band5Utilisation), num(s.band6Utilisation)].filter(v => v !== null);
         const worstUtil = utilVals.length ? Math.max(...utilVals) : null;
@@ -223,13 +234,17 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
         html += `
             <div class="summary ${banner}">
                 <div class="summary-grid">
-                    <div class="metric"><div class="m-val ${online ? 'good' : 'bad'}">${online ? '● online' : '○ offline'}</div><div class="m-lab">Status</div></div>
+                    <div class="metric"><div class="m-val ${online ? 'good' : stale ? 'warn' : 'bad'}">${stale ? '○ stale' : online ? '● online' : '○ offline'}</div><div class="m-lab">Status</div></div>
                     <div class="metric"><div class="m-val">${s.numClients ?? 0}</div><div class="m-lab">Clients</div></div>
                     <div class="metric"><div class="m-val">${escapeHtml(s.apModel || '—')}</div><div class="m-lab">Model</div></div>
                     <div class="metric"><div class="m-val">${uptimeUi(s.uptimeSeconds)}</div><div class="m-lab">Uptime</div></div>
                     <div class="metric"><div class="m-val ${utilClass(worstUtil)}">${worstUtil === null ? '—' : worstUtil + '%'}</div><div class="m-lab">Worst util</div></div>
                 </div>
             </div>`;
+
+        if (stale) {
+            html += `<div class="card"><div class="warn">Not live: ${escapeHtml(staleWhy)} — last update ${escapeHtml(formatWhen(d.lastChanged))}. The figures below are from then.</div></div>`;
+        }
 
         // Connected devices — the headline: what's actually on this AP
         html += renderClients(s);
@@ -270,7 +285,7 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
             _kv("MAC", d.address),
             _kv("Device ID", d.id),
             _kv("Uplink", s.uplinkType),
-            _kv("Online", online ? "Yes" : "No", online ? "good" : "bad"),
+            _kv("Online", stale ? "Unknown (stale)" : online ? "Yes" : "No", online ? "good" : stale ? "" : "bad"),
             _kv("Rebooted", fmtBool(s.rebooted)),
             _kv("Uptime", uptimeUi(s.uptimeSeconds)),
             _kv("Last comm", formatWhen(d.lastSuccessfulComm)),

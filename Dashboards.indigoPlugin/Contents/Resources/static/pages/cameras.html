@@ -336,13 +336,21 @@
     const hosts        = cfg.hosts || [];
     const names        = cfg.names || {};
     const slugs        = cfg.slugs || {};
-    const imgPattern   = cfg.imagePattern || "cam-{host}.jpg";
+    // Where the stills are. They used to be cam-<host>.jpg in the
+    // anonymous public folder with the pattern in the anonymous config.js, so
+    // anyone who could reach the web server could watch every camera. They
+    // now live in a private folder that only the Bearer-authenticated
+    // cameraStills action names (DashUI.cameraStills). Until it answers the
+    // still tiles wait; if it cannot answer they say "No picture". Never a
+    // guessed public name.
+    let imgPattern     = null;
+    let stillsState    = "pending";      // "pending" | "ok" | "none"
     // The grid's smaller copy of each snapshot. MEASURED across all nine
     // cameras: the full picture is 33.2 KB, this one 12.3 KB — 63% less, for
     // tiles drawn about 300 px wide on a desktop and less on a phone. The
     // focused tile, which is the only one big enough to show the difference,
     // keeps the full-size picture.
-    const thumbPattern = cfg.thumbPattern || "cam-{host}-thumb.jpg";
+    let thumbPattern   = null;
     // Turned off for the whole page the first time a thumbnail 404s. That
     // happens when the server has no Pillow to shrink with, and the honest
     // response is to go back to full-size pictures everywhere rather than show
@@ -408,7 +416,8 @@
         // request unique, so the conditional If-Modified-Since request in
         // startStill could never match and the server could never answer 304.
         // Freshness comes from that conditional request, not from the URL.
-        const pat = full ? imgPattern : thumbPattern;
+        const pat = full ? imgPattern : (thumbPattern || imgPattern);
+        if (!pat) return "";             // not told where the stills are: no picture
         const p = pat.replace("{host}", host);
         // Absolute, like streamsApi(): a page served from anywhere but
         // /public/dashboards/ would resolve a relative "cam-x.jpg" wrongly.
@@ -925,6 +934,11 @@
             // backlog it can never drain.
             if (_idlePaused) return Promise.resolve();   // reflector, ten idle minutes: nothing until a tap (v2.96.1)
             if (st.fetching) return Promise.resolve();
+            // Not yet told where the pictures are, or told there are none.
+            if (!snapshotUrl(host, wantsFullSize(host))) {
+                if (stillsState === "none") _noPicture(st);
+                return Promise.resolve();
+            }
             st.fetching = true;
             // Time-box the request. Without this a wedged socket holds the
             // in-flight guard above forever and the tile just stops.
@@ -1210,6 +1224,7 @@
             // true: someone saving a picture wants the full-size one, whatever
             // the tile happens to be displaying.
             a.href = snapshotUrl(host, true);
+            if (!a.href || a.getAttribute("href") === "") return;   // no picture to save
             a.download = filename;
             document.body.appendChild(a); a.click(); document.body.removeChild(a);
         };
@@ -1428,6 +1443,27 @@
     // the real rate.
     let _rxBytes = 0, _rxLast = 0, _rxLastAt = 0;
     let _healthLastFetch = 0;
+    // Freshness of streams.json itself. A summary the plugin has
+    // stopped rewriting, or one written while go2rtc was down, used to leave
+    // the last "health OK" on screen through the whole outage.
+    const _camTracker = window.DashUI && DashUI.cameraHealthTracker ? DashUI.cameraHealthTracker() : null;
+    function paintCameraStatus(data) {
+        const el = document.getElementById("camera-health-bot");
+        if (!el) return;
+        const v = _camTracker ? _camTracker.feed(data, Date.now())
+                              : { state: "ok", health: data && data._cameraHealth };
+        if (v.state === "down") {
+            el.textContent = "camera service down";
+            el.style.color = "var(--bad)";
+            return;
+        }
+        if (v.state !== "ok") {
+            el.textContent = "health unknown";
+            el.style.color = "var(--warn)";
+            return;
+        }
+        paintCameraHealth(v.health);
+    }
     function paintCameraHealth(health) {
         const el = document.getElementById("camera-health-bot");
         if (!el || !health || typeof health !== "object") return;
@@ -1522,10 +1558,12 @@
                 // only for camera health, every 30 s.
                 if ((Date.now() - _healthLastFetch) > 30000) {
                     _healthLastFetch = Date.now();
+                    let sj = null;
                     try {
                         const r = await fetch(streamsApi(), { cache: "no-store" });
-                        if (r.ok) paintCameraHealth((await r.json())._cameraHealth);
-                    } catch (e) { /* health is best-effort */ }
+                        if (r.ok) sj = await r.json();
+                    } catch (e) { sj = null; }
+                    paintCameraStatus(sj);
                 }
                 _rxLast = _rxBytes; _rxLastAt = nowMs0;
                 _setBw(ownKBs > 1024 ? `${(ownKBs/1024).toFixed(1)} MB/s`
@@ -1674,6 +1712,38 @@
             st.frameEl.classList.add("error");
             st.frameEl.dataset.err = "No snapshot (" + why + ")";
         }
+    }
+    // The picture location could not be had: say so on the tile
+    // rather than show a broken image or fetch a guessed public name.
+    function _noPicture(st) {
+        if (!st || !st.frameEl) return;
+        st.frameEl.classList.remove("connecting");
+        st.frameEl.classList.add("error");
+        st.frameEl.dataset.err = "No picture";
+    }
+    // Ask where the stills are; on no answer mark the still tiles, and ask
+    // again in a minute (the plugin may simply have been restarting).
+    async function loadStills() {
+        const p = window.DashUI && DashUI.cameraStills ? await DashUI.cameraStills() : null;
+        if (p) {
+            imgPattern = p.imagePattern;
+            thumbPattern = p.thumbPattern || p.imagePattern;
+            stillsState = "ok";
+            for (const host of hosts) {
+                const st = camState[host];
+                if (st && st.frameEl && st.frameEl.dataset.err === "No picture") {
+                    st.frameEl.classList.remove("error");
+                    delete st.frameEl.dataset.err;
+                }
+            }
+            return;
+        }
+        stillsState = "none";
+        for (const host of hosts) {
+            const st = camState[host];
+            if (st && st.mode === "still" && !st.hadFrame) _noPicture(st);
+        }
+        setTimeout(loadStills, 60000);
     }
     function _stillOk(st) {
         st.stillFails = 0;
@@ -1832,6 +1902,7 @@
              plugin's Configure dialog), then restart the plugin.</div>`;
     } else {
         buildGrid();
+        loadStills();
         // Initial layout under the BOOT policy — the cached measured verdict,
         // or conservative all-stills when there isn't a fresh one (see
         // bootPolicy). measureAndApply below corrects it within a second or

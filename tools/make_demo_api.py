@@ -16,7 +16,8 @@
 #                - the power-cut history is emptied, and the energy supplier
 #                  account balance (and anything else named like an account
 #                  figure) is blanked;
-#                - the activity diary and the error log are INVENTED below,
+#                - the activity diary, the error log and the camera stills
+#                  location are INVENTED below,
 #                  not captured: the real ones name who holds a door code and
 #                  quote log lines nobody has read for identifiers.
 #              Read the output by hand before committing it, then run
@@ -119,6 +120,9 @@ def invented(now):
                 "counts": {"schedules": 18, "schedules_off": 1, "triggers": 42, "triggers_off": 2},
             },
         },
+        # Never captured: the real reply names this install's private stills
+        # folder. The demo's placeholder picture sits beside the pages.
+        "cameraStills": {"ok": True, "imagePattern": "demo-cam.svg", "thumbPattern": "demo-cam.svg"},
         "logErrors": {
             "ok": True, "now": now, "lastRun": "just now", "seededAt": "",
             "feed": {"generatedLocal": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now)),

@@ -210,11 +210,20 @@ def test_pillow_is_declared_so_indigo_installs_it():
 
 # ------------------------------------------------- the pages can find it ----
 
-def test_the_page_is_told_the_thumb_pattern(source):
+def test_the_page_is_told_the_thumb_pattern():
     """Derived on the page rather than sent, a rename here would silently
-    404 every tile."""
-    assert '"thumbPattern"' in source, "cam_cfg must publish thumbPattern"
-    assert '"imagePattern"' in source, "and still publish the full-size one"
+    404 every tile. Since the stills moved to a token-named folder the
+    patterns come from the Bearer-authenticated cameraStills action, not the
+    anonymous config.js (test_camera_stills_private.py pins that half)."""
+    import json
+    from conftest import bare_plugin
+    p = bare_plugin()
+    p.cfg_store = {"stillsToken": "0" * 32}
+    p.pluginPrefs = {}
+    reply = json.loads(p.handleCameraStills(
+        type("A", (), {"props": {"request_body": "", "headers": {}}})())["content"])
+    assert reply["thumbPattern"].endswith("/cam-{host}-thumb.jpg"), reply
+    assert reply["imagePattern"].endswith("/cam-{host}.jpg"), "and still the full-size one"
 
 
 # --------------------------------------------------- it actually resizes ----

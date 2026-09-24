@@ -46,3 +46,7 @@
 .zone-meta { font-size: 12px; color: var(--text-secondary); display: flex; gap: 6px 12px; flex-wrap: wrap; }
 .zone-meta .trv-age { color: var(--text-secondary); }
 .zone-meta .trv-age.stale { color: var(--warn); font-weight: 600; }
+/* A tile whose device is disabled or in error shows its last reading as a
+   dash and the reason, so it reads as out of service, not as live. */
+.light-card.unknown, .env-card.unknown, .appliance-card.unknown, .motion-card.unknown { opacity: 0.6; }
+.light-card.unknown .toggle { cursor: not-allowed; }

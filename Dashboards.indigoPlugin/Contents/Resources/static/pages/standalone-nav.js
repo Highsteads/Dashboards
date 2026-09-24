@@ -14,7 +14,15 @@
 // links are left alone so they behave normally.
 (function () {
     if (!window.navigator.standalone) return;
+    // BUBBLE phase, and it honours defaultPrevented. It used to listen in the
+    // capture phase and, being registered while the page was still parsing,
+    // ran BEFORE DashUI's tap guard (wired at DOMContentLoaded). It had already
+    // started the navigation by the time the guard cancelled a scroll-touch,
+    // so brushing a link while scrolling still changed page in the home-screen
+    // app. The guard runs in the capture phase and stops propagation, so a
+    // rejected click never reaches this listener at all now.
     document.addEventListener("click", function (e) {
+        if (e.defaultPrevented) return;
         const a = e.target.closest && e.target.closest("a");
         if (!a || !a.href) return;
         // Modifier clicks → user wants a new tab/window; don't intercept.
@@ -29,5 +37,5 @@
         if (url.pathname === location.pathname && url.search === location.search && url.hash) return;
         e.preventDefault();
         location.href = url.href;
-    }, true);
+    }, false);
 })();

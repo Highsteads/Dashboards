@@ -69,6 +69,11 @@ subscription itself next if that did not stop it. The culprits were one phone on
 one sitting on my own Wi-Fi that had been paired with the reflector address, so every picture went
 out to their servers and back. Neither looked remote to me.
 
+**The pictures are not public.** Everything in `/public` is served to anyone who can reach the web
+server, the reflector included, so the camera stills sit in a folder named by a secret the plugin
+makes for each install. Only a browser holding the API key is told that name. In earlier versions they were
+`cam-<host>.jpg` in the open folder, and anyone with the reflector address could watch them.
+
 **What the plugin does about it.** A page that can see it was reached through the reflector polls
 at a tenth of the home rate, stops altogether after ten minutes untouched, and shows a banner with
 the LAN link. The plugin notes each device that arrives over the reflector, once an hour, in its

@@ -38,6 +38,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_camera_frame_age.mjs` | Contract test for the per-tile frame-age readout and the |
 | `test_camera_stall_watchdog.mjs` | Node contract test for the cameras.html slow-link stall |
 | `test_camera_still_period.mjs` | The cameras page works out a still tile's refresh period in ONE |
+| `test_camera_stills_private.py` | The camera stills are no longer at guessable names in the |
 | `test_camera_thumbs.py` | Contract test for the grid thumbnail — the second, smaller copy |
 | `test_camera_webrtc.mjs` | Contract test for the away-from-home WebRTC focused tile |
 | `test_capture_rename.py` | capture_screenshots.py --rename (v1.3): people's names are |
@@ -50,6 +51,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_colour_one_call.mjs` | Contract test for the browser half of the v2.94.0 colour move — |
 | `test_command_guards.py` | applyColour must refuse a command Indigo would swallow |
 | `test_config_js_no_secrets.py` | Pins the plugin's single most important security invariant: |
+| `test_config_store_unreadable.py` | A dashboards_config.json that is PRESENT but will not parse is |
 | `test_cost_rate_tiers.mjs` | Contract tests for the Cost page's Rates tiles. |
 | `test_dash_message.mjs` | Contract test for DashUI.message (v3.28.0) — the one way a page |
 | `test_dash_poll.mjs` | Contract test for DashUI.poll (v3.28.0): one polling loop for |
@@ -90,6 +92,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_hub_vpp_rows.mjs` | Contract tests for the hub's VPP status and earnings rows. |
 | `test_idle_guard.mjs` | Contract test for DashUI.idleGuard, DashUI.lanUrl and the |
 | `test_immediate_numbers.mjs` | Numeric readings update synchronously, while graphical callbacks may animate. |
+| `test_insights_sql_portable.py` | The battery-trend and room-temperature insight queries compared |
 | `test_laundry_deadline.py` | Contract test for the Laundry page's deadline validation. |
 | `test_laundry_replan_offpath.py` | A laundry deadline replans on the off-path pool, not on IWS's |
 | `test_legacy_config_import.py` | One settings store (v3.27.0). A first start with no |
@@ -100,14 +103,19 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_mcp_tools.py` | Behaviour of the plugin-provided MCP tools (v3.12.0): the |
 | `test_no_orphan_pages.py` | Every page can be reached from another page (v3.33.0). The |
 | `test_no_private_strings.py` | This repository is public. Nothing in it may carry a real |
+| `test_offpath_day_keys.py` | A Timeline day (and a Solar string-hours day) built while it |
 | `test_offpath_pool.py` | No /message/ handler may do slow work on the dispatch path. One |
+| `test_page_batch_fixes.mjs` | The page half of the 24-09-2026 bug batch. Where a fix is a |
 | `test_page_count_claims.py` | Every place the docs say how many pages the plugin ships agrees |
 | `test_page_frame.py` | Every page's top bar matches the Energy page (v3.29.0): one |
+| `test_page_shared_helpers.mjs` | The shared page helpers added for the 24-09-2026 page batch, |
 | `test_parse_cameras.py` | Contract test for the module-level _parse_cameras — JSON-string vs |
 | `test_pending_retry_client.mjs` | dashboard.js's _fetch must wait out a "pending" 503 rather than |
 | `test_pin_redaction.py` | Security contract test for Plugin._parse_lock_code_trigger — the |
 | `test_poller_auth_and_hidden.mjs` | Contract test for the hub's four side pollers — sigen, string |
 | `test_presence_endpoint.py` | Contract tests for the v2.71.0 presence-data privacy fix — the |
+| `test_proxy_host_check.py` | The :8177 server hands out the API key (/bootstrap) and the |
+| `test_psql_encoding.py` | Inside IndigoPluginHost3 the preferred encoding is US-ASCII, so |
 | `test_pv_string_sanity.py` | The solarStringHours reader must reject the impossible |
 | `test_reflector_block.mjs` | Contract test for "refuse the reflector" (v3.1.0). Indigo |
 | `test_reflector_guard.py` | Every browser-facing handler refuses the reflector when the |
@@ -119,6 +127,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_rtt_estimator.mjs` | Contract test for the estimator inside DashUI.probeRtt — which |
 | `test_save_config.py` | Contract test for Plugin.handleSaveDashboardsConfig — the settings |
 | `test_saving_session_banner.mjs` | Contract test for the Octopus Saving Session banner on the |
+| `test_script_sys_exit.py` | sys.exit() in a companion script raises SystemExit, which is a |
 | `test_script_ticker_handover.py` | v3.31.0 — while the Script Ticker plugin is RUNNING, Dashboards |
 | `test_scripts_match_live.py` | The companion scripts this repo ships in scripts/ must be the |
 | `test_security.py` | Regression tests for the /public credential-leak fixes — the |
@@ -126,6 +135,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_settings_fav_passthrough.mjs` | Contract test for the settings editor carrying favourites it |
 | `test_shared_ui_present.mjs` | Every user-facing page must load dashboards-ui.js (v2.97.0). |
 | `test_shutdown_budget.py` | shutdown() must not wait on the snapshot pool. Until 2.95.1 |
+| `test_shutdown_setup_links.py` | A one-time setup link is a /public file holding the API key. |
 | `test_sigen_available.py` | The server half of "the Sigenergy pages hide themselves when |
 | `test_sigen_visibility.mjs` | The browser half of "the Sigenergy pages hide themselves when |
 | `test_snapshot_conditional.mjs` | Contract test for the camera still-refresh mechanism — the |
@@ -134,6 +144,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_solar_hours_chart.mjs` | Contract test for DashUI.solarHoursChart — the stacked hourly |
 | `test_solar_string_hours.py` | Contract tests for Plugin._string_hours_payload — the pure half |
 | `test_stamp_gate.mjs` | Node contract test for dashboards-gate.js (v2.70.0) — the |
+| `test_streams_health_always.py` | streams.json is the only carrier of _cameraHealth, and it was |
 | `test_sync_pages.py` | _sync_pages_to_public — the startup copy of the bundle's pages |
 | `test_tap_guard.mjs` | Contract test for the tap guard and press feedback in |
 | `test_test_index.py` | tests/README.md lists every test file (v3.25.0). It had fallen |
