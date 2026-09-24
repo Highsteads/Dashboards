@@ -72,7 +72,9 @@ def test_whats_new_is_the_head_of_the_changelog_verbatim():
     and not the other is exactly the kind of thing nobody notices."""
     readme = _entries(_section(README.read_text(encoding="utf-8"), "What's new"))
     full = _entries(CHANGELOG.read_text(encoding="utf-8"))
-    assert 1 <= len(readme) <= 5, f"README What's new carries {len(readme)} entries; keep it short"
+    # The section says "The three most recent releases", so it must carry three:
+    # a 1-5 range let Claude Bridge 3.2.1 drop two entries at once unnoticed.
+    assert len(readme) == 3, f"README What's new carries {len(readme)} entries; it promises three"
     assert len(full) > 100, "the changelog lost its history"
     assert [v for v, _ in readme] == [v for v, _ in full[:len(readme)]], (
         f"README What's new versions {[v for v, _ in readme]} are not the head of the changelog "
