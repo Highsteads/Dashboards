@@ -184,6 +184,9 @@
         /* 4-across on wide; 2×2 on tablet/phone landscape; 2-wide on portrait
            phones so each tile stays large enough to glance at. */
         @media (max-width: 700px) { #cameras-mosaic { grid-template-columns: repeat(2, 1fr); } }
+        /* Why the strip is showing stills rather than live video (3.45.2). */
+        .cam-live-note { max-width: 900px; margin: -8px auto 12px; text-align: center;
+                         font-size: 12px; color: var(--muted, #8e8e93); }
         .home-cam {
             background: #000; border-radius: var(--r-md); overflow: hidden;
             box-shadow: var(--shadow); cursor: pointer;
@@ -456,6 +459,7 @@
         <!-- Camera mosaic — rendered ONCE in start() so the 3s poll doesn't
              restart every tile timer. Pure visual, no data binding. -->
         <div id="cameras-mosaic"></div>
+        <div id="cam-live-note" class="cam-live-note" aria-live="polite" hidden></div>
         <!-- Two-column row: Energy + Weather. Each card updates every 5s
              via loadSummary(). They stack on phones (≤600px). -->
         <div class="dash-row glance">
@@ -944,6 +948,20 @@
     // verdict that carries the tiles, never over the reflector (asked again
     // here, not trusted from the verdict), never in the demo, a hidden page
     // or a browser without WebRTC.
+    // One line under the strip saying why it is not live, so a fallback to
+    // stills is never silent. Empty (and hidden) while every tile is live.
+    function _hubNote(text) {
+        const el = document.getElementById("cam-live-note");
+        if (!el) return;
+        el.textContent = text || "";
+        el.hidden = !text;
+    }
+    function _hubVerdictNote(v) {
+        if (!v) return "";
+        if (v.live) return "";
+        if (v.mbps == null) return `Stills: live video not tried (${v.why})`;
+        return `Stills: ${v.mbps} Mbit/s measured, ${v.needMbps.toFixed(1)} needed for live video`;
+    }
     function _hubLiveWanted(verdict, o) {
         return !!(verdict && verdict.live) && o.link !== "reflector"
             && !o.demo && !o.hidden && !!o.canRtc && !!o.hasPath;
@@ -967,6 +985,7 @@
         _hubDeciding = DashRTC.decide(hosts.length, { hosts })
             .then(v => {
                 _hubVerdict = v;
+                _hubNote(_hubVerdictNote(v));
                 console.info(`[hub] cameras ${v.live ? "live" : "stills"}: `
                            + (v.mbps == null ? v.why : `${v.mbps} Mbit/s measured, ${v.needMbps.toFixed(1)} needed`));
             })
@@ -1001,6 +1020,7 @@
                 if (s.rtc !== rtc) return;
                 s.fails = 0;                        // a working stream forgives the past
                 frame.classList.add("is-live");
+                if (!Object.values(_hubLive).some(x => x.retry)) _hubNote(_hubVerdictNote(_hubVerdict));
             },
             onFail: (why) => { if (s.rtc === rtc) _hubLiveFailed(host, why); },
         });
@@ -1013,6 +1033,8 @@
         s.fails += 1;
         const wait = Math.min(HUB_LIVE_RETRY_MS * s.fails, HUB_LIVE_RETRY_MAX_MS);
         console.warn(`[hub] ${host} live video ${why}; showing stills, trying again in ${Math.round(wait / 1000)}s`);
+        const name = ((window.CAMERA_CONFIG || {}).names || {})[host] || host;
+        _hubNote(`Live video stopped on ${name} (${why}), showing stills and trying again in ${Math.round(wait / 1000)} s`);
         // A fresh still at once: the one underneath stopped updating while
         // the video played.
         const img = frame && frame.querySelector("img[data-host]");

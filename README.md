@@ -8,7 +8,7 @@ Browser dashboards for [Indigo Domotics](https://www.indigodomo.com/), built for
 wall, a phone in your pocket and a Mac on the desk. No app to install, no cloud account,
 nothing leaving the house.
 
-<img src="https://img.shields.io/badge/version-3.45.1-5856d6" alt="Version 3.45.1">
+<img src="https://img.shields.io/badge/version-3.45.2-5856d6" alt="Version 3.45.2">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-21-0a84ff" alt="21 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
@@ -21,7 +21,7 @@ nothing leaving the house.
 
 ---
 
-**Version:** 3.45.1
+**Version:** 3.45.2
 
 **Documentation:** **[highsteads.github.io/Dashboards](https://highsteads.github.io/Dashboards/)** —
 getting started, configuration, a page of notes for every one of the 21 pages, cameras, remote
@@ -67,11 +67,11 @@ simulator, touching no live devices.
 The three most recent releases, word for word. Every release before these is in
 **[the version history](docs/changelog.md)**, which the documentation site also carries.
 
+**3.45.2** (24-Sep-2026) - **Live hub cameras in Safari, and a line saying why when they are not.** The check that drops a frozen stream back to stills trusted two measures that Safari does not keep for a live stream, the video clock and a count of decoded frames, so on iPhones, iPads and Macs every hub camera looked frozen within seconds and went back to stills, while Chrome played happily. A stream now counts as frozen only when nothing shows progress, whether its clock, a painted frame or its frame count, and a count that never moves is no longer read as a stream crawling. When the strip does show stills, a short line underneath now says why: the speed it measured against the speed it needs, or which camera stopped and when it will try again.
+
 **3.45.1** (24-Sep-2026) - **The hub's cameras really are live now.** 3.45.0 decided correctly that the connection was fast enough, then dropped every stream about three seconds later as frozen. The video was never told to play: it relied on the browser starting it by itself, and a browser may not start a video it cannot yet see, which the hub's is until its first picture arrives. A paused video still shows its first frame, so each tile looked live for a moment before the freeze check took it back to stills. The video is now asked to play the moment the stream arrives, and a video the browser refuses to play is reported as that rather than as frozen.
 
 **3.45.0** (24-Sep-2026) - **The hub's cameras are live again, chosen by the speed of your connection.** The four cameras on the hub play live video wherever your connection can carry it, instead of pictures that were a few seconds behind. What decides it is now a measurement, not your address: the page times a few full-size pictures from the plugin and goes live when the connection carries about 11 Mbit/s, enough for four streams with room to spare. So a laptop or phone that is always on Tailscale gets live video on a fast link and stills on a slow one, where before Tailscale always meant stills on the hub and one live tile on the Cameras page. The Cameras page uses the same measurement to decide how many tiles can be live at once. A stream that freezes or crawls drops back to its still straight away and tries again later, every stream stops when the page is hidden, and nothing ever plays over the Indigo reflector.
-
-**3.44.0** (24-Sep-2026) - **Kinder to your network, easier by keyboard, and the PIN stays hidden.** The hub's camera strip and the room pages now refresh their pictures the way the Cameras page does, asking only whether the picture has changed, so an unchanged frame costs a few bytes instead of a whole image. The file the pages read for camera health now carries only that health, and no longer lists go2rtc's internal stream addresses. Pictures of cameras you have removed are tidied away at start-up, and go2rtc's log is kept to a sensible size while it runs, not only when it starts. Camera tiles can be reached with the Tab key and opened with Enter, and switches and sliders on the Active page are named for screen readers. The control PIN is typed into a hidden field with a number keypad, and a new tickbox removes it. A brightness change that did not take now puts the slider back where the light really is, pages notice a device change without comparing the whole device list each time, and the home-network link follows the address and port in your Indigo URL.
 
 ## A look around
 

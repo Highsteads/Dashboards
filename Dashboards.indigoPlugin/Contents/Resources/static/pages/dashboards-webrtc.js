@@ -193,13 +193,31 @@
       if (h.gotFrame) return;              // two triggers race; first wins
       h.gotFrame = true;
       if (stallMs) {
-        // Two ways a live tile can be worse than a still. The picture stops
-        // (the clock has not moved for two looks running), or it crawls: it
-        // moves, but at under POOR_FPS frames a second for POOR_LOOKS looks
-        // running, which on a thin link is also a picture drifting further
-        // and further behind the camera.
-        var lastTime = video.currentTime || 0, misses = 0;
-        var lastFrames = frameCount(video), slow = 0;
+        // Two ways a live tile can be worse than a still. The picture stops,
+        // or it crawls (under POOR_FPS frames a second for POOR_LOOKS looks
+        // running, a picture drifting further and further behind).
+        //
+        // "Stopped" means NO sign of progress at all: not the media clock,
+        // not a painted frame (requestVideoFrameCallback), not the decoder's
+        // frame counter. Any one of them moving is enough. Safari's engine
+        // does not keep every one of these for a live stream, and a check
+        // that trusted only the clock and the counter failed every hub tile
+        // on every one of CliveS's devices (24-09-2026) while Chrome played.
+        //
+        // "Crawling" is judged only on the decoder's counter, and only once
+        // that counter has been SEEN to count: a browser that never counts a
+        // live stream's frames reads 0 for ever, which is not a crawl. Painted
+        // frames are not used for the rate, because a tile scrolled out of
+        // view is not painted and would read as crawling.
+        var lastTime = video.currentTime || 0, misses = 0, slow = 0;
+        var lastFrames = frameCount(video), countsFrames = false;
+        var painted = 0, lastPainted = 0;
+        var onPaint = function () {
+          if (h.stopped) return;
+          painted++;
+          if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(onPaint);
+        };
+        if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(onPaint);
         stallTimer = setInterval(function () {
           if (h.stopped) return;
           if (video.paused) {
@@ -209,15 +227,20 @@
             if (++misses >= 2) { fail('video would not play'); return; }
             return;
           }
-          if (video.currentTime > lastTime) { lastTime = video.currentTime; misses = 0; }
-          else if (++misses >= 2) { fail('video stalled'); return; }
+          var now = video.currentTime || 0;
           var frames = frameCount(video);
-          if (frames != null && lastFrames != null) {
+          var framesMoved = frames != null && lastFrames != null && frames > lastFrames;
+          if (framesMoved) countsFrames = true;
+          if (now > lastTime || painted > lastPainted || framesMoved) misses = 0;
+          else if (++misses >= 2) { fail('video stalled'); return; }
+          if (countsFrames && frames != null && lastFrames != null) {
             var fps = (frames - lastFrames) / (stallMs / 1000);
             if (fps < POOR_FPS) { if (++slow >= POOR_LOOKS) { fail('video too slow'); return; } }
             else slow = 0;
           }
+          lastTime = Math.max(lastTime, now);
           lastFrames = frames;
+          lastPainted = painted;
         }, stallMs);
       }
       if (opts.onLive) opts.onLive();

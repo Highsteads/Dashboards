@@ -181,7 +181,8 @@ await section("DashRTC stall", async () => {
     const v2 = makeVideoEl();
     R.start("b", v2, { url: "/w", stallMs: 20, onFail: w => fails2.push(w) });
     v2.currentTime = 1; v2.frames = 10; v2.fire("timeupdate");
-    const crawl = setInterval(() => { v2.currentTime += 0.02; }, 5);   // clock moves, frames do not
+    v2.frames = 40;                                   // the counter is seen to count...
+    const crawl = setInterval(() => { v2.currentTime += 0.02; }, 5);   // ...then the clock moves, frames do not
     await tick(120);
     clearInterval(crawl);
     check("a crawling picture (under POOR_FPS) fails as 'video too slow'",
@@ -195,6 +196,39 @@ await section("DashRTC stall", async () => {
     await tick(120);
     clearInterval(healthy); h3.stop();
     check("a healthy picture is left alone", fails3.length === 0, JSON.stringify(fails3));
+
+    // Safari's engine (24-09-2026): the decoder's frame counter never counts
+    // a live stream. The clock moves, so the picture is fine.
+    const fails4 = [];
+    const v4 = makeVideoEl();
+    const h4 = R.start("d", v4, { url: "/w", stallMs: 20, onFail: w => fails4.push(w) });
+    v4.currentTime = 1; v4.fire("timeupdate");
+    const clockOnly = setInterval(() => { v4.currentTime += 0.1; }, 5);   // frames stay 0 for ever
+    await tick(120);
+    clearInterval(clockOnly); h4.stop();
+    check("a counter that never counts is not a crawl (Safari)", fails4.length === 0, JSON.stringify(fails4));
+
+    // And a clock that does not move while frames are painted is not a stall.
+    const fails5 = [];
+    const v5 = makeVideoEl();
+    let cbs = [];
+    v5.requestVideoFrameCallback = f => { cbs.push(f); };
+    const h5 = R.start("e", v5, { url: "/w", stallMs: 20, onFail: w => fails5.push(w) });
+    const pump = setInterval(() => { const now = cbs; cbs = []; now.forEach(f => f()); }, 5);
+    await tick(120);
+    clearInterval(pump); h5.stop();
+    check("painted frames count as progress when the clock stands still", fails5.length === 0,
+          JSON.stringify(fails5));
+
+    // Nothing moving at all is still a stall.
+    const fails6 = [];
+    const v6 = makeVideoEl();
+    let cbs6 = [];
+    v6.requestVideoFrameCallback = f => { cbs6.push(f); };
+    R.start("f", v6, { url: "/w", stallMs: 20, onFail: w => fails6.push(w) });
+    cbs6.splice(0).forEach(f => f());                 // the first frame, then nothing
+    await tick(80);
+    check("no clock, no paint, no frames: 'video stalled'", fails6[0] === "video stalled", JSON.stringify(fails6));
 });
 
 console.log("\n1c. the stream is asked to PLAY: autoplay alone left the hub paused (24-09-2026)");
@@ -373,7 +407,8 @@ await section("hub strip", async () => {
     };
     const frames = ["h1", "h2", "h3", "h4"].map(mkFrame);
     const mount = { querySelectorAll: () => frames };
-    const doc = { hidden: false, getElementById: () => mount,
+    const note = { textContent: "", hidden: true };
+    const doc = { hidden: false, getElementById: id => (id === "cam-live-note" ? note : mount),
                   addEventListener: (t, f) => { listeners[t] = f; } };
     const started = [], swapped = [];
     let verdict = { live: true, tiles: 20, mbps: 60, needMbps: 11.2, why: "fast enough" };
@@ -388,7 +423,8 @@ await section("hub strip", async () => {
         watchConnection: () => () => {},
     };
     const ui = { linkClass: () => "vpn", isDemo: () => false };
-    const win = { CAMERA_CONFIG: { mainCameras: ["h1", "h2", "h3", "h4"], webrtcPath: "/webrtc/{host}" },
+    const win = { CAMERA_CONFIG: { mainCameras: ["h1", "h2", "h3", "h4"], webrtcPath: "/webrtc/{host}",
+                                   names: { h2: "Front Door" } },
                   DashRTC: fakeRTC, DashUI: ui, RTCPeerConnection: function () {},
                   _hubSwapIn: (img, first) => swapped.push([img.dataset.host, first]),
                   addEventListener: (t, f) => { winListeners[t] = f; } };
@@ -424,6 +460,7 @@ await section("hub strip", async () => {
     check("…each asks DashRTC to watch for a stall", started.every(h => h.opts.stallMs > 0));
     started[0].opts.onLive();
     check("the first frame shows the video over the still", frames[0].has("is-live"));
+    check("…and no 'why not live' line shows while live", note.hidden === true && note.textContent === "");
 
     // hidden -> every stream stopped
     doc.hidden = true;
@@ -446,6 +483,9 @@ await section("hub strip", async () => {
     check("a failed stream is stopped and its tile leaves live",
           victim.stopped && !frames[1].has("is-live"));
     check("…a fresh still is asked for at once", swapped.length === 1 && swapped[0][0] === "h2" && swapped[0][1] === true);
+    check("…and the line under the strip says which camera stopped and why",
+          !note.hidden && /Front Door/.test(note.textContent) && /video stalled/.test(note.textContent),
+          note.textContent);
     const retry = timers.find(t => t.ms === H.RETRY);
     check("…and live is tried again after a back-off", !!retry, JSON.stringify(timers.map(t => t.ms)));
     const before = started.length;
@@ -461,6 +501,9 @@ await section("hub strip", async () => {
     const n = started.length;
     listeners.visibilitychange(); await tick();
     check("a stills verdict opens no stream", started.length === n && liveOf().length === 0);
+    check("…and says so under the strip, with the measured and needed speeds",
+          !note.hidden && /3 Mbit\/s measured/.test(note.textContent) && /11\.2 needed/.test(note.textContent),
+          note.textContent);
 
     // wiring that is not a function of its own
     check("the strip asks the shared rule, not the address",
