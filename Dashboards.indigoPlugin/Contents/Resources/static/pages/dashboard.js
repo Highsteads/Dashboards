@@ -34,7 +34,14 @@ class IndigoAPIError extends Error {
 const _INDIGO_STORE = {
     devices:  null,   // Map id -> device object
     sinceTs:  0,      // server clock from the last changedSince reply
-    lastFull: 0       // Date.now() of the last full list fetch
+    lastFull: 0,      // Date.now() of the last full list fetch
+    // Bumped whenever the cached list changes: a full fetch, a device set
+    // or a device deleted. observeAll re-renders when it differs from the
+    // generation it last drew, instead of serialising the whole list (685 kB
+    // here) every tick to find out. It lives on the SHARED store because
+    // another IndigoAPI's delta cycle (DashAction.selfPoll, the hub's own)
+    // can absorb a change first; a per-call "changed" flag would lose it.
+    gen:      0
 };
 const _FULL_REFRESH_MS = 300000;   // safety full resync every 5 min
 const _FETCH_TIMEOUT_MS = 10000;   // per-request cap — a hung socket must not hold a slot for the OS's minutes-long default
@@ -160,11 +167,13 @@ class IndigoAPI {
         const list = await res.json();
         _INDIGO_STORE.devices  = new Map(list.map(d => [d.id, d]));
         _INDIGO_STORE.lastFull = Date.now();
+        _INDIGO_STORE.gen++;
     }
     _demoSimulate() {
         // Gentle drift so the demo feels alive: solar wobbles, the battery
         // creeps, and the odd motion sensor flickers.
         const devs = Array.from(_INDIGO_STORE.devices.values());
+        _INDIGO_STORE.gen++;              // every call drifts something
         for (const d of devs) {
             const st = d.states || {};
             if (st.pvPowerWatts !== undefined) {
@@ -196,6 +205,7 @@ class IndigoAPI {
                 d.states.setpointHeat = parameters.value;
             }
             d.lastChanged = new Date().toISOString();
+            _INDIGO_STORE.gen++;
         }
         return Promise.resolve({ ok: true, demo: true });
     }
@@ -286,6 +296,7 @@ class IndigoAPI {
             : await this._fetch("/v2/api/indigo.devices");
         _INDIGO_STORE.devices  = new Map(list.map(d => [d.id, d]));
         _INDIGO_STORE.lastFull = Date.now();
+        _INDIGO_STORE.gen++;
         // Fall back to the local clock only when the server did not give us
         // one (endpoint unreachable). A local clock is a slightly wrong cursor
         // but a far better starting point than 0, which pins us to full
@@ -355,7 +366,7 @@ class IndigoAPI {
             || (Date.now() - s.lastFull > _FULL_REFRESH_MS);
         if (mustFull) return this._fullDeviceFetch(resp && resp.ok ? resp.now : 0);
 
-        (resp.deleted || []).forEach(id => s.devices.delete(id));
+        (resp.deleted || []).forEach(id => { if (s.devices.delete(id)) s.gen++; });
         // Advance the delta cursor only AFTER every changed device is refetched
         // successfully. If a getDevice drops (transient error), leave sinceTs at
         // the old value so the next poll re-requests the same window — otherwise
@@ -367,7 +378,7 @@ class IndigoAPI {
             const fetched = await Promise.all(
                 ids.map(id => this.getDevice(id).catch(() => null)));
             fetched.forEach((d, i) => {
-                if (d) s.devices.set(d.id, d);
+                if (d) { s.devices.set(d.id, d); s.gen++; }
                 else allOk = false;   // this id will reappear next window
             });
         }
@@ -450,7 +461,7 @@ class IndigoAPI {
     setHeatSetpoint(id, v){ return this._cmd("indigo.thermostat.setHeatSetpoint", id, { value: v }); }
     executeActionGroup(id){ return this._cmd("indigo.actionGroup.execute", id); }
     observeAll(cb, ms = 3000, onErr, onOk) {
-        let last = "";
+        let lastGen = -1;   // the store generation this observer last drew
         let busy = false;   // in-flight guard: a slow tick must not be overlapped by the next
         const tick = async () => {
             if (busy || document.hidden) return;
@@ -472,8 +483,11 @@ class IndigoAPI {
                         try { onErr(err); } catch {}
                     }
                 } else if (onOk) { try { onOk(d); } catch {} }
-                const j = JSON.stringify(d);
-                if (j !== last) { last = j; cb(d); }
+                // Re-render when the SHARED store has moved since this
+                // observer last drew — whoever's cycle moved it. Until
+                // 24-09-2026 this stringified the whole list every tick.
+                const g = _INDIGO_STORE.gen;
+                if (g !== lastGen) { lastGen = g; cb(d); }
             } catch (e) {
                 if (onErr) { try { onErr(e); } catch {} }
             } finally {

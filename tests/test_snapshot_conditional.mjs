@@ -359,7 +359,11 @@ console.log("\nthe hub strip — smallest tiles, landing page, biggest win");
           "the hub's four camera tiles use the thumbnail, from cameraStills, not config.js");
     check(/still\s*=\s*full/.test(hubCode),
           "and fall back to the full picture if a thumbnail will not load");
-    check(/data-full=/.test(hubCode) && /onerror=/.test(hubCode),
+    // Since 24-09-2026 the first picture is fetched at once through the same
+    // DashUI.refreshStill path (its 404 falls back), not by an <img src> with
+    // an inline onerror, so there is one fallback rule rather than two.
+    check(/imgs\.forEach\(img => swapIn\(img, true\)\);\s*imgs\.forEach\(\(img, i\) =>/.test(hubCode)
+          && /e\.status === 404 && still !== full\) \{ still = full; swapIn\(img, first\)/.test(hubCode),
           "including on the FIRST paint, before any refresh timer has run",
           "otherwise a server with no thumbnails shows an empty strip for a whole poll period");
 }

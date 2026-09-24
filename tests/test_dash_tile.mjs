@@ -252,4 +252,41 @@ check("the room page's own three-state reader is gone", !/_threeState/.test(read
 check("no page tests on/off with === true any more",
       ["room.html", "active.html"].every(p => !/onState === true/.test(read(p))));
 
+
+console.log("\na brightness change is confirmed from the device");
+{
+    const flush2 = async () => { await flush(); await flush(); await flush(); };
+    const notes = [];
+    box.DashAction.note = (k, ph, txt) => notes.push([k, ph, txt]);
+    let level = 40;
+    T.bind({ setBrightness: async (id, v) => { level = v; }, getDevice: async () => ({ brightness: level }) });
+    const el = { dataset: { id: "21" }, value: "70", style: {} };
+    T.slideCommit(el); await flush2();
+    check("a lamp that follows is left alone", el.value === "70" && notes.length === 0, JSON.stringify(notes));
+
+    T.bind({ setBrightness: async () => {}, getDevice: async () => ({ brightness: 40 }) });
+    el.value = "80";
+    T.slideCommit(el); await flush2();
+    check("a lamp that did not move puts the slider back", el.value === "40", el.value);
+    check("and says so", notes.length === 1 && notes[0][0] === "device:21" && /40%/.test(notes[0][2]), JSON.stringify(notes));
+
+    notes.length = 0;
+    T.bind({ setBrightness: async () => {}, getDevice: async () => ({ brightness: 79 }) });
+    el.value = "80";
+    T.slideCommit(el); await flush2();
+    check("a level within 2% counts as reached", el.value === "80" && notes.length === 0);
+
+    notes.length = 0;
+    T.bind({ setBrightness: async () => { throw new Error("network down"); }, getDevice: async () => ({ brightness: 0 }) });
+    T.slideCommit(el); await flush2();
+    check("a failed send is noted, not swallowed", notes.length === 1 && notes[0][1] === "error"
+          && /network down/.test(notes[0][2]), JSON.stringify(notes));
+
+    notes.length = 0;
+    const e401 = Object.assign(new Error("auth"), { status: 401 });
+    T.bind({ setBrightness: async () => { throw e401; }, getDevice: async () => ({}) });
+    T.slideCommit(el); await flush2();
+    check("an auth failure is left to the page", notes.length === 0);
+}
+
 done();

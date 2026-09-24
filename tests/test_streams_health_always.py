@@ -45,7 +45,7 @@ def test_written_when_go2rtc_is_up(tmp_path):
     p._write_streams_json({"front": {"producers": [{"url": "rtsp://u:p@h/", "bytes_recv": 5}]}})
     data = _read(tmp_path)
     assert data["_go2rtcUp"] is True
-    assert data["front"]["producers"] == [{"bytes_recv": 5}], "sanitising still happens"
+    assert "front" not in data, "the go2rtc streams map is not published"
     assert "_writeTs" in data and "_cameraHealth" in data
 
 

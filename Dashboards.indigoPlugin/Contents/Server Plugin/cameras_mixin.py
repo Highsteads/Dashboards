@@ -32,6 +32,7 @@ from dash_common import (
     CAMERA_THUMB_WIDTH,
     GO2RTC_API_PORT,
     GO2RTC_BIN,
+    GO2RTC_LOG_CAP_BYTES,
     GO2RTC_RTSP_PORT,
     GO2RTC_WEBRTC_PORT,
     PROXY_PORT,
@@ -662,9 +663,9 @@ class CamerasMixin:
             # plugin already dials 127.0.0.1, no dashboard page references the
             # port, and live.html — the WebRTC page the wildcard was added for —
             # was retired, so closing this costs nothing. The public view is
-            # streams.json, written through _sanitise_streams (v2.35.0), which
-            # drops producer URLs; this shuts the door the sanitiser was standing
-            # in front of. Live-confirmed exposed before the fix.
+            # streams.json, which since 24-Sep-2026 carries only a health
+            # summary and none of the streams map. Live-confirmed exposed
+            # before the fix.
             f"  listen: '127.0.0.1:{GO2RTC_API_PORT}'",
             "",
             "rtsp:",
@@ -886,7 +887,7 @@ class CamerasMixin:
             # fresh file whenever it passes ~5 MB (we only keep it for triage).
             _logp = self._go2rtc_log_path()
             try:
-                if os.path.exists(_logp) and os.path.getsize(_logp) > 5 * 1024 * 1024:
+                if os.path.exists(_logp) and os.path.getsize(_logp) > GO2RTC_LOG_CAP_BYTES:
                     open(_logp, "wb").close()
             except OSError:
                 pass
@@ -964,6 +965,31 @@ class CamerasMixin:
             # Never let a log cosmetic touch the supervision path it rides on.
             pass
 
+    def _cap_go2rtc_log(self):
+        """Empty go2rtc.log once it passes GO2RTC_LOG_CAP_BYTES, while go2rtc
+        is running. Returns True when it did.
+
+        Safe with the child still writing: its stdout is the file we opened
+        O_APPEND, so every write lands at the current end, and after the
+        truncate that is byte 0 again, with no hole of zeros. One stat per 30 s
+        sweep, on the poller thread, never the dispatch thread. A dated marker
+        follows so the fresh file can still place its lines on a day.
+        """
+        try:
+            handle = getattr(self, "_go2rtc_logfile", None)
+            if handle is None or handle.closed:
+                return False
+            path = self._go2rtc_log_path()
+            if os.path.getsize(path) <= GO2RTC_LOG_CAP_BYTES:
+                return False
+            os.truncate(path, 0)
+            self._go2rtc_log_day = None
+            self._stamp_go2rtc_log(force=True)
+            return True
+        except Exception:
+            # A log cosmetic must never touch the supervision path it rides on.
+            return False
+
     def _go2rtc_settle_check(self):
         """Catch an immediate bind failure (e.g. a port still held) rather
         than reporting a phantom-healthy start. True if go2rtc is still up
@@ -1003,7 +1029,11 @@ class CamerasMixin:
         if proc is not None and proc.poll() is None:
             # Healthy is the common case, and a healthy go2rtc can run for days
             # (this one had been up since Tuesday), so the date marker has to go
-            # here rather than only on the restart path.
+            # here rather than only on the restart path. The size cap has to
+            # be checked here for the same reason: a camera that stays offline
+            # makes go2rtc log a failed dial every second or two, about 6-9 MB
+            # a day, and a cap applied only at start never fires.
+            self._cap_go2rtc_log()
             self._stamp_go2rtc_log()
             return                      # healthy
         if proc is None and not getattr(self, "_go2rtc_wanted", False):
@@ -1116,9 +1146,51 @@ class CamerasMixin:
             os.makedirs(os.path.join(pub, keep), exist_ok=True)
         except OSError as exc:
             log(f"[Cameras] could not create the stills folder: {exc}", level="WARNING")
-        if removed:
-            self.logger.info(f"[Cameras] removed {removed} old camera still(s) from "
-                             f"the public folder")
+        orphans = self._sweep_unconfigured_stills(os.path.join(pub, keep))
+        if removed or orphans:
+            detail = (f", {orphans} of them for cameras no longer configured"
+                      if orphans else "")
+            self.logger.info(f"[Cameras] removed {removed + orphans} old camera "
+                             f"still(s) from the public folder{detail}")
+
+    @staticmethod
+    def _still_host(name):
+        """The camera host a stills-folder file belongs to, or None if the
+        name is not one the poller writes: cam-<host>.jpg,
+        cam-<host>-thumb.jpg, or either with a .tmp suffix."""
+        if not name.startswith("cam-") or ".jpg" not in name:
+            return None
+        stem = name[4:name.index(".jpg")]
+        if stem.endswith("-thumb"):
+            stem = stem[:-len("-thumb")]
+        return stem or None
+
+    def _sweep_unconfigured_stills(self, folder):
+        """At startup, inside the CURRENT stills folder: remove the still and
+        thumbnail of any camera that is no longer configured (removed, or moved
+        to a new address). Nothing else ever deletes them, so the last picture
+        of a camera taken out of service stayed readable for ever. Runs before
+        the poller starts, and the camera list only changes at restart, so no
+        live write can race it. Returns how many files went."""
+        hosts = {c.get("host") for c in (getattr(self, "cameras", None) or ())
+                 if isinstance(c, dict)}
+        removed = 0
+        try:
+            names = os.listdir(folder)
+        except OSError:
+            return 0
+        for name in names:
+            host = self._still_host(name)
+            if host is None or host in hosts:
+                continue
+            full = os.path.join(folder, name)
+            try:
+                if os.path.isfile(full) and not os.path.islink(full):
+                    os.remove(full)
+                    removed += 1
+            except OSError as exc:
+                log(f"[Cameras] could not remove the old still {name}: {exc}", level="WARNING")
+        return removed
 
     def handleCameraStills(self, action, dev=None, callerWaitingForResult=True):
         """POST /message/com.clives.indigoplugin.dashboards/cameraStills/
@@ -1339,29 +1411,35 @@ class CamerasMixin:
         except Exception:
             return None
 
-    def _write_streams_json(self, streams):
-        """Mirror go2rtc /api/streams to Web Assets/public/dashboards/streams.json
-        so the cameras page can read it same-origin (port 8176) instead of
-        cross-port fetching to 8177. iOS Safari blocks the cross-port fetch
-        in some configurations even with CORS headers.
-        Adds a _writeTs (Unix epoch, seconds, fractional) so the page can do
-        delta math against the actual write time — otherwise the page poll
-        cadence and the file write cadence interleave and bandwidth alternates
-        between the real value and 0.
+    # The ONLY keys streams.json may carry. An allowlist, because the file sits
+    # in the anonymous /public namespace: go2rtc's own streams map (producer
+    # RTSP URLs with the camera password, viewer addresses, any field a future
+    # go2rtc adds) never goes near it.
+    STREAMS_JSON_KEYS = ("_writeTs", "_go2rtcUp", "_cameraHealth")
 
-        Written EVERY tick, go2rtc up or down. It is the only carrier of
-        _cameraHealth, and returning early while go2rtc was unreachable froze
-        the last healthy summary on screen through the very outage it should
-        report. _go2rtcUp says which case this is; an old _writeTs means the
-        plugin itself has stopped writing."""
+    def _write_streams_json(self, streams):
+        """Write Web Assets/public/dashboards/streams.json: when it was written
+        (_writeTs, Unix seconds), whether go2rtc answered (_go2rtcUp) and the
+        per-camera snapshot health (_cameraHealth). That is all the hub and
+        the cameras page read.
+
+        Until 24-Sep-2026 it also mirrored go2rtc's /api/streams map through a
+        denylist sanitiser. No page had read that map since the MJPEG tiles
+        went in 3.36.0, and a denylist passes any new go2rtc field straight
+        into /public, so the map is no longer published at all. `streams` is
+        still fetched, as the cheapest proof go2rtc is up.
+
+        Written EVERY tick, go2rtc up or down. Returning early while go2rtc
+        was unreachable froze the last healthy summary on screen through the
+        very outage it should report; an old _writeTs means the plugin itself
+        has stopped writing."""
         try:
-            payload = self._sanitise_streams(streams or {})
-            payload["_writeTs"] = time.time()
-            payload["_go2rtcUp"] = streams is not None
-            # A deliberately small, credential-free health summary for the
-            # anonymous cameras page.  The raw go2rtc map above has already
-            # been sanitised; do not add URLs, exception text or client data.
-            payload["_cameraHealth"] = self._camera_health_payload(self.cameras, self._cam_state)
+            payload = {
+                "_writeTs": time.time(),
+                "_go2rtcUp": streams is not None,
+                # Credential-free by construction: states, counts and times.
+                "_cameraHealth": self._camera_health_payload(self.cameras, self._cam_state),
+            }
             path = os.path.join(self._public_dashboards_dir(), "streams.json")
             self._write_atomic(path, json.dumps(payload).encode("utf-8"))
         except Exception as exc:
@@ -1386,42 +1464,6 @@ class CamerasMixin:
             return {k: (cls._guest_scrub(v) if isinstance(v, (list, dict)) else v)
                     for k, v in obj.items() if k not in cls._GUEST_DROP_KEYS}
         return obj
-
-    @staticmethod
-    def _sanitise_streams(streams):
-        """Strip producer source URLs before the go2rtc streams map is written
-        to the ANONYMOUS /public namespace. An RTSP producer url is
-        rtsp://<user>:<pass>@host/... — i.e. the camera admin credentials — and
-        /public is served with no auth even over the reflector, so writing them
-        there is an internet-readable leak (SECURITY, confirmed 14-Jul-2026;
-        same /public-secret class the config.js hardening in v1.20.0 fixed).
-        No page reads this per-stream map any more: the cameras page reads only
-        _writeTs, _go2rtcUp and _cameraHealth (the MJPEG tiles that read
-        producers and consumers went in v3.36.0). Dropping every producer 'url'
-        key therefore costs the UI nothing."""
-        safe = {}
-        for name, info in (streams or {}).items():
-            if not isinstance(info, dict):
-                safe[name] = info
-                continue
-            entry = {}
-            for key, val in info.items():
-                if key == "producers" and isinstance(val, list):
-                    entry[key] = [
-                        {pk: pv for pk, pv in prod.items() if pk != "url"}
-                        if isinstance(prod, dict) else prod
-                        for prod in val
-                    ]
-                elif key == "consumers" and isinstance(val, list):
-                    # Each consumer entry carries the VIEWER's IP, user agent
-                    # and negotiated SDP — none of it needed by the pages
-                    # (nothing reads past the count) and none of it belongs in
-                    # the anonymous /public namespace.
-                    entry["consumers_n"] = len(val)
-                else:
-                    entry[key] = val
-            safe[name] = entry
-        return safe
 
     @staticmethod
     def _camera_health_payload(cameras, states):
@@ -1530,7 +1572,7 @@ class CamerasMixin:
         (15 s timeout) delays only itself and can never make passes pile up.
         """
         streams = self._fetch_go2rtc_streams()
-        # Mirror the streams JSON for the dashboard bandwidth indicator.
+        # Publish camera health (and whether go2rtc answered) for the pages.
         self._write_streams_json(streams)
         # (rooms.json is rebuilt on the 30 s sweep, not here — rebuilding and
         # rewriting it every 2 s cost a full folder+device enumeration and a

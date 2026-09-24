@@ -1427,6 +1427,57 @@
   function stillPollMs(link) {
     return link === 'home' ? 2000 : link === 'reflector' ? 15000 : 3000;
   }
+  /* Fetch one still for an <img> only if it has changed, then cross-fade it
+     in. The Cameras page's rule, shared with the hub strip and the room
+     tiles, which used to add a ?_t= cache-buster and download the whole
+     picture every tick. With If-Modified-Since, IWS answers a picture that
+     has not changed (an offline camera, a paused poller) with a 304 of about
+     53 bytes, which matters most on the metered reflector.
+
+     The Last-Modified it holds is kept per address on the <img>, so moving
+     from the thumbnail to the full picture starts afresh. Resolves 'same'
+     (304), true (swapped in) or false (skipped: busy, hidden, mid-fade);
+     rejects with .status set when the server answered with an error (404 is
+     "no such picture", so the caller can fall back to the full size), or
+     with no status when the request failed. */
+  var STILL_FETCH_TIMEOUT_MS = 10000;
+  function refreshStill(img, url, opts) {
+    opts = opts || {};
+    if (!img || !url) return Promise.resolve(false);
+    if (img._stillBusy) return Promise.resolve(false);
+    var f = opts.fetch || root.fetch;
+    if (!f) return Promise.reject(new Error('no fetch'));
+    if (img._stillUrl !== url) { img._stillUrl = url; img._stillMod = null; }
+    var headers = img._stillMod ? { 'If-Modified-Since': img._stillMod } : {};
+    var ctrl = root.AbortController ? new root.AbortController() : null;
+    var timer = ctrl ? root.setTimeout(function () { ctrl.abort(); }, STILL_FETCH_TIMEOUT_MS) : null;
+    img._stillBusy = true;
+    var done = function () { img._stillBusy = false; if (timer) root.clearTimeout(timer); };
+    // no-store so the browser cannot answer from its own cache and hide the
+    // 304; the conditional header is the caching.
+    return Promise.resolve(f(url, { cache: 'no-store', headers: headers, signal: ctrl ? ctrl.signal : undefined }))
+      .then(function (r) {
+        if (r.status === 304) return 'same';
+        if (!r.ok) { var e = new Error('HTTP ' + r.status); e.status = r.status; throw e; }
+        var mod = r.headers && r.headers.get ? r.headers.get('Last-Modified') : null;
+        return r.blob().then(function (blob) {
+          var obj = root.URL.createObjectURL(blob);
+          var adopt = function (ok) {
+            if (ok) {
+              // The previous picture's blob goes only once the new one shows.
+              if (img._stillObj && img._stillObj !== obj) root.URL.revokeObjectURL(img._stillObj);
+              img._stillObj = obj;
+              if (mod) img._stillMod = mod;
+            } else {
+              root.URL.revokeObjectURL(obj);
+            }
+            return ok;
+          };
+          return swapImage(img, obj).then(adopt, function (err) { adopt(false); throw err; });
+        });
+      })
+      .then(function (v) { done(); return v; }, function (err) { done(); throw err; });
+  }
 
   /* ---- camera health: is streams.json still being written? -------------
      streams.json carries _cameraHealth, _writeTs (server clock, seconds) and,
@@ -1543,6 +1594,7 @@
     cameraStills: cameraStills,
     stillUrl: stillUrl,
     stillPollMs: stillPollMs,
+    refreshStill: refreshStill,
     cameraHealthTracker: cameraHealthTracker,
     wx: wx,
     unifiStale: unifiStale,

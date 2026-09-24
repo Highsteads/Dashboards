@@ -76,7 +76,7 @@ console.log("\nthe strip is stills only (v3.35.0)");
 check("no live MJPEG address is built on the hub", !/mjpegPort|mjpegPath/.test(src),
       "four live tiles were about 17 Mbit/s on the landing page");
 check("no stream budget machinery left", !/_liveBudget|_applyStreamBudget|streamBudget|_hubDemoteTile/.test(src));
-check("frames cross-fade through DashUI.swapImage", /DashUI\.swapImage\(img, next\)/.test(src));
+check("frames are fetched only when changed, and cross-faded (DashUI.refreshStill)", /DashUI\.refreshStill\(img, next\)/.test(src));
 check("the poll rate still follows the MEASURED link",
       /const link\s+= _measuredLink \|\| \(guess === "home" \? "vpn" : guess\);/.test(src) &&
       // The 2 / 3 / 15 s rule moved into DashUI.stillPollMs (24-09-2026) so

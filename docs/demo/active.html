@@ -296,7 +296,7 @@
                    onpointerup="window._sliderDragging = false"
                    onpointercancel="window._sliderDragging = false"
                    value="${d.brightness != null ? d.brightness : 100}"
-                   data-id="${d.id}"
+                   data-id="${d.id}" aria-label="${escapeHtml(d.name)} brightness"
                    oninput="DashTile.slide(this)"
                    onchange="DashTile.slideCommit(this)">` : "";
         return `
@@ -308,7 +308,7 @@
                 <div class="device-controls">
                     ${slider}
                     <label class="toggle">
-                        <input type="checkbox" data-id="${d.id}" ${DashTile.isOn(d.onState) ? "checked" : ""}
+                        <input type="checkbox" data-id="${d.id}" aria-label="${escapeHtml(d.name)}" ${DashTile.isOn(d.onState) ? "checked" : ""}
                                onchange="DashTile.toggle(this)">
                         <span class="slider"></span>
                     </label>

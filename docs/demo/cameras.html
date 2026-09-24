@@ -177,6 +177,7 @@
             border-top: 1px solid var(--border);
         }
         .cam-meta .name { font-weight: 600; color: var(--text); font-size: 14px; }
+        .cam-frame:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
         .cam-meta .host { font-variant-numeric: tabular-nums; white-space: nowrap; }
         .cam-meta .dot {
             display: inline-block; width: 8px; height: 8px; border-radius: 50%;
@@ -1351,7 +1352,8 @@
             wrap.className = "cam";
             wrap.dataset.host = host;
             wrap.innerHTML = `
-                <div class="cam-frame">
+                <div class="cam-frame" role="button" tabindex="0"
+                     aria-label="Show ${escAttr(name)} large">
                     <div class="cam-toolbar">
                         <button class="cam-btn" data-action="snap" title="Snapshot">⤓</button>
                     </div>
@@ -1359,7 +1361,7 @@
                     <img alt="${escAttr(name)}">
                 </div>
                 <div class="cam-meta">
-                    <span class="name"><span class="dot"></span></span>
+                    <span class="name"><span class="dot"></span>${escAttr(name)}</span>
                     <span class="age"></span>
                     <span class="bw">— kB/s</span>
                     <span class="host"><span class="mode">…</span> · ${escAttr(host)}</span>
@@ -1419,6 +1421,14 @@
             // page; clicking only changes which tile is the big one at the top.
             frame.addEventListener("click", (e) => {
                 if (e.target.closest(".cam-btn")) return;
+                focusTile(host);
+            });
+            // The same from the keyboard: the frame is a button to a screen
+            // reader, so Enter and Space must do what a click does.
+            frame.addEventListener("keydown", (e) => {
+                if (e.target !== frame) return;          // the Snapshot button handles its own
+                if (e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") return;
+                e.preventDefault();
                 focusTile(host);
             });
 

@@ -1,10 +1,10 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 # Filename:    test_security.py
-# Description: Regression tests for the /public credential-leak fixes — the
-#              _sanitise_streams helper that strips camera RTSP creds from the
-#              go2rtc streams map before it reaches the anonymous /public
-#              namespace (file write AND the /streams proxy, v2.35.0/v2.36.0).
+# Description: Regression tests for the /public credential-leak fixes. The
+#              go2rtc streams map carries each camera's RTSP URL with its
+#              password; streams.json in the anonymous /public namespace now
+#              carries only the health summary, so none of the map can reach it.
 # Author:      CliveS & Claude Fable 5
 # Date:        15-07-2026
 # Version:     1.0
@@ -12,12 +12,10 @@
 from conftest import load_plugin_module
 
 plugin = load_plugin_module()
-sanitise = plugin.Plugin._sanitise_streams
 camera_health = plugin.Plugin._camera_health_payload
 
 # A realistic go2rtc /api/streams shape: producer .url carries the camera
-# admin credentials (rtsp://user:pass@host), consumers/bytes_recv are the only
-# fields the cameras page actually reads.
+# admin credentials (rtsp://user:pass@host) and consumers carry viewer details.
 GO2RTC = {
     "front_door_mjpeg": {
         "producers": [
@@ -36,37 +34,35 @@ GO2RTC = {
 }
 
 
-def test_producer_url_credentials_are_stripped():
-    safe = sanitise(GO2RTC)
-    blob = repr(safe)
-    assert "SuperSecret1" not in blob, "camera password leaked through sanitiser"
-    assert "AnotherPass2" not in blob
-    assert "rtsp://" not in blob, "RTSP URL (with creds) survived sanitising"
-    for name, info in safe.items():
-        for prod in info.get("producers", []):
-            assert "url" not in prod, f"{name}: producer url not stripped"
+def _written(tmp_path, streams):
+    import json
+    from conftest import bare_plugin
+    p = bare_plugin()
+    p._public_dashboards_dir = lambda: str(tmp_path)
+    p.cameras = [{"host": "192.168.2.50", "name": "Front"}]
+    p._cam_state = {}
+    p._write_streams_json(streams)
+    return (tmp_path / "streams.json").read_text(encoding="utf-8"), json.loads(
+        (tmp_path / "streams.json").read_text(encoding="utf-8"))
 
 
-def test_fields_the_page_reads_survive():
-    safe = sanitise(GO2RTC)
-    fd = safe["front_door_mjpeg"]
-    assert fd["producers"][0]["bytes_recv"] == 12345, "bytes_recv must survive for the bandwidth indicator"
-    assert fd["producers"][0]["state"] == "connected"
-    # v2.73.0: the consumer LIST is scrubbed to a bare count — each entry
-    # carries the viewer's IP, user agent and negotiated SDP, and no shipped
-    # page reads past the count (the old assertion pinned a stale comment's
-    # claim, not page code).
-    assert "consumers" not in fd, "raw consumer entries must not reach /public"
-    assert fd["consumers_n"] == 1
+def test_no_part_of_the_go2rtc_map_reaches_public(tmp_path):
+    """streams.json carries the health summary and nothing else: no producer
+    URL, no viewer entry, no stream name, not even a field go2rtc adds later.
+    (Until 24-Sep-2026 a denylist sanitiser passed any unknown field through.)"""
+    raw, data = _written(tmp_path, dict(GO2RTC, drive_mjpeg=dict(
+        GO2RTC["drive_mjpeg"], future_field="rtsp://admin:NewField3@x/")))
+    for secret in ("SuperSecret1", "AnotherPass2", "NewField3", "rtsp://",
+                   "front_door_mjpeg", "drive_mjpeg", "bytes_send"):
+        assert secret not in raw, f"{secret!r} reached the anonymous streams.json"
+    assert set(data) == set(plugin.Plugin.STREAMS_JSON_KEYS)
 
 
-def test_empty_and_malformed_inputs_are_safe():
-    assert sanitise(None) == {}
-    assert sanitise({}) == {}
-    # non-dict stream entry passes through untouched (defensive)
-    assert sanitise({"x": "not-a-dict"}) == {"x": "not-a-dict"}
-    # producers not a list -> left alone, no crash
-    assert sanitise({"s": {"producers": "weird"}}) == {"s": {"producers": "weird"}}
+def test_the_keys_the_pages_read_are_written(tmp_path):
+    _, data = _written(tmp_path, GO2RTC)
+    assert data["_go2rtcUp"] is True
+    assert isinstance(data["_writeTs"], float)
+    assert "192.168.2.50" in data["_cameraHealth"]
 
 
 def test_public_camera_health_contains_only_safe_operational_metadata():

@@ -29,6 +29,32 @@ from dash_common import (
 
 
 class PublishMixin:
+    def _lan_origin(self):
+        """The Indigo web server's origin at the detected LAN address, e.g.
+        http://192.168.1.10:8176, or "" when no LAN address was found.
+
+        The scheme and port come from api_url (INDIGO_URL), with only the host
+        swapped for the LAN address, because the IWS port is configurable and
+        can be https. A hardcoded http://<lan>:8176 was a dead link on any
+        install that had changed either. With no api_url: http and 8176, the
+        Indigo defaults. An api_url with no port keeps its scheme's default.
+        """
+        lan = getattr(self, "lan_ip", "") or ""
+        if not lan:
+            return ""
+        from urllib.parse import urlsplit
+        raw = (getattr(self, "api_url", "") or "").strip()
+        try:
+            parts = urlsplit(raw) if raw else None
+            scheme = (parts.scheme or "http").lower() if parts else "http"
+            port = parts.port if parts else 8176
+        except ValueError:                   # a malformed port in the setting
+            scheme, port = "http", 8176
+        if scheme not in ("http", "https"):
+            scheme, port = "http", 8176
+        host = f"[{lan}]" if ":" in lan else lan
+        return f"{scheme}://{host}:{port}" if port else f"{scheme}://{host}"
+
     def _public_dashboards_dir(self):
         """Absolute path to Web Assets/public/dashboards/ for the current Indigo
         version. Derived from indigo.server.getInstallFolderPath() so it survives
@@ -294,8 +320,7 @@ class PublishMixin:
         # The LAN origin, for the "you are on the reflector — at home use
         # this" notice (v2.96.1). config.js is what a reflector-origin page
         # has to hand, so this is the one place it can learn the LAN address.
-        cfg["lanURL"] = (f"http://{self.lan_ip}:8176" if getattr(self, "lan_ip", "")
-                         else (self.api_url or ""))
+        cfg["lanURL"] = self._lan_origin() or (self.api_url or "")
         # v3.1.0: the pages refuse to render over the reflector when this is on,
         # so a stale tab cannot sit there pulling camera pictures.
         cfg["reflectorBlock"] = self._reflector_blocked()

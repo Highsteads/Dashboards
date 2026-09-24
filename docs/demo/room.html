@@ -1234,7 +1234,7 @@
     function _roomStillSrc(host) {
         if (!_roomStills) return "";
         const pat = _roomStillThumb ? _roomStills.thumbPattern : _roomStills.imagePattern;
-        return DashUI.stillUrl(pat, host) + `?_t=${Date.now()}`;
+        return DashUI.stillUrl(pat, host);
     }
     function _roomNoPicture(img) {
         const frame = img && img.closest(".camera-frame");
@@ -1247,19 +1247,16 @@
         if (!_roomStills) { if (_roomStillsAsked) _roomNoPicture(img); return; }
         img.dataset.polling = "1";
         const host = card.dataset.camHost;
-        const swap = () => {
-            if (document.hidden || !img.isConnected || _roomStillIdle) return;
+        // Asked with If-Modified-Since (DashUI.refreshStill), as the Cameras
+        // page does, not with a ?_t= cache-buster: a picture that has not
+        // changed costs a 53-byte 304 instead of the whole file.
+        const swap = (first) => {
+            if ((document.hidden && !first) || !img.isConnected || _roomStillIdle) return;
             const url = _roomStillSrc(host);
-            const fallBack = () => {
-                // No thumbnail on this server: the full picture for the page.
-                if (_roomStillThumb) { _roomStillThumb = false; swap(); }
-            };
-            if (window.DashUI && DashUI.swapImage) { DashUI.swapImage(img, url).catch(fallBack); return; }
-            const next = new Image();
-            next.crossOrigin = "anonymous";
-            next.onload = () => { img.src = next.src; };
-            next.onerror = fallBack;
-            next.src = url;
+            DashUI.refreshStill(img, url).catch(e => {
+                // No thumbnail on this server (404): the full picture for the page.
+                if (e && e.status === 404 && _roomStillThumb) { _roomStillThumb = false; swap(first); }
+            });
         };
         const link = _roomLink();
         if (link === "reflector" && !_roomStillGuard && DashUI.idleGuard) {
@@ -1267,7 +1264,7 @@
                 () => { _roomStillIdle = true; },
                 () => { _roomStillIdle = false; });
         }
-        if (!img.getAttribute("src")) swap();
+        swap(true);
         _roomStillTimers.push(setInterval(swap, DashUI.stillPollMs(link)));
     }
 
@@ -1303,7 +1300,7 @@
         return `
             <div class="camera-card" data-cam-host="${escapeHtml(cam.host)}" onclick="openRoomCamera(this.dataset.camHost)">
                 <div class="camera-frame">
-                    <img crossorigin="anonymous" alt="${escapeHtml(cam.name)}"${_roomStills ? ` src="${escapeHtml(_roomStillSrc(cam.host))}"` : ""}>
+                    <img crossorigin="anonymous" alt="${escapeHtml(cam.name)}">
                 </div>
             </div>`;
     }

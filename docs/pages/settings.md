@@ -37,8 +37,9 @@ that hides the whole folder.
 
 **Security.** The guest pairing URL (open it on the guest device), the guest token shown for
 reference, and the control PIN — asked once per session before any command on the listed devices. A
-speed bump for shared and family devices rather than a security boundary. Blank keeps the current
-PIN; typing "clear" removes it. Below it, the list of PIN-protected device ids.
+speed bump for shared and family devices rather than a security boundary. The PIN field hides what
+you type and is not offered to the browser's form memory. Leave it blank to keep the current PIN, or
+tick *Remove the PIN* to take it away. Below it, the list of PIN-protected device ids.
 
 **Raw JSON.** The whole configuration as it will be saved, with *From form* to regenerate it from
 the editors above and *Apply to form* to parse it back. The escape hatch for anything the forms do

@@ -212,10 +212,15 @@ class CarbonMixin:
             return iso
 
     def _carbon_advice(self, carbon, solar, tariff):
-        """Rank the signals the way CliveS's self-sufficiency KPI wants: soak up
-        spare solar first (free AND zero-carbon), then a genuinely clean grid,
-        then wait for the cleanest window. Tariff is broadly flat on Tracker so
-        it informs the wording, not the timing."""
+        """Rank the signals for self-sufficiency: soak up spare solar first
+        (free AND zero-carbon), then a genuinely clean grid, then wait for the
+        cleanest window.
+
+        Deliberately price-blind, as the card's "How this is worked out" note
+        tells the reader: carbon and solar decide here, and on a time-of-use
+        tariff the price is weighed by the laundry plan on the same card.
+        `tariff` carries only the current unit rate, with nothing to say
+        whether that rate is high for the day, so it cannot rank a window."""
         cur = carbon.get("current") or {}
         cur_int = cur.get("intensity")
         cur_idx = (cur.get("index") or "").lower()

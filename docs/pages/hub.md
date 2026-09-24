@@ -38,7 +38,8 @@ the door's state and acts on it), a room shortcut or a group.
 one frame to the next: every two seconds at home, every three over a VPN and every fifteen over the
 reflector, where the strip also pauses after ten idle minutes. It never streams — live video is one
 tap away on the [Cameras](cameras.md) page. The page assumes it is remote until it can prove
-otherwise.
+otherwise. Each tile asks for its picture only if it has changed, so a camera that is offline costs
+a few bytes a tick rather than the whole picture again.
 
 **Energy · now.** The power-flow diagram — solar, grid, home and battery around a central node, the
 flowing edges showing which way the power is going and how much. Underneath, today's totals and

@@ -90,6 +90,7 @@ def test_startup_clears_every_still_outside_the_folder(tmp_path):
     tok = "c" * 32
     p, _, pub = _plugin(tmp_path, {"stillsToken": tok})
     p.logger = MagicMock()
+    p.cameras = [{"host": "10.0.0.5", "name": "Front"}]
     for name in ("cam-10.0.0.5.jpg", "cam-10.0.0.5-thumb.jpg",
                  "cam-10.0.0.6.jpg.tmp.1234"):
         (pub / name).write_bytes(b"x")
@@ -107,6 +108,39 @@ def test_startup_clears_every_still_outside_the_folder(tmp_path):
     left = sorted(os.listdir(pub))
     assert left == ["cameras.html", "config.js", f"stills-{tok}"], left
     assert (cur / "cam-10.0.0.5.jpg").read_bytes() == b"keep"
+
+
+def test_startup_clears_stills_of_cameras_no_longer_configured(tmp_path):
+    """A camera removed, or moved to a new address, left its last picture in
+    the stills folder for ever. Only configured hosts keep theirs, and only
+    the poller's own file names are touched."""
+    tok = "f" * 32
+    p, _, pub = _plugin(tmp_path, {"stillsToken": tok})
+    p.logger = MagicMock()
+    p.cameras = [{"host": "10.0.0.5", "name": "Front"},
+                 {"host": "drive-cam.local", "name": "Drive"}]
+    cur = pub / f"stills-{tok}"
+    cur.mkdir()
+    keep = ["cam-10.0.0.5.jpg", "cam-10.0.0.5-thumb.jpg",
+            "cam-drive-cam.local.jpg", "cam-drive-cam.local-thumb.jpg", "notes.txt"]
+    gone = ["cam-10.0.0.9.jpg", "cam-10.0.0.9-thumb.jpg", "cam-10.0.0.9.jpg.tmp.77"]
+    for name in keep + gone:
+        (cur / name).write_bytes(b"x")
+
+    p._sweep_legacy_stills()
+
+    assert sorted(os.listdir(cur)) == sorted(keep)
+    msg = p.logger.info.call_args[0][0]
+    assert "3" in msg and "no longer configured" in msg, msg
+
+
+def test_the_host_is_read_back_from_each_still_name():
+    host = plugin.Plugin._still_host
+    assert host("cam-10.0.0.5.jpg") == "10.0.0.5"
+    assert host("cam-10.0.0.5-thumb.jpg") == "10.0.0.5"
+    assert host("cam-10.0.0.5-thumb.jpg.tmp.9") == "10.0.0.5"
+    assert host("cam-a-b.local.jpg") == "a-b.local"
+    assert host("config.js") is None and host("cam-.jpg") is None
 
 
 def test_startup_makes_the_folder_before_the_first_poll(tmp_path):

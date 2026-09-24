@@ -321,6 +321,9 @@ PROXY_PORT     = 8177
 #   :1984 — HTTP API, loopback only (signalling reaches it via the :8177 proxy)
 #   :8555 — WebRTC media, UDP and TCP, straight to the browser
 GO2RTC_BIN           = os.path.expanduser("~/bin/go2rtc")
+# go2rtc.log is kept for triage only; start a fresh file past this size
+# (checked at start AND on the 30 s supervision sweep while it runs).
+GO2RTC_LOG_CAP_BYTES = 5 * 1024 * 1024
 GO2RTC_API_PORT      = 1984
 # Snapshots are only ever shown in a TILE — the hub's camera strip at ~215px
 # and the cameras grid at about the same. They were being fetched at the

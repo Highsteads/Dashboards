@@ -19,7 +19,7 @@
 #              are not live poll the snapshots.
 # Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.42.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
 # Date:        23-09-2026
-# Version:     3.43.1
+# Version:     3.44.0
 #
 # Version history: docs/changelog.md (what each release does, for users) and
 # `git log` (why, for developers). The per-version engineering notes that sat
@@ -103,7 +103,7 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION = "3.43.1"
+PLUGIN_VERSION = "3.44.0"
 
 import logging
 from dash_common import (  # noqa: E402
@@ -1377,7 +1377,7 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
             return None
         if not self._note_reflector_use(action):
             return None
-        lan = (f"http://{self.lan_ip}:8176{INDEX_PATH}" if getattr(self, "lan_ip", "")
+        lan = (f"{self._lan_origin()}{INDEX_PATH}" if self._lan_origin()
                else self._dashboard_url())
         return self._evo_reply({
             "ok": False,
@@ -1428,7 +1428,7 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
             seen = self._reflector_seen = {}
         if now - seen.get(key, 0.0) >= self.REFLECTOR_WARN_S:
             seen[key] = now
-            lan = (f"http://{self.lan_ip}:8176{INDEX_PATH}" if getattr(self, "lan_ip", "")
+            lan = (f"{self._lan_origin()}{INDEX_PATH}" if self._lan_origin()
                    else self._dashboard_url())
             self.logger.warning(
                 f"[Reflector] The dashboards are being used through the Indigo reflector "
@@ -3036,8 +3036,7 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         # server. Substitute the detected LAN address in that case.
         base = (self.api_url or "").strip()
         if not base or "127.0.0.1" in base or "localhost" in base:
-            base = f"http://{self.lan_ip}:8176" if getattr(self, "lan_ip", "") \
-                else (base or "http://localhost:8176")
+            base = self._lan_origin() or base or "http://localhost:8176"
         lan_url = f"{base}/public/dashboards/setup.html#{token}"
         refl_url = ""
         try:

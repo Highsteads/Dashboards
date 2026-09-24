@@ -61,7 +61,9 @@ you tap.
 
 ## What you can do here
 
-- Tap a tile to promote it to the main position, and tap the main tile for full screen.
+- Tap a tile to promote it to the main position, and tap the main tile for full screen. From a
+  keyboard, Tab to a tile and press Enter or Space. Each tile carries its camera's name under the
+  picture, and a screen reader announces it.
 - Pin this device's mode with the "this device is" link.
 - Jump to Settings to change the camera configuration.
 

@@ -948,22 +948,18 @@
 
         mount.innerHTML = hosts.map(host => {
             const name = names[host] || host;
-            const src  = `${url(still, host)}?_t=${Date.now()}`;
-            // NB the first paint carries an inline onerror as well, because
-            // the refresh below cannot run until its first timer fires —
-            // without it a server with no thumbnails shows an empty strip for
-            // a full poll period on the landing page. Away from home a badge
-            // says how often the tile refreshes, so a slow still is not read
-            // as a frozen one.
+            // No src here: every picture, the first included, comes through
+            // DashUI.refreshStill below, so it is asked for with
+            // If-Modified-Since rather than a ?_t= cache-buster, and a
+            // missing thumbnail falls back in one place. Away from home a
+            // badge says how often the tile refreshes, so a slow still is
+            // not read as a frozen one.
             const badge = link === "home" ? "" : `<span class="cam-badge">${pollMs / 1000}s</span>`;
             return `
                 <a class="home-cam" href="cameras.html" title="${escapeAttr(name)}">
                     <div class="home-cam-frame">
                         <img crossorigin="anonymous" alt="${escapeAttr(name)}"
-                             data-host="${escapeAttr(host)}"
-                             data-full="${escapeAttr(url(full, host))}"
-                             onerror="if(this.dataset.full&&this.src.indexOf(this.dataset.full)<0){this.src=this.dataset.full;}"
-                             src="${escapeAttr(src)}">
+                             data-host="${escapeAttr(host)}">
                         ${badge}
                     </div>
                 </a>`;
@@ -971,26 +967,26 @@
 
         // One staggered timer per tile, spread across the period so the
         // requests do not queue against the browser's six-connection cap.
-        const swapIn = (img) => {
-            if (document.hidden) return;          // nothing to see; send nothing
+        // `first` is the opening picture: fetched even in a hidden tab, so a
+        // page opened in the background has its strip ready when looked at.
+        const swapIn = (img, first) => {
+            if (document.hidden && !first) return;   // nothing to see; send nothing
             if (_stripIdle) return;               // reflector, nobody has touched the page in 10 min
             // The strip is rebuilt on resize, so a pending stagger timer can
             // outlive the tile it was made for.
             if (!img.isConnected) return;
-            const next = `${url(still, img.dataset.host)}?_t=${Date.now()}`;
-            const swap = window.DashUI && DashUI.swapImage
-                ? DashUI.swapImage(img, next)
-                : new Promise((ok, bad) => { const n = new Image(); n.onload = () => { img.src = next; ok(true); }; n.onerror = bad; n.src = next; });
-            swap.catch(() => {
-                // A thumbnail that will not load almost certainly is not
-                // there — the server has nothing to shrink pictures with.
-                // Fall the whole strip back to the full-size pictures. Only
-                // ever demotes, so this cannot flap.
-                if (still !== full) { still = full; swapIn(img); }
+            const next = url(still, img.dataset.host);
+            DashUI.refreshStill(img, next).catch(e => {
+                // No thumbnail on the server (404): it has nothing to shrink
+                // pictures with. Fall the whole strip back to the full-size
+                // pictures. Only ever demotes, so this cannot flap, and a
+                // passing network fault no longer demotes it for good.
+                if (e && e.status === 404 && still !== full) { still = full; swapIn(img, first); }
             });
         };
         window._hubSwapIn = swapIn;
         const imgs = Array.from(mount.querySelectorAll("img[data-host]"));
+        imgs.forEach(img => swapIn(img, true));
         imgs.forEach((img, i) => {
             const offset = Math.round(pollMs * (i / imgs.length));
             _stripTimers.push(setTimeout(() => {

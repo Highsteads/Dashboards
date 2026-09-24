@@ -82,6 +82,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_freshness_indicator.mjs` | Contract test for the "not updating" status line on mains.html |
 | `test_getdevices.mjs` | Node contract test for dashboard.js getDevices() delta-merge — |
 | `test_glance_row_layout.mjs` | The hub's glance row holds THREE cards in a TWO-column grid, so |
+| `test_go2rtc_log_cap_running.py` | go2rtc.log was capped at 5 MB only when go2rtc STARTED. A camera |
 | `test_go2rtc_log_datestamp.py` | go2rtc stamps its log lines with the TIME only and cannot be |
 | `test_go2rtc_orphan_guard.py` | The go2rtc orphan guard finds an orphan whatever binary ran it |
 | `test_go2rtc_supervise.py` | The go2rtc supervisor must keep trying after a FAILED restart. |
@@ -99,6 +100,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_idle_guard.mjs` | Contract test for DashUI.idleGuard, DashUI.lanUrl and the |
 | `test_immediate_numbers.mjs` | Numeric readings update synchronously, while graphical callbacks may animate. |
 | `test_insights_sql_portable.py` | The battery-trend and room-temperature insight queries compared |
+| `test_lan_origin.py` | The "at home use this" LAN link (config.js lanURL, the |
 | `test_laundry_deadline.py` | Contract test for the Laundry page's deadline validation. |
 | `test_laundry_replan_offpath.py` | A laundry deadline replans on the off-path pool, not on IWS's |
 | `test_legacy_config_import.py` | One settings store (v3.27.0). A first start with no |
@@ -110,11 +112,13 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_mcp_tools.py` | Behaviour of the plugin-provided MCP tools (v3.12.0): the |
 | `test_no_orphan_pages.py` | Every page can be reached from another page (v3.33.0). The |
 | `test_no_private_strings.py` | This repository is public. Nothing in it may carry a real |
+| `test_observe_all_generation.mjs` | observeAll used to JSON.stringify the whole device list (685 kB |
 | `test_offpath_day_keys.py` | A Timeline day (and a Solar string-hours day) built while it |
 | `test_offpath_pool.py` | No /message/ handler may do slow work on the dispatch path. One |
 | `test_page_batch_fixes.mjs` | The page half of the 24-09-2026 bug batch. Where a fix is a |
 | `test_page_count_claims.py` | Every place the docs say how many pages the plugin ships agrees |
 | `test_page_frame.py` | Every page's top bar matches the Energy page (v3.29.0): one |
+| `test_page_info_a11y.mjs` | The page half of the 24-09-2026 deep review's INFO findings on |
 | `test_page_lows.mjs` | The page half of the 24-09-2026 deep review's LOW findings. |
 | `test_page_shared_helpers.mjs` | The shared page helpers added for the 24-09-2026 page batch, |
 | `test_parse_cameras.py` | Contract test for the module-level _parse_cameras — JSON-string vs |
@@ -140,7 +144,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_script_sys_exit.py` | sys.exit() in a companion script raises SystemExit, which is a |
 | `test_script_ticker_handover.py` | v3.31.0 — while the Script Ticker plugin is RUNNING, Dashboards |
 | `test_scripts_match_live.py` | The companion scripts this repo ships in scripts/ must be the |
-| `test_security.py` | Regression tests for the /public credential-leak fixes — the |
+| `test_security.py` | Regression tests for the /public credential-leak fixes. The |
 | `test_self_suff_and_demo_sun.mjs` | v3.40.0. (1) A low self-sufficiency figure on a day the grid |
 | `test_settings_fav_passthrough.mjs` | Contract test for the settings editor carrying favourites it |
 | `test_shared_ui_present.mjs` | Every user-facing page must load dashboards-ui.js (v2.97.0). |
@@ -154,6 +158,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_solar_hours_chart.mjs` | Contract test for DashUI.solarHoursChart — the stacked hourly |
 | `test_solar_string_hours.py` | Contract tests for Plugin._string_hours_payload — the pure half |
 | `test_stamp_gate.mjs` | Node contract test for dashboards-gate.js (v2.70.0) — the |
+| `test_still_conditional_refresh.mjs` | The hub strip and the room tiles added a ?_t= cache-buster to |
 | `test_streams_health_always.py` | streams.json is the only carrier of _cameraHealth, and it was |
 | `test_sync_pages.py` | _sync_pages_to_public — the startup copy of the bundle's pages |
 | `test_system_health_census.py` | System Health (review 24-09-2026): |

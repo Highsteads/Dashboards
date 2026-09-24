@@ -155,12 +155,38 @@
     if (lbl) lbl.textContent = pct + '%';
   }
 
+  /* A brightness change is confirmed from the device too. It used to be
+     sent and forgotten, so a lamp that never moved kept the slider's level
+     until the next poll repainted it, and a failure vanished. Only the LAST
+     commit per device reads back, so a drag that sends several levels is
+     judged on the one it ended on. */
+  var SLIDE_TOLERANCE = 2;   // percent: dimmers round, and some step in 2s
+  var slideSeq = {};         // device id -> commits so far
   function slideCommit(el) {
     var id = parseInt(el.dataset.id, 10);
     var value = parseInt(el.value, 10);
     root.clearTimeout(debounce[id]);
     debounce[id] = root.setTimeout(function () {
-      if (api) Promise.resolve(api.setBrightness(id, value)).catch(function () {});
+      if (!api) return;
+      var a = api;
+      var seq = slideSeq[id] = (slideSeq[id] || 0) + 1;
+      Promise.resolve(a.setBrightness(id, value)).then(function () {
+        root.setTimeout(function () {
+          if (slideSeq[id] !== seq) return;          // a later commit will judge
+          Promise.resolve(a.getDevice(id)).then(function (d) {
+            var actual = d && d.brightness != null ? parseInt(d.brightness, 10) : NaN;
+            if (isNaN(actual) || Math.abs(actual - value) <= SLIDE_TOLERANCE) return;
+            if (slideSeq[id] !== seq) return;
+            el.value = String(actual);
+            slide(el);
+            try { if (root.DashAction) root.DashAction.note('device:' + id, 'timeout', 'No confirmation — it is at ' + actual + '%'); } catch (_) {}
+          }).catch(function () { /* the next poll repaints from the server anyway */ });
+        }, CONFIRM_MS);
+      }).catch(function (e) {
+        // An auth failure is the page's to handle; anything else is said.
+        if (e && (e.status === 401 || e.status === 403)) return;
+        try { if (root.DashAction) root.DashAction.note('device:' + id, 'error', 'Failed — ' + ((e && e.message) || 'no response')); } catch (_) {}
+      });
     }, 300);
   }
 

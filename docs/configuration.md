@@ -24,7 +24,7 @@ There are three places a setting can come from, and one of them wins.
 
 | Field | What it does |
 |---|---|
-| Indigo API URL | The REST base URL, e.g. `http://192.168.1.10:8176`. Blank means the local server on port 8176 |
+| Indigo API URL | The REST base URL, e.g. `http://192.168.1.10:8176`. Blank means the local server on port 8176. The "use this at home" link the pages offer over the reflector takes its scheme and port from here, with the Mac's LAN address |
 | Indigo API Key | The Bearer token the plugin uses for its own diagnostics and the guest passthrough. Never written into any public file |
 | Camera User / Password | One set of camera credentials, shared across every camera. Works for Dahua and Hikvision |
 | Cameras (JSON) | The camera list, for installs that have never saved from Settings — see below |
