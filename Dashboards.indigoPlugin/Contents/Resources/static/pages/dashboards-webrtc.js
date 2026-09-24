@@ -75,17 +75,19 @@
     };
     try {
       var p = video.play();
-      // Remembered, not thrown: a refusal (iOS in Low Power Mode refuses
-      // even a muted inline video) is named in the failure message.
+      // Remembered, not thrown: a refusal (iOS refuses even a muted inline
+      // video until the page has been touched) is named in the failure message.
       if (p && p.then) p.then(function () { video._playRefused = null; }, refused);
     } catch (e) { refused(e); }
   }
 
-  /* Streams the browser would not start by itself (NotAllowedError: iOS in
-     Low Power Mode, measured 24-09-2026 on CliveS's iPhone, 847 KB received
-     and 77 frames decoded but nothing shown). They stay connected, and the
-     next tap, click or key press anywhere on the page starts them: a play()
-     made inside a user gesture is one the browser allows. */
+  /* Streams the browser would not start by itself (NotAllowedError). On
+     CliveS's iPhone, 24-09-2026: 847 KB received and 77 frames decoded but
+     nothing shown, with Low Power Mode OFF and the video fully visible on the
+     Cameras page, so it is iOS wanting a touch first, not only its Low Power
+     rule. They stay connected, and the next tap, click or key press anywhere
+     on the page starts them: a play() made inside a user gesture is one the
+     browser allows (confirmed on the phone). */
   var _blocked = [];
   function blockedCount() {
     _blocked = _blocked.filter(function (h) { return !h.stopped && h.blocked; });

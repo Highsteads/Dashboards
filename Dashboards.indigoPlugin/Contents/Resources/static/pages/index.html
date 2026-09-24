@@ -940,7 +940,7 @@
     const HUB_LIVE_RETRY_MS     = 60000;    // first retry after a failure
     const HUB_LIVE_RETRY_MAX_MS = 300000;   // back-off ceiling (5 min)
     const HUB_LIVE_STALL_MS     = 1500;     // how often the video clock is looked at
-    const HUB_TAP_NOTE = "Tap anywhere on the page to start the live video. This device will not start it by itself, which iPhones do in Low Power Mode.";
+    const HUB_TAP_NOTE = "Tap anywhere on the page to start the live video. iPhones and iPads often will not start video until the page has been touched.";
     let _hubLive     = {};                  // host -> { rtc, video, frame, fails, retry }
     let _hubVerdict  = null;                // DashRTC.decide's answer; null = not decided
     let _hubDeciding = null;
