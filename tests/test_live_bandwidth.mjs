@@ -239,13 +239,33 @@ await section("DashRTC play", async () => {
                   fetch: () => new Promise(() => {}), document: { createElement: () => makeVideoEl() } };
     const R = loadRTC(win);
 
-    // A browser that does not autoplay: the video stays paused until play().
+    // THE iPHONE REGRESSION (3.45.1-3.45.4): play() asked for the moment the
+    // stream arrived was refused by iOS (NotAllowedError), where autoplay a
+    // moment later plays. So nothing may call play() when autoplay has it
+    // running, and nothing is asked at the stream's arrival at all.
+    const va = makeVideoEl();
+    va.paused = true; va.plays = 0;
+    va.play = () => { va.plays++; va.paused = false; return Promise.resolve(); };
+    const ha = R.start("a0", va, { url: "/w", stallMs: 20, playGraceMs: 10, onFail: () => {} });
+    pcs[0].fire("track");
+    check("the stream arriving does NOT ask the video to play (iOS refuses that)", va.plays === 0,
+          `plays=${va.plays}`);
+    va.paused = false;                                // autoplay starts it
+    va.fire("canplay");
+    await tick(40);
+    check("…and autoplay having started it, play() is never called", va.plays === 0, `plays=${va.plays}`);
+    ha.stop();
+
+    // A browser that does not autoplay (headless Chrome): the video is still
+    // paused a moment after it could play, so then it is asked.
     const v = makeVideoEl();
     v.paused = true; v.plays = 0;
     v.play = () => { v.plays++; v.paused = false; return Promise.resolve(); };
-    const h = R.start("a", v, { url: "/w", stallMs: 20, onFail: () => {} });
-    pcs[0].fire("track");
-    check("the stream arriving asks the video to play", v.plays >= 1 && v.paused === false,
+    const h = R.start("a", v, { url: "/w", stallMs: 20, playGraceMs: 10, onFail: () => {} });
+    pcs[1].fire("track");
+    v.fire("canplay");
+    await tick(40);
+    check("a video still paused after it could play is asked to play", v.plays === 1 && v.paused === false,
           `plays=${v.plays} paused=${v.paused}`);
     h.stop();
 
@@ -257,7 +277,7 @@ await section("DashRTC play", async () => {
     v2.play = () => { v2.plays++; return Promise.reject(new Error("NotAllowedError")); };
     v2.requestVideoFrameCallback = f => { v2._frame = f; };
     R.start("b", v2, { url: "/w", stallMs: 20, onFail: w => fails.push(w) });
-    pcs[1].fire("track");
+    pcs[2].fire("track");
     v2._frame();
     await tick(80);
     check("a video that will not play fails as 'video would not play'",
@@ -301,14 +321,15 @@ await section("DashRTC iOS", async () => {
     const v3 = makeVideoEl();
     v3.paused = true;
     v3.play = () => Promise.reject(Object.assign(new Error("no"), { name: "AbortError" }));
-    R.start("a", v3, { url: "/w", frameMs: 30, iceMs: 1000, onFail: w => fails.push(w) });
+    R.start("a", v3, { url: "/w", frameMs: 30, iceMs: 1000, playGraceMs: 0, onFail: w => fails.push(w) });
     pcs[pcs.length - 1].getStats = async () => stats;
     pcs[pcs.length - 1].fire("track");
+    v3.fire("canplay");
     await tick(80);
     check("'no frame' says why", /^no frame in 0\.03s \(playback refused: AbortError/.test(fails[0] || ""),
           JSON.stringify(fails));
-    check("…and asks the video to play again once it has data",
-          (v3.listeners.loadedmetadata || []).length === 1 && (v3.listeners.canplay || []).length === 1);
+    check("…and it was asked to play only once it could", (v3.listeners.canplay || []).length === 1
+          && !(v3.listeners.loadedmetadata || []).length);
 
     // The autoplay rule (NotAllowedError, iOS Low Power Mode, 24-09-2026):
     // the stream stays connected, the page is told, and a tap starts it.
@@ -319,10 +340,11 @@ await section("DashRTC iOS", async () => {
     v4.play = () => allow
         ? (v4.paused = false, Promise.resolve())
         : Promise.reject(Object.assign(new Error("no"), { name: "NotAllowedError" }));
-    const h4 = R.start("b", v4, { url: "/w", frameMs: 30, iceMs: 1000,
+    const h4 = R.start("b", v4, { url: "/w", frameMs: 30, iceMs: 1000, playGraceMs: 0,
                                   onFail: w => fails4.push(w), onBlocked: () => events.push("blocked"),
                                   onLive: () => events.push("live") });
     pcs[pcs.length - 1].fire("track");
+    v4.fire("canplay");
     await tick(80);
     check("a NotAllowedError is not a failure: the page is told a tap is needed",
           fails4.length === 0 && events[0] === "blocked" && !h4.stopped, JSON.stringify({ fails4, events }));

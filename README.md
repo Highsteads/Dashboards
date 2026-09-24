@@ -8,7 +8,7 @@ Browser dashboards for [Indigo Domotics](https://www.indigodomo.com/), built for
 wall, a phone in your pocket and a Mac on the desk. No app to install, no cloud account,
 nothing leaving the house.
 
-<img src="https://img.shields.io/badge/version-3.45.5-5856d6" alt="Version 3.45.5">
+<img src="https://img.shields.io/badge/version-3.45.6-5856d6" alt="Version 3.45.6">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-21-0a84ff" alt="21 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
@@ -21,7 +21,7 @@ nothing leaving the house.
 
 ---
 
-**Version:** 3.45.5
+**Version:** 3.45.6
 
 **Documentation:** **[highsteads.github.io/Dashboards](https://highsteads.github.io/Dashboards/)** —
 getting started, configuration, a page of notes for every one of the 21 pages, cameras, remote
@@ -67,11 +67,11 @@ simulator, touching no live devices.
 The three most recent releases, word for word. Every release before these is in
 **[the version history](docs/changelog.md)**, which the documentation site also carries.
 
+**3.45.6** (24-Sep-2026) - **No tap needed on an iPhone after all: live video starts by itself again, as it did before 3.45.1.** The tap was covering for a mistake of mine. 3.45.1 asked each video to play the instant its stream arrived, to suit a test browser that does not start video by itself. At that instant the iPhone cannot yet tell that the video is silent, so it refused the request, where its own automatic start a moment later would have played. The video is now left to start by itself, as it was in 3.44.0, and is only asked to play if it is still paused a second after it could have started. A tap still starts it in the rare case a device refuses on its own account.
+
 **3.45.5** (24-Sep-2026) - **The tap-to-start line no longer blames Low Power Mode.** It said iPhones refuse to start video in Low Power Mode, and the iPhone that needed the tap was not in Low Power Mode at all. It now says what is true: iPhones and iPads often will not start video until the page has been touched.
 
 **3.45.4** (24-Sep-2026) - **When an iPhone will not start the live video by itself, a tap does.** The last release's new message showed what was happening: the iPhone received the video and decoded it, then refused to play it until the page had been touched, even though the video is silent. Instead of giving up and falling back to stills, the stream now stays connected and the next tap anywhere on the page starts it. A line on the hub and on the Cameras page says so while it is waiting.
-
-**3.45.3** (24-Sep-2026) - **Live cameras on iPhone and iPad, and a stream that fails says why.** On an iPhone the live video connected but never showed a picture, so the hub and the Cameras page both dropped back to stills. The video is now marked in the way iOS looks for before it will play a muted video by itself, and is asked to play again once pictures start arriving. If it still shows nothing, the message now says whether the phone received any video, decoded any, or refused to play it, instead of just no frame. On the Cameras page, a tile that falls back because its live stream failed now says live failed rather than slow link, with the full reason when you hover over it.
 
 ## A look around
 

@@ -51,6 +51,14 @@
   var GATHER_MS = 1000;   // host-only candidates gather in milliseconds; cap the wait
   var POOR_FPS   = 2;     // a live tile slower than this is worse than a still
   var POOR_LOOKS = 3;     // ...for this many looks running
+  // How long after the video can play before we ask it to play ourselves.
+  // Autoplay starts it on every real browser; this is only for one that
+  // leaves it paused (headless Chrome). Asking at once, when the stream first
+  // arrives, is what broke the iPhone in 3.45.1-3.45.4: before any data the
+  // browser cannot know the video is silent, so iOS refused the request
+  // (NotAllowedError) where its own autoplay, a moment later, would have
+  // played. 3.44.0 never asked, and played on the iPhone without a tap.
+  var PLAY_GRACE_MS = 1000;
 
   /* Frames the <video> has decoded so far, or null where the browser cannot
      say. Only the difference between two looks is used. */
@@ -248,15 +256,17 @@
     pc.addEventListener('track', function (e) {
       if (h.stopped) return;
       video.srcObject = e.streams[0] || new root.MediaStream([e.track]);
-      playVideo(video, onRefused);
+      // NOT play() here: autoplay starts it (see PLAY_GRACE_MS).
     });
-    // And again once there is something to play: WebKit can refuse a play()
-    // asked for before the stream has any data, then never try by itself.
-    ['loadedmetadata', 'canplay'].forEach(function (ev) {
-      if (video && video.addEventListener) {
-        video.addEventListener(ev, function () { if (!h.stopped && !h.blocked && video.paused) playVideo(video, onRefused); });
-      }
-    });
+    // Only if autoplay has not started it a moment after it could: then ask.
+    var graceMs = opts.playGraceMs != null ? opts.playGraceMs : PLAY_GRACE_MS;
+    if (video && video.addEventListener) {
+      video.addEventListener('canplay', function () {
+        setTimeout(function () {
+          if (!h.stopped && !h.blocked && video.paused) playVideo(video, onRefused);
+        }, graceMs);
+      });
+    }
     pc.addEventListener('connectionstatechange', function () {
       if (h.stopped) return;
       if (pc.connectionState === 'failed') { fail('connection failed'); return; }
@@ -617,6 +627,7 @@
     blockedCount: blockedCount,
     noFrameDetail: noFrameDetail,
     ICE_MS: ICE_MS,
+    PLAY_GRACE_MS: PLAY_GRACE_MS,
     FRAME_MS: FRAME_MS,
     POOR_FPS: POOR_FPS,
     // the bandwidth decision

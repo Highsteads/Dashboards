@@ -9,6 +9,8 @@ Every release, newest first. The three most recent also appear under **What's ne
 [README](https://github.com/Highsteads/Dashboards#whats-new); this page is the whole record.
 Dates are day-month-year.
 
+**3.45.6** (24-Sep-2026) - **No tap needed on an iPhone after all: live video starts by itself again, as it did before 3.45.1.** The tap was covering for a mistake of mine. 3.45.1 asked each video to play the instant its stream arrived, to suit a test browser that does not start video by itself. At that instant the iPhone cannot yet tell that the video is silent, so it refused the request, where its own automatic start a moment later would have played. The video is now left to start by itself, as it was in 3.44.0, and is only asked to play if it is still paused a second after it could have started. A tap still starts it in the rare case a device refuses on its own account.
+
 **3.45.5** (24-Sep-2026) - **The tap-to-start line no longer blames Low Power Mode.** It said iPhones refuse to start video in Low Power Mode, and the iPhone that needed the tap was not in Low Power Mode at all. It now says what is true: iPhones and iPads often will not start video until the page has been touched.
 
 **3.45.4** (24-Sep-2026) - **When an iPhone will not start the live video by itself, a tap does.** The last release's new message showed what was happening: the iPhone received the video and decoded it, then refused to play it until the page had been touched, even though the video is silent. Instead of giving up and falling back to stills, the stream now stays connected and the next tap anywhere on the page starts it. A line on the hub and on the Cameras page says so while it is waiting.
