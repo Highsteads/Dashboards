@@ -14,8 +14,12 @@
 #              trigger until 14-09-2026 and had never once run, so on 27-08 there
 #              was nothing downstream to stop it. This closes that gap.
 # Author:      CliveS & Claude Opus 5
-# Date:        23-09-2026 + UK Time Now
-# Version:     1.7
+# Date:        24-09-2026 + UK Time Now
+# Version:     1.8
+#
+# v1.8 (24-09-2026) — the Living Room Door Motion Sensor is out of the
+#   living room zone: CliveS is removing the device. The three FP300 presence
+#   sensors cover the room.
 #
 # v1.7 (23-09-2026) — the gap warning no longer names Dashboards as the thing that
 #   runs this: the Script Ticker plugin does now, and Dashboards only when it is not.
@@ -241,8 +245,7 @@ ZONES = {
     "living_room": {
         "sensors": [1909477979,   # Living Room Left Presence Sensor   (FP300)
                     1496890672,   # Living Room Centre Presence Sensor (FP300)
-                    1899487413,   # Living Room Right Presence Sensor  (FP300)
-                    106403094],   # Living Room Door Motion Sensor     (PIR)
+                    1899487413],  # Living Room Right Presence Sensor  (FP300)
         "lights":  [1765266302,   # Living Room Main Light
                     372666822,    # Living Room Colour Lamp
                     515728864,    # Display Lights Plug
