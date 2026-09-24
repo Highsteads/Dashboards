@@ -68,15 +68,49 @@
      opacity 0 until the first frame. A paused video still shows its first
      frame, so it reads as live while the clock never moves (24-09-2026:
      every hub tile failed as "video stalled" 3.5 s after going live). */
-  function playVideo(video) {
+  function playVideo(video, onRefused) {
+    var refused = function (e) {
+      video._playRefused = (e && e.name) || 'refused';
+      if (onRefused) onRefused(video._playRefused);
+    };
     try {
       var p = video.play();
       // Remembered, not thrown: a refusal (iOS in Low Power Mode refuses
       // even a muted inline video) is named in the failure message.
-      if (p && p.then) p.then(function () { video._playRefused = null; },
-                              function (e) { video._playRefused = (e && e.name) || 'refused'; });
-    } catch (e) { video._playRefused = (e && e.name) || 'refused'; }
+      if (p && p.then) p.then(function () { video._playRefused = null; }, refused);
+    } catch (e) { refused(e); }
   }
+
+  /* Streams the browser would not start by itself (NotAllowedError: iOS in
+     Low Power Mode, measured 24-09-2026 on CliveS's iPhone, 847 KB received
+     and 77 frames decoded but nothing shown). They stay connected, and the
+     next tap, click or key press anywhere on the page starts them: a play()
+     made inside a user gesture is one the browser allows. */
+  var _blocked = [];
+  function blockedCount() {
+    _blocked = _blocked.filter(function (h) { return !h.stopped && h.blocked; });
+    return _blocked.length;
+  }
+  function unblockAll() {
+    var waiting = _blocked.filter(function (h) { return !h.stopped && h.blocked; });
+    _blocked = [];
+    waiting.forEach(function (h) {
+      try {
+        var p = h.video.play();   // synchronously, inside the gesture
+        var ok = function () { h.blocked = false; h.video._playRefused = null; };
+        if (p && p.then) p.then(ok, function () { if (!h.stopped) _blocked.push(h); });
+        else ok();
+      } catch (e) { if (!h.stopped) _blocked.push(h); }
+    });
+  }
+  (function listenForGesture() {
+    var doc = root && root.document;
+    if (!doc || !doc.addEventListener) return;
+    ['touchend', 'click', 'keydown'].forEach(function (ev) {
+      doc.addEventListener(ev, function () { if (_blocked.length) unblockAll(); },
+                           { capture: true, passive: true });
+    });
+  })();
 
   /* Why no frame came, for the failure message: whether the browser refused
      to play, whether any video arrived and whether any was decoded, and in
@@ -177,6 +211,7 @@
     }
     function teardown() {
       h.stopped = true;
+      h.blocked = false;
       clearTimers();
       if (h.ctrl) { try { h.ctrl.abort(); } catch (e) {} h.ctrl = null; }
       if (h.pc) { try { h.pc.close(); } catch (e) {} }
@@ -194,19 +229,30 @@
       if (opts.onFail) opts.onFail(why);
     }
 
+    // A refusal to play is not a failure: the stream is fine, it only needs
+    // a tap. Stop the no-frame clock, remember the stream for the next
+    // gesture, and tell the page so it can say "tap to start".
+    var onRefused = function (name) {
+      if (h.stopped || h.blocked || name !== 'NotAllowedError') return;
+      h.blocked = true;
+      if (frameTimer) { clearTimeout(frameTimer); frameTimer = null; }
+      _blocked.push(h);
+      if (opts.onBlocked) opts.onBlocked();
+    };
+
     var pc = new root.RTCPeerConnection({ iceServers: [] });
     h.pc = pc;
     pc.addTransceiver('video', { direction: 'recvonly' });
     pc.addEventListener('track', function (e) {
       if (h.stopped) return;
       video.srcObject = e.streams[0] || new root.MediaStream([e.track]);
-      playVideo(video);
+      playVideo(video, onRefused);
     });
     // And again once there is something to play: WebKit can refuse a play()
     // asked for before the stream has any data, then never try by itself.
     ['loadedmetadata', 'canplay'].forEach(function (ev) {
       if (video && video.addEventListener) {
-        video.addEventListener(ev, function () { if (!h.stopped && video.paused) playVideo(video); });
+        video.addEventListener(ev, function () { if (!h.stopped && !h.blocked && video.paused) playVideo(video, onRefused); });
       }
     });
     pc.addEventListener('connectionstatechange', function () {
@@ -271,9 +317,10 @@
         stallTimer = setInterval(function () {
           if (h.stopped) return;
           if (video.paused) {
+            if (h.blocked) return;          // waiting for a tap, not stalled
             // Not a stall: nothing asked it to play, or the browser refused.
             // Ask again, and give up only if it still will not after two looks.
-            playVideo(video);
+            playVideo(video, onRefused);
             if (++misses >= 2) { fail('video would not play'); return; }
             return;
           }
@@ -564,6 +611,8 @@
     makeVideo: makeVideo,
     start: start,
     playVideo: playVideo,
+    unblockAll: unblockAll,
+    blockedCount: blockedCount,
     noFrameDetail: noFrameDetail,
     ICE_MS: ICE_MS,
     FRAME_MS: FRAME_MS,

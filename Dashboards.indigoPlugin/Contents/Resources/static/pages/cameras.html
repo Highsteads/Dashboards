@@ -301,6 +301,7 @@
                  whether the phone had even picked up the new page — a
                  home-screen PWA resumes from memory without re-fetching. -->
             <br><span id="link-policy" class="link-policy">—</span>
+            <span id="live-tap" class="link-policy" hidden><br>Tap anywhere to start the live video. This device will not start it by itself, which iPhones do in Low Power Mode.</span>
             <br><button type="button" id="pair-device" class="pair-btn">this device is: not set</button>
         </div>
     </footer>
@@ -843,8 +844,12 @@
             url: webrtcUrl(host),
             iceMs: WEBRTC_ICE_MS,
             frameMs: WEBRTC_FRAME_MS,
-            onLive: firstFrame,
-            onFail: dead,
+            onLive: () => { firstFrame(); _liveTapNote(); },
+            onFail: (why) => { dead(why); _liveTapNote(); },
+            // The browser would not start the video by itself (iOS in Low
+            // Power Mode): the stream stays connected and the next tap starts
+            // it, so say so rather than fall back to stills.
+            onBlocked: () => _liveTapNote(),
         });
         st.pc = st.rtc.pc;                       // the byte counter reads its stats
         setMode(host, "webrtc");
@@ -856,6 +861,12 @@
     // origin each, so a page with six live tiles could not even send the
     // signalling request for a seventh. Kept as its own name because the
     // pool, the retry ladder and the focus hand-over all speak of "live".
+    // The footer's "tap to start" line, shown while any stream is waiting
+    // for a tap and gone once none is.
+    function _liveTapNote() {
+        const el = document.getElementById("live-tap");
+        if (el) el.hidden = !(window.DashRTC && DashRTC.blockedCount && DashRTC.blockedCount() > 0);
+    }
     function startLive(host) {
         startWebrtc(host);
     }

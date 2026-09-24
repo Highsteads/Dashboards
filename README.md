@@ -8,7 +8,7 @@ Browser dashboards for [Indigo Domotics](https://www.indigodomo.com/), built for
 wall, a phone in your pocket and a Mac on the desk. No app to install, no cloud account,
 nothing leaving the house.
 
-<img src="https://img.shields.io/badge/version-3.45.3-5856d6" alt="Version 3.45.3">
+<img src="https://img.shields.io/badge/version-3.45.4-5856d6" alt="Version 3.45.4">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-21-0a84ff" alt="21 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
@@ -21,7 +21,7 @@ nothing leaving the house.
 
 ---
 
-**Version:** 3.45.3
+**Version:** 3.45.4
 
 **Documentation:** **[highsteads.github.io/Dashboards](https://highsteads.github.io/Dashboards/)** —
 getting started, configuration, a page of notes for every one of the 21 pages, cameras, remote
@@ -67,11 +67,11 @@ simulator, touching no live devices.
 The three most recent releases, word for word. Every release before these is in
 **[the version history](docs/changelog.md)**, which the documentation site also carries.
 
+**3.45.4** (24-Sep-2026) - **When an iPhone will not start the live video by itself, a tap does.** The last release's new message showed what was happening: the iPhone received the video and decoded it, then refused to play it, because iOS will not start a video by itself in Low Power Mode, even a silent one. Instead of giving up and falling back to stills, the stream now stays connected and the next tap anywhere on the page starts it. A line on the hub and on the Cameras page says so while it is waiting.
+
 **3.45.3** (24-Sep-2026) - **Live cameras on iPhone and iPad, and a stream that fails says why.** On an iPhone the live video connected but never showed a picture, so the hub and the Cameras page both dropped back to stills. The video is now marked in the way iOS looks for before it will play a muted video by itself, and is asked to play again once pictures start arriving. If it still shows nothing, the message now says whether the phone received any video, decoded any, or refused to play it, instead of just no frame. On the Cameras page, a tile that falls back because its live stream failed now says live failed rather than slow link, with the full reason when you hover over it.
 
 **3.45.2** (24-Sep-2026) - **Live hub cameras in Safari, and a line saying why when they are not.** The check that drops a frozen stream back to stills trusted two measures that Safari does not keep for a live stream, the video clock and a count of decoded frames, so on iPhones, iPads and Macs every hub camera looked frozen within seconds and went back to stills, while Chrome played happily. A stream now counts as frozen only when nothing shows progress, whether its clock, a painted frame or its frame count, and a count that never moves is no longer read as a stream crawling. When the strip does show stills, a short line underneath now says why: the speed it measured against the speed it needs, or which camera stopped and when it will try again.
-
-**3.45.1** (24-Sep-2026) - **The hub's cameras really are live now.** 3.45.0 decided correctly that the connection was fast enough, then dropped every stream about three seconds later as frozen. The video was never told to play: it relied on the browser starting it by itself, and a browser may not start a video it cannot yet see, which the hub's is until its first picture arrives. A paused video still shows its first frame, so each tile looked live for a moment before the freeze check took it back to stills. The video is now asked to play the moment the stream arrives, and a video the browser refuses to play is reported as that rather than as frozen.
 
 ## A look around
 

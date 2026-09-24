@@ -296,19 +296,44 @@ await section("DashRTC iOS", async () => {
     const none = await R.noFrameDetail({ getStats: async () => new Map() }, { paused: true });
     check("…and says when no video arrived at all", none === "paused, no video received", none);
 
-    // The no-frame failure carries it.
+    // A refusal that is NOT the autoplay rule still fails, and says why.
     const fails = [];
     const v3 = makeVideoEl();
     v3.paused = true;
-    v3.play = () => Promise.reject(Object.assign(new Error("no"), { name: "NotAllowedError" }));
+    v3.play = () => Promise.reject(Object.assign(new Error("no"), { name: "AbortError" }));
     R.start("a", v3, { url: "/w", frameMs: 30, iceMs: 1000, onFail: w => fails.push(w) });
     pcs[pcs.length - 1].getStats = async () => stats;
     pcs[pcs.length - 1].fire("track");
     await tick(80);
-    check("'no frame' says why", /^no frame in 0\.03s \(playback refused: NotAllowedError/.test(fails[0] || ""),
+    check("'no frame' says why", /^no frame in 0\.03s \(playback refused: AbortError/.test(fails[0] || ""),
           JSON.stringify(fails));
     check("…and asks the video to play again once it has data",
           (v3.listeners.loadedmetadata || []).length === 1 && (v3.listeners.canplay || []).length === 1);
+
+    // The autoplay rule (NotAllowedError, iOS Low Power Mode, 24-09-2026):
+    // the stream stays connected, the page is told, and a tap starts it.
+    const fails4 = [], events = [];
+    const v4 = makeVideoEl();
+    v4.paused = true;
+    let allow = false;
+    v4.play = () => allow
+        ? (v4.paused = false, Promise.resolve())
+        : Promise.reject(Object.assign(new Error("no"), { name: "NotAllowedError" }));
+    const h4 = R.start("b", v4, { url: "/w", frameMs: 30, iceMs: 1000,
+                                  onFail: w => fails4.push(w), onBlocked: () => events.push("blocked"),
+                                  onLive: () => events.push("live") });
+    pcs[pcs.length - 1].fire("track");
+    await tick(80);
+    check("a NotAllowedError is not a failure: the page is told a tap is needed",
+          fails4.length === 0 && events[0] === "blocked" && !h4.stopped, JSON.stringify({ fails4, events }));
+    check("…and the stream is counted as waiting", R.blockedCount() === 1);
+    allow = true;                                     // the user taps
+    R.unblockAll();
+    await tick();
+    v4.currentTime = 0.5; v4.fire("timeupdate");
+    check("a tap plays it and it goes live", events.includes("live") && R.blockedCount() === 0,
+          JSON.stringify(events));
+    h4.stop();
 });
 
 console.log("\n1e. the Cameras page names a failed live stream, not the link");
@@ -554,6 +579,12 @@ await section("hub strip", async () => {
     started[started.length - 1].opts.onFail("no frame in 8s");
     check("a second failure backs off for longer",
           timers.some(t => t.ms === 2 * H.RETRY));
+
+    // a stream the browser will not start by itself -> "tap to start"
+    const waiting = liveOf()[0];
+    waiting.opts.onBlocked();
+    check("a stream waiting for a tap says so under the strip",
+          !note.hidden && /Tap anywhere/.test(note.textContent), note.textContent);
 
     // stills verdict -> no stream at all
     verdict = { live: false, tiles: 1, mbps: 3, needMbps: 11.2, why: "too slow" };
