@@ -30,12 +30,16 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 |------|-------|
 | `test_action_note_targets.py` | A DashAction.note(key, ...) is painted only on an element that |
 | `test_action_watch.mjs` | Contract test for DashAction — how the dashboard's control |
+| `test_actions_xml_comments.py` | Each endpoint comment in Actions.xml sits above the action it |
 | `test_alerts_settled_rows.mjs` | Node contract test for alerts.html's log-watch row renderer. |
 | `test_apply_colour.py` | Contract test for Plugin.handleApplyColour — the v2.94.0 endpoint |
+| `test_atomic_write_cleanup.py` | _write_atomic and _copy_atomic leave no temp file behind when |
 | `test_battery_pct.py` | Truth-table test for Plugin._battery_pct — the estate's three |
 | `test_bulk_lights_open_loop.mjs` | Contract test for the Lights section's "All On / All Off" when |
 | `test_camera_boot_policy.mjs` | Contract test for the camera page's BOOT POLICY and the |
 | `test_camera_frame_age.mjs` | Contract test for the per-tile frame-age readout and the |
+| `test_camera_list_vetted.py` | The RUNNING camera list is held to the Settings-save rules |
+| `test_camera_stale_thumb.py` | A thumbnail that stops being made is removed, so the page falls |
 | `test_camera_stall_watchdog.mjs` | Node contract test for the cameras.html slow-link stall |
 | `test_camera_still_period.mjs` | The cameras page works out a still tile's refresh period in ONE |
 | `test_camera_stills_private.py` | The camera stills are no longer at guessable names in the |
@@ -58,6 +62,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_dash_tile.mjs` | One tile system (v3.37.0). Runs the shipped dashboards-controls.js |
 | `test_demo_fixture_is_sanitised.py` | The demo fixture (demo-data/devices.json) is a snapshot of a |
 | `test_demo_site.py` | The online demo (docs/demo/, published on the docs site from |
+| `test_diagnostic_banner.py` | Every diagnostic menu dumps the SAME banner, extras included |
 | `test_docs_site.py` | The documentation site (docs/, GitHub Pages) and the README |
 | `test_door_tile.mjs` | Contract test for the hub's state-driven door favourite — |
 | `test_energy_alert_bar.mjs` | Node contract test for energy.html's alert bar. Extracts the |
@@ -78,6 +83,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_getdevices.mjs` | Node contract test for dashboard.js getDevices() delta-merge — |
 | `test_glance_row_layout.mjs` | The hub's glance row holds THREE cards in a TWO-column grid, so |
 | `test_go2rtc_log_datestamp.py` | go2rtc stamps its log lines with the TIME only and cannot be |
+| `test_go2rtc_orphan_guard.py` | The go2rtc orphan guard finds an orphan whatever binary ran it |
 | `test_go2rtc_supervise.py` | The go2rtc supervisor must keep trying after a FAILED restart. |
 | `test_guest_scrub.py` | A guest-token holder must never receive plugin props. The |
 | `test_history_db.py` | Contract tests for history_db.py — the SQL Logger artefact |
@@ -99,6 +105,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_link_class.mjs` | Contract test for DashUI.linkClass / measuredClass — how the |
 | `test_log_watch_alive.py` | The plugin ticks Log_Error_Watch.py hourly, so the plugin is |
 | `test_mains_meters.py` | Contract tests for the Mains instrument page's pure helpers |
+| `test_mains_reference_quality.py` | The Mains page's reference and offsets (review 24-09-2026): |
 | `test_mcp_manifest.py` | The plugin-provided MCP tool contract (v3.12.0), checked from |
 | `test_mcp_tools.py` | Behaviour of the plugin-provided MCP tools (v3.12.0): the |
 | `test_no_orphan_pages.py` | Every page can be reached from another page (v3.33.0). The |
@@ -108,13 +115,16 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_page_batch_fixes.mjs` | The page half of the 24-09-2026 bug batch. Where a fix is a |
 | `test_page_count_claims.py` | Every place the docs say how many pages the plugin ships agrees |
 | `test_page_frame.py` | Every page's top bar matches the Energy page (v3.29.0): one |
+| `test_page_lows.mjs` | The page half of the 24-09-2026 deep review's LOW findings. |
 | `test_page_shared_helpers.mjs` | The shared page helpers added for the 24-09-2026 page batch, |
 | `test_parse_cameras.py` | Contract test for the module-level _parse_cameras — JSON-string vs |
 | `test_pending_retry_client.mjs` | dashboard.js's _fetch must wait out a "pending" 503 rather than |
 | `test_pin_redaction.py` | Security contract test for Plugin._parse_lock_code_trigger — the |
+| `test_plugin_config_secure.py` | Every credential field in the Configure dialog is masked |
 | `test_poller_auth_and_hidden.mjs` | Contract test for the hub's four side pollers — sigen, string |
 | `test_presence_endpoint.py` | Contract tests for the v2.71.0 presence-data privacy fix — the |
 | `test_proxy_host_check.py` | The :8177 server hands out the API key (/bootstrap) and the |
+| `test_proxy_status_reason.py` | The :8177 proxy's error replies always reach the browser |
 | `test_psql_encoding.py` | Inside IndigoPluginHost3 the preferred encoding is US-ASCII, so |
 | `test_pv_string_sanity.py` | The solarStringHours reader must reject the impossible |
 | `test_reflector_block.mjs` | Contract test for "refuse the reflector" (v3.1.0). Indigo |
@@ -146,11 +156,13 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_stamp_gate.mjs` | Node contract test for dashboards-gate.js (v2.70.0) — the |
 | `test_streams_health_always.py` | streams.json is the only carrier of _cameraHealth, and it was |
 | `test_sync_pages.py` | _sync_pages_to_public — the startup copy of the bundle's pages |
+| `test_system_health_census.py` | System Health (review 24-09-2026): |
 | `test_tap_guard.mjs` | Contract test for the tap guard and press feedback in |
 | `test_test_index.py` | tests/README.md lists every test file (v3.25.0). It had fallen |
 | `test_tick_script.py` | The shared companion-script runner (v2.95.2) and the poller's |
 | `test_timeline.py` | Contract test for the timeline-replay helpers (v2.40.0): |
 | `test_timeline_carry.py` | The Timeline page's "state at the start of the day" query must |
+| `test_timeline_clock_change.py` | On the two clock-change days the Timeline and the solar hours |
 | `test_timeline_views.mjs` | Timeline as the one history page (v3.33.0): the four tabs, the |
 | `test_verify_pin.py` | handleVerifyPin — the control-PIN speed bump. Had no tests at |
 | `test_version_consistency.py` | Fails when the version signals disagree — the bundle's |

@@ -518,7 +518,7 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
         // ── cameras ──────────────────────────────────────────────────────
         function renderCameras() {
             const card = el(`<section class="card"><h2>Cameras</h2>
-                <div class="hint">Host is IP[:port]. Vendor decides the RTSP URL template. Stream sub2 is the low-bandwidth default. Rooms is a comma list of room names whose page should show this camera. Main = include in the hub's camera mosaic. Camera changes need a plugin restart.</div>
+                <div class="hint">Host is an IP address or plain hostname (no port). Vendor decides the RTSP URL template. Stream sub2 is the low-bandwidth default. Rooms is a comma list of room names whose page should show this camera. Main = include in the hub's camera mosaic. Camera changes need a plugin restart.</div>
                 <div class="hint"><b>Live pictures.</b> At home the cameras page shows six cameras as live video and the rest as pictures that refresh every two seconds. The <code>livePoolSize</code> key (raw JSON, default 6) changes how many are live: each costs about 1 Mbit/s on the network and some work for the device showing it, so an older tablet may be happier with fewer. Away from home only the camera you tap to the top is live, and through the Indigo reflector none are.</div>
                 <table><thead><tr>
                     <th>Name</th><th>Host</th><th>Vendor</th><th>Stream</th><th>Rooms</th><th>Main</th><th class="row-del"></th>
@@ -549,19 +549,47 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
                         ${(cfg.mainCameras || []).includes(c.host) ? "checked" : ""}></td>
                     <td class="row-del"><button class="btn danger c-del">${I("cross")}</button></td>
                 </tr>`);
-                tr.querySelector(".c-del").addEventListener("click", () => tr.remove());
+                tr.querySelector(".c-del").addEventListener("click", () => { tr.remove(); rebuildSwap(); });
                 return tr;
             }
             (cfg.cameras || []).forEach(c => tbody.appendChild(camRow(c)));
-            card.querySelector("#cam-add").addEventListener("click", () =>
-                tbody.appendChild(camRow({ vendor: "dahua" })));
+            card.querySelector("#cam-add").addEventListener("click", () => {
+                tbody.appendChild(camRow({ vendor: "dahua" }));
+                rebuildSwap();
+            });
 
+            // The swap-out list follows the rows as they are edited, added and
+            // deleted. Built once, it kept the hosts the page loaded with, so
+            // re-addressing the swap-out camera left it pointing at nothing.
             const swap = card.querySelector("#swap-out");
-            const opts = ['<option value="">(last in list)</option>']
-                .concat((cfg.cameras || []).map(c =>
-                    `<option value="${esc(c.host)}"${cfg.swapOutHost === c.host ? " selected" : ""}>${esc(c.name)} (${esc(c.host)})</option>`));
-            swap.innerHTML = opts.join("");
+            function rebuildSwap() {
+                const want = swap.options.length ? swap.value : (cfg.swapOutHost || "");
+                swap.innerHTML = swapOptionsHtml(cameraRowsOf(card), want);
+            }
+            tbody.addEventListener("input", ev => {
+                if (ev.target && ev.target.matches && ev.target.matches(".c-host, .c-name")) rebuildSwap();
+            });
+            rebuildSwap();
             return card;
+        }
+
+        // The cameras as the rows stand now: [{host, name}], blank hosts left out.
+        function cameraRowsOf(root) {
+            const out = [];
+            root.querySelectorAll("#cam-rows tr").forEach(tr => {
+                const host = tr.querySelector(".c-host").value.trim();
+                if (host) out.push({ host, name: tr.querySelector(".c-name").value.trim() });
+            });
+            return out;
+        }
+        // The swap-out <option>s for those cameras, keeping `want` selected
+        // while its host is still one of them, else "(last in list)".
+        function swapOptionsHtml(cams, want) {
+            const keep = cams.some(c => c.host === want) ? want : "";
+            return ['<option value="">(last in list)</option>']
+                .concat(cams.map(c =>
+                    `<option value="${esc(c.host)}"${keep === c.host ? " selected" : ""}>${esc(c.name || c.host)} (${esc(c.host)})</option>`))
+                .join("");
         }
 
         function collectCameras(root) {
@@ -590,7 +618,9 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
                 }
             });
             const swapSel = root.querySelector("#swap-out");
-            return { cams, main, swap: swapSel ? swapSel.value : "" };
+            // A swap host that is no longer one of the cameras means nothing.
+            const swapVal = swapSel ? swapSel.value : "";
+            return { cams, main, swap: cams.some(c => c.host === swapVal) ? swapVal : "" };
         }
 
         // ── rooms ────────────────────────────────────────────────────────

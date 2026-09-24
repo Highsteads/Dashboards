@@ -150,6 +150,12 @@ def test_unknown_device_is_refused_not_guessed(rig):
     ({"deviceId": 372666822, "brightness": 120}, "brightness"),
     ({"deviceId": 372666822, "brightness": "half"}, "brightness"),
     ({"deviceId": 372666822}, "nothing to apply"),
+    # Review 24-09-2026 [27]: JSON's 1e999 and Infinity parse to inf, and
+    # int(inf) raises OverflowError, which the handler did not catch: IWS 500.
+    ('{"deviceId": 1e999, "preset": "warm"}', "deviceId"),
+    ('{"deviceId": -Infinity, "preset": "warm"}', "deviceId"),
+    ('{"deviceId": 372666822, "whiteTemperature": NaN}', "whiteTemperature"),
+    ('{"deviceId": 372666822, "brightness": 1e999}', "brightness"),
 ])
 def test_junk_is_refused_never_clamped(rig, body, fragment):
     """A clamp would turn a caller's mistake into a light that quietly did

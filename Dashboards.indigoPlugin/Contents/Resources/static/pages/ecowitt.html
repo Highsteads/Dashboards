@@ -429,8 +429,7 @@
         if (rain)    html += renderRain(rain);
         // Find the Sigen inverter's live PV output for the solar-vs-PV cross-check.
         const sigen = devices.find(x => x.states && x.states.pvPowerWatts !== undefined);
-        const sigenPvW = sigen ? parseFloat(sigen.states.pvPowerWatts) : null;
-        if (solar)   html += renderSolar(solar, sigenPvW);
+        if (solar)   html += renderSolar(solar, sigenPv(sigen, Date.now()));
         html += '</div>';
 
         html += renderSectionHeader("Inside");
@@ -569,7 +568,24 @@
         ].filter(Boolean));
     }
 
-    function renderSolar(d, sigenPvW) {
+    // The inverter's PV reading, or why it cannot be trusted now. A device
+    // state is its LAST value: with SigenEnergyManager stopped or the device
+    // disabled, "Solar now" froze, and the roof-vs-sky ratio built on it could
+    // flag a panel fault that was not there. Indigo stamps lastSuccessfulComm
+    // on every state write and the plugin writes every few seconds, so ten
+    // quiet minutes means nothing is arriving.
+    const SIGEN_STALE_MS = 10 * 60 * 1000;
+    function sigenPv(dev, nowMs) {
+        if (!dev) return null;
+        const w = parseFloat((dev.states || {}).pvPowerWatts);
+        if (dev.enabled === false) return { w: null, why: "the inverter device is disabled" };
+        if (String(dev.errorState || "").trim()) return { w: null, why: "the inverter reports an error" };
+        const at = Date.parse(String(dev.lastSuccessfulComm || "").replace(" ", "T"));
+        if (isFinite(at) && nowMs - at > SIGEN_STALE_MS) return { w: null, why: "no reading from the inverter lately" };
+        return isNaN(w) ? null : { w, why: "" };
+    }
+    function renderSolar(d, pv) {
+        const sigenPvW = pv ? pv.w : null;
         const s = d.states || {};
         const watts = num(s, "solarRadiation");   // W/m² irradiance
         const uv    = num(s, "uvIndex");
@@ -590,6 +606,8 @@
                     rows.push(["Roof vs sky", `<span class="${cls}">${ratio}%</span>`]);
                 }
             }
+        } else if (pv && pv.why) {
+            rows.push(["Solar now", `<span style="color:var(--text-secondary)">— · ${escapeHtml(pv.why)}</span>`]);
         }
         return weatherCard(d.id, "Solar / UV", head, rows.filter(Boolean));
     }

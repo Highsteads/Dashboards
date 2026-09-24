@@ -103,6 +103,12 @@
         return html + "</div>";
     }
     function laundryHtml(plan) {
+        // A refusal (ok:false, answered with HTTP 200) carries the real reason:
+        // no plan yet, or SigenEnergyManager absent. It is not "nothing metered".
+        if (plan && plan.ok === false) {
+            return '<div class="wr-appl"><div class="wr-verdict">No laundry plan yet.</div><p class="note">' +
+                esc(plan.error || "The plugin did not say why.") + "</p></div>";
+        }
         const list = (plan && plan.appliances) || [];
         if (!list.length) {
             return '<div class="wr-appl"><div class="wr-verdict">Nothing is metered yet.</div><p class="note">' +
@@ -171,7 +177,7 @@
         }
         if (!wantLaundry) lEl.hidden = true;
         if (!wantCarbon) cEl.hidden = true;
-        let plan = null, busy = false, lastGood = 0, chart = null, chartSig = "";
+        let plan = null, busy = false, lastGood = 0, chart = null, chartSig = "", carbonGood = false;
 
         function markFresh() {
             if (!fEl) return;
@@ -186,9 +192,16 @@
         }
         async function loadLaundry() {
             try {
-                plan = await DashUI().message("laundryPlan");
-                lastGood = Date.now();
-                drawLaundry();
+                const p = await DashUI().message("laundryPlan");
+                if (p && p.ok === false) {
+                    // Not fresh data: keep a good plan already on screen (it goes
+                    // stale by its age), and show the reason only when there is none.
+                    if (!plan || plan.ok === false) { plan = p; drawLaundry(); }
+                } else {
+                    plan = p;
+                    lastGood = Date.now();
+                    drawLaundry();
+                }
             } catch (e) {
                 if (!plan) lEl.innerHTML = '<div class="wr-head">Laundry</div><p class="note">Could not reach the plugin: ' + esc(e.message) + "</p>";
             }
@@ -220,7 +233,21 @@
         async function loadCarbon() {
             let d;
             try { d = await DashUI().message("carbonAdvisor"); }
-            catch (e) { cEl.innerHTML = '<div class="wr-head">Grid carbon</div><p class="note">Could not reach the carbon data: ' + esc(e.message) + "</p>"; return; }
+            catch (e) {
+                // Keep the last good card (a plugin restart fails every poll for a
+                // moment) and say it is out of date; the error only when there is
+                // nothing to keep.
+                if (!carbonGood) {
+                    cEl.innerHTML = '<div class="wr-head">Grid carbon</div><p class="note">Could not reach the carbon data: ' + esc(e.message) + "</p>";
+                } else {
+                    const head = cEl.querySelector(".wr-head");
+                    if (head) head.textContent = "Grid carbon · not updated: " + e.message;
+                    cEl.classList.add("stale");
+                }
+                return;
+            }
+            carbonGood = true;
+            cEl.classList.remove("stale");
             cEl.innerHTML = '<div class="wr-head">Grid carbon</div>' + carbonHtml(d);
             drawChart(((d.carbon || {}).forecast || []).slice(0, 48), (d.carbon || {}).best);
         }

@@ -20,7 +20,6 @@ from dash_common import (
     CAMERA_POLL_SECONDS,
     CAMERA_THUMB_WIDTH,
     COLOUR_PRESETS,
-    GO2RTC_API_PORT,
     LIVE_POOL_SIZE,
     PROXY_PORT,
     PAGES_SOURCE_DIR,
@@ -104,20 +103,28 @@ class PublishMixin:
         # Demo fixtures (v2.3.0): mirror the demo-data/ subdirectory so the
         # local demo (demo.html) works. Additive copy — no stale sweep needed,
         # the fixtures are regenerated wholesale by tools/make_demo_fixtures.py.
+        # The whole tree (review 24-09-2026): demo mode's DashUI.message reads
+        # demo-data/api/<name>.json since 3.39, and a top-level-only copy left
+        # every such card on an installed plugin saying "not in the demo".
         demo_src = os.path.join(src, "demo-data")
         if os.path.isdir(demo_src):
             demo_dst = os.path.join(dst, "demo-data")
             try:
-                os.makedirs(demo_dst, exist_ok=True)
-                for name in os.listdir(demo_src):
-                    if not name.endswith(".json"):
-                        continue
-                    sp = os.path.join(demo_src, name)
-                    dp = os.path.join(demo_dst, name)
-                    ss = os.stat(sp)
-                    ds = os.stat(dp) if os.path.exists(dp) else None
-                    if ds is None or ss.st_size != ds.st_size or ss.st_mtime > ds.st_mtime:
-                        self._copy_atomic(sp, dp)
+                for here, dirs, files in os.walk(demo_src):
+                    dirs[:] = sorted(d for d in dirs
+                                     if not os.path.islink(os.path.join(here, d)))
+                    rel = os.path.relpath(here, demo_src)
+                    out = demo_dst if rel == "." else os.path.join(demo_dst, rel)
+                    os.makedirs(out, exist_ok=True)
+                    for name in sorted(files):
+                        if not name.endswith(".json"):
+                            continue
+                        sp = os.path.join(here, name)
+                        dp = os.path.join(out, name)
+                        ss = os.stat(sp)
+                        ds = os.stat(dp) if os.path.exists(dp) else None
+                        if ds is None or ss.st_size != ds.st_size or ss.st_mtime > ds.st_mtime:
+                            self._copy_atomic(sp, dp)
             except Exception as exc:
                 log(f"Demo fixtures copy failed: {exc}", level="WARNING")
 
@@ -169,7 +176,19 @@ class PublishMixin:
             # writes hide when it is not installed, so a new user never
             # meets an empty page (Timeline's Nights view, the laundry plan).
             "scripts":         self._companion_scripts_installed(),
+            # The room page's device catalog is not shipped in the bundle; an
+            # outside tool may put one in /public/dashboards. Published so the
+            # page asks for it only where it exists, rather than 404ing (which
+            # IWS logs) on every room view of every other install.
+            "catalog":         self._catalog_published(),
         }
+
+    def _catalog_published(self):
+        """True when a catalog.json sits in the public dashboards folder."""
+        try:
+            return os.path.isfile(os.path.join(self._public_dashboards_dir(), "catalog.json"))
+        except Exception:
+            return False            # cannot tell: the page falls back to live inference
 
     # The companion script each optional view reads, by the key config.js uses.
     _SCRIPT_FLAGS = {"presence": "Presence_Watch.py", "laundry": "Appliance_Scheduler.py"}
@@ -182,6 +201,9 @@ class PublishMixin:
         return {k: os.path.isfile(os.path.join(base, name))
                 for k, name in self._SCRIPT_FLAGS.items()}
 
+    # Marks _config_js_flags after a failed config.js write, so the tick retries.
+    _CONFIG_JS_UNWRITTEN = "_unwritten"
+
     def _refresh_feature_flags(self):
         """Tick task (every 30 s): rewrite config.js when an optional plugin
         has appeared or gone since the last write, so the pages follow an
@@ -189,6 +211,9 @@ class PublishMixin:
         last = getattr(self, "_config_js_flags", None)
         if last is None:
             return False            # startup has not written config.js yet
+        if last.get(self._CONFIG_JS_UNWRITTEN):
+            self._write_config_js()     # the last write failed: try again, say nothing new
+            return True
         flags = self._feature_flags()
         if flags == last:
             return False
@@ -231,10 +256,12 @@ class PublishMixin:
         cfg["pinRequired"] = list(self.pin_required) if self.control_pin else []
         # Favourites (v2.10.0): one-tap device/scene tiles for the top of the
         # hub. Just {type,id,label} — not secret, safe in the public config.js.
-        cfg["favourites"] = [dict(f) for f in self.favourites]
+        # Objects only (review 24-09-2026): the load already filters, and this
+        # file is built in startup(), where a raise stops the plugin starting.
+        cfg["favourites"] = [dict(f) for f in self.favourites if isinstance(f, dict)]
         # Custom links (v2.x): full-size hub tiles opening an arbitrary URL.
         # {title,url,desc?,icon?} — just a link, no secret, safe in config.js.
-        cfg["customLinks"] = [dict(l) for l in self.custom_links]
+        cfg["customLinks"] = [dict(l) for l in self.custom_links if isinstance(l, dict)]
         # Colour presets (v2.94.0): published so the room page draws its preset
         # buttons from the SAME table the applyColour endpoint acts on. The page
         # sends only the preset key, so a preset edited here changes both what
@@ -258,7 +285,6 @@ class PublishMixin:
         # builder, so the tick can notice a change and rewrite this file.
         flags = self._feature_flags()
         cfg.update(flags)
-        self._config_js_flags = dict(flags)
         # Carbon region 0 = "Off (not in Great Britain)": the menu drops the
         # tile and the advisor never calls the GB-only API.
         try:
@@ -326,7 +352,6 @@ class PublishMixin:
             "pollSeconds":    CAMERA_POLL_SECONDS,
             "proxyPort":      PROXY_PORT,                  # the plugin's own port: WebRTC signalling
             "webrtcPath":     "/webrtc/{host}",            # WHEP signalling, on proxyPort
-            "go2rtcPort":     GO2RTC_API_PORT,             # WebRTC backend
             "livePoolSize":   LIVE_POOL_SIZE,              # how many cams run live at once
             "mainCameras":    list(self.main_cameras),     # ordered IPs for the index.html mosaic
             "swapOutHost":    self.swap_out_host,               # bumped to still when peeking a non-default cam
@@ -363,5 +388,10 @@ class PublishMixin:
             # → blank dashboard). Every sibling public file already uses this.
             self._write_atomic(path, body.encode("utf-8"))
             self._activity(f"Wrote {path} (configured={bool(cfg)})")
+            # Recorded only once the file is written (review 24-09-2026). It
+            # was set before the write, so a failed write read as published
+            # and the 30 s tick, seeing no change, never tried again.
+            self._config_js_flags = dict(flags)
         except Exception as e:
             log(f"Failed to write {path}: {e}", level="ERROR")
+            self._config_js_flags = {self._CONFIG_JS_UNWRITTEN: True}   # the tick retries

@@ -17,6 +17,7 @@ import json
 import os
 import re
 import sys as _sys
+import time
 from datetime import datetime, timedelta, timezone
 
 try:
@@ -118,13 +119,43 @@ class HistoryMixin:
             logger=getattr(self, "logger", None),
         )
 
+    @staticmethod
+    def _history_params(params):
+        """The one reading of a history request's parameters (review
+        24-09-2026). The cache key and the query used to parse them apart:
+        "0.5" hours keyed as 24 but built a 30-minute series, and "Voltage"
+        and "voltage" keyed apart, so two different questions could share an
+        answer and one question could build twice. Both now read this.
+        dev_id is None when it is not an integer."""
+        import math
+        try:
+            dev_id = int(params.get("deviceId") or 0)
+        except (ValueError, TypeError, OverflowError):
+            dev_id = None
+        state = re.sub(r"[^a-z0-9_]", "", str(params.get("state") or "").strip().lower())
+        try:
+            hours = float(params.get("hours") or 24)
+        except (ValueError, TypeError):
+            hours = 24.0
+        if not math.isfinite(hours):
+            hours = 24.0
+        hours = min(2160.0, max(0.25, hours))
+        try:
+            max_points = min(1000, max(20, int(params.get("maxPoints") or 240)))
+        except (ValueError, TypeError, OverflowError):
+            max_points = 240
+        action = "states" if str(params.get("action") or "series").strip().lower() == "states" \
+            else "series"
+        return {"action": action, "dev_id": dev_id, "state": state,
+                "hours": hours, "max_points": max_points}
+
     def _history_query(self, params):
         """Shared core for the Bearer endpoint and the guest passthrough.
         params: {action: "states"|"series", deviceId, state?, hours?, maxPoints?}
         Returns a JSON-able dict; raises ValueError with a friendly message."""
-        try:
-            dev_id = int(params.get("deviceId") or 0)
-        except (ValueError, TypeError):
+        q = self._history_params(params)
+        dev_id = q["dev_id"]
+        if dev_id is None:
             raise ValueError("deviceId must be an integer")
         if dev_id <= 0:
             raise ValueError("deviceId required")
@@ -145,7 +176,7 @@ class HistoryMixin:
                 raise ValueError(f"no history recorded for device {dev_id}")
             by_name = {c["name"]: c for c in cols}
 
-            if (params.get("action") or "series") == "states":
+            if q["action"] == "states":
                 # count/min/max with no ts index is a FULL TABLE SCAN — on the
                 # multi-million-row inverter table that is a multi-second read
                 # lock against the logger, fired from the Graphs state picker.
@@ -169,19 +200,11 @@ class HistoryMixin:
                         "backend": hist.backend,
                         "rows": rows_est, "firstTs": first_ts, "lastTs": last_ts}
 
-            requested = str(params.get("state") or "").strip().lower()
-            requested = re.sub(r"[^a-z0-9_]", "", requested)
+            requested = q["state"]
             if requested not in by_name:
                 raise ValueError(f"state {requested!r} not recorded for device {dev_id}")
             col = hist.quote(requested)
-            try:
-                hours = min(2160.0, max(0.25, float(params.get("hours") or 24)))
-            except (ValueError, TypeError):
-                hours = 24.0
-            try:
-                max_points = min(1000, max(20, int(params.get("maxPoints") or 240)))
-            except (ValueError, TypeError):
-                max_points = 240
+            hours, max_points = q["hours"], q["max_points"]
             bucket = max(60, int(hours * 3600 / max_points))
 
             # PK-range the window before touching it. The ts filter stays as
@@ -243,10 +266,7 @@ class HistoryMixin:
         # The guest passthrough at /guest/history uses the same key and
         # producer (v3.27.0), with a longer wait: it runs on the :8177 proxy's
         # own threads, so waiting there holds up nothing else.
-        try:
-            dev_id = int(params.get("deviceId") or 0)
-        except (ValueError, TypeError):
-            dev_id = 0
+        dev_id = self._history_params(params)["dev_id"] or 0
         if dev_id <= 0:
             # Checked HERE because it is free, so a malformed request is a 400
             # the page reports rather than something a worker discovers.
@@ -273,22 +293,15 @@ class HistoryMixin:
              "error": "the chart is still being built — try again shortly"},
             status=503)
 
-    @staticmethod
-    def _history_key(params):
+    @classmethod
+    def _history_key(cls, params):
         """Cache key for one question. Every parameter that changes the answer
-        is in it, normalised, so two pages asking the same thing share a build
-        and two different questions never collide."""
-        def _i(name, default):
-            try:
-                return int(params.get(name) or default)
-            except (TypeError, ValueError):
-                return default
-        return "history:{}:{}:{}:{}:{}".format(
-            str(params.get("action") or "series").strip().lower(),
-            _i("deviceId", 0),
-            str(params.get("state") or "").strip(),
-            _i("hours", 24),
-            _i("maxPoints", 240))
+        is in it, normalised by _history_params exactly as the query reads it,
+        so two pages asking the same thing share a build and two different
+        questions never collide."""
+        q = cls._history_params(params)
+        return "history:{}:{}:{}:{!r}:{}".format(
+            q["action"], q["dev_id"] or 0, q["state"], q["hours"], q["max_points"])
 
     def _history_producer(self, params):
         """Run the query on a worker. A ValueError from _history_query means
@@ -300,6 +313,56 @@ class HistoryMixin:
             return {"result": self._history_query(params)}
         except ValueError as exc:
             return {"client_error": str(exc)}
+
+    # ── Clock time on a clock-change day (review 24-09-2026) ─────────────
+    # The SQL gives minutes ELAPSED since local midnight, which is exact and
+    # cheap, but the page draws them on a 0-1440 CLOCK axis. On the 23-hour
+    # March day everything after 01:00 sat an hour early, and on the 25-hour
+    # October day an hour late, with the last hour clamped away. These map
+    # elapsed time to clock time from the local UTC offset at each moment.
+
+    @staticmethod
+    def _clock_of(start_epoch, elapsed_min):
+        """Clock minutes (0-1440) for a moment `elapsed_min` after the local
+        midnight at `start_epoch`."""
+        base = time.localtime(start_epoch).tm_gmtoff
+        off = time.localtime(start_epoch + int(elapsed_min * 60)).tm_gmtoff
+        return max(0.0, min(1440.0, elapsed_min + (off - base) / 60.0))
+
+    @staticmethod
+    def _dst_fold(start_epoch):
+        """(change_min, shift_min) when the clocks go BACK during this local
+        day, else None. change_min is the elapsed (and clock) minute at which
+        they go back; the clock minutes change_min-shift_min .. change_min
+        then happen twice."""
+        base = time.localtime(start_epoch).tm_gmtoff
+        end = time.localtime(start_epoch + 1500 * 60).tm_gmtoff
+        if end >= base:
+            return None
+        lo, hi = 0, 1500                 # first elapsed minute on the new offset
+        while lo < hi:
+            mid = (lo + hi) // 2
+            if time.localtime(start_epoch + mid * 60).tm_gmtoff == base:
+                lo = mid + 1
+            else:
+                hi = mid
+        return lo, (base - end) / 60.0
+
+    def _clock_spans(self, start_epoch, spans):
+        """Elapsed-minute spans -> clock-minute spans. An end of None means
+        still active at the end of the day. A span that crosses the repeated
+        hour of the October change covers that whole hour on the clock."""
+        fold = self._dst_fold(start_epoch)
+        out = []
+        for s, e in spans:
+            cs = self._clock_of(start_epoch, s)
+            ce = 1440 if e is None else self._clock_of(start_epoch, e)
+            if ce < cs and fold:
+                change, shift = fold
+                cs, ce = min(ce, change - shift), max(cs, change)
+            if ce > cs:
+                out.append([round(cs, 1) if cs else 0, ce if ce == 1440 else round(ce, 1)])
+        return out
 
     def _timeline_active_spans(self, hist, conn, dev_id, col, bounds):
         """Return active spans [[startMin, endMin], ...] (minutes from local
@@ -338,19 +401,21 @@ class HistoryMixin:
             f'FROM "{table}" '
             f'WHERE "{col}" IS NOT NULL AND ts >= ? AND ts < ?{pk_sql} '
             f'ORDER BY ts ASC', (start_utc, end_utc, *pk_args)).fetchall()
+        # Assembled in ELAPSED minutes, where time only runs forwards, then
+        # put on the clock (see _clock_of).
         spans, open_at = [], (0 if state else None)
         for mn, v in rows:
             b = self._as_bool01(v)
-            mn = max(0.0, min(1440.0, mn))
+            mn = max(0.0, float(mn))
             if b and open_at is None:
                 open_at = mn
             elif not b and open_at is not None:
                 if mn > open_at:
-                    spans.append([round(open_at, 1), round(mn, 1)])
+                    spans.append([open_at, mn])
                 open_at = None
         if open_at is not None:
-            spans.append([round(open_at, 1), 1440])   # still active at day end
-        return [s for s in spans if s[1] > s[0]]
+            spans.append([open_at, None])            # still active at day end
+        return self._clock_spans(start_epoch, spans)
 
     def _timeline_day(self, date_str):
         """Build the timeline payload for one LOCAL day (YYYY-MM-DD)."""
@@ -359,9 +424,10 @@ class HistoryMixin:
         hist = self._history()
 
         # UTC bounds of the LOCAL day. time.mktime honours the DST that was in
-        # force on that date, so BST/GMT is handled. We filter the raw UTC ts
-        # against these (index-friendly) and derive local minutes from the
-        # start_epoch offset.
+        # force on that date, so BST/GMT is handled for the bounds. We filter
+        # the raw UTC ts against these (index-friendly), take minutes elapsed
+        # since start_epoch, and put them on the clock with _clock_of, which is
+        # what the page's 0-1440 axis means on the 23- and 25-hour days too.
         import time as _t
         naive = datetime.strptime(date_str, "%Y-%m-%d")
         start_epoch = int(_t.mktime(naive.timetuple()))
@@ -457,10 +523,18 @@ class HistoryMixin:
             f'FROM "{table}" WHERE ts >= ? AND ts < ? AND "{soc}" IS NOT NULL'
             f'{pk_sql} '
             f'GROUP BY b5 ORDER BY b5', (start_utc, end_utc, *pk_args)).fetchall()
-        pts = [{"m": int(b5) * 5,
-                "soc": round(soc_v, 1) if soc_v is not None else None,
-                "pv": round(pv_v) if pv_v is not None else None}
-               for b5, soc_v, pv_v in rows]
+        # On the clock (see _clock_of). Time must only run forwards along a
+        # trace, so the second pass through October's repeated hour is left
+        # out rather than drawn back over the first.
+        pts, last = [], -1.0
+        for b5, soc_v, pv_v in rows:
+            m = int(round(self._clock_of(start_epoch, int(b5) * 5)))
+            if m <= last:
+                continue
+            last = m
+            pts.append({"m": m,
+                        "soc": round(soc_v, 1) if soc_v is not None else None,
+                        "pv": round(pv_v) if pv_v is not None else None})
         return {"points": pts}
 
     @staticmethod
@@ -595,13 +669,17 @@ class HistoryMixin:
         finally:
             conn.close()
 
+        # The SQL buckets hours ELAPSED since local midnight; the chart's bars
+        # are CLOCK hours (review 24-09-2026), which differ after the change
+        # on the two clock-change days. The change falls at night, when there
+        # is no solar to double-count in October's repeated hour.
+        rows = [(int(self._clock_of(start_epoch, int(r[0]) * 60) // 60),) + tuple(r[1:])
+                for r in rows]
         now = datetime.now()
         if date_str == now.strftime("%Y-%m-%d"):
-            # Same arithmetic as the SQL bucket (epoch - local midnight), so
-            # the two agree on the 25-hour October day where now.hour does not.
-            since_midnight = _t.time() - start_epoch
-            now_hour = int(since_midnight // 3600)
-            now_frac = (since_midnight % 3600) / 3600.0
+            # Clock time too, to match the rows above.
+            now_hour = now.hour
+            now_frac = (now.minute * 60 + now.second) / 3600.0
         else:
             now_hour, now_frac = None, 1.0
         strings, site = self._string_hours_payload(rows, now_hour, now_frac)

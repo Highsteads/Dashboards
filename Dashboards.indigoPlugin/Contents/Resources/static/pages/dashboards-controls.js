@@ -248,7 +248,7 @@
     var dis = sp == null ? ' disabled' : '';
     var name = esc(opts.name != null ? opts.name : d.name);
     var info = opts.info
-      ? '<button class="info-btn" aria-label="Details" onclick="event.stopPropagation(); openDeviceDetails(' + d.id + ')">&#9432;</button>'
+      ? '<button class="info-btn" aria-label="Details for ' + name + '" onclick="event.stopPropagation(); openDeviceDetails(' + d.id + ')">&#9432;</button>'
       : '';
     return '' +
       '<div class="zone' + (hot ? ' heating' : '') + '" data-dsh-act-key="device:' + d.id + '">' +
@@ -259,11 +259,11 @@
         '<div class="temps"><div class="cur-temp ' + tempClass(cur) + '">' +
           (cur == null ? '—' : cur.toFixed(1)) + '<span class="cur-unit">°C</span></div></div>' +
         '<div class="setpoint">' +
-          '<button class="setpoint-btn" onclick="DashTile.zone.bump(' + d.id + ', -1)" aria-label="Decrease"' + dis + '>−</button>' +
+          '<button class="setpoint-btn" onclick="DashTile.zone.bump(' + d.id + ', -1)" aria-label="Lower ' + name + ' setpoint"' + dis + '>−</button>' +
           '<div><div class="setpoint-label">Setpoint</div>' +
-            '<div class="setpoint-val" id="sp-' + d.id + '" data-sp="' + (actualSp == null ? '' : actualSp) + '">' +
+            '<div class="setpoint-val" id="sp-' + d.id + '" aria-live="polite" aria-atomic="true" data-sp="' + (actualSp == null ? '' : actualSp) + '">' +
             (sp == null ? '—' : sp.toFixed(1)) + '°</div></div>' +
-          '<button class="setpoint-btn" onclick="DashTile.zone.bump(' + d.id + ', 1)" aria-label="Increase"' + dis + '>+</button>' +
+          '<button class="setpoint-btn" onclick="DashTile.zone.bump(' + d.id + ', 1)" aria-label="Raise ' + name + ' setpoint"' + dis + '>+</button>' +
         '</div>' +
         '<div class="zone-meta">' + meta.map(function (m) { return '<span>' + m + '</span>'; }).join('') + '</div>' +
       '</div>';

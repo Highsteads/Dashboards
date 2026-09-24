@@ -76,6 +76,7 @@
         .section-action:hover { background: rgba(88,86,214,0.10); }
         .section-action.is-on  { background: var(--accent); color: #fff; }
         .section-action:disabled { opacity: 0.5; cursor: default; }
+        .section-action.busy { opacity: 0.6; cursor: progress; }
         @media (prefers-color-scheme: dark) {
             .section-action:hover { background: rgba(125,122,255,0.18); }
         }
@@ -552,6 +553,7 @@
     // first render() call.
     const ROOM_NAME    = new URLSearchParams(location.search).get("room") || "";
     let   LIGHT_IDS    = new Set();
+    const SECTION_BUSY = new Set();   // All On / All Off keys with commands in flight
     let   MOTION_IDS   = new Set();
     let   RADIATOR_IDS = new Set();
     let   WINDOW_IDS   = new Set();
@@ -697,7 +699,10 @@
         // Guarded: a failed capabilities.js load used to strand the page on
         // the boot spinner before observeAll ever started.
         try {
-            if (window.Capabilities && typeof Capabilities.load === "function") {
+            // Only where config.js says the file exists: the bundle does not
+            // ship one, and asking anyway 404s on every room view elsewhere.
+            if ((window.INDIGO_CONFIG || {}).catalog === true &&
+                window.Capabilities && typeof Capabilities.load === "function") {
                 Capabilities.load("catalog.json");
             }
         } catch (e) { console.warn("capabilities load failed", e); }
@@ -767,7 +772,7 @@
             const lbl = allOthersOn ? "All Off" : "All On";
             html += renderSectionHeader(
                 "Lights",
-                `<button class="section-action${allOthersOn ? ' is-on' : ''}" onclick="toggleLights()">${lbl}</button>`
+                `<button class="section-action${allOthersOn ? ' is-on' : ''}${SECTION_BUSY.has("room:lights") ? ' busy' : ''}" data-dsh-act-key="room:lights" onclick="toggleLights()">${lbl}</button>`
             );
             html += '<div class="grid">' + lights.map(renderLight).join("") + '</div>';
         }
@@ -780,7 +785,7 @@
             const cls = tvAllOn ? "is-on" : "";
             html += renderSectionHeader(
                 "TV",
-                `<button class="section-action ${cls}" onclick="toggleTv()">${lbl}</button>`
+                `<button class="section-action ${cls}${SECTION_BUSY.has("room:tv") ? ' busy' : ''}" data-dsh-act-key="room:tv" onclick="toggleTv()">${lbl}</button>`
             );
             html += '<div class="grid">' + tv.map(renderLight).join("") + '</div>';
         }
@@ -846,10 +851,37 @@
         // A full rebuild severs a brightness slider mid-drag — skip this
         // render and let the next poll repaint after release (v2.95.3).
         if (window._sliderDragging) return;
-        document.getElementById("content").innerHTML = html;
+        // Keep keyboard focus across the rebuild: a 3 s poll replacing the
+        // content threw a keyboard or VoiceOver user back to the top.
+        const content = document.getElementById("content");
+        const was = document.activeElement;
+        const fsel = (was && was !== content && content.contains(was)) ? focusSelector(was) : null;
+        content.innerHTML = html;
+        if (fsel) {
+            const again = content.querySelector(fsel);
+            if (again && typeof again.focus === "function") {
+                try { again.focus({ preventScroll: true }); } catch (_) { again.focus(); }
+            }
+        }
         // Repaint any in-flight door takeover onto the buttons just rebuilt —
         // a door watch outlives many of these 3 s renders.
         DashAction.repaint();
+    }
+
+    // A selector that finds "the same control" in rebuilt markup: its tag,
+    // its first class, and the id attribute that names its device or action.
+    function focusSelector(el) {
+        if (!el || !el.getAttribute) return null;
+        for (const a of ["data-id", "data-details-id", "data-dsh-act-key"]) {
+            const v = el.getAttribute(a);
+            if (v != null && /^[\w:.-]+$/.test(v)) {
+                const tag = String(el.tagName || "").toLowerCase();
+                const c = (el.classList && el.classList[0]) ? "." + el.classList[0] : "";
+                const t = (tag === "input" && /^\w+$/.test(el.type || "")) ? `[type="${el.type}"]` : "";
+                return `${tag}${c}${t}[${a}="${v}"]`;
+            }
+        }
+        return null;
     }
 
     function renderSectionHeader(title, actionHtml) {
@@ -892,6 +924,7 @@
         const sliderHtml = isDimmer && !why ? `
             <div class="brightness-row" onclick="event.stopPropagation()">
                 <input type="range" class="brightness" min="0" max="100"
+                       aria-label="${escapeHtml(prettyLightName(d.name))} brightness"
                        onpointerdown="window._sliderDragging = true"
                        onpointerup="window._sliderDragging = false"
                        onpointercancel="window._sliderDragging = false"
@@ -929,13 +962,13 @@
                     <div class="head-text">
                         <div class="name-row">
                             <div class="light-name">${escapeHtml(prettyLightName(d.name))}</div>
-                            <button class="info-btn" aria-label="Details"
+                            <button class="info-btn" aria-label="Details for ${escapeHtml(prettyLightName(d.name))}" data-details-id="${d.id}"
                                     onclick="event.stopPropagation(); openDeviceDetails(${d.id})">&#9432;</button>
                         </div>
                         <div class="light-state${stateCls}">${escapeHtml(subtitle)}</div>
                     </div>
                     <label class="toggle" onclick="event.stopPropagation()">
-                        <input type="checkbox" data-id="${d.id}" ${onState ? 'checked' : ''}
+                        <input type="checkbox" data-id="${d.id}" aria-label="${escapeHtml(prettyLightName(d.name))}" ${onState ? 'checked' : ''}
                                ${why ? `disabled aria-disabled="true" title="${why === "disabled" ? "Disabled in Indigo" : "The device reports an error"}"` : ""}
                                onchange="DashTile.toggle(this)">
                         <span class="slider"></span>
@@ -1042,7 +1075,7 @@
                 <div class="motion-info">
                     <div class="name-row">
                         <div class="motion-name">${escapeHtml(prettyMotionName(d.name))}</div>
-                        <button class="info-btn" aria-label="Details"
+                        <button class="info-btn" aria-label="Details for ${escapeHtml(prettyMotionName(d.name))}" data-details-id="${d.id}"
                                 onclick="event.stopPropagation(); openDeviceDetails(${d.id})">&#9432;</button>
                     </div>
                     <div class="motion-state">
@@ -1083,7 +1116,7 @@
                 <div class="env-info">
                     <div class="name-row">
                         <div class="env-name">${escapeHtml(prettyMotionName(d.name))}</div>
-                        <button class="info-btn" aria-label="Details"
+                        <button class="info-btn" aria-label="Details for ${escapeHtml(prettyMotionName(d.name))}" data-details-id="${d.id}"
                                 onclick="event.stopPropagation(); openDeviceDetails(${d.id})">&#9432;</button>
                     </div>
                     <div class="env-readouts">
@@ -1824,7 +1857,27 @@
         // already believed to be in that state and including the unreadable
         // ones. Sending an off to something already off costs nothing, and it
         // is the only way to be sure about a device that cannot be read.
-        await Promise.allSettled(ids.map(id => indigo[fn](id).catch(() => {})));
+        await sendToAll("room:lights", ids, fn);
+    }
+
+    // The All On / All Off buttons' one sender. Each device's command either
+    // lands or is counted: the old inner .catch turned every rejection into a
+    // success, so half a room going through looked exactly like all of it.
+    async function sendToAll(key, ids, fn) {
+        if (!ids.length || SECTION_BUSY.has(key)) return;
+        SECTION_BUSY.add(key);
+        const btn = document.querySelector(`[data-dsh-act-key="${key}"]`);
+        if (btn) btn.classList.add("busy");
+        try {
+            const results = await Promise.allSettled(ids.map(id => indigo[fn](id)));
+            const bad = results.filter(r => r.status === "rejected").length;
+            if (bad) DashAction.note(key, "error",
+                bad === ids.length ? "Failed — no response" : `${bad} of ${ids.length} failed`);
+        } finally {
+            SECTION_BUSY.delete(key);
+            const now = document.querySelector(`[data-dsh-act-key="${key}"]`);
+            if (now) now.classList.remove("busy");
+        }
     }
 
     async function toggleTv() {
@@ -1836,7 +1889,7 @@
             return cb && cb.checked;
         });
         const fn = anyOn ? "turnOff" : "turnOn";
-        await Promise.allSettled(ids.map(id => indigo[fn](id).catch(() => {})));
+        await sendToAll("room:tv", ids, fn);
     }
 
     // A pointerup that lands outside the slider never reaches its own handler;

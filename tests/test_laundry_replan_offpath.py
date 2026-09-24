@@ -82,3 +82,29 @@ def test_two_script_runs_never_overlap(plug, tmp_path):
     for t in ts:
         t.join(3)
     assert results == [True, True, True], plug.logger.warning.call_args_list
+
+
+def test_a_failed_replan_is_reported_not_dressed_as_the_new_plan(plug):
+    """Review 24-09-2026 [26]: Script Ticker ran the job and it failed. The
+    page must hear ok:false, not the old plan as the answer to its deadline."""
+    def failed():
+        raise RuntimeError("Script Ticker could not replan the laundry: script error")
+    plug._replan_laundry = failed
+    r = plug.handleLaundryDeadline(_action({"appliance": "washing_machine", "deadline": "16:00"}))
+    assert r["obj"]["ok"] is False
+    assert "script error" in r["obj"]["error"]
+
+
+def test_single_use_replan_keys_do_not_linger_in_the_pool(plug):
+    """Review 24-09-2026 [79]: each deadline change has a key of its own that
+    nothing asks for again. Its result, or its failure, is dropped once read,
+    so it neither evicts timeline days from the LRU nor sits in fail for ever."""
+    plug._replan_laundry = lambda: {"generated": "NEW", "appliances": []}
+    plug.handleLaundryDeadline(_action({"deadline": "16:00"}))
+    def failed():
+        raise RuntimeError("nope")
+    plug._replan_laundry = failed
+    plug.handleLaundryDeadline(_action({"deadline": "17:00"}))
+    st = plug._offpath()
+    left = [k for k in list(st["cache"]) + list(st["fail"]) if k.startswith("laundry-replan:")]
+    assert left == [], left

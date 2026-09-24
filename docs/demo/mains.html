@@ -358,19 +358,32 @@ function renderTrust(off, refName) {
     return html;
 }
 
+/* Why the whole-house reference has no reading, in words; '' when it has one.
+   The server nulls houseWatts and volts and names the reason in `stale` when
+   the inverter's readings are not current (a stopped plugin, a disabled or
+   silent device): blanks and zeros said nothing about which. */
+function refMissingWhy(ref) {
+    if (!ref) return "No inverter to measure the whole house.";
+    const who = ref.name || "the inverter";
+    if (ref.stale) return `No current reading from ${who}: ${ref.stale}.`;
+    if (!has(ref.houseWatts)) return `No whole-house reading from ${who}.`;
+    return "";
+}
+
 /* ── the four numbers worth seeing at a glance ────────────────────────────── */
 function renderStrip(d) {
     const ref = d.reference || {};
+    const refWhy = refMissingWhy(d.reference);
     const rows = d.meters || [];
     const live = rows.filter(r => r.state === "live").length;
     const gone = rows.length - live;
     const share = (has(d.unmeteredWatts) && ref.houseWatts)
         ? Math.max(0, Math.min(100, 100 * d.unmeteredWatts / ref.houseWatts)) : null;
-    const houseSub = ref.name ? "measured by " + esc(ref.name) : "no whole-house reading";
+    const houseSub = refWhy ? esc(refWhy) : "measured by " + esc(ref.name || "the inverter");
     return `<div class="strip">
-      <div class="gauge">
+      <div class="gauge${refWhy ? " warn" : ""}">
         <div class="gauge-lab">House now</div>
-        <div class="gauge-big">${num(ref.houseWatts, 0)} W</div>
+        <div class="gauge-big">${has(ref.houseWatts) ? num(ref.houseWatts, 0) + " W" : "&#8212;"}</div>
         <div class="gauge-sub">${houseSub}</div>
       </div>
       <div class="gauge">
@@ -382,7 +395,7 @@ function renderStrip(d) {
         <div class="gauge-lab">Unmeasured</div>
         <div class="gauge-big">${num(d.unmeteredWatts, 0)} W</div>
         <div class="gauge-sub">${share === null
-            ? esc(d.unmeteredWhy || "nothing to compare against")
+            ? esc(refWhy ? "nothing to compare against" : (d.unmeteredWhy || "nothing to compare against"))
             : Math.round(share) + "% of the house"}</div>
         ${share === null ? "" : `<div class="bar"><div class="bar-fill"
             style="width:${share.toFixed(1)}%;background:var(--home-load)"></div></div>`}
@@ -400,7 +413,7 @@ function renderUnmetered(d) {
     const ref = d.reference || {};
     let body;
     if (!has(d.unmeteredWatts)) {
-        body = `<div class="empty">${esc(d.unmeteredWhy || "No whole-house reading to compare against.")}</div>`;
+        body = `<div class="empty">${esc(refMissingWhy(d.reference) || d.unmeteredWhy || "No whole-house reading to compare against.")}</div>`;
     } else {
         const share = ref.houseWatts ? Math.round(100 * d.unmeteredWatts / ref.houseWatts) : null;
         body = `<div class="kv">The house is drawing <b>${num(ref.houseWatts, 0)} W</b></div>

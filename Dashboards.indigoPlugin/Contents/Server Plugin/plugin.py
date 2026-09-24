@@ -19,7 +19,7 @@
 #              are not live poll the snapshots.
 # Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.42.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
 # Date:        23-09-2026
-# Version:     3.43.0
+# Version:     3.43.1
 #
 # Version history: docs/changelog.md (what each release does, for users) and
 # `git log` (why, for developers). The per-version engineering notes that sat
@@ -103,7 +103,7 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION = "3.43.0"
+PLUGIN_VERSION = "3.43.1"
 
 import logging
 from dash_common import (  # noqa: E402
@@ -119,6 +119,7 @@ from dash_common import (  # noqa: E402
     STAMP_QUIESCE_SECONDS,
     _COLOUR_LEVEL_KEYS,
     _detect_lan_ip,
+    dict_entries,
     _install_file_mirror,
     _parse_cameras,
     log,
@@ -194,7 +195,7 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         # every test had to monkeypatch and no mixin could see). This is the
         # RUNNING list: a Settings save changes the store, not this, until
         # the next restart.
-        self.cameras = _parse_cameras(store.get("cameras") or [])
+        self.cameras = self._vet_cameras(_parse_cameras(store.get("cameras") or []))
         # Default swap-out = last entry in the list (the cam most likely to be
         # safe to drop from the live pool), unless Settings names one.
         swap_pref = (store.get("swapOutHost") or "").strip()
@@ -242,7 +243,7 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         # the hub. Edited in Settings, stored in dashboards_config.json, and
         # published into config.js (just ids + labels — not secret) so the hub
         # reads them straight from window.INDIGO_CONFIG with no extra fetch.
-        self.favourites = list(store.get("favourites") or [])
+        self.favourites = self._stored_dicts(store, "favourites")
 
         # Custom links (v2.x): full-size hub tiles that open an arbitrary URL in a
         # new tab — e.g. the MQTT Explorer page, a Grafana board, a router admin
@@ -250,7 +251,7 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         # dashboards_config.json, published into the public config.js. The URL is
         # NOT secret (just a link); never put a token in it — the target page
         # handles its own auth.
-        self.custom_links = list(store.get("customLinks") or [])
+        self.custom_links = self._stored_dicts(store, "customLinks")
 
         # LAN IP — used by the go2rtc WebRTC config and the startup log line.
         # Detect once at __init__; the hostname doesn't change at runtime.
@@ -558,10 +559,52 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         # default produces an unintuitive grouping (e.g. Conservatory wants
         # both windows first and then both doors, not Left-Outside-Right-
         # Sliding interleaved).
-        extras_cfg = self.room_extras if isinstance(self.room_extras, dict) else {}
+        self._sort_room_sections(rooms)
+
+        payload = {
+            "_writeTs": time.time(),
+            "rooms":    rooms,
+        }
         try:
-            name_of2 = lambda i: (indigo.devices[i].name or "").lower()
-            for room_name, room in rooms.items():
+            path = os.path.join(self._public_dashboards_dir(), "rooms.json")
+            self._write_json_if_changed(path, payload, indent=2)
+        except Exception as exc:
+            log(f"[Rooms] rooms.json write failed: {exc}", level="WARNING")
+        return payload   # also return it so callers (e.g. timeline) can use it
+
+
+    def _stored_dicts(self, store, key):
+        """A list setting read at load, keeping only its object entries and
+        WARNING about the rest (review 24-09-2026). The Settings save refuses
+        such entries; a hand-edited file does not, and config.js's build then
+        raised in startup() before the proxy, go2rtc or the liveness stamp."""
+        keep, dropped = dict_entries(store.get(key))
+        if dropped:
+            log(f"[Config] ignoring {dropped} entr{'y' if dropped == 1 else 'ies'} in "
+                f"'{key}' in dashboards_config.json that {'is' if dropped == 1 else 'are'} "
+                f"not an object. Save the Settings page to tidy the file.", level="WARNING")
+        return keep
+
+    def _sort_room_sections(self, rooms):
+        """Sort every room's sections, honouring each room's sortOrder.
+
+        One room at a time (review 24-09-2026), as _merge_room_extras is: a
+        fault in one room is warned about once and costs that room its order,
+        never the rooms after it."""
+        extras_cfg = self.room_extras if isinstance(self.room_extras, dict) else {}
+
+        def name_of2(i):
+            # Total (review 24-09-2026): a pinned id whose device has since
+            # been deleted sorts last instead of raising. It used to raise out
+            # of one try around EVERY room, so one stale id silently stopped
+            # sorting for that room and all the rooms after it.
+            try:
+                return (0, (indigo.devices[i].name or "").lower())
+            except Exception:
+                return (1, str(i))
+
+        for room_name, room in rooms.items():
+            try:
                 cfg = extras_cfg.get(room_name)
                 if not isinstance(cfg, dict):      # already warned about by the merge
                     cfg = {}
@@ -579,20 +622,8 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
                         room[k] = listed + rest
                     else:
                         room[k].sort(key=name_of2)
-        except Exception:
-            pass
-
-        payload = {
-            "_writeTs": time.time(),
-            "rooms":    rooms,
-        }
-        try:
-            path = os.path.join(self._public_dashboards_dir(), "rooms.json")
-            self._write_json_if_changed(path, payload, indent=2)
-        except Exception as exc:
-            log(f"[Rooms] rooms.json write failed: {exc}", level="WARNING")
-        return payload   # also return it so callers (e.g. timeline) can use it
-
+            except Exception as exc:
+                self._warn_room_extras(room_name, f"sorting failed, {type(exc).__name__}: {exc}")
 
     def _merge_room_extras(self, rooms):
         """Apply each room's roomExtras entry to its record in `rooms`.
@@ -1385,7 +1416,8 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
             except Exception:
                 refl = ""
             self._reflector_host = refl
-        via = bool(xff) or (bool(refl) and host == refl)
+        via = (bool(refl) and host == refl) or (
+            bool(xff) and not self._local_address(xff) and not self._local_host(host))
         if not via:
             return False
         ua   = hdrs.get("user-agent", "")[:120]
@@ -1404,6 +1436,37 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
                 f"open them on {lan} instead — every byte through the reflector is carried "
                 f"by Indigo's own servers.")
         return True
+
+    @staticmethod
+    def _local_address(text):
+        """True when `text` is an address that can only be this network or this
+        Mac: private, loopback, link-local, or Tailscale's CGNAT range (review 24-09-2026).
+
+        A reverse proxy on the LAN or `tailscale serve` adds X-Forwarded-For
+        to every request, naming a HOME address; the reflector forwards the
+        caller's PUBLIC one. So a forwarded local address is not the
+        reflector. Text that is not an address at all stays evidence, as before.
+        """
+        import ipaddress
+        try:
+            addr = ipaddress.ip_address(str(text).strip().strip("[]"))
+        except ValueError:
+            return False
+        if getattr(addr, "ipv4_mapped", None):
+            addr = addr.ipv4_mapped
+        return (addr.is_private or addr.is_loopback or addr.is_link_local
+                or (addr.version == 4 and addr in ipaddress.ip_network("100.64.0.0/10")))
+
+    @classmethod
+    def _local_host(cls, host):
+        """True when the browser addressed this Mac by a home name: a local
+        address, a .local name or a Tailscale .ts.net name (review 24-09-2026)."""
+        host = (host or "").strip().lower().rstrip(".")
+        if not host:
+            return False
+        if host.endswith(".local") or host.endswith(".ts.net") or host == "localhost":
+            return True
+        return cls._local_address(host)
 
     def _changed_since_payload(self, since, now=None):
         """The changedSince reply for a client whose last poll was at `since`
@@ -1525,9 +1588,9 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
     def menuTestSetup(self, valuesDict=None, typeId=None):
         """Menu: one PASS/FAIL sweep of everything a stuck install needs
         checked — the single log dump a support post wants. Banner first (the
-        estate convention for diagnostic menus)."""
-        if log_startup_banner:
-            log_startup_banner(self.pluginId, self.pluginDisplayName, self.pluginVersion)
+        estate convention for diagnostic menus), through showPluginInfo so it
+        carries the same extras as the other two (review 24-09-2026)."""
+        self.showPluginInfo()
         checks = self._setup_checks()
         fails = counted = 0
         for label, ok, detail, optional in checks:
@@ -1652,8 +1715,13 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
                 {"ok": False, "error": "EvoHome plugin not running"}, status=503
             )
 
+        # Waits for EvoHomeControl's callback (the default), on purpose.
+        # Reviewed 24-09-2026: every allow-listed callback is an in-process
+        # helper with no network I/O, so the wait is milliseconds, and "ok"
+        # is only claimed once the call has come back. Not waiting would save
+        # that and lose the one thing the reply is for.
         try:
-            evo.executeAction(action_id)
+            evo.executeAction(action_id, waitUntilDone=True)
         except Exception as exc:
             self.logger.error(f"[EvoHome proxy] executeAction({action_id!r}) failed: {exc}")
             return self._evo_reply({"ok": False, "error": str(exc)}, status=500)
@@ -1717,6 +1785,14 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
     # waits OFFPATH_WAIT at the very most and is told the work is pending.
 
     OFFPATH_WORKERS = 3
+    # Lanes (review 24-09-2026): work that can hang on another plugin gets
+    # workers of its own. A wedged SigenEnergyManager holds a Sigen fetch for
+    # up to SIGEN_UPSTREAM_TIMEOUT, and status, daily and vpp are separate
+    # keys, so on the one shared queue they could hold all three workers and
+    # leave Timeline, System Health and the charts "Building..." until it
+    # recovered. Two Sigen workers, so a slow status fetch still leaves one for
+    # daily and vpp, as the shared pool did in the normal case.
+    OFFPATH_LANES   = {"sigen": 2}
     # The ONLY time a handler is allowed to wait. Long enough that a healthy
     # producer lands inside it (SigenEnergyManager answers in ~30 ms), short
     # enough that a sick one costs a page one poll instead of the house.
@@ -1772,6 +1848,7 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
                 "waiters": {},        # key -> Event, present only while queued
                 "lock":    threading.Lock(),
                 "queue":   queue.Queue(),
+                "lanes":   {name: queue.Queue() for name in self.OFFPATH_LANES},
                 "stop":    threading.Event(),
                 "threads": [],
             }
@@ -1779,9 +1856,12 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
 
     def _start_offpath_workers(self):
         st = self._offpath()
-        for i in range(self.OFFPATH_WORKERS):
-            t = threading.Thread(target=self._offpath_worker_main, args=(st,),
-                                 name=f"dashboards-offpath-{i}", daemon=True)
+        plan = [(f"dashboards-offpath-{i}", st["queue"]) for i in range(self.OFFPATH_WORKERS)]
+        for lane, count in self.OFFPATH_LANES.items():
+            plan += [(f"dashboards-offpath-{lane}-{i}", st["lanes"][lane]) for i in range(count)]
+        for name, q in plan:
+            t = threading.Thread(target=self._offpath_worker_main, args=(st, q),
+                                 name=name, daemon=True)
             st["threads"].append(t)
             t.start()
 
@@ -1790,15 +1870,17 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         if not st:
             return
         st["stop"].set()
-        for _ in st["threads"]:
-            st["queue"].put(None)      # a worker parked in get() needs waking
+        for q in [st["queue"]] + list(st.get("lanes", {}).values()):
+            for _ in st["threads"]:
+                q.put(None)            # a worker parked in get() needs waking
         for t in st["threads"]:
             t.join(timeout=1.0)
         st["threads"] = []
 
-    def _offpath_worker_main(self, st):
+    def _offpath_worker_main(self, st, q=None):
+        q = st["queue"] if q is None else q
         while True:
-            job = st["queue"].get()
+            job = q.get()
             if job is None or st["stop"].is_set():
                 return
             key, producer = job
@@ -1829,8 +1911,10 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
                 if ev is not None:
                     ev.set()
 
-    def _offpath_get(self, key, producer, ttl, wait=None):
+    def _offpath_get(self, key, producer, ttl, wait=None, lane=None):
         """Return (state, payload): "fresh" | "failed" | "pending".
+
+        `lane` names one of OFFPATH_LANES, whose workers serve only that lane.
 
         Callers asking for the same key share one Event and produce ONE run of
         the producer — three pages polling the same thing within a second cost
@@ -1854,7 +1938,7 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
                 # (v3.27.0): it used to be returned while the new run was still
                 # pending, and was only ever cleared by a success.
                 st["fail"].pop(key, None)
-                st["queue"].put((key, producer))
+                (st["lanes"][lane] if lane else st["queue"]).put((key, producer))
         ev.wait(self.OFFPATH_WAIT if wait is None else wait)
 
         with st["lock"]:
@@ -1865,6 +1949,16 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         if fail:
             return "failed", fail[1]
         return "pending", None
+
+    def _offpath_forget(self, key):
+        """Drop a key's cached result and failure, unless a run is in flight.
+        For single-use keys that nothing will ask for again."""
+        st = self._offpath()
+        with st["lock"]:
+            if key in st["waiters"]:
+                return
+            st["cache"].pop(key, None)
+            st["fail"].pop(key, None)
 
     def _offpath_swr(self, key, producer, ttl, fail_ttl, placeholder, on_fail):
         """Stale-while-revalidate on the shared pool (v3.27.0). Never waits.
@@ -1971,7 +2065,9 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
             if k in query:
                 try:
                     qs[k] = int(query[k])
-                except (TypeError, ValueError):
+                # OverflowError: JSON's 1e999 and Infinity parse to inf, and
+                # int(inf) raises it (review 24-09-2026) — an IWS 500, not a 400.
+                except (TypeError, ValueError, OverflowError):
                     pass
         url = f"{self._SIGEN_API_BASE}/{path}"
         if qs:
@@ -1980,7 +2076,8 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         # No network I/O on the dispatch path (v3.18.0; on the shared pool
         # since v3.19.0). See the block above _offpath for what this replaced.
         state, payload = self._offpath_get(
-            f"sigen:{url}", lambda: self._sigen_fetch(url), self.SIGEN_FRESH_SECONDS)
+            f"sigen:{url}", lambda: self._sigen_fetch(url), self.SIGEN_FRESH_SECONDS,
+            lane="sigen")
         if state == "fresh":
             return {
                 "status":  200,
@@ -2014,6 +2111,43 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         except Exception:
             return None
         return None
+
+    # SigenEnergyManager polls every 5-120 s (its pollInterval menu), and any
+    # state write refreshes lastSuccessfulComm, so five of its slowest polls
+    # without one means nothing is maintaining the inverter's states.
+    SIGEN_STATES_STALE_SECONDS = 600
+
+    def _sigen_states_live(self, inv, now=None):
+        """(True, "") when the inverter device's states are a current reading,
+        else (False, why). ONE rule for every caller that reads them as "now"
+        (review 24-09-2026): the Mains reference read them with no check at
+        all, and carbon advice checked enabled and errorState but not whether
+        SigenEnergyManager was running or how old they were. A device state is
+        a last known value, and nothing writes a zero when its plugin stops.
+
+        Fails OPEN where it cannot tell (the plugin id is hardcoded here, so
+        an answer that cannot be had is not evidence of a fault)."""
+        if inv is None:
+            return False, "no inverter device"
+        if not getattr(inv, "enabled", True):
+            return False, "the inverter device is disabled"
+        err = str(getattr(inv, "errorState", "") or "").strip()
+        if err:
+            return False, err
+        try:
+            plug = indigo.server.getPlugin(self._SIGEN_PLUGIN_ID)
+            if plug is not None and not plug.isRunning():
+                return False, "SigenEnergyManager is not running"
+        except Exception:
+            pass
+        try:
+            last = inv.lastSuccessfulComm
+            age = ((now or datetime.now()) - last).total_seconds()
+        except Exception:
+            return True, ""
+        if age > self.SIGEN_STATES_STALE_SECONDS:
+            return False, f"no update from the inverter for {int(age // 60)} minutes"
+        return True, ""
 
 
     # -----------------------------------------------------------------------
@@ -2614,11 +2748,19 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
             return self._evo_reply({"ok": False, "error": str(exc)}, status=500)
 
         # A key of its own for every request: each deadline change must replan,
-        # never reuse the previous run's answer.
-        self._laundry_seq = getattr(self, "_laundry_seq", 0) + 1
+        # never reuse the previous run's answer. Nothing asks for an old key
+        # again, so its result is dropped once read (review 24-09-2026): each
+        # one used to sit in the LRU, pushing out timeline days held for the
+        # session, and a failed run's entry was never cleared at all.
+        prev = getattr(self, "_laundry_seq", 0)
+        self._offpath_forget(f"laundry-replan:{prev}")
+        self._laundry_seq = prev + 1
+        rkey = f"laundry-replan:{self._laundry_seq}"
         state, plan = self._offpath_get(
-            f"laundry-replan:{self._laundry_seq}", self._replan_laundry,
+            rkey, self._replan_laundry,
             self.LAUNDRY_REPLAN_TTL, wait=self.LAUNDRY_REPLAN_WAIT)
+        if state != "pending":
+            self._offpath_forget(rkey)
         if state == "failed":
             return self._evo_reply({"ok": False, "error": plan}, status=500)
         reply = {"ok": True, "appliance": key, "deadline": wanted}
@@ -2636,7 +2778,12 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
 
         While Script Ticker runs the scripts, ask IT to run this one and wait
         (v3.31.0), so the scheduler never runs in two hosts at once. If the
-        request cannot be made, run it here — a deadline change must replan."""
+        request cannot be made, run it here — a deadline change must replan.
+
+        If the ticker TOOK the job and reports it failed, that is raised
+        (review 24-09-2026) so the page is told the replan did not happen. It
+        used to be logged at DEBUG and the previous plan handed back as the
+        answer to the new deadline."""
         if self._ticker_running():
             try:
                 reply = indigo.server.getPlugin(self._TICKER_PLUGIN_ID).executeAction(
@@ -2644,16 +2791,17 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
                 # The reply crosses hosts as an indigo.Dict, which is NOT a
                 # dict subclass — read it through its mapping methods.
                 reply = dict(reply) if hasattr(reply, "keys") else {}
-                if not reply.get("ok"):
-                    self.logger.debug(f"[Laundry] Script Ticker could not replan: "
-                                      f"{reply.get('error') or 'no reason given'}")
-                return self._read_laundry_plan()
             except Exception as exc:
                 self.logger.debug(f"[Laundry] Script Ticker did not take the replan ({exc}); "
                                   f"running it here")
+            else:
+                if not reply.get("ok"):
+                    # The worker logs this one line at WARNING, with the key.
+                    raise RuntimeError(f"Script Ticker could not replan the laundry: "
+                                       f"{reply.get('error') or 'no reason given'}")
+                return self._read_laundry_plan()
         self._run_appliance_scheduler()
         return self._read_laundry_plan()
-
 
     def handleVerifyPin(self, action, dev=None, callerWaitingForResult=True):
         """POST /message/com.clives.indigoplugin.dashboards/verifyPin/
@@ -2759,7 +2907,7 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
 
         try:
             dev_id = int(payload.get("deviceId"))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):     # inf from 1e999
             return self._evo_reply({"ok": False, "error": "deviceId must be a number"}, status=400)
         # `in` on the devices collection returns False for an unknown id rather
         # than raising, so this is a real existence check.

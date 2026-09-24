@@ -144,3 +144,15 @@ def test_mcp_tools_is_imported_lazily_not_at_module_level():
     inner = [n for n in ast.walk(handler) if isinstance(n, ast.Import)
              and any(a.name == "mcp_tools" for a in n.names)]
     assert inner, "handle_mcp_tool_invoke must import mcp_tools itself"
+
+
+def test_no_tool_description_names_a_retired_component():
+    """Review 24-09-2026 [85]: list_cameras still said 'the MJPEG proxy',
+    which went in v3.36.0, so an AI diagnosing live video looked for it."""
+    import json as _json
+    import os as _os
+    from conftest import SP as _SP
+    with open(_os.path.join(_SP, "..", "Resources", "mcp-manifest.json"), encoding="utf-8") as fh:
+        text = _json.dumps(_json.load(fh))
+    for retired in ("MJPEG", "live.html"):
+        assert retired not in text, retired

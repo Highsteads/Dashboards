@@ -63,7 +63,9 @@ def test_a_fresh_install_gets_an_empty_store_and_no_import_line(monkeypatch):
 
 
 def test_a_failed_save_still_runs_on_the_imported_settings(monkeypatch):
-    p, saved, logs = _plugin(monkeypatch, DASHBOARDS_MAIN_CAMERAS=["192.0.2.1"])
+    p, saved, logs = _plugin(
+        monkeypatch, DASHBOARDS_MAIN_CAMERAS=["192.0.2.1"],
+        DASHBOARDS_CAMERAS='[{"host":"192.0.2.1","name":"Door","vendor":"dahua"}]')
     def boom(data):
         raise OSError("read-only")
     p._save_config_store = boom
@@ -77,3 +79,27 @@ def test_hidden_scenes_come_from_the_store_only(monkeypatch):
     p.cfg_store = {"hiddenScenes": ["From settings"]}
     p.pluginPrefs = {"hiddenScenesJson": '["From configure"]'}
     assert p._hidden_scenes() == {"From settings"}
+
+
+def test_main_cameras_given_by_name_are_imported_as_hosts(monkeypatch):
+    """Review 24-09-2026 [47]: the example secrets file said the hub mosaic
+    was listed BY NAME, but the key has always meant hosts, so a name list was
+    imported verbatim: an empty mosaic, and every MCP camera write refused."""
+    p, saved, logs = _plugin(
+        monkeypatch,
+        DASHBOARDS_CAMERAS='[{"host":"192.0.2.5","name":"Front Door","vendor":"dahua"},'
+                           '{"host":"192.0.2.6","name":"Drive","vendor":"dahua"}]',
+        DASHBOARDS_MAIN_CAMERAS=["drive", "192.0.2.5", "Garden", "Drive"])
+    store = p._import_legacy_config({})
+    assert store["mainCameras"] == ["192.0.2.6", "192.0.2.5"]
+    warned = [m for lvl, m in logs if lvl == "WARNING"]
+    assert len(warned) == 1 and "Garden" in warned[0]
+
+
+def test_the_example_secrets_file_says_hosts_not_names():
+    import os
+    from conftest import SP
+    text = open(os.path.join(SP, "..", "..", "..", "IndigoSecrets_example.py"),
+                encoding="utf-8").read()
+    line = next(ln for ln in text.splitlines() if ln.startswith("DASHBOARDS_MAIN_CAMERAS"))
+    assert '"Drive"' not in line and "192.168.1." in line

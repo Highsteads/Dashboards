@@ -296,3 +296,87 @@ def test_vehicles_keep_good_rows_and_drop_bad_ones():
     assert cap["clean"]["vehicles"] == [{"id": 1453377785, "label": "Car 12V"}]
     body, status = save(p, dict(_base(), vehicles={"id": 1}))
     assert status == 400
+
+
+# ── Review 24-09-2026 [48]: malformed values are named 400s, never bare 500s ──
+
+def _raw_save(p, raw):
+    reply = p.handleSaveDashboardsConfig(FakeAction(raw))
+    return json.loads(reply["content"]), reply["status"]
+
+
+def test_wrongly_typed_camera_settings_are_a_named_400():
+    for cfg, word in (({"swapOutHost": 5}, "swapOutHost"),
+                      ({"mainCameras": [5]}, "mainCameras"),
+                      ({"mainCameras": [["a"]]}, "mainCameras"),
+                      ({"mainCameras": "10.0.0.5"}, "mainCameras")):
+        p, cap = make_plugin()
+        body, status = save(p, cfg)
+        assert status == 400 and word in body["error"], (cfg, status, body)
+        assert "clean" not in cap
+
+
+def _group_fav(level):
+    return ('{"config": {"favourites": [{"type": "group", "label": "G", '
+            '"devices": [{"id": 1, "onLevel": ' + level + '}]}]}}')
+
+
+def test_an_infinite_on_level_is_dropped_not_a_500():
+    p, cap = make_plugin()
+    body, status = _raw_save(p, _group_fav("1e999"))
+    assert status == 200, body
+    assert "onLevel" not in cap["clean"]["favourites"][0]["devices"][0]
+
+
+def test_a_nan_colour_band_is_dropped_and_the_reply_stays_json():
+    p, cap = make_plugin()
+    body, status = save(p, {"favourites": [{"type": "device", "id": 7, "state": "temp",
+                                            "label": "T", "warnBelow": "nan",
+                                            "badBelow": 5}]})
+    assert status == 200
+    fav = cap["clean"]["favourites"][0]
+    assert "warnBelow" not in fav and fav["badBelow"] == 5.0
+    json.dumps(cap["clean"], allow_nan=False)
+
+
+def test_a_non_finite_passthrough_key_is_refused():
+    p, cap = make_plugin()
+    body, status = _raw_save(p, '{"config": {"arrayKwp": NaN}}')
+    assert status == 400 and "not finite" in body["error"]
+    assert "clean" not in cap
+
+
+def test_an_unforeseen_fault_is_answered_as_json():
+    p, cap = make_plugin()
+    def boom(cfg):
+        raise KeyError("surprise")
+    p._apply_config_checked = boom
+    body, status = save(p, {})
+    assert status == 500 and body["ok"] is False and "surprise" in body["error"]
+
+
+def test_the_store_is_never_written_with_nan(tmp_path):
+    import pytest
+    p = bare_plugin()
+    p._store_unreadable = ""
+    p._config_store_path = lambda: str(tmp_path / "dashboards_config.json")
+    with pytest.raises(ValueError):
+        p._save_config_store({"x": float("nan")})
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_a_swap_out_host_that_matches_no_camera_is_cleared():
+    """Lows batch [75]: re-addressing the swap-out camera left swapOutHost
+    pointing at nothing, stored without a word. It now means 'the last in the
+    list', and a matching host still round-trips."""
+    p, cap = make_plugin()
+    body, status = save(p, {
+        "cameras": [{"host": "10.0.0.5", "name": "Front", "vendor": "dahua"}],
+        "swapOutHost": "10.0.0.9",
+    })
+    assert status == 200 and body["ok"] is True
+    assert cap["clean"]["swapOutHost"] == ""
+    p, cap = make_plugin()
+    save(p, {"cameras": [{"host": "10.0.0.5", "name": "Front", "vendor": "dahua"}],
+             "swapOutHost": " 10.0.0.5 "})
+    assert cap["clean"]["swapOutHost"] == "10.0.0.5"

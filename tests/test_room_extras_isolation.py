@@ -72,3 +72,34 @@ def test_a_rebuilt_json_file_is_written_only_when_it_changes(tmp_path):
     os.remove(path)                                   # someone deleted it
     assert p._write_json_if_changed(path, {"_writeTs": 4, "rooms": {"Hall": [1, 2]}}) is True
     assert len(writes) == 3
+
+
+def test_a_deleted_pinned_device_does_not_stop_sorting(monkeypatch):
+    """Review 24-09-2026 [25]: the sort key raised on an id whose device had
+    been deleted, and one try around every room swallowed it, so that room and
+    every room after it lost their order with nothing in the log."""
+    from types import SimpleNamespace
+    import plugin as mod
+    devs = {1: SimpleNamespace(name="Zeta"), 2: SimpleNamespace(name="Alpha"),
+            3: SimpleNamespace(name="Yew"), 4: SimpleNamespace(name="Beech")}
+    monkeypatch.setattr(mod.indigo, "devices", devs)
+    p = _plugin({})
+    rooms = {"Hall": _room(lights=[1, 999, 2]),        # 999 was deleted
+             "Lounge": _room(lights=[3, 4])}
+    p._sort_room_sections(rooms)
+    assert rooms["Hall"]["lights"] == [2, 1, 999]     # the missing id goes last
+    assert rooms["Lounge"]["lights"] == [4, 3]        # a later room still sorts
+    assert p.logger.warning.call_count == 0
+
+
+def test_a_room_whose_sort_fails_is_warned_and_the_rest_still_sort(monkeypatch):
+    from types import SimpleNamespace
+    import plugin as mod
+    monkeypatch.setattr(mod.indigo, "devices",
+                        {3: SimpleNamespace(name="Yew"), 4: SimpleNamespace(name="Beech")})
+    p = _plugin({})
+    rooms = {"Hall": {"lights": None}, "Lounge": _room(lights=[3, 4])}
+    p._sort_room_sections(rooms)
+    assert rooms["Lounge"]["lights"] == [4, 3]
+    assert p.logger.warning.call_count == 1
+    assert "Hall" in str(p.logger.warning.call_args.args[0])

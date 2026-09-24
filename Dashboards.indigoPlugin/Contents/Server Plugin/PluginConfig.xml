@@ -143,7 +143,7 @@
 	<Field id="pgUser" type="textfield" defaultValue="postgres" visibleBindingId="historyBackend" visibleBindingValue="postgres">
 		<Label>User:</Label>
 	</Field>
-	<Field id="pgPassword" type="textfield" defaultValue="" visibleBindingId="historyBackend" visibleBindingValue="postgres">
+	<Field id="pgPassword" type="textfield" defaultValue="" secure="true" visibleBindingId="historyBackend" visibleBindingValue="postgres">
 		<Label>Password:</Label>
 	</Field>
 

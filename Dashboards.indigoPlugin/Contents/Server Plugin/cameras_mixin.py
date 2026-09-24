@@ -23,6 +23,7 @@ from datetime import datetime
 
 from dash_common import (
     CAMERA_DEFAULT_STREAM,
+    CAMERA_HOST_RE,
     CAMERA_HTTP_TIMEOUT,
     CAMERA_POLL_MAX_WORKERS,
     CAMERA_RETRY_DELAY,
@@ -37,6 +38,41 @@ from dash_common import (
     VENDOR_URLS,
     log,
 )
+
+
+def status_reason(text, limit=100):
+    """A status-line reason that cannot break the response (review 24-09-2026).
+
+    BaseHTTPRequestHandler writes the reason on the status line as strict
+    latin-1, so a non-latin-1 character (the em dash in the /bootstrap
+    refusal) raised, the connection closed with no response at all and a
+    traceback went to stderr. Exception text can also carry a newline, which
+    splits the status line. ASCII, one line, bounded."""
+    if text is None:
+        return None
+    one = " ".join(str(text).split())
+    one = one.encode("ascii", "replace").decode("ascii")
+    return one if len(one) <= limit else one[: limit - 3] + "..."
+
+
+def _discard(path):
+    """Remove a temp file this plugin created, ignoring every error."""
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+
+
+class SafeErrorMixin:
+    """send_error() whose reason is always a safe status line. The full text,
+    if it had to change, goes in the body, where it is escaped and encoded as
+    UTF-8 by the base class."""
+
+    def send_error(self, code, message=None, explain=None):
+        reason = status_reason(message)
+        if explain is None and message is not None and reason != message:
+            explain = str(message)
+        super().send_error(code, reason, explain)
 
 
 class CamerasMixin:
@@ -199,7 +235,7 @@ class CamerasMixin:
         allowed_hosts = set(host_to_slug.keys())
         plugin_self   = self
 
-        class _Handler(http.server.BaseHTTPRequestHandler):
+        class _Handler(SafeErrorMixin, http.server.BaseHTTPRequestHandler):
             # Socket timeout (v2.95.2). StreamRequestHandler applies this to
             # the request socket, so a client that connects and never sends a
             # request line, or a viewer whose write side has stalled, is
@@ -477,7 +513,8 @@ class CamerasMixin:
                     # trusted devices pair via the one-time setup links instead —
                     # making the guest boundary real. Default keeps auto-seed on.
                     if not plugin_self.bootstrap_key_seed:
-                        self.send_error(403, "key auto-seed disabled — use a setup link")
+                        self.send_error(403, "key auto-seed disabled",
+                                        "use a one-time setup link")
                         return
                     # SECURITY (confirmed 14-Jul-2026): this response carries the
                     # full Indigo API key, so it must NOT be readable cross-origin.
@@ -551,7 +588,7 @@ class CamerasMixin:
             self._proxy_server = None
 
     # --------------------------------------------------------
-    # go2rtc lifecycle (WebRTC backend for live.html)
+    # go2rtc lifecycle (the WebRTC backend for live tiles, and the snapshot source)
     # --------------------------------------------------------
 
     def _go2rtc_dir(self):
@@ -567,6 +604,34 @@ class CamerasMixin:
 
     def _go2rtc_log_path(self):
         return os.path.join(self._go2rtc_dir(), "go2rtc.log")
+
+    def _go2rtc_orphan_pattern(self):
+        """pkill -f pattern for a go2rtc THIS plugin started, whatever binary
+        ran it and whichever Indigo version's folder held its config (review
+        24-09-2026). It used to be the exact current binary path plus the
+        current config path, so an orphan started from another binary, or
+        before an Indigo upgrade, was never matched and kept the ports."""
+        pid = "".join("[.]" if ch == "." else ch for ch in self.pluginId)
+        return f"-config .*/Preferences/Plugins/{pid}/go2rtc/go2rtc[.]yaml"
+
+    def _go2rtc_port_freed(self, timeout=2.0):
+        """True once nothing answers on go2rtc's API port, polling for up to
+        `timeout` seconds after an orphan was told to stop."""
+        import urllib.error
+        import urllib.request
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                with urllib.request.urlopen(
+                        f"http://127.0.0.1:{GO2RTC_API_PORT}/api", timeout=0.5):
+                    pass
+            except urllib.error.HTTPError:
+                pass                     # an error status is still something answering
+            except (urllib.error.URLError, OSError, TimeoutError):
+                return True
+            if time.monotonic() >= deadline:
+                return False
+            time.sleep(0.25)
 
     def _write_go2rtc_config(self):
         """Generate go2rtc.yaml from self.cameras + DAHUA_USER/PASS. Each camera
@@ -682,6 +747,40 @@ class CamerasMixin:
                        f"{main_count} main, {sub2_count} sub2)")
         return path
 
+    def _vet_cameras(self, cams):
+        """The running camera list, held to the rules the Settings save
+        applies (review 24-09-2026). A list from a hand-edited store or the
+        legacy import skipped them, and one bad entry in go2rtc.yaml takes
+        every camera down with nothing in the Indigo log: a duplicate stream
+        name makes go2rtc load no streams at all, and an empty one makes the
+        whole file unreadable, so go2rtc falls back to its defaults and serves
+        its unauthenticated API on every interface. Each bad camera is left
+        out, with a WARNING naming it; the rest carry on."""
+        keep, slugs, hosts = [], set(), set()
+        for i, cam in enumerate(cams or []):
+            label = f"camera {i + 1} ({cam.get('name') or '?'})"
+            host  = str(cam.get("host") or "")
+            slug  = self._cam_slug(str(cam.get("name") or ""))
+            why = None
+            if cam.get("vendor") not in ("dahua", "hikvision"):
+                why = "its vendor is not dahua or hikvision"
+            elif not CAMERA_HOST_RE.match(host):
+                why = "its host is not an IP address or plain hostname"
+            elif not slug:
+                why = "its name has no letters or digits for a stream name"
+            elif slug in slugs:
+                why = f"its name makes the same stream name ({slug}) as an earlier camera"
+            elif host in hosts:
+                why = f"its host {host} is already used by an earlier camera"
+            if why:
+                log(f"[Cameras] leaving out {label}: {why}. Fix it on the Settings "
+                    f"page and restart the plugin.", level="WARNING")
+                continue
+            slugs.add(slug)
+            hosts.add(host)
+            keep.append(cam)
+        return keep
+
     @staticmethod
     def _cam_slug(name):
         """Stable stream name for a camera: lowercase, spaces → underscores."""
@@ -722,7 +821,7 @@ class CamerasMixin:
         self._go2rtc_bin = go2rtc_bin
         if not os.path.isfile(go2rtc_bin) or not os.access(go2rtc_bin, os.X_OK):
             log(f"[go2rtc] Binary not found or not executable at {go2rtc_bin} — "
-                f"live.html will not work. Install: download go2rtc_mac_arm64.zip "
+                f"live video and camera snapshots will not work. Install: download go2rtc_mac_arm64.zip "
                 f"from https://github.com/AlexxIT/go2rtc/releases", level="WARNING")
             self._go2rtc_proc = None
             return
@@ -755,10 +854,12 @@ class CamerasMixin:
                     log("[go2rtc] Found an instance already on "
                         f":{GO2RTC_API_PORT} (orphan from an unclean exit) — "
                         "terminating it before starting fresh", level="WARNING")
-                    subprocess.run(["/usr/bin/pkill", "-f",
-                                    f"{go2rtc_bin} -config {cfg}"],
+                    subprocess.run(["/usr/bin/pkill", "-f", "--", self._go2rtc_orphan_pattern()],
                                    capture_output=True)
-                    time.sleep(0.5)
+                    if not self._go2rtc_port_freed():
+                        log(f"[go2rtc] :{GO2RTC_API_PORT} is still answering after the orphan "
+                            f"was stopped. Something else holds the port, so the cameras "
+                            f"may run on an old config until it is freed.", level="WARNING")
         except (urllib.error.URLError, OSError, TimeoutError):
             pass   # nothing answering on :1984 — the normal case
         except Exception as exc:
@@ -1041,6 +1142,9 @@ class CamerasMixin:
             "thumbPattern": f"{folder}/cam-{{host}}-thumb.jpg",
         })
 
+    # Frames in a row without a thumbnail before the old one is removed.
+    THUMB_MISS_LIMIT = 3
+
     def _make_thumb(self, jpeg_bytes):
         """Shrink a snapshot for the grid. Returns bytes, or None if it cannot.
 
@@ -1185,11 +1289,19 @@ class CamerasMixin:
         reading a half-written JPEG. The temp name carries the writing
         thread's id: the stamp thread, the snapshot pool and MainThread all
         use this helper, and two concurrent writers sharing one ".tmp" could
-        interleave (open/truncate/replace) into a torn or vanished file."""
+        interleave (open/truncate/replace) into a torn or vanished file.
+
+        A failed write or replace removes its own temp file and re-raises
+        (review 24-09-2026): a disk-full episode left partial files behind in
+        the anonymous /public folder, where nothing ever swept them."""
         tmp = f"{path}.tmp.{threading.get_ident()}"
-        with open(tmp, "wb") as f:
-            f.write(data)
-        os.replace(tmp, path)
+        try:
+            with open(tmp, "wb") as f:
+                f.write(data)
+            os.replace(tmp, path)
+        except BaseException:
+            _discard(tmp)
+            raise
 
     @staticmethod
     def _copy_atomic(src, dst):
@@ -1208,8 +1320,12 @@ class CamerasMixin:
         and is therefore atomic; a reader sees the old file or the new one.
         """
         tmp = dst + ".tmp"
-        shutil.copy2(src, tmp)
-        os.replace(tmp, dst)
+        try:
+            shutil.copy2(src, tmp)
+            os.replace(tmp, dst)
+        except BaseException:
+            _discard(tmp)                # never leave a partial copy in /public
+            raise
 
     def _fetch_go2rtc_streams(self):
         """Fetch go2rtc's full /api/streams JSON. Returns parsed dict or None
@@ -1279,9 +1395,10 @@ class CamerasMixin:
         /public is served with no auth even over the reflector, so writing them
         there is an internet-readable leak (SECURITY, confirmed 14-Jul-2026;
         same /public-secret class the config.js hardening in v1.20.0 fixed).
-        The cameras page only ever reads producers[].bytes_recv + consumers +
-        _writeTs, never the url, so dropping every producer 'url' key costs the
-        UI nothing."""
+        No page reads this per-stream map any more: the cameras page reads only
+        _writeTs, _go2rtcUp and _cameraHealth (the MJPEG tiles that read
+        producers and consumers went in v3.36.0). Dropping every producer 'url'
+        key therefore costs the UI nothing."""
         safe = {}
         for name, info in (streams or {}).items():
             if not isinstance(info, dict):
@@ -1363,6 +1480,19 @@ class CamerasMixin:
                     thumb = self._make_thumb(payload)
                     if thumb:
                         self._write_atomic(self._cam_thumb_path(host), thumb)
+                        st["thumb_miss"] = 0
+                    else:
+                        # No thumbnail from this frame. One bad frame keeps the
+                        # last one; a run of them, or Pillow gone for good,
+                        # removes it (review 24-09-2026) so the page falls back
+                        # to the full picture. A thumb left behind was served
+                        # (304 on every poll) for ever while health said ok.
+                        st["thumb_miss"] = st.get("thumb_miss", 0) + 1
+                        if self._thumb_broken or st["thumb_miss"] >= self.THUMB_MISS_LIMIT:
+                            try:
+                                os.remove(self._cam_thumb_path(host))
+                            except FileNotFoundError:
+                                pass
                     st["ok_count"] += 1
                     st["last_ok"] = now
                     if st["fail_count"] >= 3:                 # camera came back

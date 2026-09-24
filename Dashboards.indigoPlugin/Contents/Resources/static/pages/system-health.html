@@ -214,7 +214,7 @@ async function loadAutomation() {
     const box = document.getElementById("automation");
     let d;
     try { d = await DashUI.message("activityFeed"); }
-    catch (e) { box.innerHTML = ""; return; }
+    catch (e) { paint(box, ""); return; }
     const au = (d && d.automation) || {}, c = au.counts || {};
     const off = (c.schedules_off || 0) + (c.triggers_off || 0);
     let html = `<div class="sec-label">Automation</div><section class="card"><h2>Schedules and triggers
@@ -225,26 +225,26 @@ async function loadAutomation() {
         : `<div class="empty">No timed schedules armed.</div>`;
     const w = au.watchers || [];
     if (w.length) {
-        html += `<details><summary>Watching for problems · ${w.length}</summary>` +
+        html += `<details id="sh-watchers"><summary>Watching for problems · ${w.length}</summary>` +
             w.map(x => ditem(x.name, "trigger", "")).join("") +
             `<div class="note">Triggers that act when a particular error appears in the log: your safety net.</div></details>`;
     }
     const dis = au.disabled || [];
     if (dis.length) {
-        html += `<details><summary>Switched off · ${dis.length}</summary>` +
+        html += `<details id="sh-switched-off"><summary>Switched off · ${dis.length}</summary>` +
             dis.map(o => ditem(o.name, o.kind, "off")).join("") +
             `<div class="note">Disabled schedules and triggers. Some will be off on purpose; this list is here so nothing stays off by accident.</div></details>`;
     }
     const codes = au.codes || [];
     if (codes.length) {
-        html += `<details><summary>Door codes · ${codes.length}</summary>` +
+        html += `<details id="sh-codes"><summary>Door codes · ${codes.length}</summary>` +
             codes.map(k => {
                 const lbl = (k.label && /[a-z]/i.test(k.label)) ? k.label : "";   // never show a numeric (PIN) label
                 return ditem(lbl && lbl !== k.person ? `${k.person} · ${lbl}` : k.person, "keypad code", "#" + esc(k.slot));
             }).join("") +
             `<div class="note">Who holds a front-door keypad code. When a code is used it shows in the diary on the Timeline page.</div></details>`;
     }
-    box.innerHTML = html + `</section>`;
+    paint(box, html + `</section>`);
 }
 
 async function load() {
@@ -253,8 +253,8 @@ async function load() {
         setTs();
         render(d);
     } catch (e) {
-        document.getElementById("content").innerHTML =
-            `<div class="loading"><p>Couldn't reach the system-health data.<br><small>${esc(e.message)}</small></p></div>`;
+        paint(document.getElementById("content"),
+            `<div class="loading"><p>Couldn't reach the system-health data.<br><small>${esc(e.message)}</small></p></div>`);
     }
 }
 
@@ -289,7 +289,6 @@ function render(d) {
     // and not running is a CRASH and deserves red; disabled is a choice.
     const crashed  = plugins.filter(p => p.running === false && p.pluginEnabled !== false).length;
     const disabled = plugins.filter(p => p.pluginEnabled === false).length;
-    const stopped  = crashed + disabled;
 
     const issues = [];   // [cls, label, anchor]
     if (diskCls)      issues.push([diskCls, `${I("disk")} Disk ${num(disk.used_pct,0)}% full`]);
@@ -430,7 +429,7 @@ function render(d) {
 
     const stale = dev.stale || [];
     if ((dev.stale_count || 0) > 0) {
-        html += `<details><summary>Quiet battery devices · ${dev.stale_count} (no report in ${dev.stale_hours || 48}h+)</summary>`;
+        html += `<details id="sh-quiet"><summary>Quiet battery devices · ${dev.stale_count} (no report in ${dev.stale_hours || 48}h+)</summary>`;
         for (const s of stale) {
             const days = s.age_hours / 24;
             const ageTxt = days >= 2 ? `${num(days,0)}d ago` : `${num(s.age_hours,0)}h ago`;
@@ -443,7 +442,11 @@ function render(d) {
     }
 
     if (plugins.length) {
-        html += `<details style="margin-top:10px"><summary>Per-plugin census · ${plugins.length} plugins${stopped ? ` · <span class="warn">${stopped} disabled</span>` : ""}</summary>
+        // A crash and a choice are counted apart: the table calls a crash
+        // STOPPED, and the summary called both "disabled".
+        const census = [crashed ? `<span class="bad">${crashed} stopped</span>` : "",
+                        disabled ? `<span class="warn">${disabled} disabled</span>` : ""].filter(Boolean).join(" · ");
+        html += `<details id="sh-census" style="margin-top:10px"><summary>Per-plugin census · ${plugins.length} plugins${census ? " · " + census : ""}</summary>
             <table class="ptable" style="margin-top:8px">
             <thead><tr><th>Plugin</th><th>Devices</th><th>Enabled</th><th>State</th></tr></thead><tbody>`;
         for (const p of plugins) {
@@ -458,7 +461,22 @@ function render(d) {
     }
     html += `</section>`;
 
-    document.getElementById("content").innerHTML = html;
+    paint(document.getElementById("content"), html);
+}
+
+/* Write a section only when its markup changed, and keep any fold the reader
+   had open (as meter.html does). An unconditional innerHTML every 30 s and
+   60 s closed every open <details> under them while they were being read. */
+const _painted = new WeakMap();
+function paint(host, html) {
+    if (!host || _painted.get(host) === html) return;
+    _painted.set(host, html);
+    const opened = Array.from(host.querySelectorAll("details[open]")).map(d => d.id).filter(Boolean);
+    host.innerHTML = html;
+    for (const id of opened) {
+        const d = host.querySelector("#" + id);
+        if (d) d.open = true;
+    }
 }
 </script>
 <script src="dashboards-icons.js"></script>

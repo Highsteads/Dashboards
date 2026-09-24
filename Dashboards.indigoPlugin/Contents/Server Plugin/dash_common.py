@@ -15,6 +15,7 @@ except ImportError:
     pass
 
 import json
+import re
 import logging
 import os
 from datetime import datetime
@@ -180,6 +181,26 @@ def _safe_int_list(values):
         except (ValueError, TypeError):
             pass
     return out
+
+
+# A camera host is interpolated into go2rtc.yaml RTSP producer lines and into
+# WebRTC signalling URLs, so it is an IP address or a plain hostname and nothing
+# else. ONE rule for the Settings save and the running list (review 24-09-2026).
+CAMERA_HOST_RE = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9.-]{0,252}[A-Za-z0-9])?$")
+
+
+def dict_entries(value):
+    """(entries, dropped): the dict items of a stored list, each copied, and
+    how many items were not dicts (review 24-09-2026). A hand-edited
+    favourites or customLinks entry that was not an object made config.js's
+    build raise, which stopped startup before the proxy, go2rtc or the
+    liveness stamp. A value that is not a list at all counts as one dropped."""
+    if value is None or value == [] or value == "":
+        return [], 0
+    if not isinstance(value, (list, tuple)):
+        return [], 1
+    keep = [dict(v) for v in value if isinstance(v, dict)]
+    return keep, len(value) - len(keep)
 
 
 def _parse_cameras(value):

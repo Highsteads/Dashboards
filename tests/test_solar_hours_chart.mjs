@@ -186,6 +186,14 @@ test("hover titles name every string, its kWh, and the hour's forecast", () => {
               "title should carry the hour's total and its forecast");
 });
 
+test("a string label is escaped, and a missing one is named (lows batch [52])", () => {
+    const h = draw("0 0 756 190", { stringLabels: ["West <b>&", "East"] });
+    assert.ok(h.includes("West &lt;b&gt;&amp;"), "an admin-set label must be escaped");
+    assert.ok(!h.includes("West <b>&"), "no raw markup from a label");
+    assert.ok(h.includes("String 3") && !h.includes("undefined"),
+              "a label missing by position reads 'String N', never 'undefined'");
+});
+
 const total = passed + failed;
 console.log(`\n${passed}/${total} node tests passed`);
 if (failed) process.exit(1);

@@ -125,8 +125,13 @@
         var v6 = h.replace(/^\[|\]$/g, "");
         if (h === "localhost" || v6 === "::1" || /\.local$/.test(h) || /\.ts\.net$/.test(h)) return false;
         if (/^f[cd][0-9a-f]{2}:/.test(v6)) return false;
+        // Only the reflector's own domain is refused by name. Any other name is a
+        // local DNS entry as often as not (indigo.lan), and refusing it locked
+        // those users out at home; the server's own reflector check still
+        // stands behind this.
+        if (/(^|\.)indigodomo\.net$/.test(h)) return true;
         var m = h.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
-        if (!m) return true;                      // a NAME that is not ours: the reflector
+        if (!m) return false;                     // any other NAME: not the reflector
         var a = +m[1], b = +m[2];
         if (a === 127 || a === 10) return false;
         if (a === 192 && b === 168) return false;

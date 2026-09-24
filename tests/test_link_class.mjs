@@ -133,6 +133,9 @@ const CASES = [
     ["172.32.0.1",                               2, "reflector", "just outside 172.16/12"],
     ["100.200.0.1",                              2, "reflector", "just outside the CGNAT range"],
     ["8.8.8.8",                                  2, "reflector", "public address"],
+    // A local DNS name used to read 'reflector' and never got live video.
+    ["indigo.lan",                               3, "home",      "local DNS name, fast: home"],
+    ["indigo.home.arpa",                       240, "vpn",       "local DNS name, slow: the probe demotes it"],
 ];
 
 let pass = 0, fail = 0;
@@ -180,9 +183,11 @@ for (const [host, rtt, want, why] of CASES) {
     const box2 = makeSandbox("highsteads.github.io", 50);
     vm.createContext(box2);
     vm.runInContext(CODE + "\nvar __d = linkClass();", box2);
-    const ok = box.__d === "home" && box2.__d === "reflector";
+    // A github.io NAME now reads 'home' on its own too (a name is only the
+    // reflector when it is indigodomo.net), so both agree.
+    const ok = box.__d === "home" && box2.__d === "home";
     ok ? pass++ : fail++;
-    console.log(`  ${ok ? "ok  " : "FAIL"} demo mode is home; the same address without it is still the reflector (${box.__d}/${box2.__d})`);
+    console.log(`  ${ok ? "ok  " : "FAIL"} demo mode is home, and a non-reflector name is home without it (${box.__d}/${box2.__d})`);
 }
 
 

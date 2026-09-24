@@ -89,7 +89,11 @@ class HealthMixin:
 
         def _sh(args):
             try:
+                # UTF-8 said outright (review 24-09-2026): text=True alone decodes
+                # with the host's locale, which is ASCII in an Indigo host, so one
+                # non-ASCII byte blanked the field.
                 return subprocess.run(args, capture_output=True, text=True,
+                                      encoding="utf-8", errors="replace",
                                       timeout=5).stdout.strip()
             except Exception:
                 return ""
@@ -296,12 +300,16 @@ class HealthMixin:
             if is_on:
                 c["enabled"] += 1
 
+            # A DISABLED device is left out of the error and low-battery lists
+            # too (review 24-09-2026), as it always was from the quiet list: it
+            # is off on purpose, its states are frozen, and one disabled with a
+            # flat battery or an error sat on the attention page for good.
             es = (d.errorState or "").strip()
-            if es:
+            if is_on and es:
                 in_error.append({"id": d.id, "name": d.name, "plugin": pid, "error": es})
 
             bl, alarm = self._battery_pct(d)
-            if alarm or (bl is not None and bl <= low_batt_pct):
+            if is_on and (alarm or (bl is not None and bl <= low_batt_pct)):
                 low_batt.append({"id": d.id, "name": d.name, "plugin": pid,
                                  "battery": bl, "alarm": alarm})
 

@@ -622,11 +622,29 @@
     return out;
   }
 
+  /* Tomorrow's unit price and its change from today, for the Energy and Cost
+     tariff rows. Octopus publishes tomorrow's price late in the afternoon, so
+     tomorrow_p is null for most of every day: that must read "not published
+     yet" (the old rows printed "TBDp") and must CLEAR yesterday's arrow, which
+     used to stay on screen overnight beside a price that did not exist. */
+  function tomorrowPrice(todayP, tomorrowP) {
+    var t = num(tomorrowP), d = num(todayP);
+    if (t == null) return { text: 'not published yet', delta: '', cls: '' };
+    var out = { text: t.toFixed(2) + 'p', delta: '', cls: '' };
+    if (d == null) return out;
+    var diff = t - d;
+    if (Math.abs(diff) < 0.05) return out;
+    if (diff > 0) { out.delta = '\u25B2 +' + diff.toFixed(1) + 'p'; out.cls = 'tmrw-up'; }
+    else { out.delta = '\u25BC ' + diff.toFixed(1) + 'p'; out.cls = 'tmrw-down'; }
+    return out;
+  }
+
   var API = {
     DEFAULT_CAPACITY_KWH: DEFAULT_CAPACITY_KWH,
     BACKUP_RESERVE_PCT: BACKUP_RESERVE_PCT,
     num: num, fmtKw: fmtKw, fmtKwh: fmtKwh, gbp: gbp,
     fmtPct: fmtPct, fmtPence: fmtPence,
+    tomorrowPrice: tomorrowPrice,
     computeFlows: computeFlows,
     buildBalanceSeries: buildBalanceSeries,
     socSeries: socSeries,

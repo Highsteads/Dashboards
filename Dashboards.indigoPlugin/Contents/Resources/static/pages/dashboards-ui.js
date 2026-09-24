@@ -741,7 +741,8 @@
                  '" height="' + r1(Math.max(0.8, y(base) - y(base + v))) +
                  '" fill="' + STRING_COLOURS[idx] + '"/>';
           base += v;
-          tip += (tip ? ' · ' : '') + labels[idx] + ' ' + v.toFixed(2);
+          // Labels are admin-set names: escape them, and name a missing one.
+          tip += (tip ? ' · ' : '') + esc(labels[idx] != null ? labels[idx] : 'String ' + (idx + 1)) + ' ' + v.toFixed(2);
         });
         out += '<rect x="' + r1(x0) + '" y="' + r1(y(r.total)) + '" width="' + r1(barW) +
                '" height="' + r1(y(0) - y(r.total)) + '" fill="transparent"><title>' +
@@ -830,7 +831,9 @@
 
        'home'      RFC1918 or loopback — the LAN. Everything is cheap.
        'vpn'       Tailscale's CGNAT range. Streams reachable but expensive.
-       'reflector' anything else. The video ports are not reachable at all. */
+       'reflector' the Indigo reflector (*.indigodomo.net) or a public IPv4
+                   address. The video ports are not reachable at all.
+       Any other NAME reads 'home' and is then measured (measuredClass). */
   function linkClass() {
     /* The SERVER's verdict wins (v2.96.1): a changedSince reply that carried
        via:"reflector" was seen arriving through the reflector, whatever the
@@ -852,8 +855,15 @@
     if (/\.ts\.net$/i.test(h)) return 'vpn';
     // IPv6 unique-local (fc00::/7) is the v6 equivalent of a private range.
     if (/^f[cd][0-9a-f]{2}:/.test(v6)) return 'home';
+    // The Indigo reflector is the one NAME known to be remote. Any other name
+    // (indigo.lan, a home.arpa entry, a router's local DNS) was classed as the
+    // reflector too, which switched live video off for everyone who reaches
+    // Indigo by a local hostname. A name now counts as 'home' and has to
+    // SURVIVE measuredClass's round-trip probe, and the server's via verdict
+    // above still catches real reflector traffic whatever the name.
+    if (/(^|\.)indigodomo\.net$/i.test(h)) return 'reflector';
     var m = h.match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
-    if (!m) return 'reflector';
+    if (!m) return h ? 'home' : 'reflector';
     var a = +m[1], b = +m[2];
     if (a === 127) return 'home';
     if (a === 10) return 'home';
@@ -1096,7 +1106,10 @@
     d.addEventListener('pointercancel', function () {
       // The browser took the gesture for a scroll. No click should follow,
       // and if one does it is not a tap.
-      if (press) press.scrolledWhileDown = true;
+      // swiped carries the verdict to the next press; the cancelled press
+      // itself is dropped, or a keyboard click in the next five seconds would
+      // be judged against it and cancelled.
+      press = null;
       swiped = true;
     }, CAP);
     d.addEventListener('pointerup', function () {
@@ -1114,6 +1127,7 @@
       var p = press;
       press = null;
       if (!p || !ev || !ev.target) return;               // mouse, keyboard, or no press seen
+      if (ev.detail === 0) return;                        // keyboard / assistive click: never judged
       if (Date.now() - p.downAt > 5000) return;           // stale — not this click
       if (ev.target.closest && ev.target.closest(FIELD_SEL)) return;
       if (!isScrollTouch(p)) return;

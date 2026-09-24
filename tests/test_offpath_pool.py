@@ -479,6 +479,21 @@ def test_the_key_normalises_so_the_same_question_shares_one_build(plug):
     assert a == b
 
 
+def test_the_key_reads_the_parameters_exactly_as_the_query_does(plug):
+    """Review 24-09-2026 [45]: the key parsed hours with int() and kept the
+    state's case, the query used float() and lowercased it. So "0.5" hours
+    keyed as the 24-hour series while building a 30-minute one, and
+    "Voltage" and "voltage" built twice."""
+    base = {"action": "series", "deviceId": 1, "state": "voltage", "maxPoints": 240}
+    k24 = plug._history_key(dict(base, hours=24))
+    assert plug._history_key(dict(base, hours="0.5")) != k24
+    assert plug._history_key(dict(base, hours=0.5)) != plug._history_key(dict(base, hours=0))
+    assert plug._history_key(dict(base, hours=24, state="Voltage")) == k24
+    assert plug._history_key(dict(base, hours="1e999")) == k24     # non-finite: the default
+    q = plug._history_params(dict(base, hours="0.5", state=" Voltage "))
+    assert (q["hours"], q["state"]) == (0.5, "voltage")
+
+
 def test_a_missing_device_is_a_400_and_never_reaches_the_pool(plug, monkeypatch):
     ran = []
     monkeypatch.setattr(plug, "_history_query", lambda p: ran.append(1) or {})
@@ -633,3 +648,26 @@ def test_a_supervisor_restart_is_not_cleared_by_a_stale_check(settle):
     old.poll = poll
     assert p._go2rtc_settle_check() is False
     assert p._go2rtc_proc is new
+
+
+def test_a_wedged_sigen_cannot_starve_unrelated_keys(plug, monkeypatch):
+    """Review 24-09-2026 [30]: status, daily and vpp are separate keys, and a
+    wedged SigenEnergyManager holds each fetch for up to 12 s. On one shared
+    queue three of them held every worker, and Timeline, System Health and the
+    charts sat on "Building..." until SEM recovered. Sigen has its own lane."""
+    plug.OFFPATH_WAIT = 0.05
+    monkeypatch.setattr(plug, "_sigen_fetch", lambda url: plug._hold())
+    for path in ("status", "daily", "vpp"):
+        assert sigen(plug, path)["status"] == 503          # pending, held upstream
+    state, got = plug._offpath_get("unrelated", lambda: 42, 60, wait=2.0)
+    assert (state, got) == ("fresh", 42)
+
+
+def test_a_non_finite_sigen_param_is_dropped_not_a_500(plug, monkeypatch):
+    """Review 24-09-2026 [27]: {"hours": 1e999} parses to inf, and int(inf)
+    raised OverflowError out of the handler, so IWS answered 500."""
+    seen = {}
+    monkeypatch.setattr(plug, "_sigen_fetch", lambda u: seen.setdefault("url", u) or "{}")
+    reply = plug.handleSigenApi(FakeAction('{"path": "history", "query": {"hours": 1e999, "days": 2}}'))
+    assert reply["status"] == 200
+    assert "hours" not in seen["url"] and "days=2" in seen["url"]

@@ -8,7 +8,7 @@ Browser dashboards for [Indigo Domotics](https://www.indigodomo.com/), built for
 wall, a phone in your pocket and a Mac on the desk. No app to install, no cloud account,
 nothing leaving the house.
 
-<img src="https://img.shields.io/badge/version-3.43.0-5856d6" alt="Version 3.43.0">
+<img src="https://img.shields.io/badge/version-3.43.1-5856d6" alt="Version 3.43.1">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-21-0a84ff" alt="21 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
@@ -21,7 +21,7 @@ nothing leaving the house.
 
 ---
 
-**Version:** 3.43.0
+**Version:** 3.43.1
 
 **Documentation:** **[highsteads.github.io/Dashboards](https://highsteads.github.io/Dashboards/)** —
 getting started, configuration, a page of notes for every one of the 21 pages, cameras, remote
@@ -67,11 +67,11 @@ simulator, touching no live devices.
 The three most recent releases, word for word. Every release before these is in
 **[the version history](docs/changelog.md)**, which the documentation site also carries.
 
+**3.43.1** (24-Sep-2026) - **Fifty-odd smaller fixes from the same review.** Pages no longer show a disabled or silent device's last value as if it were live, on the hub's reading favourites, presence chips, heating averages and the solar rows. The hub's Doors & Windows card no longer shows a green all-clear when no sensor could be read, and it retries the room list instead of saying Loading for ever. A room's All On and All Off buttons now say when a light did not respond, and tapping quickly between days, years or charts can no longer paint one answer under another's label. The camera page no longer drops every tile to full-size pictures because one thumbnail is missing, a closed live tile no longer opens a stream behind your back, and camera health stops polling while the page sleeps. Behind the scenes the plugin checks the camera list when it loads, cleans up after itself when a write fails, keeps a slow Sigenergy reply from holding up everything else, places the Timeline correctly on the day the clocks change, and ignores readings from the inverter once they stop updating. Controls have proper names for screen readers, the Postgres password field is masked, and the online demo's Cameras page shows its pictures again.
+
 **3.43.0** (24-Sep-2026) - **Camera pictures are private again, and the worst of a deep review is fixed.** Until now every camera's latest picture was saved every two seconds into Indigo's public web folder under a name anyone could guess, so anybody who could reach the web server, the reflector included, could look at your cameras without a key. The pictures now go into a folder with a random name that only a browser holding your key is told about, and the old public copies are deleted when the plugin starts. The review's other serious finds are fixed too. A settings file that will not read is now set aside and refused, where before it was quietly replaced with an almost empty one, backup and all, and the control PIN went with it. One refused request no longer logs a browser out: six pages did that, while the hub already waited for three in a row. Setup links, which carry the API key, are removed when the plugin stops, and the camera server now answers only to this Mac's own names, so a hostile web page cannot fish the key out of it. Switches send on or off rather than toggle, the hub's weather card shows Ecowitt units correctly, a disabled or silent device is greyed out instead of showing its last value as live, and camera health no longer reads OK while the camera service itself is down. Anyone using PostgreSQL gets working Home Insights, and history that no longer fails on an accented name.
 
 **3.42.0** (23-Sep-2026) - **Colours a colour-blind reader can tell apart.** The five energy colours (solar, battery, grid import, grid export and the house) were re-chosen so that every pair stays distinct for someone with red-green or blue-yellow colour blindness, checked pair by pair rather than by eye. The worst pair used to be solar against grid import: on most pages solar was drawn in a dark brown meant for text, which a red-blind reader sees as almost the same colour as the import red. Solar is amber again everywhere, solar figures in text keep a darker shade of their own so they stay readable, the battery green is brighter and clearer, and the house is a little more magenta so it no longer blurs with export blue. Dark mode has its own set, checked against the dark cards. Each colour keeps its meaning, so nothing needs relearning.
-
-**3.41.1** (23-Sep-2026) - **A radiator changed in quick taps no longer reports the change as refused.** Each press of + or − checked the radiator a couple of seconds later against its own value, so four quick taps from 8° to 12° had the first check find 12° where it expected 9° and say the setpoint was not accepted, when the radiator had taken every tap. Only the last press checks now. When a change really does not take, the message says what the radiator reports ("The radiator still says 8.0°") instead of guessing that the heating plugin had stopped. Affects the room pages and the Heating page.
 
 ## A look around
 

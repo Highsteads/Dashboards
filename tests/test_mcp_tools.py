@@ -226,6 +226,7 @@ def test_menu_and_tool_share_one_list_of_checks(monkeypatch, tmp_path):
              ("Gamma", False, "optional thing", True)]
     p._setup_checks = lambda: list(fixed)
     p.pluginDisplayName = "Dashboards"
+    p.showPluginInfo = lambda: None     # the banner is test_diagnostic_banner's subject
     p.menuTestSetup()
     lines = [c.args[0] for c in p.logger.info.call_args_list + p.logger.error.call_args_list]
     assert any("PASS — Alpha" in ln for ln in lines)

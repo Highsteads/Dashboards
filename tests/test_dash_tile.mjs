@@ -246,7 +246,7 @@ check("the room page's own three-state reader is gone", !/_threeState/.test(read
           && hub.includes('<script src="dashboards-controls.js">'));
     check("the hub's favourite press is the shared one", hub.includes("DashTile.pressDevice(tile, id,"));
     check("no page keeps its own door memory", !/_doorLast/.test(hub) && !/_doorLast/.test(read("room.html")));
-    check("a reading tile is not a button", /<div class="fav-tile fav-reading" role="group"/.test(hub)
+    check("a reading tile is not a button", /<div class="fav-tile fav-reading[^>]{0,60}role="group"/.test(hub)
           && !/<button class="fav-tile fav-reading"/.test(hub));
 }
 check("no page tests on/off with === true any more",

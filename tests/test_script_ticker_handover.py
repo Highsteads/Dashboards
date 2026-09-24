@@ -11,6 +11,8 @@
 
 from unittest.mock import MagicMock
 
+import pytest
+
 from conftest import bare_plugin, load_plugin_module
 
 
@@ -157,9 +159,11 @@ def test_a_failed_ticker_reply_is_read_although_it_is_not_a_dict(monkeypatch):
     monkeypatch.setattr(plugin.indigo.server, "getPlugin", lambda pid: info)
     p._run_appliance_scheduler = MagicMock()
     p._read_laundry_plan = lambda: {"plans": []}
-    p._replan_laundry()
-    msgs = [str(c.args[0]) for c in p.logger.debug.call_args_list]
-    assert any("could not replan: boom" in m for m in msgs), msgs
+    # Review 24-09-2026 [26]: a job the ticker took and FAILED is raised, so
+    # the pool marks it failed and the page is told. It used to be logged at
+    # DEBUG and the previous plan handed back as the answer to the new deadline.
+    with pytest.raises(RuntimeError, match="could not replan the laundry: boom"):
+        p._replan_laundry()
     p._run_appliance_scheduler.assert_not_called()
 
 

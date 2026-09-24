@@ -121,6 +121,51 @@ console.log("\nthe card hides what it cannot say");
     check("an older config.js shows both", !o.laundryEl.hidden && !o.carbonEl.hidden && calls.length === 2);
 }
 
+console.log("\na refusal and a failed poll (lows batch [53] [54])");
+{
+    const cls = () => { const set = new Set(); return { set, add: c => set.add(c), remove: c => set.delete(c), toggle() {}, contains: c => set.has(c) }; };
+    const head = { textContent: "" };
+    const el = () => ({ hidden: false, innerHTML: "", querySelectorAll: () => [], querySelector: q => (q === ".wr-head" ? head : null),
+                        textContent: "", classList: cls() });
+    const fns = {};
+    const oldPoll = ctx.DashUI.poll, oldMsg = ctx.DashUI.message;
+    ctx.DashUI.poll = (fn) => { fns[fn.name] = fn; return { stop() {} }; };
+    let reply = null;
+    ctx.DashUI.message = async () => { if (reply instanceof Error) throw reply; return reply; };
+    const o = { card: el(), label: el(), laundryEl: el(), carbonEl: el(), freshEl: el(), cfg: {} };
+    const r = ctx.WhenToRun.mount(o);
+    reply = { ok: false, error: "no plan yet — Appliance_Scheduler.py has not run" };
+    await fns.loadLaundry();
+    check("an ok:false plan shows its own reason", /Appliance_Scheduler\.py has not run/.test(o.laundryEl.innerHTML), o.laundryEl.innerHTML);
+    check("and not the metering-plug advice", !/Nothing is metered yet/.test(o.laundryEl.innerHTML));
+    const RealDate = ctx.Date;
+    let NOW = RealDate.now();
+    ctx.Date = class extends RealDate { static now() { return NOW; } };
+    reply = { ok: true, appliances: [] , note: "N" };
+    await fns.loadLaundry();
+    const good = o.laundryEl.innerHTML;
+    NOW += 10 * 60000;
+    reply = { ok: false, error: "gone" };
+    await fns.loadLaundry();
+    check("a later refusal leaves the good plan on screen", o.laundryEl.innerHTML === good && !/gone/.test(o.laundryEl.innerHTML));
+    check("and does not count as fresh data: the card reads out of date", /not updating/.test(o.freshEl.textContent), o.freshEl.textContent);
+    ctx.Date = RealDate;
+
+    reply = { carbon: { current: { intensity: 123, index: "low" }, region: "North East" }, advice: { headline: "Run it now", action: "run_now" } };
+    await fns.loadCarbon();
+    check("carbon draws", /Run it now/.test(o.carbonEl.innerHTML));
+    reply = new Error("the Dashboards plugin is restarting");
+    await fns.loadCarbon();
+    check("one failed carbon poll keeps the good card", /Run it now/.test(o.carbonEl.innerHTML) && !/Could not reach/.test(o.carbonEl.innerHTML));
+    check("and marks it out of date", o.carbonEl.classList.contains("stale") && /not updated/.test(head.textContent), head.textContent);
+    const o2 = { card: el(), label: el(), laundryEl: el(), carbonEl: el(), freshEl: el(), cfg: {} };
+    const r2 = ctx.WhenToRun.mount(o2);
+    await fns.loadCarbon();
+    check("with nothing to keep, the error is shown", /Could not reach the carbon data/.test(o2.carbonEl.innerHTML));
+    r.stop(); r2.stop();
+    ctx.DashUI.poll = oldPoll; ctx.DashUI.message = oldMsg;
+}
+
 console.log("\nthe old pages forward to the card");
 for (const f of ["carbon.html", "laundry.html"]) {
     const s = read(f);

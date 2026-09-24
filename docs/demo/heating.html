@@ -277,10 +277,17 @@
         const calling = zones.filter(d => {
             const v = (d.states || {}).hvacHeaterIsOn; return v === true || v === "true";
         }).length;
-        const temps = zones.map(getCurrentTemp).filter(t => t != null);
+        // The headline figures come only from zones that are enabled, not in
+        // error and heard on the radio in the last 3 h. A TRV gone quiet keeps
+        // its last reading for ever, and averaging it in presented an hours-old
+        // (or months-old) temperature as the house now.
+        const isStale = d => { const ls = getLastSeen(d); return ls != null && (Date.now() - ls) > TRV_STALE_MS; };
+        const live = zones.filter(d => !DashTile.unknownReason(d) && !isStale(d));
+        const excluded = zones.length - live.length;
+        const temps = live.map(getCurrentTemp).filter(t => t != null);
         const avg = temps.length ? temps.reduce((a, b) => a + b, 0) / temps.length : null;
         let coldest = null, warmest = null;
-        for (const d of zones) {
+        for (const d of live) {
             const t = getCurrentTemp(d); if (t == null) continue;
             if (!coldest || t < coldest.t) coldest = { t, n: cleanZoneName(d.name) };
             if (!warmest || t > warmest.t) warmest = { t, n: cleanZoneName(d.name) };
@@ -290,13 +297,20 @@
             return st.temperature !== undefined && st.humidity !== undefined
                 && st.dewPoint !== undefined && !/indoor/i.test(d.name || "");
         });   // outdoor weather sensor, found by state signature
-        const outT = out ? parseFloat((out.states || {}).temperature) : NaN;
-        const stale = zones.filter(d => { const ls = getLastSeen(d); return ls != null && (Date.now() - ls) > TRV_STALE_MS; });
+        // The same checks for the outdoor sensor: enabled, reachable, and
+        // written to in the last 3 h (Indigo stamps lastSuccessfulComm on
+        // every state write, so an old stamp means nothing new has arrived).
+        const outComm = out ? Date.parse(String(out.lastSuccessfulComm || out.lastChanged || "").replace(" ", "T")) : NaN;
+        const outLive = !!out && !DashTile.unknownReason(out) && DashTile.isReachable(out)
+            && !(isFinite(outComm) && Date.now() - outComm > TRV_STALE_MS);
+        const outT = outLive ? parseFloat((out.states || {}).temperature) : NaN;
+        const stale = zones.filter(isStale);
         const metric = (lab, val, warn, sub) =>
             `<div class="h-metric"><div class="h-mval${warn ? ' warn' : ''}">${val}</div><div class="h-mlab">${escapeHtml(lab)}${sub ? `<span class="h-msub">${escapeHtml(sub)}</span>` : ""}</div></div>`;
         let html = `<div class="h-summary${calling ? ' heating' : ''}"><div class="h-grid">`;
         html += metric("Calling for heat", calling, calling > 0);
-        html += metric("House avg", avg == null ? "—" : avg.toFixed(1) + "°");
+        html += metric("House avg", avg == null ? "—" : avg.toFixed(1) + "°", false,
+                       excluded ? `${excluded} zone${excluded > 1 ? "s" : ""} not counted` : "");
         if (coldest) html += metric("Coldest", `${coldest.t.toFixed(1)}°`, false, coldest.n);
         if (warmest) html += metric("Warmest", `${warmest.t.toFixed(1)}°`, false, warmest.n);
         if (!isNaN(outT)) html += metric("Outside", outT.toFixed(1) + "°");

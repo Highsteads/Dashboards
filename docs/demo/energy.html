@@ -573,7 +573,7 @@ h1 .dsh-icon {width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;
       <div class="tariff-rate"><span id="tar-rate">&#8212;</span>p</div>
       <div class="tariff-sub" id="tar-name">&#8212;</div>
       <div class="tariff-sub muted" id="tar-code">&#8212;</div>
-      <div class="tariff-tmrw" id="tar-tmrw-row">Tomorrow: <span id="tar-tmrw">&#8212;</span>p <span id="tar-delta"></span></div>
+      <div class="tariff-tmrw" id="tar-tmrw-row">Tomorrow: <span id="tar-tmrw">&#8212;</span> <span id="tar-delta"></span></div>
       <div class="tariff-tmrw" id="tar-next" hidden></div>
       <div class="tariff-tmrw" style="margin-top:4px">Export: <span id="tar-exp">&#8212;</span>p <span id="tar-exp-kind">flat</span></div>
     </section>
@@ -1304,8 +1304,6 @@ function update(d) {
   const chg = inv ? num(inv.states.batteryDailyChargeKwh) : null;
   const dis = inv ? num(inv.states.batteryDailyDischargeKwh) : null;
   renderSankey(s, chg, dis);
-  setText('sum-chg', chg != null ? chg.toFixed(1) + ' kWh' : '—');
-  setText('sum-dis', dis != null ? dis.toFixed(1) + ' kWh' : '—');
 
   /* decision */
   const action = (d.decision && d.decision.action) || 'unknown';
@@ -1326,7 +1324,8 @@ function update(d) {
     setText('tar-rate', d.tariff.today_p != null ? d.tariff.today_p.toFixed(2) : '—');
     setText('tar-name', d.tariff.name || '—');
     setText('tar-code', d.tariff.product_code || '');
-    setText('tar-tmrw', d.tariff.tomorrow_p != null ? d.tariff.tomorrow_p.toFixed(2) : 'TBD');
+    const tp = DashCalc.tomorrowPrice(d.tariff.today_p, d.tariff.tomorrow_p);
+    setText('tar-tmrw', tp.text);
     /* A banded tariff (Flux) has no "tomorrow's price": say what comes next. */
     const imp = d.tariff.import_side;
     const banded = !!(imp && imp.banded && imp.tiers && imp.tiers.length);
@@ -1341,12 +1340,7 @@ function update(d) {
     const exSide = d.tariff.export_side;
     setText('tar-exp-kind', exSide && exSide.banded ? 'now' : 'flat');
     const delta = document.getElementById('tar-delta');
-    if (delta && d.tariff.today_p != null && d.tariff.tomorrow_p != null) {
-      const diff = d.tariff.tomorrow_p - d.tariff.today_p;
-      if (Math.abs(diff) < 0.05) delta.textContent = '';
-      else if (diff > 0) { delta.textContent = '▲ +' + diff.toFixed(1) + 'p'; delta.className = 'tmrw-up'; }
-      else { delta.textContent = '▼ ' + diff.toFixed(1) + 'p'; delta.className = 'tmrw-down'; }
-    }
+    if (delta) { delta.textContent = tp.delta; delta.className = tp.cls; }
     if (d.solar && d.solar.export_rate_p != null) setText('tar-exp', DashCalc.fmtPence(d.solar.export_rate_p));
   }
 
@@ -1935,9 +1929,6 @@ async function refreshDevices() {
         renderSankey(_lastStatus.today_summary,
                      num(inv.states.batteryDailyChargeKwh),
                      num(inv.states.batteryDailyDischargeKwh));
-        const _c = num(inv.states.batteryDailyChargeKwh), _d = num(inv.states.batteryDailyDischargeKwh);
-        setText('sum-chg', _c != null ? _c.toFixed(1) + ' kWh' : '—');   // absent is not 0.0
-        setText('sum-dis', _d != null ? _d.toFixed(1) + ' kWh' : '—');
       }
     }
   } catch (_) { /* optional */ }

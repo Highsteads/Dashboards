@@ -15,6 +15,7 @@ except ImportError:
     pass
 
 import json
+import math
 import os
 import re
 import secrets as _stdlib_secrets   # stdlib token generator (NOT IndigoSecrets)
@@ -23,6 +24,7 @@ import time
 
 from dash_common import (
     as_bool,
+    CAMERA_HOST_RE,
     _parse_cameras,
     _safe_int_list,
     log,
@@ -142,10 +144,11 @@ class ConfigMixin:
         on a start with no store, whatever the old sources hold is copied in,
         saved, and used from then on. Editing those keys afterwards changes
         nothing, and the log says so at the import."""
+        cams = _parse_cameras(DASHBOARDS_CAMERAS or prefs.get("camerasJson", ""))
         store = {
-            "cameras":      _parse_cameras(DASHBOARDS_CAMERAS or prefs.get("camerasJson", "")),
+            "cameras":      cams,
             "swapOutHost":  (prefs.get("swapOutHost", "") or "").strip(),
-            "mainCameras":  list(DASHBOARDS_MAIN_CAMERAS or []),
+            "mainCameras":  self._main_cameras_as_hosts(DASHBOARDS_MAIN_CAMERAS, cams),
             "roomExtras":   DASHBOARDS_ROOM_EXTRAS if isinstance(DASHBOARDS_ROOM_EXTRAS, dict) else {},
             "hiddenScenes": sorted(self._parse_hidden(
                 DASHBOARDS_HIDDEN_SCENES or prefs.get("hiddenScenesJson", ""))),
@@ -162,6 +165,29 @@ class ConfigMixin:
                 f"into dashboards_config.json. The Settings page owns them from now on; "
                 f"the old DASHBOARDS_* keys are no longer read.")
         return store
+
+    @staticmethod
+    def _main_cameras_as_hosts(entries, cams):
+        """The legacy hub-mosaic list as camera HOSTS (review 24-09-2026).
+
+        The key has always meant hosts, but the example secrets file said
+        names, so a list like ["Drive", "Front Door"] was imported verbatim:
+        an empty mosaic, and every MCP camera write refused until one Settings
+        save. A name that matches a camera (ignoring case) becomes its host;
+        anything matching neither is dropped with a WARNING naming it."""
+        by_host = {c["host"] for c in cams}
+        by_name = {c["name"].strip().lower(): c["host"] for c in cams}
+        out = []
+        for e in (entries if isinstance(entries, (list, tuple)) else []):
+            text = str(e).strip()
+            host = text if text in by_host else by_name.get(text.lower())
+            if host is None:
+                log(f"[Config] DASHBOARDS_MAIN_CAMERAS entry {text!r} is neither a camera "
+                    f"host nor a camera name, so it was left out of the hub mosaic",
+                    level="WARNING")
+            elif host not in out:
+                out.append(host)
+        return out
 
     # Set by _load_config_store when dashboards_config.json exists but cannot
     # be read. While it is set, _save_config_store refuses to write.
@@ -268,12 +294,16 @@ class ConfigMixin:
             log(f"[Config] could not back up dashboards_config.json: {exc}", level="WARNING")
         data = dict(data)
         data["_savedAt"] = time.time()
+        # Serialised BEFORE the file is opened, and strictly (review
+        # 24-09-2026): a NaN written as a bare NaN makes the file, and every
+        # config reply built from it, invalid JSON to a browser.
+        text = json.dumps(data, indent=2, sort_keys=True, allow_nan=False)
         tmp  = path + ".tmp"
         # 0600 (v2.95.2): the store carries the control PIN in clear, and it
         # was written under the default umask — 0644, plus every .bak beside it.
         fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, sort_keys=True)
+            f.write(text)
         os.replace(tmp, path)
         try:
             os.chmod(path, 0o600)
@@ -402,6 +432,20 @@ class ConfigMixin:
         return self._apply_config(cfg)
 
     def _apply_config(self, cfg):
+        """_apply_config_checked, with any fault it did not foresee answered as
+        a JSON error (review 24-09-2026). A malformed value from a raw POST or
+        the raw-JSON escape hatch used to raise out of the handler, and IWS
+        answered a bare 500 with no reason."""
+        try:
+            return self._apply_config_checked(cfg)
+        except Exception as exc:
+            self.logger.error(f"[Config] could not apply the settings: "
+                              f"{type(exc).__name__}: {exc}")
+            return self._evo_reply(
+                {"ok": False, "error": f"the settings could not be applied: {exc}"},
+                status=500)
+
+    def _apply_config_checked(self, cfg):
         """Validate an editor-shaped config dict, persist it as
         dashboards_config.json and apply what applies live. Returns the IWS
         reply dict the settings endpoint sends: 200 with {ok: true,
@@ -418,7 +462,7 @@ class ConfigMixin:
         # Hosts are later interpolated into go2rtc.yaml RTSP producer lines
         # and WebRTC signalling URLs — an arbitrary string here is a config/URL
         # injection. IP addresses or plain hostnames only.
-        _host_ok = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9.-]{0,252}[A-Za-z0-9])?$")
+        _host_ok = CAMERA_HOST_RE        # shared with _vet_cameras (the running list)
         for i, c in enumerate(cameras):
             if not isinstance(c, dict) or not all(c.get(k) for k in ("host", "name", "vendor")):
                 errors.append(f"camera {i + 1} needs host, name and vendor")
@@ -454,11 +498,28 @@ class ConfigMixin:
         hidden = cfg.get("hiddenScenes")
         if hidden is not None and not isinstance(hidden, list):
             errors.append("hiddenScenes must be a list")
+        # Types checked before use (review 24-09-2026): an int here raised
+        # TypeError and a non-string swapOutHost AttributeError, both as 500s.
         main_cams = cfg.get("mainCameras") or []
+        if not isinstance(main_cams, list) or any(not isinstance(h, str) for h in main_cams):
+            errors.append("mainCameras must be a list of camera hosts")
+            main_cams = []
+        swap_in = cfg.get("swapOutHost")
+        if swap_in is not None and not isinstance(swap_in, str):
+            errors.append("swapOutHost must be a camera host")
+            swap_in = ""
         cam_hosts = {c.get("host") for c in cameras if isinstance(c, dict)}
         for h in main_cams:
             if h not in cam_hosts:
                 errors.append(f"mainCameras entry {h} is not in the cameras list")
+        # A swap-out host that matches no camera (the camera was re-addressed
+        # or deleted) points at nothing: drop it, which means "the last in the
+        # list", rather than store a dead value without a word.
+        swap_in = (swap_in or "").strip()
+        if swap_in and swap_in not in cam_hosts:
+            self.logger.info(f"[Config] swap-out host {swap_in} is not one of the cameras "
+                             f"any more — cleared (the last camera in the list is used)")
+            swap_in = ""
         if errors:
             return self._evo_reply({"ok": False, "error": "; ".join(errors)}, status=400)
 
@@ -488,7 +549,7 @@ class ConfigMixin:
         clean.update({
             "cameras":      cameras,
             "mainCameras":  list(main_cams),
-            "swapOutHost":  (cfg.get("swapOutHost") or "").strip(),
+            "swapOutHost":  swap_in,
             "roomExtras":   extras if isinstance(extras, dict) else {},
             "hiddenScenes": [str(x) for x in (hidden or [])],
             "controlPin":   self._resolve_pin_save(str(cfg.get("controlPin") or "").strip()),
@@ -562,7 +623,7 @@ class ConfigMixin:
                         if lvl is not None and str(lvl).strip() != "":
                             try:
                                 lvl = int(round(float(lvl)))
-                            except (TypeError, ValueError):
+                            except (TypeError, ValueError, OverflowError):   # inf
                                 lvl = None
                             if lvl is not None and 1 <= lvl <= 100:
                                 member["onLevel"] = lvl
@@ -634,9 +695,11 @@ class ConfigMixin:
                         if band_val is None or str(band_val).strip() == "":
                             continue
                         try:
-                            item[band_key] = float(band_val)
+                            band = float(band_val)
                         except (TypeError, ValueError):
-                            pass
+                            continue
+                        if math.isfinite(band):       # "nan" parses; JSON cannot carry it
+                            item[band_key] = band
                 favs_clean.append(item)
         clean["favourites"] = favs_clean
 
@@ -670,6 +733,13 @@ class ConfigMixin:
         clean["customLinks"] = links_clean
 
         # ── persist + apply live ────────────────────────────────────────
+        # A key passed through untouched can still hold NaN or Infinity from
+        # the raw-JSON escape hatch; say so as a 400 rather than store it.
+        try:
+            json.dumps(clean, allow_nan=False)
+        except ValueError:
+            return self._evo_reply({"ok": False, "error": "a setting holds a number that is "
+                                    "not finite (NaN or Infinity)"}, status=400)
         old_cams = [dict(c) for c in self.cameras]
         try:
             self.cfg_store  = self._save_config_store(clean)

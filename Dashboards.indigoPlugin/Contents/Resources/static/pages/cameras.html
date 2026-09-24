@@ -351,11 +351,12 @@
     // focused tile, which is the only one big enough to show the difference,
     // keeps the full-size picture.
     let thumbPattern   = null;
-    // Turned off for the whole page the first time a thumbnail 404s. That
-    // happens when the server has no Pillow to shrink with, and the honest
-    // response is to go back to full-size pictures everywhere rather than show
-    // eight empty tiles. One 404 is enough to know — they are all written by
-    // the same code in the same pass.
+    // Turned off for the whole page when MOST cameras (two or more) have no
+    // thumbnail: the server has no Pillow to shrink with, and the honest
+    // response is full-size pictures everywhere rather than empty tiles. One
+    // camera's 404 is not that — an offline camera, or one whose frames are
+    // already small, never gets a thumbnail — so that only moves its own tile
+    // (see wantsFullSize).
     let thumbsAvailable = true;
     // The plugin's own port: WebRTC signalling only since v3.36.0.
     const proxyPort    = cfg.proxyPort || 8177;
@@ -408,9 +409,17 @@
 
     function wantsFullSize(host) {
         // The focused tile is shown across the full width of the page, so it
-        // gets the full-size picture. Everything else is a thumbnail.
-        return !thumbsAvailable || host === focusedHost;
+        // gets the full-size picture. Everything else is a thumbnail — unless
+        // THIS camera has no thumbnail (offline, or its frames are already
+        // small, so the server never writes one). That is per tile: one such
+        // camera used to switch every tile on the page to full size.
+        if (!thumbsAvailable || host === focusedHost) return true;
+        const st = camState[host];
+        return !!(st && st.noThumbUntil && Date.now() < st.noThumbUntil);
     }
+    // How long a tile with no thumbnail stays on the full picture before it
+    // asks for the thumbnail again (the camera may have come back).
+    const NO_THUMB_RETRY_MS = 10 * 60 * 1000;
     function snapshotUrl(host, full) {
         // STABLE url, deliberately. A "?t=<now>" buster would make every
         // request unique, so the conditional If-Modified-Since request in
@@ -418,10 +427,11 @@
         // Freshness comes from that conditional request, not from the URL.
         const pat = full ? imgPattern : (thumbPattern || imgPattern);
         if (!pat) return "";             // not told where the stills are: no picture
-        const p = pat.replace("{host}", host);
-        // Absolute, like streamsApi(): a page served from anywhere but
-        // /public/dashboards/ would resolve a relative "cam-x.jpg" wrongly.
-        return (p.startsWith("/") || /^https?:/i.test(p)) ? p : "/public/dashboards/" + p;
+        // Relative to the page, as the hub and room pages resolve it: the live
+        // pattern is "stills-<token>/cam-{host}.jpg" beside this page in
+        // /public/dashboards/, and the online demo's is "demo-cam.svg" beside
+        // its own copy. Prefixing /public/dashboards/ broke the demo's picture.
+        return DashUI.stillUrl(pat, host);
     }
     function streamsApi() {
         // Absolute path, so it works wherever the page is served from.
@@ -498,7 +508,7 @@
         if (_idleGuard || !window.DashUI || !DashUI.idleGuard) return;
         _idleGuard = DashUI.idleGuard(10 * 60 * 1000,
             () => { _idlePaused = true;  document.body.classList.add("idle-paused"); },
-            () => { _idlePaused = false; document.body.classList.remove("idle-paused"); });
+            () => { _idlePaused = false; _healthLastFetch = 0; document.body.classList.remove("idle-paused"); });
     }
     let LIVE_POOL_SIZE, DEFAULT_LIVE, DEFAULT_LIVE_SET, LIVE_FOLLOWS_FOCUS;
     // Away over the tunnel, the focused tile streams WebRTC: go2rtc relays
@@ -861,13 +871,29 @@
                 });
                 setTimeout(r, 1000);
             });
-            st.webrtcAbort = new AbortController();
-            const r = await fetch(webrtcUrl(host), {
-                method: "POST",
-                headers: { "Content-Type": "application/sdp" },
-                body: pc.localDescription.sdp,
-                signal: st.webrtcAbort.signal,     // stopWebrtc cancels a fallback's orphaned offer
-            });
+            // Torn down during the ICE wait (a quick tile change, the tab
+            // going to the background): stopWebrtc had no request to abort
+            // then, so without this the offer still went out and opened a
+            // go2rtc session nobody would ever read.
+            if (st.gen !== gen || st.pc !== pc || pc.signalingState === "closed") return;
+            // This generation's own controller. Assigned to the tile so
+            // stopWebrtc can cancel it, and cleared only while it is still
+            // this one — an older chain must never clear or overwrite a newer
+            // generation's.
+            const ctrl = new AbortController();
+            st.webrtcAbort = ctrl;
+            let r;
+            try {
+                r = await fetch(webrtcUrl(host), {
+                    method: "POST",
+                    headers: { "Content-Type": "application/sdp" },
+                    body: pc.localDescription.sdp,
+                    signal: ctrl.signal,           // stopWebrtc cancels a fallback's orphaned offer
+                });
+            } finally {
+                if (st.webrtcAbort === ctrl) st.webrtcAbort = null;
+            }
+            if (st.gen !== gen || pc.signalingState === "closed") return;
             if (!r.ok) throw new Error(`signalling ${r.status}`);
             await pc.setRemoteDescription({ type: "answer", sdp: await r.text() });
         })().catch((e) => dead(e && e.message ? e.message : "negotiation failed"));
@@ -960,10 +986,14 @@
                 .then(r => {
                     if (r.status === 304) return null;      // nothing new: 53 bytes
                     if (r.status === 404 && !full) {
-                        // No thumbnail on the server. Stop asking for one, on
-                        // every tile, and come back for the full-size picture
-                        // on the next tick rather than sitting blank.
-                        thumbsAvailable = false;
+                        // No thumbnail for THIS camera: this tile takes the
+                        // full picture on the next tick rather than sitting
+                        // blank. Only when most cameras (two or more) have none
+                        // is it the server with no Pillow, and thumbnails go
+                        // off for the whole page.
+                        st.noThumbUntil = Date.now() + NO_THUMB_RETRY_MS;
+                        const missing = hosts.filter(h => camState[h] && camState[h].noThumbUntil > Date.now()).length;
+                        if (missing >= 2 && missing * 2 > hosts.length) thumbsAvailable = false;
                         return null;
                     }
                     if (!r.ok) { _stillFailed(st, "HTTP " + r.status); return null; }   // keep the last good frame, but count it
@@ -1556,7 +1586,12 @@
                 // exactly, the WebRTC tiles from their own counters above — so
                 // the total needs nothing from the server. streams.json is read
                 // only for camera health, every 30 s.
-                if ((Date.now() - _healthLastFetch) > 30000) {
+                // Not while the reflector idle guard has paused the page, nor
+                // while the tab is hidden: a page left open over the metered
+                // reflector otherwise asked every 30 s for ever. Waking up (a
+                // tap, or the tab showing again) clears _healthLastFetch, so
+                // health is read on the very next tick.
+                if (!_idlePaused && !document.hidden && (Date.now() - _healthLastFetch) > 30000) {
                     _healthLastFetch = Date.now();
                     let sj = null;
                     try {
@@ -1884,6 +1919,7 @@
 
     document.addEventListener("visibilitychange", () => {
         if (document.hidden) { stopAll(); return; }
+        _healthLastFetch = 0;          // read camera health again straight away
         // Re-decide from the cached measured verdict (bounded 60 s) before
         // resuming a single tile. The old path resumed straight into the LAST
         // policy, which for a phone put down at home and picked up on 5G was
@@ -1903,20 +1939,21 @@
     } else {
         buildGrid();
         loadStills();
+        // Pin focus to the first camera BEFORE the first layout: each still
+        // chain takes its period once, when it starts, and over the reflector
+        // the focused tile's is 3 s against 10 s for the rest. Set afterwards,
+        // the big top tile kept the slow period until the focus next changed.
+        const grid = document.getElementById("grid");
+        grid.classList.add("has-focus");
+        const wrap = camState[hosts[0]]?.frameEl?.closest(".cam");
+        if (wrap) wrap.classList.add("focused");
+        focusedHost = hosts[0];
         // Initial layout under the BOOT policy — the cached measured verdict,
         // or conservative all-stills when there isn't a fresh one (see
         // bootPolicy). measureAndApply below corrects it within a second or
         // two; what it can no longer do is open six live streams on an
         // unverified "home" guess.
         relayoutAll();
-        // Pin focus to Garage (already live; this just adds the .focused class
-        // and the has-focus grid layout — no live-set change since Garage is
-        // already in the default pool).
-        const grid = document.getElementById("grid");
-        grid.classList.add("has-focus");
-        const wrap = camState[hosts[0]]?.frameEl?.closest(".cam");
-        if (wrap) wrap.classList.add("focused");
-        focusedHost = hosts[0];
         startBandwidthPoll();
         startStallWatchdog();
         // Tap the footer policy line to toggle the debug view: every tile

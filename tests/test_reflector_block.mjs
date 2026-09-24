@@ -57,7 +57,10 @@ check("and dashboards-ui.js is indeed loaded after it on a real page",
 console.log("\nand it agrees with DashUI.linkClass on every address");
 const cases = [
     ["myhouse.indigodomo.net", true],
-    ["some.example.com",          true],
+    ["some.example.com",          false],   // a local DNS name is not the reflector (lows batch)
+    ["indigo.lan",                false],
+    ["indigo.home.arpa",          false],
+    ["MyHouse.IndigoDomo.net",    true],     // the reflector domain, any case
     ["203.0.113.9",               true],
     ["192.168.1.10",           false],
     ["10.0.0.5",                  false],

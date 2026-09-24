@@ -149,7 +149,10 @@ class CarbonMixin:
         # STALE (v2.95.2) — a midday freeze kept advising loads onto 4 kW of
         # export that had stopped hours before. Unknown is the honest answer,
         # and the advice already handles 'no solar data'.
-        if not getattr(inv, "enabled", True) or (getattr(inv, "errorState", "") or "").strip():
+        # And a stopped SigenEnergyManager or states gone quiet (review
+        # 24-09-2026): the one freshness rule the Mains reference uses too.
+        live, _why = self._sigen_states_live(inv)
+        if not live:
             return {}
         st = inv.states
 

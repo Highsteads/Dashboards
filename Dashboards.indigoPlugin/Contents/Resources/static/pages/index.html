@@ -531,7 +531,23 @@
     // Client-side mirror of plugin_utils.as_bool — v2 API custom states can
     // arrive as real booleans, 0/1, or the STRINGS "true"/"True".
     const asBool = v => v === true || v === 1 || String(v).toLowerCase() === "true";
-    let ROOMS = null;       // rooms.json contents; populated once at boot
+    let ROOMS = null;       // rooms.json contents; loaded at boot, retried until it arrives
+    let _roomsAt = 0, _roomsFails = 0;
+    // One reader for rooms.json. A failure at boot (Wi-Fi blip, IWS restart)
+    // used to leave the Doors & Windows card on "Loading…" for good, so the
+    // poll calls this again, at most every 30 s, until the list arrives.
+    async function loadRooms() {
+        _roomsAt = Date.now();
+        try {
+            const r = await fetch("rooms.json?t=" + Date.now(), { cache: "no-store" });
+            if (r.ok) { ROOMS = await r.json(); _roomsFails = 0; return true; }
+        } catch (_) { /* counted below */ }
+        _roomsFails++;
+        return false;
+    }
+    function maybeRetryRooms() {
+        if (!ROOMS && Date.now() - _roomsAt >= 30000) loadRooms();
+    }
     // The hub shows every region on every link (v2.97.0 removed the "light
     // hub" that hid cameras, weather and alerts on a slow link: an absent
     // region reads as a broken one). The saving moved to the camera strip,
@@ -598,10 +614,7 @@
     async function bootCommandCentre() {
         // Load rooms.json once — we need it to find every radiator + contact
         // sensor across the house for the Heating and Alerts cards.
-        try {
-            const r = await fetch("rooms.json?t=" + Date.now(), { cache: "no-store" });
-            if (r.ok) ROOMS = await r.json();
-        } catch (_) { ROOMS = null; }
+        await loadRooms();
         let _sigenOff = false;
         try { _sigenOff = applySigenAvailability(); }
         catch (e) { console.warn("sigen availability", e); }
@@ -1412,14 +1425,23 @@
         const newest = arr.length ? arr[arr.length - 1].t : 0;
         if (now - newest >= 60000) {
             arr.push({ t: now, p: currentHpa });
-            arr = arr.filter(s => (now - s.t) <= 6 * 3600 * 1000);
+            arr = arr.filter(s => (now - s.t) <= 4 * 3600 * 1000);
             try { localStorage.setItem(KEY, JSON.stringify(arr)); } catch (_) {}
         }
-        // Find the oldest sample at least 2h old. < 2h apart and we don't
-        // have a reliable trend yet — return null so the arrow stays hidden.
-        const old = arr.find(s => (now - s.t) >= 2 * 3600 * 1000);
+        // The sample NEAREST three hours old, within 2.5-3.5 h. The oldest
+        // sample over 2 h (the old rule) could be six hours back once the page
+        // had run that long, which is not the 3 h tendency the band below
+        // assumes. The change is scaled to exactly 3 h. Nothing in the window
+        // yet: no arrow.
+        const H3 = 3 * 3600 * 1000;
+        let old = null;
+        for (const s of arr) {
+            const age = now - s.t;
+            if (age < 2.5 * 3600 * 1000 || age > 3.5 * 3600 * 1000) continue;
+            if (!old || Math.abs(age - H3) < Math.abs((now - old.t) - H3)) old = s;
+        }
         if (!old) return null;
-        const delta = currentHpa - old.p;
+        const delta = (currentHpa - old.p) * H3 / (now - old.t);
         // ±0.6 hPa over 3h ≈ noise floor. Anything inside that band is "steady".
         if (Math.abs(delta) < 0.6) return { arrow: "→", word: "steady",  delta };
         if (delta > 0)             return { arrow: "↗", word: "rising",  delta };
@@ -1696,7 +1718,12 @@
     function renderAlertsCard(devices) {
         const el = document.getElementById("alerts-strip");
         if (!el) return;
-        if (!ROOMS) { el.innerHTML = `<h3>Alerts</h3><div class="muted">Loading…</div>`; return; }
+        if (!ROOMS) {
+            el.innerHTML = _roomsFails >= 2
+                ? `<h3>Doors & Windows</h3><div class="row"><span class="warn">Could not read the room list — trying again</span></div>`
+                : `<h3>Doors & Windows</h3><div class="muted">Loading…</div>`;
+            return;
+        }
         const allWinIds = new Set();
         for (const r of Object.values(ROOMS.rooms || {})) {
             (r.windows || []).forEach(id => allWinIds.add(id));
@@ -1710,6 +1737,18 @@
         const unreadable = contacts.length - readable.length;
         const open = readable.filter(d => DashAction.truthy(d.onState) === true)
                              .sort((a, b) => (Date.parse(b.lastChanged || 0) || 0) - (Date.parse(a.lastChanged || 0) || 0));
+        // No sensors, or none that can report, is never an all-clear: the
+        // green tick belongs only to a real count of closed contacts.
+        if (!contacts.length) {
+            el.innerHTML = `<h3>Doors & Windows</h3>
+                <div class="row"><span class="muted">No door or window sensors set up</span></div>`;
+            return;
+        }
+        if (!readable.length) {
+            el.innerHTML = `<h3>Doors & Windows</h3>
+                <div class="row"><span class="warn">${DashIcons.svg("warn")} None of the ${contacts.length === 1 ? "sensor" : contacts.length + " sensors"} can report right now</span></div>`;
+            return;
+        }
         if (!open.length) {
             el.innerHTML = `<h3>Doors & Windows</h3>
                 <div class="row"><span class="ok">${DashIcons.svg("check")} All ${readable.length} closed${unreadable ? ` · ${unreadable} unreadable` : ""}</span></div>`;
@@ -1833,7 +1872,11 @@
                 const st = (d && d.states) || {};
                 const raw = (st[f.state + ".ui"] != null && st[f.state + ".ui"] !== "") ? st[f.state + ".ui"]
                           : (st[f.state] != null ? st[f.state] : null);
-                const valTxt = (raw == null || raw === "") ? "—" : (spokenWhen(raw) || String(raw));
+                // A disabled device's reading is frozen at whenever it stopped:
+                // say so rather than show a months-old value as current.
+                const rdead = !!(d && d.enabled === false);
+                const valTxt = rdead ? "Disabled"
+                             : (raw == null || raw === "") ? "—" : (spokenWhen(raw) || String(raw));
                 const rname = f.label || (d && d.name) || ("#" + f.id);
                 // v2.77.0: optional colour bands. Compared against the RAW
                 // numeric state, never the ".ui" string ("12.60 V" is not a
@@ -1841,7 +1884,7 @@
                 let valCls = "";
                 const wb = Number(f.warnBelow), bb = Number(f.badBelow);
                 const num = Number(st[f.state]);
-                if (Number.isFinite(num) && (Number.isFinite(wb) || Number.isFinite(bb))) {
+                if (!rdead && Number.isFinite(num) && (Number.isFinite(wb) || Number.isFinite(bb))) {
                     if (Number.isFinite(bb) && num < bb) valCls = " fav-val-bad";
                     else if (Number.isFinite(wb) && num < wb) valCls = " fav-val-warn";
                     else valCls = " fav-val-good";
@@ -1849,7 +1892,7 @@
                 // A reading is something to look at, so it is not a button
                 // (v3.41.0): a screen reader called it one, it took a Tab stop,
                 // and nothing happened when it was pressed.
-                return `<div class="fav-tile fav-reading" role="group" aria-label="${escapeAttr(rname)}: ${escapeAttr(valTxt)}" data-fav-type="device" data-fav-id="${escapeAttr(f.id)}" data-fav-readonly="1">
+                return `<div class="fav-tile fav-reading${rdead ? " off-line" : ""}" role="group" aria-label="${escapeAttr(rname)}: ${escapeAttr(valTxt)}" data-fav-type="device" data-fav-id="${escapeAttr(f.id)}" data-fav-readonly="1">
                     <span class="fav-name">${escapeAttr(rname)}</span>
                     <span class="fav-state val${valCls}">${escapeAttr(valTxt)}</span></div>`;
             }
@@ -2086,14 +2129,17 @@
         // Per-person presence (v2.34.0): one chip each, Home OR Away — so an
         // away person is visibly away rather than just missing from a list.
         const people = devices
-            .filter(d => d.deviceTypeId === "unifiClient")
+            // A disabled presence device's last state is frozen, so it could
+            // keep someone "Home" for months; it is left out like the battery
+            // and error counts below.
+            .filter(d => d.deviceTypeId === "unifiClient" && d.enabled !== false)
             .map(d => ({
                 name: String(d.name || "").replace(/^Presence\s*[-–]\s*/, "")
                         .replace(/\s+iPhone.*$/i, "").trim() || String(d.name || ""),
                 home: (d.states || {}).presence === "home",
             }))
             .sort((a, b) => a.name.localeCompare(b.name));
-        const heating = devices.filter(d => asBool((d.states || {}).hvacHeaterIsOn)).length;
+        const heating = devices.filter(d => d.enabled !== false && asBool((d.states || {}).hvacHeaterIsOn)).length;
         let lowBatt = 0, errors = 0;
         const lowNames = [], errNames = [];
         for (const d of devices) {
@@ -2239,6 +2285,7 @@
             try { renderWeatherSolar(); } catch (e) { console.warn("solar card", e); }
             try { renderHousePulse(devices);  } catch (e) { console.warn("house pulse", e); }
             try { renderBanner();             } catch (e) { console.warn("banner", e); }
+            try { maybeRetryRooms();          } catch (e) { console.warn("rooms retry", e); }
             try { renderAlertsCard(devices);  } catch (e) { console.warn("alerts card", e); }
         } catch (e) {
             // Errors surface via stale topbar timestamp + auth-failure handler above.

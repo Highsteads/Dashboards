@@ -394,16 +394,25 @@ function wireScrub(){
 }
 
 let dayLoaded = false;
+// Paging quickly between days overlaps loads, and a cold day can answer
+// long after a cached one asked later. Only the newest ask may draw, or one
+// day's spans land under another day's heading.
+let _loadSeq = 0;
 async function load(){
+  const want = ymd(selDate), token = ++_loadSeq;
+  const current = () => token === _loadSeq && want === ymd(selDate);
   setStatus("Loading…");
   document.getElementById("tl-body").innerHTML = '<div class="loading"><div class="spinner"></div><p>Building the day…</p></div>';
   try {
-    DAY = await fetchDay(ymd(selDate));
+    const day = await fetchDay(want);
+    if (!current()) return;
+    DAY = day;
     playMin = null;
     render();
     dayLoaded = true;
     if (currentView === "day") setStatus("Scrub to replay");
   } catch(e){
+    if (!current()) return;
     document.getElementById("tl-body").innerHTML = `<div class="empty">Couldn't load the day: ${esc(e.message)}</div>`;
     if (currentView === "day") setStatus("Error");
   }

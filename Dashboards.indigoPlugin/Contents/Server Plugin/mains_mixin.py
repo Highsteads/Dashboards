@@ -11,6 +11,7 @@
 # Version:     1.0
 
 import json
+import math
 import time
 from datetime import datetime, timedelta, timezone
 
@@ -575,14 +576,25 @@ class MainsMixin:
         compared against. It is not calibrated either; it is the best-specified
         instrument here (it must measure accurately to stay grid-connected) and
         it sits in the middle of the fleet, which is where a median would put
-        it. The page says so rather than implying it is truth."""
-        for dev in indigo.devices:
-            if getattr(dev, "deviceTypeId", "") == "sigenergyInverter":
-                s = dev.states
-                return {"id": dev.id, "name": dev.name,
-                        "houseWatts": self._mains_pick(s, ("homePowerWatts",)),
-                        "volts": self._mains_pick(s, ("gridVoltageV",))}
-        return None
+        it. The page says so rather than implying it is truth.
+
+        Found through _sigen_inverter, the one lookup every caller shares, and
+        its live readings held to _sigen_states_live (review 24-09-2026): a
+        frozen house total made "unmetered" out of a figure hours old. When
+        they are not current, houseWatts and volts are None and `stale` says
+        why; the id and name stay, because the offsets read the HISTORY, which
+        a stopped plugin does not spoil."""
+        dev = self._sigen_inverter()
+        if dev is None:
+            return None
+        live, why = self._sigen_states_live(dev)
+        ref = {"id": dev.id, "name": dev.name, "houseWatts": None, "volts": None,
+               "stale": None if live else why}
+        if live:
+            s = dev.states
+            ref["houseWatts"] = self._mains_pick(s, ("homePowerWatts",))
+            ref["volts"] = self._mains_pick(s, ("gridVoltageV",))
+        return ref
 
     def _mains_bucketed_volts(self, conn, hist, dev_id, column, since_utc):
         """{10-minute bucket: mean volts} for one meter, PK-RANGED.
@@ -601,9 +613,17 @@ class MainsMixin:
                 f"WHERE id >= ? AND {column} IS NOT NULL", (lo,)):
             if v is None:
                 continue
+            # One blank or text sample must not fail every meter's offset
+            # (review 24-09-2026): float() raised out of the whole build.
+            try:
+                fv = float(v)
+            except (TypeError, ValueError):
+                continue
+            if not math.isfinite(fv):
+                continue
             key = str(ts)[:15]          # 'YYYY-MM-DD HH:M' — a 10-minute bucket
             acc = out.setdefault(key, [0.0, 0])
-            acc[0] += float(v)
+            acc[0] += fv
             acc[1] += 1
         return {k: a[0] / a[1] for k, a in out.items() if a[1]}
 
@@ -635,6 +655,12 @@ class MainsMixin:
             if not ref_col:
                 return {"ok": False, "error": "the inverter logs no grid voltage"}
             ref_series = self._mains_bucketed_volts(conn, hist, ref["id"], ref_col, since)
+            # The reference is held to the same sane band as each meter
+            # (review 24-09-2026). A power cut reads near zero at the inverter
+            # while a backed-up meter still reads ~230 V, and that one bucket
+            # moved every meter's quoted offset for a week.
+            lo_v, hi_v = self.MAINS_VOLTS_SANE
+            ref_series = {k: v for k, v in ref_series.items() if lo_v <= v <= hi_v}
             if not ref_series:
                 return {"ok": False, "error": "no reference history in the window"}
 

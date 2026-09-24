@@ -122,3 +122,27 @@ def test_refuse_reflector_is_off_by_default_and_403s_when_on():
     assert p._reflector_blocked() is True
     p.pluginPrefs = {"reflectorBlock": "false"}
     assert p._reflector_blocked() is False
+
+
+def test_a_lan_reverse_proxy_is_not_the_reflector():
+    """Review 24-09-2026 [24]: a LAN proxy or `tailscale serve` adds
+    X-Forwarded-For naming a HOME address. That is not the reflector, and
+    with reflectorBlock on it must not lock the owner out."""
+    mod, p = _plugin()
+    for hdrs in (
+        {"Host": "dash.example.lan", "X-Forwarded-For": "192.168.1.23", "User-Agent": "ua"},
+        {"Host": "indigo.tail-example.ts.net", "X-Forwarded-For": "100.101.102.103", "User-Agent": "ua"},
+        {"Host": "192.168.1.10:8176", "X-Forwarded-For": "51.0.0.1", "User-Agent": "ua"},
+        {"Host": "mac.local", "X-Real-IP": "10.0.0.5", "User-Agent": "ua"},
+        {"X-Forwarded-For": "127.0.0.1", "User-Agent": "ua"},
+        {"X-Forwarded-For": "fd7a:115c:a1e0::1", "User-Agent": "ua"},
+    ):
+        assert p._note_reflector_use(_Action(hdrs)) is False, hdrs
+    assert p.logger.warnings == []
+    p.pluginPrefs = {"reflectorBlock": True}
+    assert p._refuse_reflector(_Action(
+        {"Host": "dash.example.lan", "X-Forwarded-For": "192.168.1.23"})) is None
+    # The reflector itself is still recognised: its name, or a public caller.
+    assert p._note_reflector_use(_Action(
+        {"Host": "myhouse.indigodomo.net", "X-Forwarded-For": "192.168.1.23"})) is True
+    assert p._note_reflector_use(_Action({"X-Forwarded-For": "51.0.0.1"})) is True

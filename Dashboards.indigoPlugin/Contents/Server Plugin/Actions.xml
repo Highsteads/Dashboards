@@ -54,6 +54,24 @@
         <CallbackMethod>handleTimelineDay</CallbackMethod>
     </Action>
 
+    <!-- POST /message/com.clives.indigoplugin.dashboards/laundryPlan/
+         No body. Serves the laundry plan Appliance_Scheduler.py last wrote
+         (not a /public file: it says when the household washes).
+         Bearer-authed by IWS. -->
+    <Action id="laundryPlan" uiPath="hidden">
+        <Name>Laundry Plan</Name>
+        <CallbackMethod>handleLaundryPlan</CallbackMethod>
+    </Action>
+
+    <!-- POST /message/com.clives.indigoplugin.dashboards/laundryDeadline/
+         Body: {"appliance": "washing_machine", "deadline": "HH:MM" or ""}.
+         Sets when that appliance must be finished by and replans at once.
+         Bearer-authed by IWS. -->
+    <Action id="laundryDeadline" uiPath="hidden">
+        <Name>Laundry Deadline</Name>
+        <CallbackMethod>handleLaundryDeadline</CallbackMethod>
+    </Action>
+
     <!-- POST /message/com.clives.indigoplugin.dashboards/solarStringHours/
          Body: {"date":"YYYY-MM-DD"} (default today, local). Returns per-hour
          per-PV-string kWh integrated from the SQL-logged pv1Watts..pv4Watts
@@ -62,26 +80,15 @@
          hours=[] when the columns don't exist. Server-cached 120 s.
          Bearer-authed by IWS. Powers the Energy page's stacked hourly solar
          chart (v2.79.0). -->
-    <Action id="laundryPlan" uiPath="hidden">
-        <Name>Laundry Plan</Name>
-        <CallbackMethod>handleLaundryPlan</CallbackMethod>
-    </Action>
-
-    <Action id="laundryDeadline" uiPath="hidden">
-        <Name>Laundry Deadline</Name>
-        <CallbackMethod>handleLaundryDeadline</CallbackMethod>
-    </Action>
-
     <Action id="solarStringHours" uiPath="hidden">
         <Name>Solar String Hours</Name>
         <CallbackMethod>handleSolarStringHours</CallbackMethod>
     </Action>
 
-    <!-- POST /message/com.clives.indigoplugin.dashboards/homeInsights/
-         No body. Returns anomalies vs each device's own norms from the SQL
-         Logger history: batteries falling fast, motion sensors gone quiet,
-         rooms off their usual temperature, devices on longer than their daily
-         norm. Server-cached 15 min. Bearer-authed by IWS. -->
+    <!-- POST /message/com.clives.indigoplugin.dashboards/mainsMeters/
+         No body. Live readings from every mains meter, the unmetered
+         remainder, and each meter's calibration offset against the inverter
+         (built in the background). Feeds mains.html. Bearer-authed by IWS. -->
     <Action id="mainsMeters" uiPath="hidden">
         <Name>Mains Meters</Name>
         <CallbackMethod>handleMainsMeters</CallbackMethod>
@@ -96,6 +103,11 @@
         <CallbackMethod>handleMainsMeter</CallbackMethod>
     </Action>
 
+    <!-- POST /message/com.clives.indigoplugin.dashboards/homeInsights/
+         No body. Returns anomalies vs each device's own norms from the SQL
+         Logger history: batteries falling fast, motion sensors gone quiet,
+         rooms off their usual temperature, devices on longer than their daily
+         norm. Server-cached 15 min. Bearer-authed by IWS. -->
     <Action id="homeInsights" uiPath="hidden">
         <Name>Home Insights</Name>
         <CallbackMethod>handleHomeInsights</CallbackMethod>

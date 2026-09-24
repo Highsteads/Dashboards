@@ -101,10 +101,12 @@ function makeSandbox({ thumbs = true, hidden = false, swap = null } = {}) {
         imgPattern: "cam-{host}.jpg", thumbPattern: "cam-{host}-thumb.jpg",
         thumbsAvailable: thumbs, focusedHost: null, _idlePaused: false,
         STILL_FETCH_TIMEOUT_MS: 10000, MIN_GAP_MS: num(/MIN_GAP_MS\s*=\s*(\d+)/),
+        NO_THUMB_RETRY_MS: num(/NO_THUMB_RETRY_MS\s*=\s*(\d+)/) * 60 * 1000,
         _rxBytes: 0,
         stopWebrtc() {}, replaceImg: s => s.imgEl, setMode() {},
         stillPeriodFor: () => 1000, noteAgeAtReceipt() {}, markRefreshed() {},
         _stillOk() {}, _stillFailed(s, why) { s.lastFailure = why; },
+        DashUI: { stillUrl: (p, h) => (p ? String(p).split("{host}").join(String(h)) : "") },
     };
     vm.createContext(ctx);
     vm.runInContext(["snapshotUrl", "wantsFullSize", "clearTileTimers", "releaseFrameUrl", "startStill"]
@@ -254,9 +256,22 @@ console.log("\nthumbnail for the grid, full size for the focused tile");
     sb.api.startStill("10.0.0.1");
     await sb.settle();
     await sb.answer(sb.requests[0], 404, null);
-    check(sb.api.thumbs === false, "a missing thumbnail turns thumbnails off for the page");
+    // lows batch [68]: one camera's missing thumbnail moves only its own tile.
+    check(sb.api.thumbs === true, "one camera's missing thumbnail does not turn thumbnails off for the page");
     await sb.advance(1000);
-    check(!sb.requests[1].url.endsWith("-thumb.jpg"), "and the next request is the full picture");
+    check(!sb.requests[1].url.endsWith("-thumb.jpg"), "but that tile's next request is the full picture");
+}
+{
+    // Two of three cameras with no thumbnail: the server cannot make them.
+    const sb = makeSandbox();
+    sb.ctx.hosts = ["10.0.0.1", "10.0.0.2", "10.0.0.3"];
+    sb.ctx.camState["10.0.0.2"] = { noThumbUntil: Date.now() * 2 };
+    sb.ctx.camState["10.0.0.3"] = {};
+    check(!sb.api.wantsFullSize("10.0.0.3"), "another camera keeps its thumbnail");
+    sb.api.startStill("10.0.0.1");
+    await sb.settle();
+    await sb.answer(sb.requests[0], 404, null);
+    check(sb.api.thumbs === false, "most cameras missing thumbnails turns them off for the page");
 }
 
 console.log("\nblob lifetime — a frame a second leaks fast if this slips");

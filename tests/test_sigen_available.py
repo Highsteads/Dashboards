@@ -242,3 +242,91 @@ def test_script_flags_never_hide_when_the_folder_cannot_be_found():
         raise RuntimeError("no indigo")
     p._scripts_dir = boom
     assert p._companion_scripts_installed() == {"presence": True, "laundry": True}
+
+
+def test_a_failed_config_js_write_is_retried_by_the_tick(tmp_path, monkeypatch):
+    """Review 24-09-2026 [34]: the flags were recorded BEFORE the write, so a
+    failed write read as published and the tick, seeing no change, never
+    rewrote config.js until a flag flipped or the plugin restarted."""
+    import publish_mixin
+    monkeypatch.setattr(publish_mixin, "log", lambda *a, **k: None)
+    wire_plugins(sem=(True, True))
+    p = config_plugin(tmp_path)
+    real = p._write_atomic
+    def failing(path, data):
+        raise OSError("disk full")
+    p._write_atomic = failing
+    p._write_config_js()
+    assert not (tmp_path / "config.js").exists()
+    p._write_atomic = real
+    assert p._refresh_feature_flags() is True
+    assert _config(tmp_path)["sigenAvailable"] is True
+    assert p._refresh_feature_flags() is False, "settled once written"
+
+
+def test_a_bad_favourite_or_link_cannot_stop_config_js(tmp_path):
+    """Review 24-09-2026 [35]: a hand-edited entry that is not an object made
+    dict() raise in the unguarded build, which startup() calls first."""
+    wire_plugins(sem=(True, True))
+    p = config_plugin(tmp_path)
+    p.favourites = [{"type": "device", "id": 1, "label": "Lamp"}, 123, "abc"]
+    p.custom_links = ["x", {"title": "Router", "url": "http://192.168.1.1"}]
+    p._write_config_js()
+    cfg = _config(tmp_path)
+    assert cfg["favourites"] == [{"type": "device", "id": 1, "label": "Lamp"}]
+    assert [l["title"] for l in cfg["customLinks"]] == ["Router"]
+
+
+def test_the_store_load_keeps_only_object_entries(monkeypatch):
+    import plugin as mod
+    said = []
+    monkeypatch.setattr(mod, "log", lambda m, level="INFO": said.append((level, m)))
+    p = bare_plugin()
+    assert p._stored_dicts({"favourites": [{"id": 1}, 5, "x"]}, "favourites") == [{"id": 1}]
+    assert p._stored_dicts({"customLinks": {"title": "t"}}, "customLinks") == []
+    assert p._stored_dicts({}, "favourites") == []
+    assert [lvl for lvl, _ in said] == ["WARNING", "WARNING"]
+    assert "2 entries in 'favourites'" in said[0][1]
+
+
+def test_camera_config_no_longer_publishes_the_go2rtc_port(tmp_path):
+    """Review 24-09-2026 [82]: go2rtcPort was left over from the MJPEG and
+    live.html retirements. No page reads it, and config.js is anonymous."""
+    wire_plugins(sem=(True, True))
+    p = config_plugin(tmp_path)
+    p._write_config_js()
+    js = (tmp_path / "config.js").read_text(encoding="utf-8")
+    m = re.search(r"window\.CAMERA_CONFIG\s*=\s*(\{.*?\});", js, re.S)
+    assert m and "go2rtcPort" not in json.loads(m.group(1))
+    import glob
+    import os
+    from conftest import SP
+    pages = os.path.join(SP, "..", "Resources", "static", "pages")
+    readers = [f for f in glob.glob(os.path.join(pages, "*.*"))
+               if f.endswith((".js", ".html")) and "go2rtcPort" in open(f, encoding="utf-8").read()]
+    assert readers == []
+
+
+# ── the room page's catalog (lows batch [56]) ────────────────────────────
+# The bundle ships no catalog.json, and room.html asked for one on every view,
+# which 404s (and IWS logs it) on every install but the one an outside tool
+# had put a file on. config.js now says whether it exists.
+
+def test_config_js_says_whether_a_catalog_is_published(tmp_path):
+    wire_plugins(sem=(True, True))
+    p = config_plugin(tmp_path)
+    p._write_config_js()
+    assert _config(tmp_path)["catalog"] is False
+    (tmp_path / "catalog.json").write_text("{}")
+    assert p._refresh_feature_flags() is True, "a catalog appearing rewrites config.js"
+    assert _config(tmp_path)["catalog"] is True
+
+
+def test_room_page_asks_for_the_catalog_only_when_published():
+    from pathlib import Path
+    pages = Path(__file__).resolve().parent.parent / "Dashboards.indigoPlugin" / "Contents" / "Resources" / "static" / "pages"
+    page = (pages / "room.html").read_text(encoding="utf-8")
+    call = page.index('Capabilities.load("catalog.json")')
+    guard = page.rfind("if (", 0, call)
+    assert re.search(r"INDIGO_CONFIG \|\| \{\}\)\.catalog === true", page[guard:call]), \
+        "the catalog fetch must sit behind config.js's catalog flag"

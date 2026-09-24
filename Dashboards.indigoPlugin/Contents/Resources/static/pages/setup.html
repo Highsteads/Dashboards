@@ -54,9 +54,9 @@
         "use strict";
         const card = document.getElementById("card");
 
-        function fail(msg) {
+        function fail(msg, title) {
             card.classList.add("error");
-            card.innerHTML = `<h1>Setup link not valid</h1>
+            card.innerHTML = `<h1>${title || "Setup link not valid"}</h1>
                 <p>${msg}</p>
                 <p>Generate a fresh link from
                    <b>Plugins&nbsp;&rarr;&nbsp;Dashboards&nbsp;&rarr;&nbsp;Generate One-Time Setup Link</b>
@@ -84,10 +84,18 @@
                 return;
             }
 
-            localStorage.setItem("indigo_config", JSON.stringify({
-                baseURL: location.origin,
-                apiKey:  payload.apiKey
-            }));
+            // Guarded: a browser that blocks storage (some private modes, a
+            // full quota) throws here, and unguarded that left the setup
+            // message on screen for ever with no reason given.
+            let stored = true;
+            try {
+                localStorage.setItem("indigo_config", JSON.stringify({
+                    baseURL: location.origin,
+                    apiKey:  payload.apiKey
+                }));
+            } catch (e) {
+                stored = false;
+            }
 
             // Burn the token server-side — single use. We are authenticated
             // now (we hold the key), so the Bearer-gated endpoint accepts it.
@@ -106,12 +114,22 @@
             } catch (e) {
                 // Non-fatal — the TTL sweep will get it within 10 minutes.
             }
+            // Burned either way: the link has been used, and a fresh one is
+            // what the reader needs once storage is allowed.
+            if (!stored) {
+                fail("This browser would not let the page save the key, which it needs to remember " +
+                     "this pairing. Private browsing, or a setting that blocks website data, usually " +
+                     "causes this. Allow it for this site, or use an ordinary window, then open a fresh link.",
+                     "Could not save the pairing");
+                return;
+            }
 
             card.innerHTML = `<h1>All paired</h1>
                 <p>This browser is now connected. Taking you to the dashboard&hellip;</p>`;
             setTimeout(() => { location.href = "index.html"; }, 900);
         }
-        run();
+        run().catch(e => fail("Something went wrong while pairing: " + String((e && e.message) || e)
+            .replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]) + "."));
     </script>
     <script src="a11y.js"></script>
 </body>

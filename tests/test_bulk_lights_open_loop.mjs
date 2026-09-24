@@ -65,8 +65,11 @@ function press(states, openLoop = [FIRE], mainLight = []) {
             turnOff: id => { sent.push(["off", id]); return Promise.resolve(); },
         },
         Promise,
+        DashAction: { note() {} },
     });
-    vm.runInContext(extractFn(src, "toggleLights"), ctx);
+    // toggleLights sends through the room's one sender (lows batch [62]).
+    vm.runInContext("const SECTION_BUSY = new Set();\n" + extractFn(src, "sendToAll") + "\n"
+        + extractFn(src, "toggleLights"), ctx);
     return vm.runInContext("toggleLights()", ctx).then(() => sent);
 }
 

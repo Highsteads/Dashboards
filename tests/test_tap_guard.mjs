@@ -150,6 +150,22 @@ function tap(page, target, { travel = 0, type = "touch" } = {}) {
     check("a keyboard click (no press) is never judged", !k.prevented && !k.stopped);
 }
 {
+    // lows batch [55]: a swipe left its cancelled press behind, and a keyboard
+    // click (detail 0, no pointerdown) inside five seconds was judged against
+    // it and silently cancelled.
+    const page = makeWindow();
+    const t = el({ cls: ["fav-tile"] });
+    page.fire("pointerdown", { pointerType: "touch", clientX: 100, clientY: 400, target: t });
+    page.fire("pointercancel", {});
+    page.tick(1500);
+    const k = page.fire("click", { target: t, detail: 0 });
+    check("a keyboard click after a swipe is not cancelled", !k.prevented && !k.stopped);
+    page.fire("pointerdown", { pointerType: "touch", clientX: 100, clientY: 400, target: t });
+    page.fire("scroll", {});
+    const k2 = page.fire("click", { target: t, detail: 0 });
+    check("a click with detail 0 is never judged, even mid-press", !k2.prevented && !k2.stopped);
+}
+{
     const page = makeWindow();
     const f = el({ tag: "INPUT", field: true });
     const r = tap(page, f, { travel: 40 });

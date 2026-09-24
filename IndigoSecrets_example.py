@@ -143,9 +143,10 @@ DASHBOARDS_CAMERAS  = ""  # e.g. '[{"host":"192.168.1.50","name":"Door","vendor"
 #                        Entries match a group name, a group ID (string), or
 #                        "folder:Folder Name" to hide a whole folder.
 DASHBOARDS_HIDDEN_SCENES = []  # e.g. ["Internal Reset", "folder:Maintenance"]
-# DASHBOARDS_MAIN_CAMERAS — the cameras shown on the hub's mosaic, by name.
+# DASHBOARDS_MAIN_CAMERAS — the cameras shown on the hub's mosaic, by HOST address
+#                        (the same host as in DASHBOARDS_CAMERAS), not by name.
 #                        Leave empty and the hub picks the first few.
-DASHBOARDS_MAIN_CAMERAS = []  # e.g. ["Drive", "Front Door"]
+DASHBOARDS_MAIN_CAMERAS = []  # e.g. ["192.168.1.21", "192.168.1.22"]
 # DASHBOARDS_ROOM_EXTRAS — per-room tweaks for the room pages, keyed by the
 #                        Indigo DEVICE FOLDER name. Every key is optional, and
 #                        a room you never mention is auto-classified.

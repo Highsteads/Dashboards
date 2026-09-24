@@ -48,7 +48,7 @@
     },
     {
       "name": "list_cameras",
-      "description": "The cameras the dashboards are configured with (host, name, vendor, stream, rooms), which of them make up the hub mosaic, the swap-out host, whether camera credentials are set, and whether go2rtc and the MJPEG proxy are running. Also says whether the saved camera list differs from the one currently streaming, which means a plugin restart is pending. Read-only. Never returns credentials.",
+      "description": "The cameras the dashboards are configured with (host, name, vendor, stream, rooms), which of them make up the hub mosaic, the swap-out host, whether camera credentials are set, and whether go2rtc and the :8177 camera proxy (guest pages and WebRTC signalling) are running. Also says whether the saved camera list differs from the one currently streaming, which means a plugin restart is pending. Read-only. Never returns credentials.",
       "write": false,
       "timeout_seconds": 15,
       "inputSchema": {"type": "object", "properties": {}, "required": []}
