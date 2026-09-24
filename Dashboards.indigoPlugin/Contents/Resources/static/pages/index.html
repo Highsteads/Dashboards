@@ -942,7 +942,7 @@
     const HUB_LIVE_STALL_MS     = 1500;     // how often the video clock is looked at
     const HUB_FAST_STILL_MS     = 1000;     // still period once the link is fast enough for live
     let _stripPollMs = null;                // the period the strip's stills are running at
-    const HUB_TAP_NOTE = "Tap anywhere on the page to start the live video. iPhones and iPads often will not start video until the page has been touched.";
+    const HUB_TAP_NOTE = "Tap anywhere on the page to start the live video. An iPhone or iPad with Auto-Play Video Previews switched off (Settings, Accessibility, Motion) will not start video until the page has been touched. Switch it on and the cameras go live by themselves.";
     let _hubLive     = {};                  // host -> { rtc, video, frame, fails, retry }
     let _hubVerdict  = null;                // DashRTC.decide's answer; null = not decided
     let _hubDeciding = null;

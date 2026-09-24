@@ -8,7 +8,7 @@ Browser dashboards for [Indigo Domotics](https://www.indigodomo.com/), built for
 wall, a phone in your pocket and a Mac on the desk. No app to install, no cloud account,
 nothing leaving the house.
 
-<img src="https://img.shields.io/badge/version-3.45.8-5856d6" alt="Version 3.45.8">
+<img src="https://img.shields.io/badge/version-3.45.9-5856d6" alt="Version 3.45.9">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-21-0a84ff" alt="21 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
@@ -21,7 +21,7 @@ nothing leaving the house.
 
 ---
 
-**Version:** 3.45.8
+**Version:** 3.45.9
 
 **Documentation:** **[highsteads.github.io/Dashboards](https://highsteads.github.io/Dashboards/)** —
 getting started, configuration, a page of notes for every one of the 21 pages, cameras, remote
@@ -67,11 +67,11 @@ simulator, touching no live devices.
 The three most recent releases, word for word. Every release before these is in
 **[the version history](docs/changelog.md)**, which the documentation site also carries.
 
+**3.45.9** (24-Sep-2026) - **The tap line names the iPhone setting that causes it.** On an iPhone or iPad with Auto-Play Video Previews switched off (Settings, Accessibility, Motion), iOS will not start any video on a web page until the page has been touched, even a silent one. Switching it on makes the cameras go live by themselves, which is what fixed it here. The line under the cameras now says so, and so does the Troubleshooting page, which also no longer claims that only one tile is live away from home.
+
 **3.45.8** (24-Sep-2026) - **Open pages update themselves when the plugin does.** A Safari web app left open on the Mac mini kept running this afternoon's page for hours after newer versions were installed, so it never saw the camera fixes. The plugin now publishes its version in the small file every page already checks every two seconds, and a page that finds itself older reloads once, as soon as it is on screen. If a cached copy brings the old page back, the second attempt asks for it by a new address, and after that it stops, so it can never loop. Pages opened before this version still need one reload by hand, and never again after that.
 
 **3.45.7** (24-Sep-2026) - **Live video on an iPhone after one touch, and no slower pictures while it waits.** An iPhone opening the dashboards from its home screen will not start live video until the page has been touched, and 3.45.6 then gave up on the stream and fell back to slow pictures. Now a stream that is arriving but not yet playing waits for your next touch, and the hub says so underneath its cameras. While it waits, the hub's pictures refresh every second on a connection fast enough for live video, and the Cameras page keeps its usual one or two second pictures instead of dropping to five. One touch anywhere on the page starts the live video, on the Cameras page as well as the hub.
-
-**3.45.6** (24-Sep-2026) - **Live video is left to start by itself, as it was in 3.44.0.** 3.45.1 asked each video to play the instant its stream arrived, which an iPhone refuses because it cannot yet tell the video is silent. That request is gone: the video now starts by itself where the device allows it, and is only asked to play if it is still paused a second after it could have started. On an iPhone opening the dashboards from its home screen, live video still needs one touch of the page first, which 3.45.7 handles.
 
 ## A look around
 

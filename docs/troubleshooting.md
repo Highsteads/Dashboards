@@ -43,8 +43,13 @@ Read the resolved counts under each room before assuming a page is broken.
 - **Tiles say "2s" or "5s" at home.** The page thinks the link is slow. Tap "this device is" at the
   bottom of the Cameras page to pin it to home. Check whether the browser was paired with the
   reflector address rather than the LAN one.
-- **Only some tiles are live.** `livePoolSize` (default six) sets how many are live at home; the
-  rest are stills. Away from home only the tile at the top is live, by design.
+- **Only some tiles are live.** How many can be live is decided by measuring your connection, not by
+  where you are: the page times a few pictures from the plugin and allows as many live tiles as the
+  speed carries, up to `livePoolSize` (default six). The Cameras page footer shows the measured
+  Mbit/s. On a slow connection the tiles are stills, and over the reflector they are always stills.
+- **On an iPhone or iPad, the cameras only go live after you touch the page.** Turn on **Auto-Play
+  Video Previews** in Settings, Accessibility, Motion. With it off, iOS will not start any video on a
+  web page by itself, even a silent one, and the page says so under the cameras until you tap.
 - **Live tiles never start, or drop to stills.** Live video is WebRTC: it is set up on port 8177
   and streams from go2rtc on 8555, and both have to be reachable. At home, check nothing on the Mac
   blocks 8555; away, only Tailscale reaches them. Over the reflector you get stills, slowly, by
