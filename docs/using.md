@@ -112,10 +112,14 @@ The Alerts page lets any device that shows the dashboard also watch it: pick dev
 choose a condition ("turns on", "turns off", "changes at all"), and matching changes raise a system
 notification on that device, with a thirty-second per-rule cooldown so a chattering sensor cannot
 spam you. Rules live in the browser that made them, nothing on the server. There is no cloud push
-service behind this, so notifications only arrive while a dashboard tab (or the installed
-home-screen app) is open — ideal for a wall tablet, a kiosk, or a pinned tab, rather than a phone in
-a pocket. The server-side error watch on the same page is a different thing: it is always on and
-sends its own notifications whether or not any page is open.
+service behind this, so notifications only arrive while one of the pages that watch the rules is
+open in that browser: the hub, a room page, Energy or Alerts itself (a background tab counts, and so
+does the home-screen app while it is running). With several of them open, one tab watches and only
+one notification is raised. It is ideal for a wall tablet, a kiosk, or a pinned tab, rather than a
+phone in a pocket. Browsers only allow notifications on a secure (`https://`) address; see
+[Notifications and install need HTTPS](remote-access.md#notifications-and-install-need-https). The
+server-side error watch on the same page is a different thing: it is always on and sends its own
+notifications whether or not any page is open.
 
 ## Standalone app
 
@@ -124,7 +128,11 @@ browser tab.
 
 - **iPhone / iPad** — open the hub in Safari, tap Share, then **Add to Home Screen**.
 - **Mac (Safari)** — **File → Add to Dock…** (macOS Sonoma and later).
-- **Mac / Windows (Chrome or Edge)** — the install icon in the address bar, then **Install**.
+- **Mac / Windows (Chrome or Edge)** — the install icon in the address bar, then **Install**, but
+  only on a secure address (`https://`, or `localhost` on the Indigo Mac). Over the usual
+  `http://…:8176` address Chrome and Edge do not offer it; see
+  [Notifications and install need HTTPS](remote-access.md#notifications-and-install-need-https).
+  Safari's Add to Home Screen and Add to Dock work over plain http.
 
 Links inside the standalone app stay inside it — tapping through to room pages, the camera grid and
 so on does not bounce out to the browser.

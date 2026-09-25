@@ -100,6 +100,26 @@ the API key, so there is no control surface on it at all. That proxy refuses any
 address, which makes guest access home-network and Tailscale only by construction. Clearing the
 browser's site data un-pairs it.
 
+## Notifications and install need HTTPS
+
+Browsers keep two features for secure pages only, meaning an address that starts `https://`, or
+`localhost` on the Indigo Mac itself: **notifications** (the Alerts page's rules) and Chrome's and
+Edge's **Install app**. The dashboards are served by Indigo's Web Server over plain `http://` on port
+8176, so on any other device the browser refuses notification permission before it asks you, and
+Chrome and Edge do not offer Install. The Alerts page says so when that is the reason, rather than
+blaming a browser setting.
+
+What still works over plain http: every page, the rules themselves (they are listed under Recent
+alerts on the Alerts page), and pinning to the home screen on an iPhone or iPad (Safari → Share →
+**Add to Home Screen**) or to the Dock on a Mac (Safari → **File → Add to Dock…**). On an iPhone or
+iPad a notification also needs the dashboard opened from the home screen, and a secure address.
+
+To get a secure address you need a certificate for the name you open the dashboards by. Tailscale
+can issue one for the Mac's tailnet name (its HTTPS certificates feature, with MagicDNS on), and
+Indigo's Web Server can be set to serve HTTPS with a certificate; both are set up outside this
+plugin, and Indigo's and Tailscale's own documentation cover them. The reflector address is HTTPS,
+but for the reasons above it is not the way to get this.
+
 ## Ports
 
 | Port | Purpose | Auth |
