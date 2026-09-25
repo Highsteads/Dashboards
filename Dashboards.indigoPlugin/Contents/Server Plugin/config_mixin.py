@@ -7,7 +7,7 @@
 #              Split out of plugin.py in v3.32.0; Plugin inherits it.
 # Author:      CliveS & Claude Opus 5.5
 # Date:        25-09-2026
-# Version:     1.1 (3.46.0: the key auto-seed default, settled and written down)
+# Version:     1.2 (3.47.0: the alert keys are the Alerts page's; a Settings save keeps them)
 
 try:
     import indigo
@@ -23,6 +23,7 @@ import sys as _sys
 import time
 
 from dash_common import (
+    ALERT_STORE_KEYS,
     as_bool,
     CAMERA_HOST_RE,
     _parse_cameras,
@@ -482,7 +483,10 @@ class ConfigMixin:
             for k, v in store.items():
                 # stillsToken names the private stills folder: it stays on
                 # the server, and _apply_config carries it over on a save.
-                if k not in out and not str(k).startswith("_") and k != "stillsToken":
+                # The alert keys belong to the Alerts page (3.47.0), which
+                # saves them itself; _apply_config carries them over too.
+                if (k not in out and not str(k).startswith("_") and k != "stillsToken"
+                        and k not in ALERT_STORE_KEYS):
                     out[k] = v
         except Exception:
             pass
@@ -686,6 +690,14 @@ class ConfigMixin:
         _stills_tok = self._stills_token()
         if _stills_tok:
             clean["stillsToken"] = _stills_tok
+        # The alert rules are the Alerts page's (3.47.0): whatever a Settings
+        # save carries for them is dropped and the stored values kept, so a
+        # Settings tab opened before a rule was added cannot save it away.
+        _stored = getattr(self, "cfg_store", None) or {}
+        for _k in ALERT_STORE_KEYS:
+            clean.pop(_k, None)
+            if _k in _stored:
+                clean[_k] = _stored[_k]
         clean.update({
             "cameras":      cameras,
             "mainCameras":  list(main_cams),

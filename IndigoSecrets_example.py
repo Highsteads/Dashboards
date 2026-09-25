@@ -6,8 +6,8 @@
 #                  /Library/Application Support/Perceptive Automation/IndigoSecrets.py
 #              It is NEVER committed to git. Keep a backup in a password manager.
 # Author:      CliveS & Claude Opus 4.8
-# Date:        04-07-2026
-# Version:     1.1
+# Date:        25-09-2026
+# Version:     1.2 (DASHBOARDS_ALERT_EMAIL; PUSHOVER_USER_TOKEN users named)
 
 # ============================================================
 # HOW THIS FILE WORKS
@@ -98,6 +98,8 @@ EVOHOME_PASSWORD = ""
 
 # ============================
 # Pushover (optional)
+# Used by: Log_Error_Watch.py, and the Dashboards plugin's alert rules (3.47.0),
+#          which send through the Pushover plugin to this user key.
 # ============================
 PUSHOVER_USER_TOKEN = ""
 
@@ -168,6 +170,11 @@ DASHBOARDS_MAIN_CAMERAS = []  # e.g. ["192.168.1.21", "192.168.1.22"]
 #                  of the COMMAND as well as the decision.
 #   cameras/doors  camera streams and door tiles for this room
 DASHBOARDS_ROOM_EXTRAS = {}  # e.g. {"Living Room": {"mainLight": [123456789]}}
+# DASHBOARDS_ALERT_EMAIL — where the Dashboards alert rules send email when a
+#                        rule names no address of its own and none is set on
+#                        the Alerts page (which wins). Unlike the keys above it
+#                        is read on every start. Leave blank for no email.
+DASHBOARDS_ALERT_EMAIL = ""  # e.g. "alerts@example.com"
 
 # ============================
 # ShellyDirect plugin (optional)

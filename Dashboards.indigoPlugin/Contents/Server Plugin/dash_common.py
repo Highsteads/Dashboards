@@ -81,6 +81,12 @@ _COLOUR_LEVEL_KEYS = {
     "whiteTemperature": (1000, 10000),
 }
 
+# The settings-store keys the Alerts page owns (3.47.0). The Settings page's
+# save neither sets nor clears them: it carries the stored values over, as it
+# does the stills token, so a Settings tab opened before a rule was added
+# cannot save the rules away. alerts_mixin.py reads and writes them.
+ALERT_STORE_KEYS = ("alertRules", "alertsActive", "alertEmail", "alertRulesRev")
+
 # Cameras configuration is now user-supplied via:
 #   1. IndigoSecrets.DASHBOARDS_CAMERAS (JSON string or list of dicts), or
 #   2. PluginConfig "camerasJson" textfield (JSON list).

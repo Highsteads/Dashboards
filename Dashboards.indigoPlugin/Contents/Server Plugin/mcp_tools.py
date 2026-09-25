@@ -16,7 +16,7 @@
 #              without `indigo` so the tests can drive it.
 # Author:      CliveS & Claude Fable 5.1
 # Date:        25-09-2026
-# Version:     1.1 (3.46.0: list_cameras and set_camera report loginWithheld)
+# Version:     1.2 (3.47.0: list_alerts)
 
 import json
 import os
@@ -40,6 +40,7 @@ TOOLS = (
     "set_camera",
     "remove_camera",
     "read_log",
+    "list_alerts",
 )
 
 ERROR_TYPES = ("validation", "not_found", "conflict", "internal")
@@ -475,6 +476,46 @@ def tool_read_log(plugin, args):
             "truncated": truncated, "contains": contains or ""}
 
 
+FIRINGS_DEFAULT = 20
+
+
+def tool_list_alerts(plugin, args):
+    """The alert rules the plugin judges (3.47.0), each with its target's
+    state, which delivery channels are ready, and the recent firings with what
+    each channel did. Built from the same view the Alerts page reads."""
+    limit = _arg_int(args, "firings", FIRINGS_DEFAULT, 0, 50)
+    try:
+        view = plugin._alert_full_view()
+    except Exception as exc:
+        raise ToolError("internal", f"could not read the alert rules: {exc}")
+    rules = [{
+        "kind": r.get("kind"), "id": r.get("id"), "name": r.get("name"),
+        "condition": r.get("cond"), "enabled": r.get("enabled", True) is not False,
+        "channels": list(r.get("channels") or []), "email": r.get("email") or "",
+        "target": r.get("target"), "now": r.get("now"),
+    } for r in view.get("rules") or []]
+    firings = [{
+        "time": f.get("t"), "text": f.get("text"), "rule": {"kind": f.get("kind"), "id": f.get("id"),
+                                                            "name": f.get("name"), "condition": f.get("cond")},
+        "channels": f.get("channels"), "delivered": f.get("delivered"), "failed": f.get("failed"),
+        "sending": bool(f.get("pending")),
+    } for f in (view.get("firings") or [])[:limit]]
+    return {
+        "active":          view.get("active"),
+        "rules":           rules,
+        "ruleCount":       len(rules),
+        "maxRules":        view.get("max"),
+        "missingTargets":  [r["name"] for r in rules if r["target"] == "missing"],
+        "channels":        view.get("channels"),
+        "defaultChannels": view.get("defaultChannels"),
+        "defaultEmail":    view.get("defaultEmail") or "",
+        "emailSource":     view.get("emailSource"),
+        "recentFirings":   firings,
+        "note": "rules are edited on the dashboards' Alerts page; the plugin judges them on "
+                "Indigo's change callbacks and sends them with no page open",
+    }
+
+
 HANDLERS = {
     "get_status":        tool_get_status,
     "run_setup_check":   tool_run_setup_check,
@@ -484,4 +525,5 @@ HANDLERS = {
     "set_camera":        tool_set_camera,
     "remove_camera":     tool_remove_camera,
     "read_log":          tool_read_log,
+    "list_alerts":       tool_list_alerts,
 }

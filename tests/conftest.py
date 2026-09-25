@@ -7,7 +7,7 @@
 #              suite (v2.36.0); Stage 4 of the deep review builds it out.
 # Author:      CliveS & Claude Fable 5
 # Date:        15-07-2026
-# Version:     1.0
+# Version:     1.1 (3.47.0: the change callbacks on the PluginBase stub)
 
 import os
 import sys
@@ -49,6 +49,14 @@ def load_plugin_module():
         def stopConcurrentThread(self):
             self.stopThread = True
             self.stop_thread = True
+
+        # The change callbacks the real PluginBase defines (3.47.0): the
+        # plugin's own call super() first, so the stub must have them too.
+        def deviceUpdated(self, origDev, newDev):
+            pass
+
+        def variableUpdated(self, origVar, newVar):
+            pass
     ind.PluginBase = _PluginBase
     ind.Dict = dict
     ind.List = list
@@ -141,3 +149,63 @@ def FakeDev(name="", deviceTypeId="", cls="Device", supportsOnState=False,
     return klass(name=name, deviceTypeId=deviceTypeId,
                  supportsOnState=supportsOnState, states=states,
                  batteryLevel=batteryLevel, folderId=folderId, dev_id=dev_id)
+
+
+class FakePushover:
+    """The Pushover plugin as indigo.server.getPlugin hands it back (3.47.0):
+    enabled/running flags, and every executeAction recorded (or raised)."""
+
+    def __init__(self, enabled=True, running=True, raises=None, delay=0.0):
+        self.enabled, self.running, self.raises, self.delay = enabled, running, raises, delay
+        self.sent = []
+
+    def isEnabled(self):
+        return self.enabled
+
+    def isRunning(self):
+        return self.running
+
+    def executeAction(self, name, props=None):
+        if self.delay:
+            import time as _t
+            _t.sleep(self.delay)
+        if self.raises is not None:
+            raise self.raises
+        self.sent.append((name, dict(props or {})))
+
+
+def alert_plugin(monkeypatch, tmp_path, rules=None, active=True, email="",
+                 pushover_user="uTEST-USER-KEY-not-a-real-one", pushover=None):
+    """A bare Plugin wired for the alert engine (3.47.0): a settings store
+    whose saves are captured, a stub Indigo whose server, devices and
+    variables are fresh per test, a temp install folder, and the module log()
+    captured. Returns (plugin, ctx) where ctx holds saves, logs, server and
+    the FakePushover."""
+    load_plugin_module()
+    import alerts_mixin
+    p = bare_plugin()
+    p.pluginId = "com.clives.indigoplugin.dashboards"
+    p.pluginDisplayName = "Dashboards"
+    p.pluginPrefs = {}
+    p.cfg_store = {"alertRules": list(rules or []), "alertsActive": active, "alertEmail": email}
+    p.pushover_user = pushover_user
+    p.alert_email_secret = ""
+    p._evo_reply = lambda obj, status=200: {"status": status, "obj": obj,
+                                            "content": __import__("json").dumps(obj)}
+    ctx = types.SimpleNamespace(saves=[], logs=[], pushover=pushover or FakePushover())
+
+    def _save(data):
+        ctx.saves.append(dict(data))
+        return dict(data)
+    p._save_config_store = _save
+    monkeypatch.setattr(alerts_mixin, "log", lambda m, level="INFO": ctx.logs.append((level, m)))
+    ind = sys.modules["indigo"]
+    ctx.server = MagicMock()
+    install = tmp_path / "Indigo 2025.2"
+    install.mkdir(exist_ok=True)
+    ctx.server.getInstallFolderPath.return_value = str(install)
+    ctx.server.getPlugin.side_effect = lambda pid: ctx.pushover
+    monkeypatch.setattr(ind, "server", ctx.server)
+    monkeypatch.setattr(ind, "devices", {})
+    monkeypatch.setattr(ind, "variables", MagicMock())
+    return p, ctx

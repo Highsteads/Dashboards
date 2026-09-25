@@ -207,6 +207,40 @@
         <CallbackMethod>handleVerifyPin</CallbackMethod>
     </Action>
 
+    <!-- POST /message/com.clives.indigoplugin.dashboards/alertRules/
+         Body: {} for the Alerts page: every rule with its device's or
+         variable's current value (or that it was deleted), the alerts-active
+         switch, the default email address, which channels are ready
+         (Pushover, email) and the recent firings. Body {"firingsSince": seq}
+         returns only the firings after seq, which every open page polls to
+         raise browser notifications (3.47.0). Read-only. -->
+    <Action id="alertRules" uiPath="hidden">
+        <Name>Alert Rules and Recent Firings</Name>
+        <CallbackMethod>handleAlertRules</CallbackMethod>
+    </Action>
+
+    <!-- POST /message/com.clives.indigoplugin.dashboards/saveAlertRules/
+         Body: {"rules": [{kind, id, cond, name, enabled, channels, email?}],
+                "active": bool, "defaultEmail": "", "rev": n, "migrate": bool}
+         Validates and saves the alert rules into dashboards_config.json; the
+         plugin judges them on Indigo's change callbacks from then on (3.47.0).
+         "migrate" moves a browser's old localStorage rules, and is refused
+         when the plugin already has rules. JSON only. -->
+    <Action id="saveAlertRules" uiPath="hidden">
+        <Name>Save Alert Rules</Name>
+        <CallbackMethod>handleSaveAlertRules</CallbackMethod>
+    </Action>
+
+    <!-- POST /message/com.clives.indigoplugin.dashboards/sendTestAlert/
+         Body: {"channels": ["pushover", "email", "browser"], "nonce": "..."}
+         Sends "Test from Dashboards" over the chosen channels off the dispatch
+         path and answers with each channel's result (503 pending while it is
+         still sending; ask again with the same nonce). JSON only (3.47.0). -->
+    <Action id="sendTestAlert" uiPath="hidden">
+        <Name>Send Test Alert</Name>
+        <CallbackMethod>handleSendTestAlert</CallbackMethod>
+    </Action>
+
     <!-- POST /message/com.clives.indigoplugin.dashboards/historyQuery/
          Body: {"action": "states"|"series", "deviceId": N, "state": "...",
                 "hours": N, "maxPoints": N}

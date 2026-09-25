@@ -14,7 +14,7 @@
 #              pages out.
 # Author:      CliveS & Claude Opus 5.5
 # Date:        25-09-2026
-# Version:     1.0
+# Version:     1.1 (3.47.0: every plugin module is scanned; the alert save and test)
 
 import json
 import re
@@ -23,7 +23,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from conftest import bare_plugin, load_plugin_module
+from conftest import bare_plugin, load_plugin_module, plugin_source_files
 
 plugin = load_plugin_module()
 ROOT = Path(__file__).resolve().parents[1]
@@ -92,21 +92,23 @@ def test_the_other_state_changing_handlers_refuse_a_form_too():
     p.pluginPrefs = {}
     form = {"Content-Type": "application/x-www-form-urlencoded"}
     for name in ("handleEvoHomeAction", "handleLaundryDeadline", "handleVerifyPin",
-                 "handleApplyColour", "handleBurnSetupToken"):
+                 "handleApplyColour", "handleBurnSetupToken", "handleSaveAlertRules",
+                 "handleSendTestAlert"):
         reply = getattr(p, name)(Action("{}", form))
         assert reply["status"] == 415, name
 
 
 def test_exactly_the_state_changing_handlers_are_guarded():
-    src = "\n".join((SERVER / f).read_text(encoding="utf-8")
-                    for f in ("plugin.py", "config_mixin.py", "history_mixin.py",
-                              "mains_mixin.py", "cameras_mixin.py"))
+    # Every module the Plugin class is built from (3.47.0): the scan named five
+    # files, so a handler in a new mixin would have been invisible to it.
+    src = "\n".join(open(f, encoding="utf-8").read() for f in plugin_source_files()) + "\n    def "
     guarded = set()
     for m in re.finditer(r"def (handle\w+)\(self, action[^)]*\):(.*?)(?=\n    def )", src, re.S):
         if "_request_body(action, changes_state=True)" in m.group(2):
             guarded.add(m.group(1))
     assert guarded == {"handleSaveDashboardsConfig", "handleEvoHomeAction", "handleLaundryDeadline",
-                       "handleVerifyPin", "handleApplyColour", "handleBurnSetupToken"}, guarded
+                       "handleVerifyPin", "handleApplyColour", "handleBurnSetupToken",
+                       "handleSaveAlertRules", "handleSendTestAlert"}, guarded
 
 
 def test_every_page_post_to_the_plugin_says_json():

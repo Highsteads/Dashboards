@@ -138,6 +138,7 @@ from dash_common import (  # noqa: E402
 # v3.32.0 moved the cameras, the settings store, page publishing, system
 # health and the companion-script runner out as well, and the shared
 # constants and log() helper into dash_common.py.
+from alerts_mixin import AlertsMixin  # noqa: E402
 from cameras_mixin import CamerasMixin  # noqa: E402
 from carbon_mixin import CarbonMixin  # noqa: E402
 from config_mixin import ConfigMixin  # noqa: E402
@@ -151,7 +152,8 @@ from scripts_mixin import ScriptsMixin  # noqa: E402
 
 
 class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
-             CarbonMixin, InsightsMixin, MainsMixin, HistoryMixin, indigo.PluginBase):
+             CarbonMixin, InsightsMixin, MainsMixin, HistoryMixin, AlertsMixin,
+             indigo.PluginBase):
     cameras       = ()          # the running camera list; __init__ sets it
     swap_out_host = ""
 
@@ -1081,6 +1083,15 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         self._dev_changes  = {}                              # dev id -> epoch
         self._dev_deleted  = {}                              # dev id -> epoch
         indigo.devices.subscribeToChanges()
+        # 3.47.0: the alert rules fire from the plugin, with no page open. The
+        # recent firings are read back first, so a restart does not lose them;
+        # _alert_reindex subscribes to variable changes if any rule needs them.
+        try:
+            self._load_alert_firings()
+            self._alert_reindex()
+            self._start_alert_worker()
+        except Exception as exc:
+            log(f"[Alerts] the alert rules could not be started: {exc}", level="WARNING")
         self._sync_pages_to_public()
         # Camera stills live in a token-named folder under /public (the old
         # cam-<host>.jpg names were guessable and published in config.js).
@@ -1186,6 +1197,11 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         # wake them; each join is capped at a second and the budget above
         # still holds.
         self._stop_offpath_workers()
+        # The alert worker waits a second at most, like the joins above.
+        try:
+            self._stop_alert_worker()
+        except Exception:
+            pass
         # Indigo logs its own "Stopped plugin" line, so this one only ever
         # doubled it up in the shared log.
         self._activity(f"{self.pluginDisplayName} stopped")
@@ -1200,6 +1216,14 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
             return
         self._dev_changes[new_dev.id] = time.time()
         self._stamp_note_change()
+        # 3.47.0: the alert rules are judged here (alerts_mixin.py). In memory
+        # only, and it never raises; the sending happens on its own thread.
+        self._alert_device_changed(orig_dev, new_dev)
+
+    def variableUpdated(self, orig_var, new_var):
+        # Only delivered once the first variable rule subscribes (3.47.0).
+        super().variableUpdated(orig_var, new_var)
+        self._alert_variable_changed(orig_var, new_var)
 
     def deviceCreated(self, dev):
         super().deviceCreated(dev)
@@ -1865,7 +1889,9 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
     # leave Timeline, System Health and the charts "Building..." until it
     # recovered. Two Sigen workers, so a slow status fetch still leaves one for
     # daily and vpp, as the shared pool did in the normal case.
-    OFFPATH_LANES   = {"sigen": 2}
+    OFFPATH_LANES   = {"sigen": 2, "alerts": 1}
+    # 3.47.0: a test alert waits on the Pushover plugin and Indigo's mail
+    # server, either of which can hang, so it has a lane of its own too.
     # The ONLY time a handler is allowed to wait. Long enough that a healthy
     # producer lands inside it (SigenEnergyManager answers in ~30 ms), short
     # enough that a sick one costs a page one poll instead of the house.
@@ -2564,6 +2590,14 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
             bits.append(f"camera proxy on :{PROXY_PORT}")
         if getattr(self, "_go2rtc_proc", None) is not None:
             bits.append("go2rtc running")
+        # 3.47.0: the alert rules the plugin now watches with no page open.
+        try:
+            n = len(self._alert_rules())
+            if n:
+                bits.append(f"{n} alert rule{'' if n == 1 else 's'}"
+                            + ("" if self._alerts_active() else " (switched off)"))
+        except Exception:
+            pass
         return f"{self.pluginDisplayName} started - {', '.join(bits)}"
 
     def _note_bootstrap_seed(self, client_ip):
@@ -2592,6 +2626,12 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
                          or p("indigoApiKey")).strip()
         self.cam_user = (g("DAHUA_USER") or p("dahuaUser")).strip()
         self.cam_pass = (g("DAHUA_PASS") or p("dahuaPass")).strip()
+        # Alert delivery (3.47.0). The Pushover USER key, as Log_Error_Watch.py
+        # reads it, with a Configure field for installs without IndigoSecrets;
+        # and the estate-wide fallback address for alert email, which the
+        # Alerts page's own default overrides. Neither is ever logged.
+        self.pushover_user = str(g("PUSHOVER_USER_TOKEN") or p("pushoverUserToken") or "").strip()
+        self.alert_email_secret = str(g("DASHBOARDS_ALERT_EMAIL") or "").strip()
 
     def menuRegenerateConfig(self, valuesDict=None, typeId=None):
         """Menu: re-read IndigoSecrets, rewrite config.js AND re-sync the HTML

@@ -2,7 +2,7 @@
 <PluginConfig>
 
 	<Field id="label_intro" type="label">
-		<Label>Dashboards reads INDIGO_URL / INDIGO_API_KEY / DAHUA_USER / DAHUA_PASS from IndigoSecrets.py first. If you don't use IndigoSecrets.py, fill in the fallback fields below. Cameras, the main-mosaic cameras, room extras and hidden scenes are edited on the dashboards' Settings page, not here.</Label>
+		<Label>Dashboards reads INDIGO_URL / INDIGO_API_KEY / DAHUA_USER / DAHUA_PASS / PUSHOVER_USER_TOKEN from IndigoSecrets.py first. If you don't use IndigoSecrets.py, fill in the fallback fields below. Cameras, the main-mosaic cameras, room extras and hidden scenes are edited on the dashboards' Settings page, not here.</Label>
 	</Field>
 
 	<Field id="sep_creds" type="separator"/>
@@ -30,6 +30,13 @@
 	</Field>
 	<Field id="hlpDahua" type="label" fontSize="mini" alignWithControl="true">
 		<Label>Camera admin username + password (works for both Dahua and Hikvision). Fallbacks for IndigoSecrets.DAHUA_USER / DAHUA_PASS. Only needed if you have cameras configured. Stored in plain text in the prefs file (see the API-key note above). Pressing Save here approves the camera addresses saved on the Settings page right now: the login is only ever sent to approved addresses, so after adding or changing a camera, come back here and press Save, then restart the plugin.</Label>
+	</Field>
+
+	<Field id="pushoverUserToken" type="textfield" defaultValue="" secure="true">
+		<Label>Pushover User Key:</Label>
+	</Field>
+	<Field id="hlpPushover" type="label" fontSize="mini" alignWithControl="true">
+		<Label>Your Pushover user key, for alert rules sent to your phone. Fallback for IndigoSecrets.PUSHOVER_USER_TOKEN. The message goes through the Pushover plugin, which must be installed, enabled and running. Stored in plain text in the prefs file (see the API-key note above). The rules themselves, and the email address alerts go to, are on the dashboards' Alerts page; Plugins > Dashboards > Send Test Alert checks the lot.</Label>
 	</Field>
 
 	<Field id="sep0" type="separator"/>

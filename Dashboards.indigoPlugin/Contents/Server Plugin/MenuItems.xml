@@ -36,6 +36,11 @@
         <CallbackMethod>menuTestHistory</CallbackMethod>
     </MenuItem>
 
+    <MenuItem id="menuSendTestAlert">
+        <Name>Send Test Alert</Name>
+        <CallbackMethod>menuSendTestAlert</CallbackMethod>
+    </MenuItem>
+
     <MenuItem id="menuTestSetup">
         <Name>Test Dashboards Setup</Name>
         <CallbackMethod>menuTestSetup</CallbackMethod>

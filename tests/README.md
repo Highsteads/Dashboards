@@ -31,6 +31,10 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_action_note_targets.py` | A DashAction.note(key, ...) is painted only on an element that |
 | `test_action_watch.mjs` | Contract test for DashAction — how the dashboard's control |
 | `test_actions_xml_comments.py` | Each endpoint comment in Actions.xml sits above the action it |
+| `test_alert_callbacks.py` | The alert rules fire from Indigo's own change callbacks, with |
+| `test_alert_delivery.py` | How a fired alert rule reaches the owner (3.47.0): Pushover |
+| `test_alert_endpoints.py` | The Alerts page's endpoints (3.47.0). alertRules hands the page |
+| `test_alert_rules_engine.py` | The alert rules are judged by the plugin now (3.47.0), in a |
 | `test_alerts_settled_rows.mjs` | Node contract test for alerts.html's log-watch row renderer. |
 | `test_alerts_shared.mjs` | The Alerts rules fire from every main page, once (3.46.0). |
 | `test_apply_colour.py` | Contract test for Plugin.handleApplyColour — the v2.94.0 endpoint |

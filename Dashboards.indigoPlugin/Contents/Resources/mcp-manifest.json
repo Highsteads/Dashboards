@@ -97,6 +97,19 @@
         },
         "required": []
       }
+    },
+    {
+      "name": "list_alerts",
+      "description": "The alert rules the Dashboards plugin watches on the Indigo server (a device turns on, turns off or changes; a variable changes), each with its channels (pushover, email, browser), whether it is enabled and whether its device or variable still exists; which delivery channels are ready (the Pushover plugin running with a user key, an email address set); and the most recent firings with what each channel did. Read-only. Rules are edited on the dashboards' Alerts page.",
+      "write": false,
+      "timeout_seconds": 15,
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "firings": {"type": "integer", "minimum": 0, "maximum": 50, "description": "How many recent firings to return, newest first. Default 20."}
+        },
+        "required": []
+      }
     }
   ]
 }
