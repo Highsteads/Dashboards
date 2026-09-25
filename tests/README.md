@@ -35,8 +35,9 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_alert_delivery.py` | How a fired alert rule reaches the owner (3.47.0): Pushover |
 | `test_alert_endpoints.py` | The Alerts page's endpoints (3.47.0). alertRules hands the page |
 | `test_alert_rules_engine.py` | The alert rules are judged by the plugin now (3.47.0), in a |
+| `test_alerts_page_server.mjs` | alerts.html edits the rules in the PLUGIN (3.47.0), not in |
 | `test_alerts_settled_rows.mjs` | Node contract test for alerts.html's log-watch row renderer. |
-| `test_alerts_shared.mjs` | The Alerts rules fire from every main page, once (3.46.0). |
+| `test_alerts_shared.mjs` | The Alerts rules as the pages see them (2.0, 3.47.0). The |
 | `test_apply_colour.py` | Contract test for Plugin.handleApplyColour — the v2.94.0 endpoint |
 | `test_atomic_write_cleanup.py` | _write_atomic and _copy_atomic leave no temp file behind when |
 | `test_battery_pct.py` | Truth-table test for Plugin._battery_pct — the estate's three |

@@ -16,16 +16,16 @@
 #                - the power-cut history is emptied, and the energy supplier
 #                  account balance (and anything else named like an account
 #                  figure) is blanked;
-#                - the activity diary, the error log and the camera stills
-#                  location are INVENTED below,
+#                - the activity diary, the error log, the camera stills
+#                  location and the alert rules are INVENTED below,
 #                  not captured: the real ones name who holds a door code and
 #                  quote log lines nobody has read for identifiers.
 #              Read the output by hand before committing it, then run
 #              ~/bin/published-identifier-scan. tests/test_demo_site.py checks
 #              the rules above hold.
 # Author:      CliveS & Claude Opus 5.5
-# Date:        23-09-2026
-# Version:     1.0
+# Date:        23-09-2026 (1.1: 25-09-2026)
+# Version:     1.1 (the alert rules, invented)
 #
 # Usage: python3 tools/make_demo_api.py      (on the Indigo server)
 import json
@@ -98,7 +98,7 @@ def cut_down(key, data):
 
 
 def invented(now):
-    """The diary, automation list and error log, made up for the demo."""
+    """The diary, automation list, error log and alert rules, made up for the demo."""
     def at(h, m):
         t = time.localtime(now)
         return time.mktime((t.tm_year, t.tm_mon, t.tm_mday, h, m, 0, 0, 0, -1))
@@ -119,6 +119,42 @@ def invented(now):
                 "codes": [],
                 "counts": {"schedules": 18, "schedules_off": 1, "triggers": 42, "triggers_off": 2},
             },
+        },
+        # 3.47.0: invented, never captured. The real reply names the rules this
+        # house watches and the address its alerts go to.
+        "alertRules": {
+            "ok": True, "now": now, "rev": 1, "max": 100, "active": True,
+            "defaultEmail": "", "emailSource": "none",
+            "channels": {"pushover": {"ready": True, "status": "ready"},
+                         "email": {"ready": False, "status": "no address", "source": "none"}},
+            "defaultChannels": ["pushover", "browser"], "browserWindow": 600,
+            "rules": [
+                {"kind": "device", "id": 5913615, "cond": "change", "name": "Bathroom Boiler Leak Sensor",
+                 "enabled": True, "channels": ["pushover", "browser"], "target": "ok", "now": "OK",
+                 "targetName": "Bathroom Boiler Leak Sensor"},
+                {"kind": "device", "id": 256898513, "cond": "change", "name": "Bathroom Door Contact Sensor",
+                 "enabled": False, "channels": ["browser"], "target": "ok", "now": "Closed",
+                 "targetName": "Bathroom Door Contact Sensor"},
+                {"kind": "device", "id": 10602184, "cond": "on", "name": "Back Door Light",
+                 "enabled": True, "channels": ["pushover"], "target": "ok", "now": "0",
+                 "targetName": "Back Door Light"},
+            ],
+            "seq": 3,
+            "firings": [
+                {"seq": 3, "t": at(21, 4), "key": "device:10602184:on", "text": "Back Door Light turned on",
+                 "kind": "device", "id": 10602184, "name": "Back Door Light", "cond": "on",
+                 "channels": ["pushover"], "delivered": ["pushover"], "failed": [], "pending": False},
+                {"seq": 2, "t": at(12, 14), "key": "device:5913615:change",
+                 "text": "Bathroom Boiler Leak Sensor: OK", "kind": "device", "id": 5913615,
+                 "name": "Bathroom Boiler Leak Sensor", "cond": "change",
+                 "channels": ["pushover", "browser"], "delivered": ["pushover"], "failed": [],
+                 "pending": False},
+                {"seq": 1, "t": at(12, 10), "key": "device:5913615:change",
+                 "text": "Bathroom Boiler Leak Sensor: Leak", "kind": "device", "id": 5913615,
+                 "name": "Bathroom Boiler Leak Sensor", "cond": "change",
+                 "channels": ["pushover", "browser"], "delivered": ["pushover"], "failed": [],
+                 "pending": False},
+            ],
         },
         # Never captured: the real reply names this install's private stills
         # folder. The demo's placeholder picture sits beside the pages.

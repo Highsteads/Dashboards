@@ -1,48 +1,56 @@
 /* Filename:    dashboards-alerts.js
- * Description: The browser alert rules, evaluated on every main page (3.46.0).
+ * Description: Browser notifications for the Alerts rules, on every main page.
  *
- *              The rules have always lived in this browser's localStorage
- *              (dash_alerts), and alerts.html said they fired "while this
- *              page, or the dashboard on your home screen, is open". They
- *              only ever fired while alerts.html ITSELF was open: the
- *              watcher was inline in that page, so a hub on the wall with
- *              the rules saved raised nothing. The watcher now lives here,
- *              and the hub, the room pages, Energy and Alerts all load it.
+ *              2.0 (3.47.0): the PLUGIN keeps and judges the rules now, on
+ *              Indigo's own change callbacks, and sends them by Pushover or
+ *              email with no page open. Until then they lived in each
+ *              browser's localStorage (dash_alerts) and were judged here, so
+ *              a rule only fired while a dashboard tab was open. This file no
+ *              longer judges anything, which is what stops a change being
+ *              announced twice (once by the plugin, once by a page). It asks
+ *              the plugin for its recent firings (alertRules with
+ *              firingsSince) and raises a browser notification for each one
+ *              whose rule includes "browser".
  *
- *              Several tabs may be open at once, so two things stop the
- *              same change being announced twice:
- *                - one tab polls for the rules at a time: each writes a beat
+ *              Several tabs may be open at once, so the 3.46.0 machinery that
+ *              stops one firing being announced twice stays:
+ *                - one tab polls at a time: each writes a beat
  *                  (dash_alerts_beat) and a tab that sees another's fresh
- *                  beat stands by; Alerts always polls, as it paints the
- *                  "now" column;
- *                - a firing is CLAIMED in dash_alerts_fired (per rule, with
- *                  the 30 s per-rule cooldown the page always had), and only
- *                  the tab still holding the claim a moment later raises it,
- *                  so two tabs that both saw the change cannot both notify.
+ *                  beat stands by; Alerts always polls;
+ *                - a firing is CLAIMED in dash_alerts_fired (by its sequence
+ *                  number), and only the tab still holding the claim a moment
+ *                  later raises it;
+ *                - the newest sequence seen is shared (dash_alerts_seen), so
+ *                  a tab that takes over does not raise what another already
+ *                  has, and a newly opened page does not raise old firings.
  *              Every localStorage touch is wrapped: a private window, or a
- *              browser with site data blocked, falls back to this tab alone,
- *              which is how the page behaved before.
+ *              browser with site data blocked, falls back to this tab alone.
  *
- *              The evaluators (judgeDevice, judgeVariable) and the claim are
- *              pure and take their storage as an argument, so
- *              tests/test_alerts_shared.mjs can drive them.
- * Author:      CliveS & Claude Opus 5.5
+ *              judgeDevice, judgeVariable, deviceNow and ruleKey stay as the
+ *              statement of what a rule means: the plugin's Python
+ *              (alerts_mixin.py) is a port of them, and both are held to the
+ *              same answers by tests/lib/alert_rule_cases.json. The legacy
+ *              helpers read and clear a browser's old rules for the Alerts
+ *              page's one-click move to the plugin.
+ * Author:      CliveS & Claude
  * Date:        25-09-2026
- * Version:     1.0
+ * Version:     2.0
  */
 
 (function (root) {
   'use strict';
 
-  var STORE_KEY = 'dash_alerts';          // {rules: [...], active: bool}
-  var FIRED_KEY = 'dash_alerts_fired';    // {"device:12:on": {t, tab}}
-  var LOG_KEY = 'dash_alerts_log';        // [{t, text}], newest first
+  var LEGACY_KEY = 'dash_alerts';          // {rules: [...], active: bool} — before 3.47.0
+  var FIRED_KEY = 'dash_alerts_fired';    // {"firing:1758800000123": {t, tab}}
   var BEAT_KEY = 'dash_alerts_beat';      // {tab, t}
-  var COOLDOWN_MS = 30000;                // per rule, so a chattering sensor cannot send twenty
-  var DEVICE_MS = 3000, VARIABLE_MS = 10000;
-  var BEAT_STALE_MS = 25000;              // two missed variable polls (or eight device polls) and another tab takes over
+  var SEEN_KEY = 'dash_alerts_seen';      // {seq}: the newest firing any tab has handled
+  var COOLDOWN_MS = 30000;                // the claim window
+  var FAST_MS = 5000;                     // poll while any rule wants the browser
+  var SLOW_MS = 30000;                    // poll while none does (a rule may be added)
+  var BEAT_STALE_MS = 25000;              // a tab quiet this long is taken over
   var CONFIRM_MS = 250;                   // how long a claim must survive before it is raised
-  var LOG_MAX = 50;
+  var WINDOW_S = 600;                     // raise nothing older than this (the plugin says too)
+  var RULES_MAX = 100;
 
   function storage() {
     try { return root.localStorage || null; } catch (e) { return null; }
@@ -60,30 +68,13 @@
     catch (e) { return false; }
   }
 
-  /* ── the rules ─────────────────────────────────────────────────────── */
-  function load(store) {
-    var d = readJson(store === undefined ? storage() : store, STORE_KEY, {});
-    return {
-      rules: (d && Array.isArray(d.rules)) ? d.rules.filter(function (r) { return r && typeof r === 'object'; }) : [],
-      // The "alerts active" switch was a checkbox that forgot itself on every
-      // reload and meant nothing to any other tab; it is kept with the rules now.
-      active: !(d && d.active === false)
-    };
-  }
-  function save(state, store) {
-    return writeJson(store === undefined ? storage() : store, STORE_KEY,
-                     { rules: (state && state.rules) || [], active: !(state && state.active === false) });
-  }
+  /* ── what a rule means (pure; the plugin's Python is held to these) ─── */
   function ruleKey(r) { return r.kind + ':' + r.id + ':' + r.cond; }
-
-  /* ── what a change means (pure) ────────────────────────────────────── */
   function deviceNow(d) {
     var ui = d.displayStateValUi;
     return { on: !!d.onState, ui: String(ui === null || ui === undefined ? '' : ui) };
   }
   function deviceText(now) { return now.ui || (now.on ? 'ON' : 'OFF'); }
-  /* The alert text for a device rule, or null. `was` is the previous
-     reading of the same device, `now` this one (both from deviceNow). */
   function judgeDevice(rule, was, now) {
     if (!was || !now) return null;
     if (rule.cond === 'on' && now.on && !was.on) return rule.name + ' turned on';
@@ -96,6 +87,59 @@
     return String(value) !== was.val ? rule.name + ' is now ' + value : null;
   }
 
+  /* ── this browser's rules from before 3.47.0 ───────────────────────── */
+  function loadLegacy(store) {
+    var d = readJson(store === undefined ? storage() : store, LEGACY_KEY, {});
+    return {
+      rules: (d && Array.isArray(d.rules)) ? d.rules.filter(function (r) { return r && typeof r === 'object'; }) : [],
+      active: !(d && d.active === false)
+    };
+  }
+  function clearLegacy(store) {
+    var s = store === undefined ? storage() : store;
+    try { if (s) { s.removeItem(LEGACY_KEY); s.removeItem('dash_alerts_log'); } return true; }
+    catch (e) { return false; }
+  }
+  /* The old rules as the plugin will take them: {kind, id, cond, name,
+     enabled}, no channels (the plugin gives each its default). A rule the
+     plugin would refuse is left out and counted, so one bad entry cannot
+     stop the rest moving. */
+  function migrationRules(legacy) {
+    var out = [], skipped = 0, seen = {};
+    ((legacy && legacy.rules) || []).forEach(function (r) {
+      var kind = r.kind, id = r.id, cond = r.kind === 'variable' ? 'change' : r.cond;
+      var ok = (kind === 'device' || kind === 'variable') && typeof id === 'number'
+        && isFinite(id) && Math.floor(id) === id && id > 0
+        && (kind === 'variable' || cond === 'on' || cond === 'off' || cond === 'change');
+      var key = kind + ':' + id + ':' + cond;
+      if (!ok || seen[key] || out.length >= RULES_MAX) { skipped++; return; }
+      seen[key] = true;
+      var name = (typeof r.name === 'string' && r.name.trim()) ? r.name.trim().slice(0, 80)
+        : (kind === 'device' ? 'Device ' : 'Variable ') + id;
+      out.push({ kind: kind, id: id, cond: cond, name: name, enabled: r.enabled !== false });
+    });
+    return { rules: out, skipped: skipped };
+  }
+
+  /* ── what a channel's state reads as ────────────────────────────────── */
+  function channelLine(name, st) {
+    var label = name === 'pushover' ? 'Pushover' : name === 'email' ? 'Email' : name;
+    if (!st) return label + ': unknown';
+    if (st.ready) {
+      return label + ': ready' + (name === 'email' && st.source === 'secrets' ? ' (IndigoSecrets address)' : '');
+    }
+    return label + ': ' + (st.status || 'not set up');
+  }
+  /* "pushover sent · email failed (no address) · browser". */
+  function firingOutcome(f) {
+    var bits = [];
+    (f.delivered || []).forEach(function (c) { bits.push(c + ' sent'); });
+    (f.failed || []).forEach(function (x) { bits.push(x.channel + ' failed (' + x.reason + ')'); });
+    if (f.pending) bits.push('sending…');
+    if ((f.channels || []).indexOf('browser') >= 0) bits.push('browser');
+    return bits.join(' · ');
+  }
+
   /* ── one announcement across tabs ──────────────────────────────────── */
   var _memFired = {};   // this tab's own record, used when storage is not there
   function claim(key, tab, now, store) {
@@ -106,7 +150,7 @@
     var last = fired[key];
     if (last && typeof last.t === 'number' && now >= last.t && now - last.t < COOLDOWN_MS) return false;
     fired[key] = { t: now, tab: tab };
-    // Keep the record small: nothing older than a day matters to a 30 s cooldown.
+    // Keep the record small: nothing older than a day matters.
     Object.keys(fired).forEach(function (k) {
       if (!fired[k] || !(now - fired[k].t < 86400000)) delete fired[k];
     });
@@ -132,15 +176,24 @@
     return true;
   }
 
-  function readLog(store) {
-    var l = readJson(store === undefined ? storage() : store, LOG_KEY, []);
-    return Array.isArray(l) ? l.filter(function (x) { return x && typeof x.text === 'string'; }) : [];
-  }
-  function appendLog(text, t, store) {
-    var s = store === undefined ? storage() : store;
-    var l = readLog(s);
-    l.unshift({ t: t, text: text });
-    writeJson(s, LOG_KEY, l.slice(0, LOG_MAX));
+  /* Which of the plugin's firings this browser should raise (pure).
+     `reply` is alertRules' {seq, firings, now}; `seen` the shared {seq} or
+     null. Returns {raise: [...], seen: newSeq}. With no `seen` yet this
+     browser has never polled: it starts from the newest firing and raises
+     nothing already past. A server whose numbers went backwards (its list
+     was lost) is followed down, again without raising the past. */
+  function pickFirings(reply, seen, windowS) {
+    var seq = (reply && typeof reply.seq === 'number') ? reply.seq : 0;
+    var rows = (reply && Array.isArray(reply.firings)) ? reply.firings : [];
+    if (!seen || typeof seen.seq !== 'number' || seq < seen.seq) return { raise: [], seen: seq };
+    var nowS = (reply && typeof reply.now === 'number') ? reply.now : Date.now() / 1000;
+    var win = windowS || WINDOW_S;
+    var raise = rows.filter(function (f) {
+      return f && typeof f.seq === 'number' && f.seq > seen.seq
+        && (f.channels || []).indexOf('browser') >= 0
+        && typeof f.t === 'number' && nowS - f.t <= win;
+    }).sort(function (a, b) { return a.seq - b.seq; });
+    return { raise: raise, seen: Math.max(seen.seq, seq) };
   }
 
   /* ── the notification itself ───────────────────────────────────────── */
@@ -155,117 +208,87 @@
       }
     } catch (e) { /* no worker: new Notification() below still works on desktop */ }
   }
+  /* True when a notification was handed to the browser. */
   function notify(title, body) {
     var N = root.Notification;
-    if (!N || N.permission !== 'granted') return;
+    if (!N || N.permission !== 'granted') return false;
     try {
       var opts = { body: body, icon: 'apple-touch-icon-192.png', tag: title + '|' + body };
       if (_swReg && _swReg.showNotification) _swReg.showNotification(title, opts);
       else new N(title, opts);
-    } catch (e) { /* notification refused — nothing else to do */ }
+      return true;
+    } catch (e) { return false; }
   }
 
   /* ── the watcher ───────────────────────────────────────────────────── */
   var _started = null;
-  /* watch(opts) starts polling for the saved rules. opts:
-       api          an IndigoAPI (required)
+  /* watch(opts) polls the plugin's firings. opts:
+       message(name, body)  resolves to the plugin's reply (default DashUI.message)
        alwaysPoll   true on alerts.html: poll whatever the other tabs do
-       onPaint(key, text)  the current value of "device:12" / "variable:9"
-       onFire(text)        after this tab has raised an alert
-     Returns {stop}. One watcher per page. */
+       autoTick     false to drive poll() by hand (the tests)
+       onFirings(reply)     every reply this tab received
+       onRaise(firing)      after this tab has raised a notification
+     Returns {stop, poll}. One watcher per page. */
   function watch(opts) {
     var o = opts || {};
     if (_started) return _started;
-    var api = o.api;
-    if (!api) return null;
+    var ask = o.message || function (name, body) {
+      var ui = root.DashUI;
+      if (!ui || typeof ui.message !== 'function') return Promise.reject(new Error('no DashUI'));
+      return ui.message(name, body);
+    };
     var tab = Math.random().toString(36).slice(2) + Date.now().toString(36);
-    var prev = {};           // "device:123" -> {on, ui} / "variable:9" -> {val}
-    var seeded = false, leading = false;
-    function paint(key, text) { if (typeof o.onPaint === 'function') { try { o.onPaint(key, text); } catch (e) { /* page's problem */ } } }
+    var timer = null, stopped = false, wantsBrowser = false, ownSeen = null;
 
-    function lead(now) {
-      var ok = mayPoll(tab, now, storage(), !!o.alwaysPoll);
-      // A tab taking over starts from what is true NOW: its old readings
-      // could be minutes out of date and would announce changes long past.
-      if (ok && !leading) { prev = {}; seeded = false; }
-      leading = ok;
-      return ok;
-    }
-    function fire(rule, text) {
-      var store = storage(), key = ruleKey(rule), t = Date.now();
-      if (!claim(key, tab, t, store)) return;
+    function raise(f) {
+      var key = 'firing:' + f.seq;
+      if (!claim(key, tab, Date.now(), storage())) return;
       setTimeout(function () {
         if (!stillOurs(key, tab, storage())) return;
         var cfg = root.INDIGO_CONFIG || {};
-        notify(cfg.siteName || 'Dashboards', text);
-        appendLog(text, t);
-        if (typeof o.onFire === 'function') { try { o.onFire(text, t); } catch (e) { /* page's problem */ } }
+        notify(cfg.siteName || 'Dashboards', f.text);
+        if (typeof o.onRaise === 'function') { try { o.onRaise(f); } catch (e) { /* page's problem */ } }
       }, CONFIRM_MS);
     }
-
-    async function pollDevices() {
-      var state = load();
-      var rules = state.rules.filter(function (r) { return r.kind === 'device'; });
-      if (!rules.length || !lead(Date.now())) return;
-      var devs;
-      try { devs = await api.getDevices(); } catch (e) { return; }
-      var byId = new Map((devs || []).map(function (d) { return [d.id, d]; }));
-      var seen = {};
-      rules.forEach(function (r) {
-        var key = 'device:' + r.id, d = byId.get(r.id);
-        if (!d) { paint(key, 'missing'); return; }
-        var now = seen[key] || (seen[key] = deviceNow(d));
-        paint(key, deviceText(now));
-        // Every rule on a device is judged against the SAME earlier reading.
-        // The inline watcher stored the new reading after the first rule, so
-        // a second rule on that device ("turns off" beside "turns on") never
-        // saw a change at all.
-        if (!seeded || !r.enabled || !state.active) return;
-        var text = judgeDevice(r, prev[key], now);
-        if (text) fire(r, text);
-      });
-      Object.keys(seen).forEach(function (k) { prev[k] = seen[k]; });
-      seeded = true;
+    function readSeen(store) { return readJson(store, SEEN_KEY, null) || ownSeen; }
+    async function poll() {
+      if (stopped || !mayPoll(tab, Date.now(), storage(), !!o.alwaysPoll)) return;
+      var seen = readSeen(storage());
+      var reply;
+      try {
+        reply = await ask('alertRules', { firingsSince: (seen && typeof seen.seq === 'number') ? seen.seq : 0 });
+      } catch (e) { return; }
+      if (!reply || reply.ok === false) return;
+      wantsBrowser = (reply.browserRules || 0) > 0;
+      if (wantsBrowser) registerWorker();
+      // Read again: another tab may have moved it on while we were asking.
+      var pick = pickFirings(reply, readSeen(storage()) || seen, reply.browserWindow);
+      ownSeen = { seq: pick.seen };
+      writeJson(storage(), SEEN_KEY, ownSeen);
+      pick.raise.forEach(raise);
+      if (typeof o.onFirings === 'function') { try { o.onFirings(reply); } catch (e) { /* page's problem */ } }
     }
-
-    async function pollVariables() {
-      var state = load();
-      var rules = state.rules.filter(function (r) { return r.kind === 'variable'; });
-      if (!rules.length || !lead(Date.now())) return;
-      var vars;
-      try { vars = await api.getVariables(); } catch (e) { return; }
-      var byId = new Map((vars || []).map(function (v) { return [v.id, v]; }));
-      var seen = {};
-      rules.forEach(function (r) {
-        var key = 'variable:' + r.id, v = byId.get(r.id);
-        if (!v) { paint(key, 'missing'); return; }
-        paint(key, String(v.value));
-        seen[key] = { val: String(v.value) };
-        if (!r.enabled || !state.active) return;
-        var text = judgeVariable(r, prev[key], v.value);
-        if (text) fire(r, text);
+    // A timer chain, NOT DashUI.poll: an alert is most useful in a tab you are
+    // not looking at, and poll() pauses in a hidden one. Fast while any rule
+    // wants the browser, slow otherwise (a rule may be added elsewhere).
+    function tick() {
+      if (stopped) return;
+      Promise.resolve(poll()).catch(function () {}).then(function () {
+        if (!stopped) timer = setTimeout(tick, wantsBrowser || o.alwaysPoll ? FAST_MS : SLOW_MS);
       });
-      Object.keys(seen).forEach(function (k) { prev[k] = seen[k]; });
     }
-
-    if (load().rules.length) registerWorker();
-    // A plain setInterval, NOT DashUI.poll: an alert is most useful in a tab
-    // you are not looking at, and poll() pauses in a hidden one.
-    var t1 = setInterval(pollDevices, DEVICE_MS);
-    var t2 = setInterval(pollVariables, VARIABLE_MS);
-    pollDevices(); pollVariables();
+    if (o.autoTick !== false) tick();
     _started = {
-      stop: function () { clearInterval(t1); clearInterval(t2); _started = null; },
-      pollDevices: pollDevices, pollVariables: pollVariables
+      stop: function () { stopped = true; if (timer) clearTimeout(timer); _started = null; },
+      poll: poll
     };
     return _started;
   }
 
   /* The hub, room and Energy pages load this file and do nothing more: once
      the page has parsed, the watcher starts itself for a paired browser. A
-     guest holds no key (and sees no alerts), and the demo's made-up devices
-     must never fire this browser's real rules. alerts.html starts it itself,
-     first, with its own painting. */
+     guest holds no key, and the demo's made-up house must never raise this
+     house's alerts. alerts.html starts it itself, with alwaysPoll. */
   function autoStart() {
     if (_started) return;
     try {
@@ -275,28 +298,20 @@
       // script: a global binding, but not a property of window.
       var Api = (typeof IndigoAPI === 'function') ? IndigoAPI : root.IndigoAPI;   // eslint-disable-line no-undef
       if (typeof Api !== 'function' || !Api.isConfigured()) return;
-      if (!load().rules.length) {
-        // Nothing to watch yet; look again if Alerts adds a rule in another tab.
-        root.addEventListener && root.addEventListener('storage', function once(ev) {
-          if (ev && ev.key === STORE_KEY && load().rules.length) {
-            root.removeEventListener('storage', once);
-            autoStart();
-          }
-        });
-        return;
-      }
-      watch({ api: new Api() });
+      watch({});
     } catch (e) { /* alerts are a nicety: never break the page that carries them */ }
   }
 
   var API = {
-    load: load, save: save, ruleKey: ruleKey,
-    deviceNow: deviceNow, judgeDevice: judgeDevice, judgeVariable: judgeVariable,
+    ruleKey: ruleKey, deviceNow: deviceNow, deviceText: deviceText,
+    judgeDevice: judgeDevice, judgeVariable: judgeVariable,
+    loadLegacy: loadLegacy, clearLegacy: clearLegacy, migrationRules: migrationRules,
+    channelLine: channelLine, firingOutcome: firingOutcome, pickFirings: pickFirings,
     claim: claim, stillOurs: stillOurs, mayPoll: mayPoll,
-    readLog: readLog, appendLog: appendLog,
     registerWorker: registerWorker, notify: notify,
     watch: watch, autoStart: autoStart,
-    STORE_KEY: STORE_KEY, LOG_KEY: LOG_KEY, COOLDOWN_MS: COOLDOWN_MS, BEAT_STALE_MS: BEAT_STALE_MS
+    LEGACY_KEY: LEGACY_KEY, SEEN_KEY: SEEN_KEY, COOLDOWN_MS: COOLDOWN_MS,
+    BEAT_STALE_MS: BEAT_STALE_MS, RULES_MAX: RULES_MAX
   };
   root.DashAlerts = API;
   if (typeof globalThis !== 'undefined') globalThis.DashAlerts = API;

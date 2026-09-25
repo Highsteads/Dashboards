@@ -1,19 +1,23 @@
 <!DOCTYPE html>
 <!--
   Filename:    alerts.html
-  Description: Browser notification rules (v2.6.0). Pick devices/variables and
-               conditions; while this page (or the installed home-screen app)
-               is open, matching changes raise a system notification. Rules
-               live in THIS browser's localStorage — nothing is stored on the
-               server and there is no push service, so notifications stop when
-               every dashboard tab is closed. The page says so honestly.
-               1.1 (3.46.0): the watcher moved to dashboards-alerts.js, which
-               the hub, room and Energy pages load too, so a rule fires while
-               any of them is open; a plain-http address is named as the
-               reason notifications cannot be allowed.
+  Description: Alert rules (v2.6.0). Pick devices/variables and conditions, and
+               how to be told. 2.0 (3.47.0): the rules live in the PLUGIN, which
+               judges them on Indigo's change callbacks and sends them by
+               Pushover and/or email with no page open; "Browser" on a rule
+               also raises a notification on any device with a main page open
+               (dashboards-alerts.js). This page edits the rules there
+               (alertRules / saveAlertRules), shows which channels are ready,
+               sends a test (sendTestAlert), lists the plugin's recent
+               firings, and offers once to move a browser's pre-3.47.0
+               localStorage rules into the plugin. Before 3.47.0 the rules
+               lived in this browser only and fired only while a page was open.
+               1.1 (3.46.0): the watcher moved to dashboards-alerts.js; a
+               plain-http address is named as the reason notifications cannot
+               be allowed.
   Author:      CliveS & Claude Fable 5
   Date:        25-09-2026
-  Version:     1.1
+  Version:     2.0
 -->
 <html lang="en">
 <head>
@@ -49,6 +53,16 @@
     .rule .now { font-size: 13px; color: var(--text-secondary); white-space: nowrap; }
     .badge { font-size: 12px; padding: 3px 8px; border-radius: var(--r-sm); color: #fff; }
     .badge.ok { background: var(--green); } .badge.off { background: var(--text-secondary); }
+    .badge.bad { background: var(--red); }
+    input[type=email] { font-size: 15px; padding: 8px 10px; border-radius: var(--r-sm);
+        border: 1px solid var(--border); background: var(--bg); color: var(--text);
+        max-width: 100%; min-width: 0; flex: 1 1 180px; }
+    .rule .chans { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 4px; font-size: 13px; }
+    .rule .chans label { display: inline-flex; gap: 4px; align-items: center; }
+    .rule .now.gone { color: var(--red); }
+    #log li .how { display: block; font-size: 12.5px; color: var(--text-secondary); margin-top: 2px; }
+    ul.results { list-style: none; margin: 8px 0 0; padding: 0; font-size: 14px; }
+    ul.results li { padding: 4px 0; }
     #log { list-style: none; margin: 8px 0 0; padding: 0; font-size: 14px; }
     #log li { padding: 6px 0; border-top: 1px solid var(--border); }
     #log li time { color: var(--text-secondary); font-size: 12.5px; margin-right: 8px; }
@@ -77,50 +91,85 @@
             This one is server-side and always on. The hourly watch runs on the
             Indigo server whether or not this page is open, and sends its own
             Pushover and email when something new turns up. The rules below are
-            a separate thing — they live in this browser only.
+            a separate thing: you choose them, and the plugin watches them.
         </div>
+    </div>
+
+    <div class="card" id="migrate-card" hidden>
+        <h2>Rules left in this browser</h2>
+        <div class="hint" id="migrate-text"></div>
+        <div class="row">
+            <button id="migrate-btn">Move these rules to the plugin</button>
+        </div>
+        <div class="hint" id="migrate-msg" role="status" style="margin-top:8px;"></div>
     </div>
 
     <div class="card">
         <h2>How this works</h2>
         <div class="hint">
-            Pick the devices and variables you care about below. While the hub, a
-            room page, Energy or this page is <b>open</b> in a browser on this
-            device (a background tab counts, and so does the dashboard on your
-            home screen while it is running), any matching change raises a
-            notification here. Other pages, and other devices, do not watch
-            these rules: they live in this browser only. Being honest: there is
-            no cloud push service behind this, so when every one of those pages
-            is closed, notifications stop. It shines on a wall tablet, a kiosk,
-            or a pinned browser tab.
+            The plugin watches these rules on the Indigo server itself, so they
+            fire whether or not any dashboard is open, and tells you by
+            <b>Pushover</b> (through the Pushover plugin), by <b>email</b>
+            (Indigo's own mail settings), or both. Tick <b>Browser</b> on a rule
+            as well and any device showing the hub, a room page, Energy or this
+            page also raises a notification; that part still needs one of those
+            pages open, and an https address. Each rule waits thirty seconds
+            before it fires again, so a chattering sensor cannot flood you.
+        </div>
+        <div class="row" id="channel-state">
+            <span class="pill" id="pushover-state">Pushover: checking…</span>
+            <span class="pill" id="email-state">Email: checking…</span>
+            <label class="pill"><input type="checkbox" id="master" checked disabled> alerts active</label>
         </div>
         <div class="row">
-            <button id="perm-btn">Enable notifications on this device</button>
+            <button id="perm-btn" class="quiet">Enable browser notifications on this device</button>
             <span id="perm-state" class="pill">checking…</span>
-            <label class="pill"><input type="checkbox" id="master" checked> alerts active</label>
         </div>
         <div class="hint" id="perm-why" hidden style="margin-top:8px;">
             Browsers only allow notifications on a secure address: one starting
             <b>https://</b>, or <b>localhost</b> on the Indigo Mac itself. This
             page was opened over plain http, so the browser refuses before it
-            asks you. The rules below still show what they would have raised.
+            asks you. Pushover and email are not affected.
             <a href="https://highsteads.github.io/Dashboards/remote-access.html#notifications-and-install-need-https">How to get an https address</a>.
         </div>
     </div>
 
     <div class="card">
+        <h2>Where alerts go</h2>
+        <div class="row">
+            <label for="default-email">Email alerts to</label>
+            <input type="email" id="default-email" placeholder="you@example.com" autocomplete="email">
+            <button id="email-save">Save</button>
+        </div>
+        <div class="hint" id="email-hint" style="margin-top:8px;"></div>
+        <div class="row" id="test-channels">
+            <label class="pill"><input type="checkbox" id="test-pushover"> Pushover</label>
+            <label class="pill"><input type="checkbox" id="test-email"> Email</label>
+            <label class="pill"><input type="checkbox" id="test-browser"> Browser</label>
+            <button id="test-btn">Send test</button>
+        </div>
+        <ul id="test-result" class="results" role="status"></ul>
+    </div>
+
+    <div class="card">
         <h2>Add a rule</h2>
         <div class="row">
-            <select id="kind">
+            <select id="kind" aria-label="Device or variable">
                 <option value="device">Device</option>
                 <option value="variable">Variable</option>
             </select>
-            <select id="entity"><option>Loading…</option></select>
-            <select id="cond">
+            <select id="entity" aria-label="Which one"><option>Loading…</option></select>
+            <select id="cond" aria-label="Condition">
                 <option value="on">turns on</option>
                 <option value="off">turns off</option>
                 <option value="change">changes at all</option>
             </select>
+        </div>
+        <div class="row" id="add-channels">
+            <label class="pill"><input type="checkbox" id="add-pushover"> Pushover</label>
+            <label class="pill"><input type="checkbox" id="add-email"> Email</label>
+            <label class="pill"><input type="checkbox" id="add-browser"> Browser</label>
+            <input type="email" id="add-to" placeholder="another address (optional)" aria-label="Email this rule to">
             <button id="add-btn">Add</button>
         </div>
         <div class="hint" id="add-hint" style="margin-top:8px;"></div>
@@ -128,7 +177,8 @@
 
     <div class="card">
         <h2>Your rules</h2>
-        <div id="rules"><div class="hint">No rules yet — add one above.</div></div>
+        <div class="hint" id="rules-msg" role="status" hidden></div>
+        <div id="rules"><div class="hint">Loading…</div></div>
     </div>
 
     <div class="card">
@@ -144,37 +194,44 @@
 <script src="dashboard.js"></script>
 <script src="dashboards-alerts.js"></script>
 <script>
-// Declared BEFORE the watcher (v2.95.1). This used to sit in the THIRD script
-// block, after the watcher had already run — and the watcher's paintRules()
-// calls I("cross") for every saved rule at load. A `const` in a later script
-// block does not exist yet when an earlier block runs, so any browser with a
-// rule saved threw ReferenceError inside the IIFE: the picker and Add button
-// (wired before the throw) worked, the "now" column stayed "—" for ever and
-// not one notification was ever raised. The page looked alive and was not.
+// Declared BEFORE the page script (v2.95.1): a `const` in a later script block
+// does not exist yet when an earlier block runs, and paintRules() calls
+// I("cross") for every rule.
 const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
 (function () {
     "use strict";
-    const STORE_KEY = "dash_alerts";
+    // 3.47.0: the rules live in the PLUGIN (alertRules / saveAlertRules), which
+    // judges them on Indigo's change callbacks and sends them by Pushover or
+    // email with no page open. This page edits them there; nothing about a rule
+    // is kept in this browser any more, except the old ones waiting to move.
     const $ = id => document.getElementById(id);
+    const esc = t => DashUI.esc(t);
+    const CHANNELS = ["pushover", "email", "browser"];
+    const LABEL = { pushover: "Pushover", email: "Email", browser: "Browser" };
+    const COND_TEXT = { on: "turns on", off: "turns off", change: "changes" };
+    let view = null;             // the last full alertRules reply
+    let addTicked = false;       // the Add row's channel ticks were set from the defaults once
+    let testTicked = false;
 
-    // ── rules persistence (this browser only) ────────────────────────────
-    // 3.46.0: the rules, the "alerts active" switch, the watcher and the
-    // recent-alerts list live in dashboards-alerts.js, which the hub, the
-    // room pages and Energy load too — so a rule fires while ANY of them is
-    // open, not only this page. This page keeps the editing and the painting.
-    let state = DashAlerts.load();
-    let rules = state.rules;
-    const saveRules = () => { state.rules = rules; DashAlerts.save(state); };
+    if (!IndigoAPI.isConfigured()) { location.href = "index.html"; return; }
+    let api = null;
+    try { api = new IndigoAPI(); } catch (e) { /* unreachable belt */ }
 
-    // ── notification permission ──────────────────────────────────────────
-    DashAlerts.registerWorker();
+    function say(id, text, bad) {
+        const el = $(id);
+        if (!el) return;
+        el.textContent = text || "";
+        el.hidden = !text;
+        el.style.color = bad ? "var(--red)" : "";
+    }
+
+    // ── browser notification permission (the Browser channel only) ──────
     function paintPerm() {
         const el = $("perm-state"), why = $("perm-why");
         why.hidden = true;
         // 3.46.0: browsers only offer notifications to a secure page (https,
-        // or this Mac as localhost). On a plain http address the permission
-        // is refused before anyone is asked, and "blocked in browser
-        // settings" sent people to a setting that could not help.
+        // or this Mac as localhost). On a plain http address the permission is
+        // refused before anyone is asked; say so rather than blame a setting.
         if (window.isSecureContext === false) {
             el.textContent = "needs an https address";
             why.hidden = false;
@@ -187,44 +244,160 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
     }
     $("perm-btn").onclick = () => Notification.requestPermission().then(paintPerm);
     paintPerm();
+    /* Why this browser cannot show a notification, or "" when it can. */
+    function browserBlock() {
+        if (window.isSecureContext === false) return "needs an https address";
+        if (!("Notification" in window)) return "not supported in this browser";
+        if (Notification.permission !== "granted") return "not allowed on this device yet";
+        return "";
+    }
 
-    $("master").checked = state.active;
-    $("master").onchange = () => { state = DashAlerts.load(); state.active = $("master").checked; DashAlerts.save(state); };
+    // ── the plugin's view ────────────────────────────────────────────────
+    async function load() {
+        try {
+            view = await DashUI.message("alertRules", {});
+            paint();
+        } catch (e) {
+            say("rules-msg", "The plugin could not be asked for the rules (" + e.message + ").", true);
+            if (!view) $("rules").innerHTML = "";
+        }
+    }
 
-    function paintLog() {
-        const log = $("log");
-        const rows = DashAlerts.readLog();
-        if (!rows.length) { log.innerHTML = '<li class="hint">Nothing yet.</li>'; return; }
-        log.innerHTML = "";
-        rows.forEach(r => {
-            const li = document.createElement("li");
-            const t = document.createElement("time");
-            t.textContent = new Date(r.t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-            li.appendChild(t); li.appendChild(document.createTextNode(r.text));
-            log.appendChild(li);
+    async function save(body, okText) {
+        if (!view) return false;
+        try {
+            view = await DashUI.message("saveAlertRules", Object.assign({ rev: view.rev }, body));
+            paint();
+            say("rules-msg", okText || "");
+            return true;
+        } catch (e) {
+            if (e.status === 409 && e.body && e.body.reason === "stale") {
+                await load();
+                say("rules-msg", e.message, true);
+            } else {
+                say("rules-msg", "Not saved: " + e.message, true);
+            }
+            return false;
+        }
+    }
+    function rulesForSave(list) {
+        return list.map(r => {
+            const o = { kind: r.kind, id: r.id, cond: r.cond, name: r.name,
+                        enabled: r.enabled !== false, channels: (r.channels || []).slice() };
+            if (r.email) o.email = r.email;
+            return o;
         });
     }
-    paintLog();
 
-    // ── connection + pickers ─────────────────────────────────────────────
-    let api = null;
-    // The constructor-throw assumption is FALSE since the auth shim always
-    // defines INDIGO_CONFIG — an unpaired browser used to hammer 401s every
-    // 3 s with no way to the Connect form. Check properly and redirect.
-    if (!IndigoAPI.isConfigured()) {
-        location.href = "index.html";
-    } else {
-        try { api = new IndigoAPI(); } catch (e) { /* unreachable belt */ }
+    function paint() {
+        if (!view) return;
+        const ch = view.channels || {};
+        $("pushover-state").textContent = DashAlerts.channelLine("pushover", ch.pushover);
+        $("email-state").textContent = DashAlerts.channelLine("email", ch.email);
+        $("master").disabled = false;
+        $("master").checked = view.active !== false;
+        if (document.activeElement !== $("default-email")) $("default-email").value = view.defaultEmail || "";
+        $("email-hint").textContent = view.emailSource === "secrets"
+            ? "While this is blank, email goes to the address in IndigoSecrets (DASHBOARDS_ALERT_EMAIL). A rule can name its own address too."
+            : "A rule can name its own address too; one without sends here. Pushover goes to the user key in IndigoSecrets or Configure.";
+        if (!testTicked) {
+            testTicked = true;
+            CHANNELS.forEach(c => { $("test-" + c).checked = c === "browser" || !!(ch[c] && ch[c].ready); });
+        }
+        if (!addTicked) {
+            addTicked = true;
+            const def = view.defaultChannels || ["browser"];
+            CHANNELS.forEach(c => { $("add-" + c).checked = def.indexOf(c) >= 0; });
+        }
+        paintRules();
+        paintLog();
+        paintMigration();
     }
 
+    // ── one-click move of this browser's old rules (3.47.0) ──────────────
+    // Offered, never done silently: only when the plugin has no rules yet and
+    // this browser still holds some from before.
+    function paintMigration() {
+        const card = $("migrate-card");
+        const legacy = DashAlerts.loadLegacy();
+        const mig = DashAlerts.migrationRules(legacy);
+        if (!view || (view.rules || []).length || !legacy.rules.length) { card.hidden = true; return; }
+        card.hidden = false;
+        const n = mig.rules.length;
+        $("migrate-text").textContent = "This browser still holds " + legacy.rules.length
+            + (legacy.rules.length === 1 ? " rule" : " rules")
+            + " from before the plugin kept them, which no longer fire. Move "
+            + (n === 1 ? "it" : "them") + " to the plugin and "
+            + (n === 1 ? "it fires" : "they fire") + " with no page open."
+            + (mig.skipped ? " " + mig.skipped + " could not be read and will be left behind." : "");
+        $("migrate-btn").textContent = "Move " + (n === 1 ? "this rule" : "these " + n + " rules") + " to the plugin";
+        $("migrate-btn").disabled = !n;
+    }
+    $("migrate-btn").onclick = async () => {
+        const legacy = DashAlerts.loadLegacy();
+        const mig = DashAlerts.migrationRules(legacy);
+        if (!mig.rules.length || !view) return;
+        $("migrate-btn").disabled = true;
+        try {
+            view = await DashUI.message("saveAlertRules",
+                { rules: mig.rules, active: legacy.active, migrate: true, rev: view.rev });
+            DashAlerts.clearLegacy();
+            say("migrate-msg", "");
+            paint();
+            say("rules-msg", "Moved " + mig.rules.length + (mig.rules.length === 1 ? " rule" : " rules")
+                + " to the plugin. Check which way each one tells you, below.");
+        } catch (e) {
+            say("migrate-msg", "Nothing was moved: " + e.message, true);
+            $("migrate-btn").disabled = false;
+            if (e.status === 409) load();
+        }
+    };
+
+    // ── master switch and default address ────────────────────────────────
+    $("master").onchange = () => save({ active: $("master").checked },
+        $("master").checked ? "Alerts are on." : "Alerts are off; the rules are kept.");
+    $("email-save").onclick = () => save({ defaultEmail: $("default-email").value.trim() }, "Saved.");
+
+    // ── send test ────────────────────────────────────────────────────────
+    $("test-btn").onclick = async () => {
+        const chans = CHANNELS.filter(c => $("test-" + c).checked);
+        const out = $("test-result");
+        if (!chans.length) { out.innerHTML = '<li class="hint">Tick at least one way to send it.</li>'; return; }
+        $("test-btn").disabled = true;
+        out.innerHTML = '<li class="hint">Sending…</li>';
+        const lines = [];
+        try {
+            const nonce = Math.random().toString(36).slice(2) + Date.now().toString(36);
+            const reply = await DashUI.message("sendTestAlert", { channels: chans, nonce }, { pendingMs: 45000 });
+            chans.forEach(c => {
+                const r = (reply.results || {})[c] || {};
+                if (c === "browser") {
+                    const why = browserBlock();
+                    const cfg = window.INDIGO_CONFIG || {};
+                    const shown = !why && DashAlerts.notify(cfg.siteName || "Dashboards", reply.text || "Test from Dashboards");
+                    lines.push([LABEL[c], shown ? "raised here" : "not shown here (" + (why || "the browser refused") + ")", shown]);
+                } else {
+                    lines.push([LABEL[c], r.ok ? "sent" : "failed (" + (r.reason || "no answer") + ")", !!r.ok]);
+                }
+            });
+        } catch (e) {
+            lines.push(["Test", "not sent: " + e.message, false]);
+        } finally {
+            $("test-btn").disabled = false;
+        }
+        out.innerHTML = lines.map(([k, v, ok]) =>
+            `<li><span class="badge ${ok ? "ok" : "bad"}">${ok ? "ok" : "no"}</span> ${esc(k)}: ${esc(v)}</li>`).join("");
+    };
+
+    // ── pickers (Indigo's REST API) ──────────────────────────────────────
     let devices = [], variables = [];
     function paintEntityPicker() {
         const kind = $("kind").value;
         const list = kind === "device" ? devices : variables;
         $("entity").innerHTML = list.map(x =>
-            `<option value="${x.id}">${String(x.name).replace(/</g, "&lt;")}</option>`).join("")
+            `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join("")
             || "<option value=''>none found</option>";
-        // condition menu: variables only support "changes"
+        // Variables only support "changes".
         $("cond").disabled = kind === "variable";
         if (kind === "variable") $("cond").value = "change";
         $("add-hint").textContent = kind === "variable"
@@ -232,7 +405,6 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
             : "“Turns on / turns off” use the device's on/off state; “changes at all” watches its display value too.";
     }
     $("kind").onchange = paintEntityPicker;
-
     async function loadEntities() {
         if (!api) return;
         try {
@@ -247,64 +419,108 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
     }
     loadEntities();
 
-    // ── rule list UI ─────────────────────────────────────────────────────
-    const COND_TEXT = { on: "turns on", off: "turns off", change: "changes" };
+    $("add-btn").onclick = () => {
+        if (!view) return;
+        const kind = $("kind").value, id = parseInt($("entity").value, 10);
+        if (!id) return;
+        const ent = (kind === "device" ? devices : variables).find(x => x.id === id);
+        if (!ent) return;
+        const cond = kind === "variable" ? "change" : $("cond").value;
+        const rules = view.rules || [];
+        if (rules.some(r => r.kind === kind && r.id === id && r.cond === cond)) {
+            say("rules-msg", "There is already a rule for that.", true);
+            return;
+        }
+        if (rules.length >= (view.max || DashAlerts.RULES_MAX)) {
+            say("rules-msg", "That is the most rules the plugin keeps; remove one first.", true);
+            return;
+        }
+        const channels = CHANNELS.filter(c => $("add-" + c).checked);
+        if (!channels.length) { say("rules-msg", "Tick at least one way to be told.", true); return; }
+        const rule = { kind, id, cond, name: String(ent.name).slice(0, 80), enabled: true, channels };
+        const to = $("add-to").value.trim();
+        if (to) rule.email = to;
+        save({ rules: rulesForSave(rules.concat([rule])) }, "Added.").then(ok => { if (ok) $("add-to").value = ""; });
+    };
+
+    // ── the rule list ────────────────────────────────────────────────────
     function paintRules() {
         const box = $("rules");
+        const rules = (view && view.rules) || [];
         if (!rules.length) { box.innerHTML = '<div class="hint">No rules yet — add one above.</div>'; return; }
         box.innerHTML = "";
         rules.forEach((r, i) => {
             const row = document.createElement("div");
             row.className = "rule";
-            row.innerHTML = `<div class="name"><b>${String(r.name).replace(/</g, "&lt;")}</b>
-                <span>${r.kind} · ${COND_TEXT[r.cond] || r.cond}</span></div>
-                <span class="now" data-now="${r.kind}:${r.id}">—</span>`;
+            const gone = r.target === "missing";
+            const where = gone ? "deleted in Indigo" : (r.target === "disabled" ? "disabled in Indigo" : "now " + (r.now || "—"));
+            const to = r.email ? " · to " + r.email : "";
+            row.innerHTML = `<div class="name"><b>${esc(r.name)}</b>
+                <span>${esc(r.kind)} · ${esc(COND_TEXT[r.cond] || r.cond)} · <span class="now${gone ? " gone" : ""}">${esc(where)}</span>${esc(to)}</span>
+                <span class="chans">${CHANNELS.map(c =>
+                    `<label><input type="checkbox" data-ch="${c}"${(r.channels || []).indexOf(c) >= 0 ? " checked" : ""}> ${LABEL[c]}</label>`).join("")}</span></div>`;
+            row.querySelectorAll("input[data-ch]").forEach(cb => {
+                cb.onchange = () => {
+                    const list = rulesForSave(view.rules);
+                    const chans = CHANNELS.filter(c => c === cb.dataset.ch ? cb.checked : list[i].channels.indexOf(c) >= 0);
+                    if (!chans.length) { cb.checked = true; say("rules-msg", "A rule needs at least one way to tell you.", true); return; }
+                    list[i].channels = chans;
+                    save({ rules: list });
+                };
+            });
+            const badge = document.createElement("span");
+            badge.className = "badge " + (gone ? "bad" : (r.enabled !== false ? "ok" : "off"));
+            badge.textContent = gone ? "target gone" : (r.enabled !== false ? "on" : "paused");
             const toggle = document.createElement("button");
             toggle.className = "quiet";
-            toggle.textContent = r.enabled ? "pause" : "resume";
-            toggle.onclick = () => { r.enabled = !r.enabled; saveRules(); paintRules(); };
+            toggle.textContent = r.enabled !== false ? "pause" : "resume";
+            toggle.onclick = () => {
+                const list = rulesForSave(view.rules);
+                list[i].enabled = !list[i].enabled;
+                save({ rules: list });
+            };
             const del = document.createElement("button");
             del.className = "quiet"; del.innerHTML = I("cross");
-            del.onclick = () => { rules.splice(i, 1); saveRules(); paintRules(); };
-            const badge = document.createElement("span");
-            badge.className = "badge " + (r.enabled ? "ok" : "off");
-            badge.textContent = r.enabled ? "on" : "paused";
+            del.setAttribute("aria-label", "Delete the rule for " + r.name);
+            del.onclick = () => {
+                const list = rulesForSave(view.rules);
+                list.splice(i, 1);
+                save({ rules: list }, "Removed.");
+            };
             row.appendChild(badge); row.appendChild(toggle); row.appendChild(del);
             box.appendChild(row);
         });
     }
-    $("add-btn").onclick = () => {
-        const kind = $("kind").value, id = parseInt($("entity").value, 10);
-        if (!id) return;
-        const list = kind === "device" ? devices : variables;
-        const ent = list.find(x => x.id === id);
-        if (!ent) return;
-        const cond = kind === "variable" ? "change" : $("cond").value;
-        if (rules.some(r => r.kind === kind && r.id === id && r.cond === cond)) return;
-        rules.push({ kind, id, name: ent.name, cond, enabled: true });
-        saveRules(); paintRules();
-    };
-    paintRules();
 
-    // Another tab (or another Alerts tab) changed the rules or raised one.
-    window.addEventListener("storage", (ev) => {
-        if (ev.key === DashAlerts.STORE_KEY) {
-            state = DashAlerts.load(); rules = state.rules;
-            $("master").checked = state.active; paintRules();
-        } else if (ev.key === DashAlerts.LOG_KEY) {
-            paintLog();
-        }
-    });
-
-    // ── the watcher (dashboards-alerts.js) ───────────────────────────────
-    // This page always polls, because it paints the "now" column; the hub,
-    // room and Energy tabs stand by while it does. Whichever tab sees a
-    // change, only one of them raises it.
-    function paintNow(key, text) {
-        document.querySelectorAll(`[data-now="${key}"]`)
-            .forEach(el => { el.textContent = text; });
+    // ── recent alerts (the plugin's list) ────────────────────────────────
+    function paintLog() {
+        const log = $("log");
+        const rows = (view && view.firings) || [];
+        if (!rows.length) { log.innerHTML = '<li class="hint">Nothing yet.</li>'; return; }
+        log.innerHTML = "";
+        rows.forEach(f => {
+            const li = document.createElement("li");
+            const t = document.createElement("time");
+            t.textContent = new Date(f.t * 1000).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" });
+            li.appendChild(t);
+            li.appendChild(document.createTextNode(f.text));
+            const how = DashAlerts.firingOutcome(f);
+            if (how) {
+                const s = document.createElement("span");
+                s.className = "how";
+                s.textContent = how;
+                li.appendChild(s);
+            }
+            log.appendChild(li);
+        });
     }
-    if (api) DashAlerts.watch({ api, alwaysPoll: true, onPaint: paintNow, onFire: paintLog });
+
+    // The rule list and its "now" column, every 15 s while the page is on
+    // screen; the watcher below raises this browser's notifications and pulls
+    // the list forward as soon as something fires.
+    DashUI.poll(load, 15000);
+    DashAlerts.watch({ alwaysPoll: true,
+                       onFirings: (r) => { if (view && r && r.seq !== view.seq) load(); } });
 })();
 </script>
 <script>
