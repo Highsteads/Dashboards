@@ -76,7 +76,10 @@ out to their servers and back. Neither looked remote to me.
 **The pictures are not public.** Everything in `/public` is served to anyone who can reach the web
 server, the reflector included, so the camera stills sit in a folder named by a secret the plugin
 makes for each install. Only a browser holding the API key is told that name. In earlier versions they were
-`cam-<host>.jpg` in the open folder, and anyone with the reflector address could watch them.
+`cam-<host>.jpg` in the open folder, and anyone with the reflector address could watch them. If you
+think the name has got out, **Plugins → Dashboards → Rotate Guest Link and Camera-Stills Folder**
+picks a new one and deletes the old folder (it also un-pairs every guest device); reload any open
+dashboard page afterwards.
 
 **What the plugin does about it.** Live video never goes over the reflector, whatever the
 connection's speed. A page that can see it was reached through the reflector polls
