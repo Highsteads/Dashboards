@@ -126,7 +126,8 @@ model can be set in the raw-JSON box.
 | `vehicles` | `[{"id": <device>, "label": "Car 12V"}]` | Battery-voltage monitors to list under the Energy page's battery fleet, with a frozen-reading check |
 | `arrayKwp` | number | Your solar array's rating, for the weather page's roof-versus-sky cross-check |
 | `actionWatch` | object | Per-action-group confirmation rules for scene buttons: which device states confirm which action, so no page carries device numbers |
-| `livePoolSize` | number, default 6 | How many cameras show live (WebRTC) video at once at home; the rest refresh as stills. Each live tile costs about 1 Mbit/s and some decoding work on the device, so lower it for an older tablet |
+| `livePoolSize` | number, default 6 | How many cameras the Cameras page may show as live (WebRTC) video at once, 0 to 12; the rest refresh as stills. The page also holds it to what the connection's measured speed carries. Each live tile costs about 1 Mbit/s and some decoding work on the device, so lower it for an older tablet. Before 3.46.0 a saved value was ignored and six was always used |
+| `guestVariables` | list of variable names or ids, default none | The Indigo variables a guest-paired device may read (3.46.0). Anything not listed is withheld from guests; a value that is not a list shares nothing |
 
 ## Credentials in `IndigoSecrets.py`
 

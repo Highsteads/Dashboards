@@ -65,7 +65,7 @@
                 localStorage.setItem("dash_guest", d.guestToken);
                 localStorage.removeItem("indigo_config");   // ensure no full key lingers
                 card.innerHTML = `<h1>Guest access ready</h1>
-                    <p>This device can view everything but control nothing.
+                    <p>This device can view the dashboards but control nothing.
                        Taking you to the dashboard&hellip;</p>`;
                 setTimeout(() => { location.href = "index.html"; }, 1100);
             } catch (e) {

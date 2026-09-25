@@ -104,7 +104,9 @@ Devices on the **PIN list** (Settings → Security) ask for the control PIN once
 any command. It is a speed bump for a shared tablet, not a lock.
 
 A **guest-paired** browser sees every page and can control nothing. It holds no API key, so the
-restriction is not a matter of the interface politely hiding buttons.
+restriction is not a matter of the interface politely hiding buttons. It can still read every
+device's state and see the cameras, so treat a guest link as a view of the house; see
+[Guest devices](remote-access.md#guest-devices).
 
 ## Alerts from your own browser
 
