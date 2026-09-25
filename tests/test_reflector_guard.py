@@ -51,7 +51,10 @@ def _plugin(block=True):
 
 
 REFLECTOR = {"X-Forwarded-For": "51.0.0.1", "User-Agent": "Mozilla/5.0 (iPhone)"}
-LAN = {"Host": "192.168.1.10:8176", "User-Agent": "Mozilla/5.0 (iPhone)"}
+# As a page sends it: every page POSTs application/json, and the handlers
+# that change something refuse anything else (3.46.0, test_csrf_json_only.py).
+LAN = {"Host": "192.168.1.10:8176", "User-Agent": "Mozilla/5.0 (iPhone)",
+       "Content-Type": "application/json"}
 
 
 def test_the_handler_list_is_not_vacuous():

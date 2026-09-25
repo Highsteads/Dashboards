@@ -50,7 +50,10 @@ The shared scripts, in the order a page loads them:
   `carbonAdvisor`, `timelineDay`, `historyQuery`, `mainsMeters` and `mainsMeter`, `homeInsights`,
   `activityFeed`, `logErrors`, `presenceData`, `solarStringHours`, `laundryPlan` and
   `laundryDeadline`, `evoHomeAction`, `applyColour`, `verifyPin`,
-  `getDashboardsConfig` and `saveDashboardsConfig`, `burnSetupToken`, and `mcp_tool_invoke`.
+  `getDashboardsConfig` and `saveDashboardsConfig`, `burnSetupToken`, and `mcp_tool_invoke`. The ones that
+  change something (`saveDashboardsConfig`, `evoHomeAction`, `applyColour`, `laundryDeadline`,
+  `verifyPin`, `burnSetupToken`) also refuse a request that is not sent as `application/json`, so
+  a plain HTML form on another website cannot reach them (3.46.0).
 - **Files the plugin writes** under `/public/dashboards/`: `config.js`, `rooms.json`, `weather.json`,
   `scenes.json`, the camera stills and thumbnails (in a `stills-<token>` folder that only the
   Bearer-authenticated `cameraStills` action names), and `changed.stamp` — the liveness stamp,

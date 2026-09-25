@@ -37,7 +37,7 @@ def plug():
 
 
 def _action(body):
-    return SimpleNamespace(props={"headers": {"Host": "192.168.1.10:8176"},
+    return SimpleNamespace(props={"headers": {"Host": "192.168.1.10:8176", "Content-Type": "application/json"},
                                   "request_body": json.dumps(body)})
 
 

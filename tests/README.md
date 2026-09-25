@@ -61,6 +61,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_config_js_no_secrets.py` | Pins the plugin's single most important security invariant: |
 | `test_config_store_unreadable.py` | A dashboards_config.json that is PRESENT but will not parse is |
 | `test_cost_rate_tiers.mjs` | Contract tests for the Cost page's Rates tiles. |
+| `test_csrf_json_only.py` | The endpoints that change something insist on |
 | `test_dash_message.mjs` | Contract test for DashUI.message (v3.28.0) — the one way a page |
 | `test_dash_poll.mjs` | Contract test for DashUI.poll (v3.28.0): one polling loop for |
 | `test_dash_tile.mjs` | One tile system (v3.37.0). Runs the shipped dashboards-controls.js |
