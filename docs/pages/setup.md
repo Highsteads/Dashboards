@@ -29,5 +29,6 @@ time-to-live within ten minutes anyway.
 - There is no screenshot of a successful redemption on purpose: a valid setup link is a working
   credential with a one-time life, and redeeming one to take the picture would also destroy it.
 - The hub's own Connect form is the manual alternative, and the error card links straight to it.
-- Auto-seeding (*Auto-seed the API key to LAN browsers* under Configure) makes this page unnecessary
-  for a browser on the home network or the tailnet.
+- This is how a new install pairs its devices: *Auto-seed the API key to LAN browsers* under
+  Configure is off for a new install from 3.46.0. With it on, a browser on the home network or the
+  tailnet pairs itself and never needs this page, but so does anyone else's.

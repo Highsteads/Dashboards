@@ -173,7 +173,7 @@ The camera grid needs **both** of the following. Without either one the plugin l
    - `brew install ffmpeg`
    - `brew install go2rtc` (or download the binary from [go2rtc releases](https://github.com/AlexxIT/go2rtc/releases) and set its path under Configure)
 5. Configure credentials via **Plugins → Dashboards → Configure** (or via `IndigoSecrets.py` — see Configuration below)
-6. Enable the plugin and open `http://<indigo-host>:8176/public/dashboards/index.html`. The hub asks for your Indigo API key once and keeps it in that browser; **Plugins → Dashboards → Generate One-Time Setup Link (+QR)** pairs a phone without typing it
+6. Enable the plugin, then pair each browser once: **Plugins → Dashboards → Generate One-Time Setup Link (+QR)** gives a link and a QR code that pair a phone or tablet with nothing to type, or the hub at `http://<indigo-host>:8176/public/dashboards/index.html` takes the API key typed in. From 3.46.0 a new install does not hand the key to every browser on the network by itself; *Auto-seed the API key to LAN browsers* under Configure turns that back on
 7. On the Settings page, tick the Indigo device folders that are your rooms — with nothing ticked the plugin uses one house's folder names and yours will show no rooms
 8. **Plugins → Dashboards → Test Dashboards Setup** checks the lot and logs a verdict per line
 
@@ -203,7 +203,7 @@ Every key, every room-extras field and every Configure setting is described on t
 Away from home, run [Tailscale](https://tailscale.com). With it, your phone or laptop is
 effectively "at home" anywhere in the world, and the plugin already treats it that way: the
 live cameras only work remotely this way (ports 8177 and 8555 are fronted by nothing else), a
-new browser on the tailnet pairs itself on first visit, and nothing is exposed — no port
+setup link pairs a device on the tailnet exactly as at home, and nothing is exposed — no port
 forwarding, no public attack surface.
 
 Over Tailscale the Mac answers to its tailnet name, its Tailscale address, or — if the Mac

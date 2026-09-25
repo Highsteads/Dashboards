@@ -18,9 +18,11 @@ which is the first thing to paste into a support post.
 
 ## The page asks me to connect, or shows nothing
 
-The pages are public files; the data behind them needs an API key. Enter it in the Connect form, or
-pair the browser with a one-time setup link, or turn on *Auto-seed the API key to LAN browsers* — see
-[Getting started](getting-started.md#pairing-a-browser). If the key was rotated, every paired browser
+The pages are public files; the data behind them needs an API key. Pair the browser with a
+one-time setup link (**Plugins → Dashboards → Generate One-Time Setup Link (+QR)**), or enter the
+key in the Connect form — see [Getting started](getting-started.md#pairing-a-browser). A new install
+does not hand the key out by itself any more (3.46.0): *Auto-seed the API key to LAN browsers* is
+off until you tick it. If the key was rotated, every paired browser
 needs pairing again; the footer's *Reset connection* link forgets the old one.
 
 ## No rooms, or the wrong things in a room

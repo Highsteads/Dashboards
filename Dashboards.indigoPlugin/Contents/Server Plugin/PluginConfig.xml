@@ -70,11 +70,11 @@
 
 	<Field id="sep_boot" type="separator"/>
 
-	<Field id="bootstrapKeySeed" type="checkbox" defaultValue="true">
+	<Field id="bootstrapKeySeed" type="checkbox" defaultValue="false">
 		<Label>Auto-seed the API key to LAN browsers</Label>
 	</Field>
 	<Field id="hlpBoot" type="label" fontSize="mini" alignWithControl="true">
-		<Label>When on (default), a browser on your LAN or Tailnet is handed the API key automatically on first visit, so it never has to be typed in. Turn this OFF if you run read-only guest devices and want the guest boundary strictly enforced — trusted devices then pair via the "Generate One-Time Setup Link" menu item instead. Off is more secure, on is more convenient.</Label>
+		<Label>Off (the default for a new install): pair each device once with Plugins > Dashboards > Generate One-Time Setup Link (+QR) — open the link or scan the QR on the device and it is paired, nothing to type. On: any browser on your LAN or tailnet is handed the full API key on its first visit, which is convenient but includes a visitor's phone, and makes guest links pointless. Installs from before 3.46.0 keep the setting they had.</Label>
 	</Field>
 
 	<Field id="sep_weather" type="separator"/>

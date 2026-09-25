@@ -2250,8 +2250,13 @@
         document.getElementById("content").innerHTML = `
             <div id="config-form">
                 <h2>Connect to Indigo</h2>
-                <p>Enter your Indigo API key. It is saved in this browser only —
-                   the server never publishes it.</p>
+                <p><b>This browser is not paired yet.</b> The easy way: on the
+                   Indigo Mac choose <b>Plugins &rarr; Dashboards &rarr; Generate
+                   One-Time Setup Link (+QR)</b>, then open the link, or scan the
+                   QR code, on this device. It pairs with nothing to type, and the
+                   link works once.</p>
+                <p>Or enter your Indigo API key here. It is saved in this browser
+                   only — the server never publishes it.</p>
                 <label>Server URL
                     <input id="cfg-url" type="url" placeholder="${escapeAttr(defaultURL)}"
                            value="${escapeAttr(defaultURL)}">

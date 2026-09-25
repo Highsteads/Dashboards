@@ -63,16 +63,23 @@ showing an empty chart:
 The pages themselves are public files. What a browser needs is the API key, and there are four
 ways it can get one:
 
-- **The Connect form.** Open the hub and it asks for the key once, then stores it in that browser.
-- **A one-time setup link.** **Plugins → Dashboards → Generate One-Time Setup Link (+QR)** writes a
-  link (and a QR code) into the log. Open it on the device and `setup.html` stores the key and
-  burns the token, so the link cannot be used twice. Unredeemed links expire on their own.
+- **A one-time setup link — the usual way.** **Plugins → Dashboards → Generate One-Time Setup Link
+  (+QR)** writes a link (and a QR code) into the log. Open it on the device, or scan the QR with
+  the phone's camera, and `setup.html` stores the key and burns the token, so the link cannot be
+  used twice. Unredeemed links expire on their own. Do this once for each of your own devices.
+- **The Connect form.** A browser that is not paired lands on the hub's Connect form, which says
+  how to use a setup link and also takes the key typed in by hand.
 - **Auto-seeding on the LAN.** With *Auto-seed the API key to LAN browsers* ticked under Configure,
   a new browser on the home network or the tailnet pairs itself on first visit through the plugin's
-  own port 8177. No ceremony at all.
-- **Guest pairing.** For a wall tablet or a visitor's phone that should only ever look, **Plugins →
+  own port 8177. It is off for a new install from 3.46.0, because it hands the full key to every
+  device that asks, a visitor's phone on your Wi-Fi included, and that key controls the house.
+  Installs from before 3.46.0 keep the setting they had, and the plugin logs once to say so.
+- **Guest pairing.** For a wall tablet or a visitor's phone that should only look, **Plugins →
   Dashboards → Show Guest Access Info** logs a pairing URL. The device gets a guest token instead of
-  the key, so there is no control surface on it at all. Home network and Tailscale only.
+  the key, so it cannot switch anything, and it reads only the device states and the variables you
+  allow (see [Guest devices](remote-access.md#guest-devices)). Home network and Tailscale only.
+  With auto-seeding on, a guest device could simply ask for the full key instead, so a guest link
+  only means something with it off.
 
 The footer of every page carries a *Reset connection* link that forgets the stored key.
 

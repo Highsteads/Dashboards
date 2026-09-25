@@ -110,8 +110,11 @@ It will download the release zip, unzip it, and hand you the bundle to double-cl
 installs a plugin when you double-click it, and Claude will open the folder for you). Then it
 will tell you the plugin needs an Indigo API key, and where that comes from: the
 [Authorizations page of your Indigo account](https://www.indigodomo.com/account/authorizations).
-You make the key, you paste it into **Plugins → Dashboards → Configure**. Open
-`http://<your-indigo-mac>:8176/public/dashboards/index.html` and there is your hub.
+You make the key, you paste it into **Plugins → Dashboards → Configure**. Then pair each device
+you will use once: **Plugins → Dashboards → Generate One-Time Setup Link (+QR)** writes a link and a
+QR code into the Indigo log; open the link, or point the phone's camera at the QR, and that device
+is paired with nothing to type. (A browser that is not paired shows a Connect form that says the
+same.) Open `http://<your-indigo-mac>:8176/public/dashboards/index.html` and there is your hub.
 
 ### 3. Tell it about your rooms
 

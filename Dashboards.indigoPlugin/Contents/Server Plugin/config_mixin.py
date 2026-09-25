@@ -6,8 +6,8 @@
 #              the guest token kept beside it.
 #              Split out of plugin.py in v3.32.0; Plugin inherits it.
 # Author:      CliveS & Claude Opus 5.5
-# Date:        23-09-2026
-# Version:     1.0
+# Date:        25-09-2026
+# Version:     1.1 (3.46.0: the key auto-seed default, settled and written down)
 
 try:
     import indigo
@@ -126,6 +126,70 @@ class ConfigMixin:
                     f"it holds for this run and a new one is chosen at the next start",
                     level="WARNING")
         return tok
+
+    # --------------------------------------------------------
+    # Key auto-seed default (3.46.0)
+    # --------------------------------------------------------
+    @staticmethod
+    def _prefs_have_history(prefs):
+        """True when the plugin prefs hold anything the plugin or Configure
+        wrote, i.e. this is not a first start. Indigo stores nothing for a
+        plugin until one of them does; the Configure dialog's defaultValue only
+        applies inside the dialog."""
+        try:
+            return any(k != "bootstrapKeySeed" for k in (prefs or {}).keys())
+        except Exception:
+            return False
+
+    @staticmethod
+    def _bootstrap_seed_pref(prefs, existing):
+        """(value, why) for the key auto-seed, from the stored pref.
+
+        why is "stored" (the pref holds a value, used as it is), "kept" (an
+        existing install that never stored one: it keeps the old default, on)
+        or "new" (a first start: off). A stored value is never overridden."""
+        try:
+            raw = (prefs or {}).get("bootstrapKeySeed")
+        except Exception:
+            raw = None
+        if raw is not None and str(raw).strip() != "":
+            return as_bool(raw, False), "stored"
+        if existing:
+            return True, "kept"
+        return False, "new"
+
+    def _settle_bootstrap_seed(self, prefs, existing):
+        """Resolve the key auto-seed at start-up, and write the answer down.
+
+        Writing it down is what keeps it stable: without a stored value the
+        next start could not tell a new install from an old one, and a change
+        of default would flip an old install's pairing without a word. The
+        notice for an existing install is logged once, because after this the
+        value is stored."""
+        value, why = self._bootstrap_seed_pref(prefs, existing)
+        if why == "stored":
+            return value
+        try:
+            target = getattr(self, "pluginPrefs", None)
+            if target is None:
+                target = prefs
+            target["bootstrapKeySeed"] = value
+            self.savePluginPrefs()
+        except Exception as exc:
+            log(f"[Security] could not record the key auto-seed setting ({exc}); "
+                f"it is {'on' if value else 'off'} for this run", level="WARNING")
+        if why == "kept":
+            log("[Security] Auto-seed the API key to LAN browsers is ON for this install, as it "
+                "always has been: any device on your home network or tailnet that opens the "
+                "dashboards is handed the full API key, a visitor's phone included. New installs "
+                "now start with it off. To switch it off: Plugins > Dashboards > Configure, untick "
+                "it, then pair each of your own devices once with Plugins > Dashboards > Generate "
+                "One-Time Setup Link (+QR). Devices already paired keep working.",
+                level="WARNING")
+        else:
+            log("[Security] Auto-seed the API key is off (the default for a new install). Pair "
+                "each device once with Plugins > Dashboards > Generate One-Time Setup Link (+QR).")
+        return value
 
     def _config_store_path(self):
         """Plugin-owned config file. Lives in the per-plugin Preferences

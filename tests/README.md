@@ -36,6 +36,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_apply_colour.py` | Contract test for Plugin.handleApplyColour — the v2.94.0 endpoint |
 | `test_atomic_write_cleanup.py` | _write_atomic and _copy_atomic leave no temp file behind when |
 | `test_battery_pct.py` | Truth-table test for Plugin._battery_pct — the estate's three |
+| `test_bootstrap_seed_default.py` | Key auto-seed is OFF for a new install (3.46.0), and an |
 | `test_build_reload.mjs` | An open page reloads itself when the plugin is newer than the |
 | `test_bulk_lights_open_loop.mjs` | Contract test for the Lights section's "All On / All Off" when |
 | `test_camera_boot_policy.mjs` | Contract test for the camera page's BOOT POLICY and the |
