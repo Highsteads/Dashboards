@@ -113,6 +113,21 @@ live video over its still. Where it is not, and always over the reflector, they 
 cross-fade from frame to frame. A camera with a `room` in its entry also appears on that room's
 page, as a still that does not stream. Tap a tile and the Cameras page opens with it at the top.
 
+## The camera login goes only to approved addresses
+
+Every camera shares one login (Configure → Camera User / Password), and go2rtc hands it to each
+camera's address when it connects. A camera's address can be changed by anyone holding the API key,
+from the Settings page or the `dashboards_set_camera` tool, so from 3.46.0 the login is only sent to
+addresses approved on the Indigo Mac itself: the cameras that were saved when **Plugins → Dashboards
+→ Configure** was last closed with **Save**. The plugin logs the list each time it changes, naming
+any address that is new.
+
+A camera whose address is not on the list is still streamed, but with no login, so a real camera
+refuses it and its tile stays empty. The log says which camera and why, and so does the Settings
+page's Cameras card. When you have added or changed a camera yourself: open Configure, press Save,
+and restart the plugin. The first start of 3.46.0 approves every camera already running, so nothing
+changes for an existing install.
+
 ## Things worth knowing
 
 - A tile that cannot get a still says so on the tile — "No snapshot (HTTP 404)" — rather than

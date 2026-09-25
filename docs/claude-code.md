@@ -65,7 +65,7 @@ either side:
 | `dashboards_list_room_folders` | The folders that become rooms, whether they are the built-in defaults, every folder Indigo has, and any configured name that does not exist |
 | `dashboards_set_room_folders` | Replace the room folders. Unknown names are refused and the real ones listed back. Live at once |
 | `dashboards_list_cameras` | The saved cameras, the hub strip, whether credentials are set and the streams are running, and whether a restart is pending |
-| `dashboards_set_camera` | Add a camera, or change the one with that host. Says whether a restart is needed |
+| `dashboards_set_camera` | Add a camera, or change the one with that host. Says whether a restart is needed, and whether the address still needs approving for the camera login (only the owner can, by pressing Save in Configure) |
 | `dashboards_remove_camera` | Remove a camera, and take it out of the hub strip |
 | `dashboards_read_log` | The last lines of the plugin's own log, optionally filtered to a phrase |
 

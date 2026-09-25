@@ -29,7 +29,7 @@
 		<Label>Camera Password:</Label>
 	</Field>
 	<Field id="hlpDahua" type="label" fontSize="mini" alignWithControl="true">
-		<Label>Camera admin username + password (works for both Dahua and Hikvision). Fallbacks for IndigoSecrets.DAHUA_USER / DAHUA_PASS. Only needed if you have cameras configured. Stored in plain text in the prefs file (see the API-key note above).</Label>
+		<Label>Camera admin username + password (works for both Dahua and Hikvision). Fallbacks for IndigoSecrets.DAHUA_USER / DAHUA_PASS. Only needed if you have cameras configured. Stored in plain text in the prefs file (see the API-key note above). Pressing Save here approves the camera addresses saved on the Settings page right now: the login is only ever sent to approved addresses, so after adding or changing a camera, come back here and press Save, then restart the plugin.</Label>
 	</Field>
 
 	<Field id="sep0" type="separator"/>

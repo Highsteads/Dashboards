@@ -42,6 +42,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_camera_boot_policy.mjs` | Contract test for the camera page's BOOT POLICY and the |
 | `test_camera_frame_age.mjs` | Contract test for the per-tile frame-age readout and the |
 | `test_camera_list_vetted.py` | The RUNNING camera list is held to the Settings-save rules |
+| `test_camera_login_hosts.py` | The shared camera login goes only to approved addresses |
 | `test_camera_stale_thumb.py` | A thumbnail that stops being made is removed, so the page falls |
 | `test_camera_stall_watchdog.mjs` | Node contract test for the cameras.html slow-link stall |
 | `test_camera_still_period.mjs` | The cameras page works out a still tile's refresh period in ONE |

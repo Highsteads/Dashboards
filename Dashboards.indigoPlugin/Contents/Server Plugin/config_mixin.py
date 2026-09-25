@@ -547,6 +547,10 @@ class ConfigMixin:
                 # v2.96.0: what the Rooms card's folder picker draws from.
                 "folders":      sorted({f for f in folder_names.values() if f}, key=str.lower),
                 "roomFoldersEffective": list(self._room_folders()),
+                # 3.46.0: the addresses the shared camera login goes to (not a
+                # secret; full-auth callers only), so the Cameras card can say
+                # which of its cameras will be streamed without it.
+                "cameraLoginHosts": sorted(self.cam_login_hosts or ()),
             })
         except Exception as exc:
             self.logger.error(f"[Config] getDashboardsConfig failed: {exc}")
@@ -901,8 +905,18 @@ class ConfigMixin:
         except Exception as exc:
             self.logger.warning(f"[Config] Post-save refresh failed: {exc}")
 
+        # 3.46.0: a saved camera whose address was never approved in Configure
+        # will be streamed without the shared login. Say so now, to whoever
+        # saved it, not only at the next restart.
+        withheld = self._camera_login_withheld(_parse_cameras(clean["cameras"]))
         self.logger.info(
             "[Config] dashboards_config.json saved from the settings editor — "
             "now the single source of truth"
             + (" (camera changes need a plugin restart)" if camera_restart else ""))
-        return self._evo_reply({"ok": True, "cameraRestartNeeded": camera_restart})
+        if withheld:
+            self.logger.warning(
+                f"[Cameras] not approved for the shared camera login: {', '.join(withheld)}. "
+                f"If you added or changed {'it' if len(withheld) == 1 else 'them'} yourself, "
+                f"open Plugins > Dashboards > Configure and press Save, then restart the plugin.")
+        return self._evo_reply({"ok": True, "cameraRestartNeeded": camera_restart,
+                                "cameraLoginWithheld": withheld})

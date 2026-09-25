@@ -15,8 +15,8 @@
 #              this file can affect normal plugin startup, and importable
 #              without `indigo` so the tests can drive it.
 # Author:      CliveS & Claude Fable 5.1
-# Date:        10-09-2026
-# Version:     1.0
+# Date:        25-09-2026
+# Version:     1.1 (3.46.0: list_cameras and set_camera report loginWithheld)
 
 import json
 import os
@@ -341,6 +341,9 @@ def tool_list_cameras(plugin, args):
         "go2rtcRunning":     go2rtc is not None and go2rtc.poll() is None,
         "proxyRunning": getattr(plugin, "_proxy_server", None) is not None,
         "restartPending":    mod._parse_cameras(saved) != mod._parse_cameras(running),
+        # 3.46.0: saved cameras the shared login is NOT sent to, because their
+        # address was not approved in Configure. Only the owner can approve.
+        "loginWithheld":     plugin._camera_login_withheld(saved),
     }
 
 
@@ -391,14 +394,21 @@ def tool_set_camera(plugin, args):
     cfg["mainCameras"] = main_list
 
     payload = _apply(plugin, cfg)
+    withheld = host in (payload.get("cameraLoginWithheld") or [])
+    note = ("restart the Dashboards plugin (Plugins > Dashboards > Reload) for the "
+            "streaming pipeline to pick this up" if payload.get("cameraRestartNeeded")
+            else "saved; nothing about the streams changed")
+    if withheld:
+        note += ("; this address has not been approved for the shared camera login, so it "
+                 "will be streamed without it until the owner opens Plugins > Dashboards > "
+                 "Configure on the Indigo Mac, presses Save, and restarts the plugin")
     return {
         "action":              action,
         "camera":              _camera_public(cam),
         "mainCameras":         main_list,
         "cameraRestartNeeded": bool(payload.get("cameraRestartNeeded")),
-        "note": ("restart the Dashboards plugin (Plugins > Dashboards > Reload) for the "
-                 "streaming pipeline to pick this up" if payload.get("cameraRestartNeeded")
-                 else "saved; nothing about the streams changed"),
+        "loginWithheld":       withheld,
+        "note":                note,
     }
 
 

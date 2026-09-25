@@ -80,6 +80,80 @@ class SafeErrorMixin:
 
 class CamerasMixin:
     # --------------------------------------------------------
+    # Which camera addresses get the shared login (3.46.0)
+    # --------------------------------------------------------
+    # Anyone holding the API key can change a camera's address (Settings, or
+    # the dashboards_set_camera MCP tool). go2rtc then dialled whatever was
+    # there with the ONE shared camera login, so pointing a camera at an RTSP
+    # server of your own harvested the household's camera password on the
+    # next restart. The login now goes only to addresses recorded when it was
+    # last confirmed in Configure (pressing Save there), which is outside
+    # anything the API key can reach. The list lives in pluginPrefs, never in
+    # dashboards_config.json, because a Settings save writes that file.
+    # None = never recorded (the first start of 3.46.0 records what is
+    # running then, so an existing install keeps working).
+    cam_login_hosts = None
+
+    @staticmethod
+    def _parse_login_hosts(raw):
+        """The recorded host list: None when never recorded, else a set of
+        the entries that are real camera hosts. A stored "" is a recorded
+        empty list (no camera approved), not "never"."""
+        if raw is None:
+            return None
+        if isinstance(raw, (list, tuple, set, frozenset)):
+            items = list(raw)
+        else:
+            items = str(raw).split(",")
+        return {str(h).strip() for h in items
+                if isinstance(h, str) and CAMERA_HOST_RE.match(str(h).strip())}
+
+    def _camera_login_approved(self, host):
+        hosts = self.cam_login_hosts
+        return bool(hosts) and str(host) in hosts
+
+    def _camera_login_withheld(self, cameras):
+        """Hosts in `cameras` (dicts with "host") the shared login is not sent to."""
+        return [c.get("host") for c in (cameras or [])
+                if isinstance(c, dict) and c.get("host")
+                and not self._camera_login_approved(c.get("host"))]
+
+    def _record_camera_login_hosts(self, hosts, why, prefs=None):
+        """Approve exactly `hosts` for the shared login, write the list to
+        pluginPrefs (and to `prefs`, the Configure dialog's values, when
+        given, so Indigo's own save of the dialog keeps it too), and log the
+        change so a host approved by accident is visible."""
+        clean = sorted({str(h).strip() for h in (hosts or [])
+                        if CAMERA_HOST_RE.match(str(h).strip())})
+        before = set(self.cam_login_hosts or ())
+        self.cam_login_hosts = set(clean)
+        value = ",".join(clean)
+        for target in (getattr(self, "pluginPrefs", None), prefs):
+            if target is None:
+                continue
+            try:
+                target["cameraLoginHosts"] = value
+            except Exception:
+                pass
+        try:
+            self.savePluginPrefs()
+        except Exception as exc:
+            log(f"[Cameras] could not save the approved camera addresses ({exc}); "
+                f"they hold until the plugin restarts", level="WARNING")
+        added = [h for h in clean if h not in before]
+        dropped = sorted(before - set(clean))
+        if added or dropped or why == "first start":
+            bits = [f"{why}: the shared camera login is sent to {len(clean)} camera "
+                    f"address{'es' if len(clean) != 1 else ''}"
+                    + (f" ({', '.join(clean)})" if clean else "")]
+            if added and why != "first start":
+                bits.append(f"newly approved: {', '.join(added)}")
+            if dropped:
+                bits.append(f"no longer approved: {', '.join(dropped)}")
+            log("[Cameras] " + "; ".join(bits))
+        return self.cam_login_hosts
+
+    # --------------------------------------------------------
     # The :8177 proxy (tiny HTTP server in a daemon thread)
     # --------------------------------------------------------
 
@@ -741,6 +815,7 @@ class CamerasMixin:
         # camera being watched, re-encoding video nobody needed re-encoded.
         sub2_count = 0
         main_count = 0
+        withheld = []
         for cam in self.cameras:
             slug   = self._cam_slug(cam["name"])
             vendor = cam.get("vendor", "dahua")
@@ -748,7 +823,15 @@ class CamerasMixin:
             tpl_key = f"rtsp_{stream}"
             v_urls = VENDOR_URLS.get(vendor, VENDOR_URLS["dahua"])
             tpl   = v_urls.get(tpl_key, v_urls["rtsp_main"])
-            rtsp  = tpl.format(user=user_q, pwd=pass_q, host=cam["host"])
+            # 3.46.0: the shared login only for an address approved in
+            # Configure (see cam_login_hosts). Any other is dialled with no
+            # login at all: a real camera then refuses and shows as offline,
+            # and a stranger's RTSP server learns nothing.
+            if self._camera_login_approved(cam["host"]):
+                rtsp = tpl.format(user=user_q, pwd=pass_q, host=cam["host"])
+            else:
+                rtsp = tpl.replace("{user}:{pwd}@", "").format(host=cam["host"])
+                withheld.append(f"{cam.get('name') or slug} ({cam['host']})")
             lines.append(f"  {slug}: {rtsp}")
             if stream == "sub2": sub2_count += 1
             else:                main_count += 1
@@ -763,6 +846,13 @@ class CamerasMixin:
         os.chmod(path, 0o600)        # ensure 0600 even if the file pre-existed
         self._activity(f"[go2rtc] Wrote config {path} ({len(self.cameras)} streams: "
                        f"{main_count} main, {sub2_count} sub2)")
+        if withheld:
+            log(f"[Cameras] streaming {', '.join(withheld)} WITHOUT the shared camera login: "
+                f"{'its address was' if len(withheld) == 1 else 'their addresses were'} not among "
+                f"the cameras when the login was last confirmed in Configure, and a camera "
+                f"address can be changed by anyone holding the API key. If you added or changed "
+                f"it yourself, open Plugins > Dashboards > Configure, press Save to approve it, "
+                f"and restart the plugin.", level="WARNING")
         return path
 
     def _vet_cameras(self, cams):
