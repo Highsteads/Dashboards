@@ -357,6 +357,9 @@
             box-shadow: var(--shadow); cursor: pointer;
             display: flex; flex-direction: column;
         }
+        /* 3.46.0: the card takes keyboard focus; show where it is. overflow is
+           hidden, so the ring sits inside the edge rather than outside it. */
+        .camera-card:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
         .camera-frame {
             position: relative; background: #000; aspect-ratio: 16 / 9; overflow: hidden;
         }
@@ -1299,7 +1302,10 @@
         // otherwise break out of the onclick string (escapeHtml guards HTML
         // context only, not JS-in-attribute context).
         return `
-            <div class="camera-card" data-cam-host="${escapeHtml(cam.host)}" onclick="openRoomCamera(this.dataset.camHost)">
+            <div class="camera-card" data-cam-host="${escapeHtml(cam.host)}" role="button" tabindex="0"
+                 aria-label="Open ${escapeHtml(cam.name)} on the Cameras page"
+                 onclick="openRoomCamera(this.dataset.camHost)"
+                 onkeydown="roomCameraKey(event, this)">
                 <div class="camera-frame">
                     <img crossorigin="anonymous" alt="${escapeHtml(cam.name)}">
                 </div>
@@ -1339,6 +1345,15 @@
     // page already has all the focus / pause / snapshot machinery.
     function openRoomCamera(host) {
         location.href = `cameras.html?focus=${encodeURIComponent(host)}`;
+    }
+    // The same from the keyboard (3.46.0): the card is a button to a screen
+    // reader and takes Tab, so Enter and Space must do what a click does.
+    // It was a bare clickable div, which a keyboard could not reach at all.
+    function roomCameraKey(e, card) {
+        if (!e || e.target !== card) return;
+        if (e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") return;
+        e.preventDefault();
+        openRoomCamera(card.dataset.camHost);
     }
 
     // Pulse-door tile. status text comes from the configured contact sensor:
