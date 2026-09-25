@@ -943,6 +943,11 @@
             // means a slow link quietly polls less often rather than building a
             // backlog it can never drain.
             if (_idlePaused) return Promise.resolve();   // reflector, ten idle minutes: nothing until a tap (v2.96.1)
+            // Tell the plugin this camera is on screen (3.48.0): it only takes
+            // stills of cameras a page is showing. Before the in-flight guard,
+            // so a slow link still counts as watching. Guarded: an older
+            // dashboards-ui.js still in a browser cache must not stop the tile.
+            if (DashUI.noteStillWanted) DashUI.noteStillWanted(host);
             if (st.fetching) return Promise.resolve();
             // Not yet told where the pictures are, or told there are none.
             if (!snapshotUrl(host, wantsFullSize(host))) {

@@ -9,8 +9,8 @@ The cameras output **H.264 over RTSP** (mainstream or substream 2). The plugin r
 managed subprocess, which connects to each camera's RTSP feed once and shares it. A live tile is
 **WebRTC**: go2rtc relays the camera's own H.264 straight to the browser, untouched, and the browser
 decodes it in a `<video>`. The plugin's small server on port 8177 carries only the one request that
-sets each stream up. Every tile that is not live polls a still picture the plugin writes every two
-seconds.
+sets each stream up. Every tile that is not live polls a still picture, which the plugin takes
+every two seconds while a page is showing it.
 
 ```
 Camera → RTSP (H.264) → go2rtc ──WebRTC :8555──→ Browser <video>      (live tiles)
@@ -24,6 +24,30 @@ name is the protection: only a browser holding the API key is told it, by the pl
 versions the pictures were `cam-<host>.jpg` straight in `/public/dashboards/`, and `config.js` spelled
 out the pattern, so anyone who could reach the web server could watch every camera. The plugin
 deletes those old files, and any folder left by an earlier secret, when it starts.
+
+## Stills only while someone is watching
+
+Each still opens a fresh video connection to the camera and waits for a whole picture; go2rtc keeps
+nothing open between them. Until 3.48.0 the plugin took one of every camera every two seconds, day
+and night, whether or not any page was open: with ten cameras, five camera connections a second,
+about 4.4 Mbit/s coming in from the cameras and around 13 GB a day of pictures written to disk.
+
+Now each page that shows stills (the hub's camera strip, a room page's camera, the Cameras page)
+tells the plugin which cameras it has on screen, straight away for a new one and then every ten
+seconds. The plugin keeps a still every two seconds for those cameras only, and for thirty seconds
+after the last page stops asking. A page in a hidden tab, or the Cameras page after ten idle
+minutes over the reflector, fetches nothing and so asks for nothing. A tile showing live video
+needs no still, so it asks for none either.
+
+A camera nobody is watching still gets one picture every five minutes. That keeps camera health,
+and the hub's "camera offline" warning, working with no page open. When that picture fails, the
+plugin tries again after thirty seconds, so a camera that has gone shows as offline in about a
+minute. Set `stillsIdleMinutes` in the settings to change the five minutes, or to 0 to take no
+pictures at all while nobody is watching (the health warning then only covers cameras on screen).
+
+The first picture a page shows after a quiet spell is the last one taken, up to five minutes old,
+and a fresh one follows within about two seconds. The Cameras page's age readout says which is
+which.
 
 Until 3.36.0 live tiles were MJPEG: go2rtc ran an ffmpeg process per camera to re-encode the
 video as a stream of JPEGs. WebRTC uses about a third of the bandwidth, drops frames on a slow link

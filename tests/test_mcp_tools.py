@@ -18,6 +18,7 @@
 import json
 import os
 import sys
+import time
 import types
 from unittest.mock import MagicMock
 
@@ -182,6 +183,7 @@ def test_get_status_shape(monkeypatch, tmp_path):
     scripts.mkdir()
     (scripts / "Presence_Watch.py").write_text("# stub", encoding="utf-8")
     p._ticker_running = lambda: False
+    p._cam_watch()["10.0.0.5"] = time.time() + 30      # a page is showing Front's still
     out = call(p, "get_status")
     assert out["status"] == "ok"
     r = out["result"]
@@ -192,7 +194,8 @@ def test_get_status_shape(monkeypatch, tmp_path):
     assert r["roomFolders"]["existInIndigo"] == 3          # Kitchen, Hall, Garage exist
     assert "Bathroom" in r["roomFolders"]["missing"]
     assert r["cameras"] == {"saved": 1, "running": 1, "credentialsSet": True,
-                            "go2rtcRunning": False, "proxyRunning": False}
+                            "go2rtcRunning": False, "proxyRunning": False,
+                            "stillsWatched": ["Front"], "stillsIdleMinutes": 5}
     assert r["history"] == {"backend": "sqlite", "sqliteFound": False}
     assert "Presence_Watch.py" in r["companionScripts"]["present"]
     assert "Log_Error_Watch.py" in r["companionScripts"]["missing"]

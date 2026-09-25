@@ -523,6 +523,7 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
             const card = el(`<section class="card"><h2>Cameras</h2>
                 <div class="hint">Host is an IP address or plain hostname (no port). Vendor decides the RTSP URL template. Stream sub2 is the low-bandwidth default. Rooms is a comma list of room names whose page should show this camera. Main = include in the hub's camera mosaic. Camera changes need a plugin restart.</div>
                 <div class="hint"><b>Live pictures.</b> The Cameras page times the connection and shows as many cameras as live video as its speed can carry, at home or away, up to the <code>livePoolSize</code> key (raw JSON, 0 to 12, default 6); the rest are pictures that refresh every second or two. Each live tile costs about 1.4 Mbit/s on the network and some work for the device showing it, so an older tablet may be happier with fewer. Through the Indigo reflector none are live.</div>
+                <div class="hint"><b>Stills.</b> A camera gets a picture every two seconds only while a page is showing it. The rest get one every <code>stillsIdleMinutes</code> (raw JSON, 0 to 60, default 5) so the hub can still say when a camera goes offline; 0 takes none while nobody is watching.</div>
                 <table><thead><tr>
                     <th>Name</th><th>Host</th><th>Vendor</th><th>Stream</th><th>Rooms</th><th>Main</th><th class="row-del"></th>
                 </tr></thead><tbody id="cam-rows"></tbody></table>

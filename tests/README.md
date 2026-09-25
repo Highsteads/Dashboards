@@ -53,6 +53,8 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_camera_still_period.mjs` | The cameras page works out a still tile's refresh period in ONE |
 | `test_camera_stills_private.py` | The camera stills are no longer at guessable names in the |
 | `test_camera_thumbs.py` | Contract test for the grid thumbnail — the second, smaller copy |
+| `test_camera_watch.mjs` | Pages tell the plugin which cameras they are showing (3.48.0), |
+| `test_camera_watch.py` | Stills only while a page is showing them (3.48.0). The poller |
 | `test_camera_webrtc.mjs` | Contract test for the away-from-home WebRTC focused tile |
 | `test_capture_rename.py` | capture_screenshots.py --rename (v1.3): people's names are |
 | `test_carbon_advice.py` | Decision-table test for Plugin._carbon_advice — the run-a-load |

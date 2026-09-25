@@ -14,7 +14,8 @@
  *              repaints on a 3-second poll without tearing down animations.
  * Author:      CliveS & Claude Opus 5 (v1.0); Claude Fable 5 (v1.1); Claude Opus 5.5 (v1.2)
  * Date:        25-09-2026
- * Version:     1.5 (liveness: the top bar's "live" turns amber when the
+ * Version:     1.6 (noteStillWanted: the plugin takes stills only of the
+ *              cameras a page reports it is showing); 1.5 (liveness: the top bar's "live" turns amber when the
  *              data stops); 1.4 (the MJPEG bandwidth probe is gone with MJPEG); 1.3 (swapImage:
  *              camera frames cross-fade instead of cutting);
  *              1.2 (tap guard: a scroll touch never presses a tile, and only
@@ -1445,6 +1446,8 @@
   function refreshStill(img, url, opts) {
     opts = opts || {};
     if (!img || !url) return Promise.resolve(false);
+    // Bookkeeping for the plugin (3.48.0); it must never cost the picture.
+    try { noteStillWanted(url); } catch (e) { /* the next still tries again */ }
     if (img._stillBusy) return Promise.resolve(false);
     var f = opts.fetch || root.fetch;
     if (!f) return Promise.reject(new Error('no fetch'));
@@ -1478,6 +1481,71 @@
         });
       })
       .then(function (v) { done(); return v; }, function (err) { done(); throw err; });
+  }
+
+  /* ---- which cameras this page is showing (3.48.0) ----------------------
+     The plugin used to take a still of every camera every 2 s around the
+     clock, whether or not any page was open. Each still opens a fresh video
+     connection to the camera, so that was five connections a second for
+     pictures nobody saw. It now takes stills only of the cameras a page says
+     it is showing, and gives the rest an occasional health check.
+
+     The stills are plain files the web server hands out, so the plugin never
+     sees them being read. Instead, everything that fetches a still calls
+     noteStillWanted (refreshStill does it for the hub and room pages, the
+     Cameras page calls it from its own fetch), and this reports the hosts
+     with watchCameras: at once when a camera is new to the report, so its
+     first fresh picture is not ten seconds away, then every WATCH_PING_MS.
+     A host not fetched for WATCH_FORGET_MS drops out of the report, and a
+     hidden tab fetches nothing and reports nothing, so the plugin lets
+     those cameras go idle by itself. The demo has no plugin to tell. */
+  var WATCH_PING_MS = 10000, WATCH_FORGET_MS = 15000, WATCH_SOON_MS = 250;
+  var _watchSeen = {};          // host -> when a still for it was last fetched
+  var _watchSent = {};          // hosts named in the last report
+  var _watchTimer = null, _watchSoon = null, _watchBusy = false;
+  /* The camera host a still's address is for: cam-<host>.jpg or
+     cam-<host>-thumb.jpg, the names the plugin writes. null otherwise. */
+  function stillHost(url) {
+    var m = /(?:^|\/)cam-(.+?)(?:-thumb)?\.jpg(?:[?#].*)?$/.exec(String(url || ''));
+    if (!m) return null;
+    try { return decodeURIComponent(m[1]); } catch (e) { return m[1]; }
+  }
+  function watchedHosts(now) {
+    return Object.keys(_watchSeen)
+      .filter(function (h) { return now - _watchSeen[h] <= WATCH_FORGET_MS; })
+      .sort();
+  }
+  function reportWatching() {
+    if (_watchSoon) { clearTimeout(_watchSoon); _watchSoon = null; }
+    if (_watchBusy || isDemo() || (doc && doc.hidden)) return Promise.resolve(false);
+    var hosts = watchedHosts(Date.now());
+    if (!hosts.length) return Promise.resolve(false);
+    _watchBusy = true;
+    var sent = {};
+    hosts.forEach(function (h) { sent[h] = true; });
+    return message('watchCameras', { hosts: hosts }, { timeoutMs: 8000 })
+      .then(function () { _watchSent = sent; return true; },
+            function () { return false; })   // an older plugin, a restart: the next ping tries again
+      .then(function (ok) {
+        _watchBusy = false;
+        // A camera that turned up while this was in flight is not in it.
+        if (watchedHosts(Date.now()).some(function (h) { return !_watchSent[h]; })) {
+          _watchSoon = setTimeout(reportWatching, WATCH_SOON_MS);
+        }
+        return ok;
+      });
+  }
+  /* Say that this page is showing a camera's still. Takes the still's
+     address or the bare host. */
+  function noteStillWanted(urlOrHost) {
+    var s = String(urlOrHost || '');
+    var host = s.indexOf('.jpg') >= 0 ? stillHost(s) : s;
+    if (!host) return;
+    _watchSeen[host] = Date.now();
+    if (!_watchTimer) _watchTimer = setInterval(reportWatching, WATCH_PING_MS);
+    if (!_watchSent[host] && !_watchSoon && !_watchBusy) {
+      _watchSoon = setTimeout(reportWatching, WATCH_SOON_MS);
+    }
   }
 
   /* ---- camera health: is streams.json still being written? -------------
@@ -1669,6 +1737,9 @@
     stillUrl: stillUrl,
     stillPollMs: stillPollMs,
     refreshStill: refreshStill,
+    noteStillWanted: noteStillWanted,
+    stillHost: stillHost,
+    _reportWatching: reportWatching,
     cameraHealthTracker: cameraHealthTracker,
     wx: wx,
     unifiStale: unifiStale,

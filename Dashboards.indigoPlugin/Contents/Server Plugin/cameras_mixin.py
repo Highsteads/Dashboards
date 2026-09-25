@@ -7,7 +7,9 @@
 #              Split out of plugin.py in v3.32.0; Plugin inherits it.
 # Author:      CliveS & Claude Opus 5.5
 # Date:        25-09-2026
-# Version:     1.2 (3.46.0: guest variables are an allow-list; the shared camera
+# Version:     1.3 (3.48.0: stills only while a page is showing them —
+#              watchCameras, per-camera due times, an idle health check)
+#              1.2 (3.46.0: guest variables are an allow-list; the shared camera
 #              login goes only to hosts approved in Configure)
 #              1.1 (v3.36.0: MJPEG route and transcode streams removed)
 
@@ -27,11 +29,17 @@ from dash_common import (
     CAMERA_DEFAULT_STREAM,
     CAMERA_HOST_RE,
     CAMERA_HTTP_TIMEOUT,
+    CAMERA_IDLE_MINUTES_DEFAULT,
+    CAMERA_IDLE_MINUTES_MAX,
     CAMERA_POLL_MAX_WORKERS,
+    CAMERA_POLL_SECONDS,
+    CAMERA_RECHECK_SECONDS,
     CAMERA_RETRY_DELAY,
     CAMERA_SNAPSHOT_WIDTH,
     CAMERA_THUMB_QUALITY,
     CAMERA_THUMB_WIDTH,
+    CAMERA_WATCH_HOSTS_MAX,
+    CAMERA_WATCH_TTL_S,
     GO2RTC_API_PORT,
     GO2RTC_BIN,
     GO2RTC_LOG_CAP_BYTES,
@@ -41,6 +49,7 @@ from dash_common import (
     VENDOR_URLS,
     log,
 )
+from dash_util import stills_idle_minutes
 
 
 def status_reason(text, limit=100):
@@ -1321,6 +1330,100 @@ class CamerasMixin:
             "thumbPattern": f"{folder}/cam-{{host}}-thumb.jpg",
         })
 
+    # --------------------------------------------------------
+    # Who is watching (3.48.0): stills only for cameras on screen
+    # --------------------------------------------------------
+    # The pages fetch the stills straight from /public, so the plugin never
+    # sees those requests. Instead each page that shows stills says which
+    # cameras it is showing (DashUI.noteStillWanted -> watchCameras), at once
+    # for a new one and every 10 s after. A hidden tab fetches nothing and so
+    # says nothing, and its cameras drop back to the idle check
+    # CAMERA_WATCH_TTL_S later.
+
+    def _cam_watch(self):
+        """{host: time the watch runs out}, made on first use so a handler
+        can never race startup()."""
+        w = self.__dict__.get("_cam_watch_until")
+        if w is None:
+            w = self.__dict__["_cam_watch_until"] = {}
+        return w
+
+    def handleWatchCameras(self, action, dev=None, callerWaitingForResult=True):
+        """POST /message/com.clives.indigoplugin.dashboards/watchCameras/
+        Body {"hosts": ["<camera host>", ...]}: the cameras this page is
+        showing as stills right now. Each is kept fresh (a still every
+        CAMERA_POLL_SECONDS) until CAMERA_WATCH_TTL_S after the last call
+        that named it; a camera newly named gets a still on the poller's next
+        pass. Hosts that are not configured cameras are ignored, not refused,
+        so a page left open across a camera change keeps working. No I/O:
+        this is a dict update on the shared dispatch path."""
+        payload, _reply = self._request_body(action, changes_state=True)
+        if _reply:
+            return _reply
+        hosts = payload.get("hosts")
+        if not isinstance(hosts, list) or len(hosts) > CAMERA_WATCH_HOSTS_MAX \
+                or any(not isinstance(h, str) for h in hosts):
+            return self._evo_reply({"ok": False,
+                                    "error": f"hosts must be a list of at most "
+                                             f"{CAMERA_WATCH_HOSTS_MAX} camera hosts"},
+                                   status=400)
+        known = {c.get("host") for c in (getattr(self, "cameras", None) or ())
+                 if isinstance(c, dict)}
+        now = time.time()
+        watch = self._cam_watch()
+        states = self.__dict__.setdefault("_cam_state", {})
+        taken = 0
+        for host in hosts:
+            if host not in known:
+                continue
+            if watch.get(host, 0) <= now:
+                # Newly watched: whatever is on disk may be minutes old, so
+                # the next pass takes a picture rather than waiting its turn.
+                st = states.get(host)
+                if st is not None:
+                    st["due_now"] = True
+            watch[host] = now + CAMERA_WATCH_TTL_S
+            taken += 1
+        return self._evo_reply({"ok": True, "watching": taken,
+                                "ttlSeconds": CAMERA_WATCH_TTL_S})
+
+    def _stills_idle_seconds(self):
+        """How often an unwatched camera is checked, in seconds (0 = never),
+        from the stillsIdleMinutes key in the settings store. A bad value is
+        logged once and the default used."""
+        store = getattr(self, "cfg_store", None)
+        raw = store.get("stillsIdleMinutes") if isinstance(store, dict) else None
+        minutes, problem = stills_idle_minutes(raw, CAMERA_IDLE_MINUTES_DEFAULT,
+                                               CAMERA_IDLE_MINUTES_MAX)
+        if problem and self.__dict__.get("_stills_idle_warned") != problem:
+            self.__dict__["_stills_idle_warned"] = problem
+            log(f"[Cameras] {problem}", level="WARNING")
+        return minutes * 60
+
+    def _camera_due(self, host, st, now):
+        """Should this camera have a picture taken on this pass?
+
+        Watched: every CAMERA_POLL_SECONDS, as before 3.48.0. Newly watched:
+        straight away. Not watched: every stillsIdleMinutes, which keeps camera
+        health and the hub's offline warning honest; after a failure, again in
+        CAMERA_RECHECK_SECONDS until it has failed three times, so a camera
+        that has just gone shows as offline in about a minute rather than a
+        quarter of an hour. Never tried at all: straight away, unless the
+        idle check is switched off. The half-second slack lets a pass that
+        wakes a hair early still count as on time."""
+        last = st.get("last_try")
+        if st.get("due_now"):
+            return True
+        if self._cam_watch().get(host, 0) > now:
+            return last is None or now - last >= CAMERA_POLL_SECONDS - 0.5
+        fails = int(st.get("fail_count", 0) or 0)
+        if 0 < fails < 3:
+            return last is None or now - last >= CAMERA_RECHECK_SECONDS
+        idle = self._stills_idle_seconds()
+        if idle <= 0:
+            return False
+        return last is None or now - last >= idle - 0.5
+
     # Frames in a row without a thumbnail before the old one is removed.
     THUMB_MISS_LIMIT = 3
 
@@ -1706,7 +1809,9 @@ class CamerasMixin:
                 self._cam_inflight.discard(host)
 
     def _poll_cameras_once(self):
-        """One sweep over every configured camera, live-viewed or not. Logs
+        """One pass over the configured cameras, taking a still of each one
+        that is due (_camera_due: every 2 s while a page shows it, otherwise
+        an occasional health check — 3.48.0). Logs
         failures throttled (state stored in self._cam_state) so the event log
         doesn't flood when a camera is offline for hours.
 
@@ -1735,7 +1840,10 @@ class CamerasMixin:
             return
         for cam in self.cameras:
             host = cam["host"]
-            # EVERY camera is snapshotted, including any with a live viewer.
+            # A camera that is due is snapshotted whether or not someone else
+            # has it live. (Since 3.48.0 "due" means a page is showing its
+            # still, or its idle health check has come round — see
+            # _camera_due. Before that, every camera was due every pass.)
             #
             # This used to skip a camera with an active MJPEG consumer, on the
             # reasoning that whoever was watching the stream did not need the
@@ -1757,12 +1865,17 @@ class CamerasMixin:
             # tick, which is nothing next to a tile that never changes.
             # Pre-create the state entry HERE, on this one thread, so the
             # workers only ever read and mutate an entry that already exists.
-            self._cam_state.setdefault(host, {"ok_count": 0, "fail_count": 0, "last_log": 0,
-                                               "last_ok": None, "last_failure": None})
+            st = self._cam_state.setdefault(host, {"ok_count": 0, "fail_count": 0, "last_log": 0,
+                                                    "last_ok": None, "last_failure": None})
+            now = time.time()
+            if not self._camera_due(host, st, now):
+                continue                      # nobody is watching, and its check is not due
             with self._cam_inflight_lock:
                 if host in self._cam_inflight:
                     continue                  # previous fetch still running
                 self._cam_inflight.add(host)
+            st["last_try"] = now
+            st.pop("due_now", None)
             try:
                 pool.submit(self._snapshot_worker, cam)
             except Exception:

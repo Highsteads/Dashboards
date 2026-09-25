@@ -101,6 +101,16 @@ ALERT_STORE_KEYS = ("alertRules", "alertsActive", "alertEmail", "alertRulesRev")
 # is better to drop from the live pool.
 CAMERA_PORT          = 80                                  # snapshot HTTP port (Dahua & Hikvision)
 CAMERA_POLL_SECONDS  = 2.0                                 # snapshot poll interval per camera (drives all thumbnail tiles, including cameras with live viewers)
+# 3.48.0: stills are taken only while a page is showing them. Each still opens a
+# fresh RTSP session to the camera and waits for a keyframe (go2rtc keeps nothing
+# open between frame.jpeg calls), so ten cameras every 2 s was five camera
+# connections a second around the clock: ~4.4 Mbit/s in from the cameras and
+# ~13 GB a day of JPEG writes, measured 25-09-2026, for pictures nobody saw.
+CAMERA_WATCH_TTL_S   = 30.0                                # a camera counts as watched this long after a page last said so (pages report every 10 s)
+CAMERA_WATCH_HOSTS_MAX = 64                               # the most hosts one watchCameras call may name
+CAMERA_IDLE_MINUTES_DEFAULT = 5                           # an unwatched camera is still checked this often, so camera health and the hub's offline warning keep working
+CAMERA_IDLE_MINUTES_MAX = 60                              # the most a saved stillsIdleMinutes may ask for (0 = never check an unwatched camera)
+CAMERA_RECHECK_SECONDS = 30.0                             # an unwatched camera whose last still FAILED is tried again this soon, so "offline" (3 failures) shows in about a minute, not 15
 CAMERA_POLL_MAX_WORKERS = 9                                # concurrent snapshot fetches. Serially, nine cameras
                                                            # overran the 2s interval and each tile only refreshed
                                                            # every ~4.1s (measured); these are all network waits,

@@ -166,6 +166,17 @@
         <CallbackMethod>handleCameraStills</CallbackMethod>
     </Action>
 
+    <!-- POST /message/com.clives.indigoplugin.dashboards/watchCameras/
+         Body: {"hosts": ["<camera host>", ...]} (3.48.0). The cameras a page
+         is showing as stills. The plugin takes stills only of those (every
+         2 s) and gives the rest an occasional health check. Pages send it
+         through DashUI.noteStillWanted: at once for a new camera, then every
+         10 s while the page is on screen. -->
+    <Action id="watchCameras" uiPath="hidden">
+        <Name>Watch Cameras</Name>
+        <CallbackMethod>handleWatchCameras</CallbackMethod>
+    </Action>
+
     <!-- POST /message/com.clives.indigoplugin.dashboards/changedSince/
          Body: {"since": <server epoch float>}
          Returns device IDs changed/deleted after `since` (fed by

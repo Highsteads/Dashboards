@@ -31,7 +31,7 @@ const w = {
     matchMedia: () => ({ matches: true }),                 // reduced motion: plain swap
     getComputedStyle: () => ({ position: "relative", objectFit: "cover" }),
     requestAnimationFrame: f => f(),
-    setTimeout, clearTimeout, AbortController,
+    setTimeout, clearTimeout, setInterval, clearInterval, AbortController,
     URL: { createObjectURL: () => { const u = "blob:" + (++nextBlob); made.push(u); return u; },
            revokeObjectURL: u => revoked.push(u) },
     Image: function () {

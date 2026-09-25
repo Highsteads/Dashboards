@@ -16,12 +16,14 @@
 #              without `indigo` so the tests can drive it.
 # Author:      CliveS & Claude Fable 5.1
 # Date:        25-09-2026
-# Version:     1.2 (3.47.0: list_alerts)
+# Version:     1.3 (3.48.0: get_status says which cameras are being watched)
+#              1.2 (3.47.0: list_alerts)
 
 import json
 import os
 import re
 import sys
+import time
 
 try:
     import indigo
@@ -216,6 +218,14 @@ def _apply(plugin, cfg):
     return payload
 
 
+def _stills_watched(plugin):
+    """Names of the cameras a page is showing right now (3.48.0)."""
+    now = time.time()
+    watch = plugin._cam_watch()
+    return sorted(str(c.get("name") or c.get("host")) for c in plugin.cameras
+                  if isinstance(c, dict) and watch.get(c.get("host"), 0) > now)
+
+
 def _camera_public(cam):
     """A camera dict as the AI should see it — never a credential."""
     out = {"host": cam.get("host", ""), "name": cam.get("name", ""),
@@ -265,6 +275,10 @@ def tool_get_status(plugin, args):
             "credentialsSet":   bool(getattr(plugin, "cam_user", "") and getattr(plugin, "cam_pass", "")),
             "go2rtcRunning":    go2rtc is not None and go2rtc.poll() is None,
             "proxyRunning": getattr(plugin, "_proxy_server", None) is not None,
+            # 3.48.0: stills are taken every 2 s only for cameras a page is
+            # showing; the rest get one every stillsIdleMinutes (0 = none).
+            "stillsWatched":    _stills_watched(plugin),
+            "stillsIdleMinutes": plugin._stills_idle_seconds() // 60,
         },
         "history": {
             "backend":     str((plugin.pluginPrefs or {}).get("historyBackend") or "sqlite"),

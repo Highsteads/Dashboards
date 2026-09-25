@@ -14,7 +14,8 @@
 #              pages out.
 # Author:      CliveS & Claude Opus 5.5
 # Date:        25-09-2026
-# Version:     1.1 (3.47.0: every plugin module is scanned; the alert save and test)
+# Version:     1.2 (3.48.0: watchCameras)
+#              1.1 (3.47.0: every plugin module is scanned; the alert save and test)
 
 import json
 import re
@@ -93,7 +94,7 @@ def test_the_other_state_changing_handlers_refuse_a_form_too():
     form = {"Content-Type": "application/x-www-form-urlencoded"}
     for name in ("handleEvoHomeAction", "handleLaundryDeadline", "handleVerifyPin",
                  "handleApplyColour", "handleBurnSetupToken", "handleSaveAlertRules",
-                 "handleSendTestAlert"):
+                 "handleSendTestAlert", "handleWatchCameras"):
         reply = getattr(p, name)(Action("{}", form))
         assert reply["status"] == 415, name
 
@@ -108,7 +109,7 @@ def test_exactly_the_state_changing_handlers_are_guarded():
             guarded.add(m.group(1))
     assert guarded == {"handleSaveDashboardsConfig", "handleEvoHomeAction", "handleLaundryDeadline",
                        "handleVerifyPin", "handleApplyColour", "handleBurnSetupToken",
-                       "handleSaveAlertRules", "handleSendTestAlert"}, guarded
+                       "handleSaveAlertRules", "handleSendTestAlert", "handleWatchCameras"}, guarded
 
 
 def test_every_page_post_to_the_plugin_says_json():

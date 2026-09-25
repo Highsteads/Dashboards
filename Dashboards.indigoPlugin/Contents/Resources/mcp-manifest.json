@@ -9,7 +9,7 @@
   "tools": [
     {
       "name": "get_status",
-      "description": "What the Dashboards plugin is running right now: version, the hub URL, where its configuration comes from, which room folders it is using and how many of them exist in Indigo, the camera pipeline state, the history backend and which optional companion scripts are present. Read-only. Call this first when asked anything about the dashboards.",
+      "description": "What the Dashboards plugin is running right now: version, the hub URL, where its configuration comes from, which room folders it is using and how many of them exist in Indigo, the camera pipeline state (including which cameras a page is showing, the only ones given a still every two seconds), the history backend and which optional companion scripts are present. Read-only. Call this first when asked anything about the dashboards.",
       "write": false,
       "timeout_seconds": 15,
       "inputSchema": {"type": "object", "properties": {}, "required": []}
