@@ -1357,7 +1357,7 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         prefs = getattr(self, "pluginPrefs", None) or {}
         return as_bool(prefs.get("reflectorBlock"), False)
 
-    def _request_body(self, action, refuse_reflector=True):
+    def _request_body(self, action, refuse_reflector=True, changes_state=False):
         """(payload, None) for a request to act on, or (None, reply) to send back.
 
         The one place for what every browser-facing handler does first (v3.25.0):
@@ -1367,9 +1367,18 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         said every handler did, and four read the body with .get() outside their
         try, so a JSON list raised AttributeError and IWS answered 500, which
         Log_Error_Watch then counted as a server fault.
+
+        changes_state=True (3.46.0) also insists the request SAYS it is JSON
+        (see _json_request_refusal): the handlers that change something —
+        settings, heating, colour, a laundry deadline, the PIN check, a setup
+        link — must not be reachable by a plain HTML form on another site.
         """
         if refuse_reflector:
             refused = self._refuse_reflector(action)
+            if refused:
+                return None, refused
+        if changes_state:
+            refused = self._json_request_refusal(action)
             if refused:
                 return None, refused
         body = action.props.get("request_body") or ""
@@ -1381,6 +1390,45 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
             return None, self._evo_reply(
                 {"ok": False, "error": "body must be a JSON object"}, status=400)
         return payload, None
+
+    def _json_request_refusal(self, action):
+        """A 415 reply when a state-changing request does not carry
+        Content-Type: application/json, otherwise None (3.46.0).
+
+        A page on any other website can make a browser POST a plain HTML form
+        here, and a browser that has logged in to the Indigo web server sends
+        its saved login with it. A form can only send three content types
+        (form-urlencoded, multipart, text/plain); asking for application/json
+        needs a script, and a script on another site cannot send it here
+        without a CORS preflight the Indigo web server never grants. Every
+        page already sends application/json (DashUI.message, dashboard.js,
+        setup.html), so this costs them nothing.
+
+        When the request carries no headers at all, there is nothing to judge:
+        that is an Indigo web server that does not pass them to plugins, and
+        refusing would break every page. It is allowed, and logged once."""
+        props = getattr(action, "props", None) or {}
+        try:
+            raw = props.get("headers")
+        except Exception:
+            raw = None
+        if raw is None:
+            if not getattr(self, "_csrf_no_headers_logged", False):
+                self._csrf_no_headers_logged = True
+                log("[Security] the Indigo web server passed no request headers to the plugin, "
+                    "so state-changing requests cannot be checked for Content-Type: "
+                    "application/json", level="WARNING")
+            return None
+        try:
+            hdrs = {str(k).lower(): str(v) for k, v in dict(raw).items()}
+        except Exception:
+            hdrs = {}
+        ctype = hdrs.get("content-type", "").split(";", 1)[0].strip().lower()
+        if ctype == "application/json":
+            return None
+        return self._evo_reply({"ok": False,
+                                "error": "this request must be sent as application/json"},
+                               status=415)
 
     def _refuse_reflector(self, action):
         """A 403 reply when this request came through the reflector and the
@@ -1714,7 +1762,7 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         Validates the action ID against an allowlist, then delegates to the
         EvoHome Heating Controller plugin via executeAction().
         """
-        payload, _reply = self._request_body(action)
+        payload, _reply = self._request_body(action, changes_state=True)
         if _reply:
             return _reply
         action_id = str(payload.get("action_id") or "").strip()
@@ -2757,7 +2805,7 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         Replans immediately and returns the new plan, so the page shows the answer to the
         question just asked rather than the previous one until the next tick.
         """
-        payload, _reply = self._request_body(action)
+        payload, _reply = self._request_body(action, changes_state=True)
         if _reply:
             return _reply
 
@@ -2848,7 +2896,7 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         never reaches the browser. NOTE: this is a speed bump for paired
         devices (kids on the iPad), NOT a security boundary — a paired
         browser already holds the full API key."""
-        payload, _reply = self._request_body(action)
+        payload, _reply = self._request_body(action, changes_state=True)
         if _reply:
             return _reply
         pin = str(payload.get("pin") or "")
@@ -2940,7 +2988,7 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         earlier one failed — a colour command works on a lamp that is off, it
         just is not visible yet — but a failure is RECORDED and returned, never
         swallowed the way the browser used to swallow it."""
-        payload, _reply = self._request_body(action)
+        payload, _reply = self._request_body(action, changes_state=True)
         if _reply:
             return _reply
 
@@ -3165,7 +3213,7 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         """POST /message/com.clives.indigoplugin.dashboards/burnSetupToken/
         Body: {"token": "<token>"}  (Bearer-authenticated by IWS upstream)
         Deletes the one-time setup files so a redeemed link cannot be reused."""
-        payload, _reply = self._request_body(action)
+        payload, _reply = self._request_body(action, changes_state=True)
         if _reply:
             return _reply
         token = str(payload.get("token") or "").strip()

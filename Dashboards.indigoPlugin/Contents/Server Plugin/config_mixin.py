@@ -563,7 +563,7 @@ class ConfigMixin:
         becomes the single source of truth) and applies what can be applied
         live. Camera changes need a plugin restart (go2rtc / pollers / proxy
         are built at startup) — the reply says so."""
-        payload, _reply = self._request_body(action)
+        payload, _reply = self._request_body(action, changes_state=True)
         if _reply:
             return _reply
         cfg = payload.get("config")
