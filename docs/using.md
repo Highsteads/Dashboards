@@ -25,11 +25,14 @@ between them, in the direction the energy is actually going. Reverse the battery
 discharging and the dots turn round. The figures behind it refresh every five seconds, and the
 battery ring sweeps to its new level rather than jumping.
 
-**The live dot tells you whether to believe the page.** Every page carries a small green dot beside
-its "Updated" time that pulses while the data is arriving. If nothing has arrived for three missed
-polls it turns amber, stops pulsing, and the line changes to "not updating for four minutes". It
-runs on its own timer rather than on the poll, because a poll that has died cannot be trusted to
-report that it has died — and only a poll that actually returned data clears it.
+**The live dot tells you whether to believe the page.** The hub, Energy, Cost, System, Mains and
+Meter pages carry a small green dot beside their "Updated" time that pulses while the data is
+arriving. If nothing has arrived for a while (half a minute on the hub and Energy, three missed
+polls on the others) it turns amber, stops pulsing, and the words beside it change to "out of date"
+(on Mains and Meter, "not updating for four minutes"). It runs on its own timer rather than on the
+poll, because a poll that has died cannot be trusted to report that it has died — and only a poll
+that actually returned data clears it. The pages that count down to their next refresh instead
+(rooms, Heating, Active, Weather, Wi-Fi) have no dot; their Updated time simply stops moving.
 
 **Sensors pulse while they are seeing something.** A motion or presence tile on a room page
 breathes gently for as long as the sensor is detecting, so a glance tells you the difference between
@@ -42,8 +45,9 @@ door really has moved, goes red if it failed, and goes amber and tells you to go
 confirmed it either way. It is reporting the door, not the fact that Indigo accepted the request.
 
 **Cameras are live video, not stills.** The camera's own H.264, relayed over WebRTC with no
-re-encoding, on the Cameras page; the hub and room pages show stills that cross-fade, and a tap
-opens the live picture. On a slow link — away from home over Tailscale, on mobile data — everything slows
+re-encoding, on the Cameras page and on the hub's camera strip, wherever the connection is fast
+enough to carry it (the pages time it); on a slower one they show stills that cross-fade. The room
+pages show stills, and a tap opens that camera on the Cameras page. On a slow link — away from home over Tailscale, on mobile data — everything slows
 right down and then stops altogether after ten minutes untouched, because somebody is paying for
 those bytes.
 
@@ -73,13 +77,13 @@ entrances all go, while everything keeps working.
 | Activity | an event | that moment on the Timeline |
 | Timeline | the presence lane | the Presence page |
 | Energy | the money figures | the Cost page, and back again |
+| Room | a camera | the Cameras page, with that camera enlarged |
 
 **Tiles that open in place, without leaving the page:**
 
 | On this page | Tapping this | Opens |
 |---|---|---|
 | Room | a light or socket | its own controls, and a full colour picker for anything colour-capable |
-| Room | a camera | that camera's stream, full width |
 | Room | a blind | its position control |
 | Weather | any sensor | that sensor's reading and its recent history |
 | Cameras | any stream | full screen — tap again to come back |

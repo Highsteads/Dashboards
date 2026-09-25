@@ -113,12 +113,13 @@ disagree rather than a reading, because they genuinely span 3.7 volts.
 
 ## Every page
 
-Twenty-two pages you use, plus five that hold the whole thing together. Every one is a plain HTML
+Sixteen pages you use, plus five that hold the whole thing together (the menu, Settings, Setup,
+Guest and Demo). Every one is a plain HTML
 file — no build step, no framework, no bundler — and every one has [a page of notes](https://highsteads.github.io/Dashboards/pages/) on the site.
 
 | Page | What it is for |
 |---|---|
-| **[Hub](docs/pages/hub.md)** `index.html` | The front page. One chip that says whether anything needs a look, who is home, the heating, your pinned favourites, a strip of camera stills, the battery, the solar day so far, and a power-cut banner when there is one |
+| **[Hub](docs/pages/hub.md)** `index.html` | The front page. One chip that says whether anything needs a look, who is home, the heating, your pinned favourites, a strip of cameras (live video where the connection is fast enough, stills otherwise), the battery, the solar day so far, and a power-cut banner when there is one |
 | **[Menu](docs/pages/menu.md)** `menu.html` | Every page in one grouped list, with each room as its own entry |
 | **[Room](docs/pages/room.md)** `room.html?room=Name` | One room end to end — lights and sockets with real controls, blinds, sensors, cameras, doors |
 | **[Active](docs/pages/active.md)** `active.html` | Everything currently on, across the whole house |

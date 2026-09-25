@@ -464,14 +464,16 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
             return out;
         }
 
-        // ── custom links (full-size hub tiles to any URL) ─────────────────
+        // ── custom links (tiles in the Menu page's Tools group) ───────────
         // Each row: title, URL, optional description, optional icon (a name from
         // the shared icon set, e.g. 'bolt' or 'wifi'; anything else shows as-is).
-        // DOM order = display order on the hub. The URL is published in the
-        // public config.js — do NOT put a token/secret in it.
+        // DOM order = display order on the menu. The URL is published in the
+        // public config.js — do NOT put a token/secret in it. (3.46.0: the hint
+        // still said "on the hub", which has had no tile wall since the menu
+        // took the links.)
         function renderCustomLinks() {
             const card = el(`<section class="card"><h2>Custom links</h2>
-                <div class="hint">Full-size tiles on the hub that open any URL in a new tab &mdash; e.g. the MQTT Explorer page, a Grafana board, a router admin page. <b>Title</b> and <b>URL</b> are required; description and icon are optional &mdash; for the icon, name one from the dashboard's own set (<code>bolt</code>, <code>wifi</code>, <code>camera</code>, <code>gear</code>&hellip;). The order here is the order they appear. <b>Don't put a token or password in the URL</b> &mdash; this config is served without authentication, so the target page should handle its own login.</div>
+                <div class="hint">Tiles in the Tools group of the Menu page that open any URL in a new tab &mdash; e.g. the MQTT Explorer page, a Grafana board, a router admin page. They do not appear on the hub. <b>Title</b> and <b>URL</b> are required; description and icon are optional (the menu does not show the description at present) &mdash; for the icon, name one from the dashboard's own set (<code>bolt</code>, <code>wifi</code>, <code>camera</code>, <code>gear</code>&hellip;). The order here is the order they appear. <b>Don't put a token or password in the URL</b> &mdash; this config is served without authentication, so the target page should handle its own login.</div>
                 <div id="link-list"></div>
                 <div style="margin-top:8px"><button class="btn" id="link-add">+ Add link</button></div>
             </section>`);
@@ -520,7 +522,7 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
         function renderCameras() {
             const card = el(`<section class="card"><h2>Cameras</h2>
                 <div class="hint">Host is an IP address or plain hostname (no port). Vendor decides the RTSP URL template. Stream sub2 is the low-bandwidth default. Rooms is a comma list of room names whose page should show this camera. Main = include in the hub's camera mosaic. Camera changes need a plugin restart.</div>
-                <div class="hint"><b>Live pictures.</b> At home the cameras page shows six cameras as live video and the rest as pictures that refresh every two seconds. The <code>livePoolSize</code> key (raw JSON, default 6) changes how many are live: each costs about 1 Mbit/s on the network and some work for the device showing it, so an older tablet may be happier with fewer. Away from home only the camera you tap to the top is live, and through the Indigo reflector none are.</div>
+                <div class="hint"><b>Live pictures.</b> The Cameras page times the connection and shows as many cameras as live video as its speed can carry, at home or away, up to the <code>livePoolSize</code> key (raw JSON, 0 to 12, default 6); the rest are pictures that refresh every second or two. Each live tile costs about 1.4 Mbit/s on the network and some work for the device showing it, so an older tablet may be happier with fewer. Through the Indigo reflector none are live.</div>
                 <table><thead><tr>
                     <th>Name</th><th>Host</th><th>Vendor</th><th>Stream</th><th>Rooms</th><th>Main</th><th class="row-del"></th>
                 </tr></thead><tbody id="cam-rows"></tbody></table>
