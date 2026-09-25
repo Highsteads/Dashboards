@@ -5,9 +5,10 @@
  *              its buttons and the colour palette, all taken from the Energy
  *              page, so every page looks like it. Each page links this
  *              straight after its own <style>, so these rules come last.
+ *              v1.2 (3.46.0): the top bar's stale state, shared.
  * Author:      CliveS & Claude Opus 5.5
- * Date:        23-09-2026
- * Version:     1.1
+ * Date:        25-09-2026
+ * Version:     1.2
  */
 /* ═══ Shared Apple/Safari polish (v2.25.0) ═════════════════
    Appended uniformly across pages: frosted translucent bars, laptop
@@ -103,6 +104,15 @@ header.topbar {
     animation: dash-live-pulse 2.4s ease-in-out infinite;
 }
 @keyframes dash-live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+/* v1.2 (3.46.0): DashUI.liveness adds .stale when a page's data has stopped
+   arriving — an amber dot that holds still, and amber words beside it. The
+   dot is a still one for a reader who asked for less motion: the blanket
+   rule above only shortens animations, which would leave it flickering. */
+:where(header.topbar) .topbar-status.stale { color: var(--warn); font-weight: 600; }
+:where(header.topbar) .topbar-status.stale .ts::before { color: var(--warn); animation: none; }
+@media (prefers-reduced-motion: reduce) {
+    :where(header.topbar) .topbar-status .ts::before { animation: none; }
+}
 
 .nav-btn {
     background: var(--card-bg); border: 1px solid var(--border-soft); color: var(--accent);
