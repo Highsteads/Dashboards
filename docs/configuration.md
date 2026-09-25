@@ -31,7 +31,7 @@ There are three places a setting can come from, and one of them wins.
 | Swap-Out Host | A camera that can replace another in the hub's strip |
 | Hidden Scenes (JSON) | Action-group names or ids to keep off the Scenes page |
 | Carbon Region | Your UK grid region, for the Carbon page and the hub's carbon chip |
-| Auto-seed the API key to LAN browsers | A new browser on the home network or tailnet pairs itself on first visit |
+| Auto-seed the API key to LAN browsers | Off for a new install (3.46.0). On, a new browser on the home network or tailnet pairs itself on first visit, which hands the full API key to any device that asks, a visitor's included. Off, each device pairs once with a one-time setup link — see [Pairing a browser](getting-started.md#pairing-a-browser) |
 | OpenWeatherMap API key, latitude, longitude | The hub weather card's forecast and sun times |
 | System Health thresholds | How many hours quiet makes a battery device "quiet", and what counts as a low battery |
 | go2rtc binary path | Where to find go2rtc if it is not on the PATH |

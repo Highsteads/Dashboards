@@ -185,6 +185,9 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         # Until then there were two paths, every consumer branched between
         # them, and some re-read the file from disk while others did not.
         self.cfg_store = self._load_config_store()
+        # Read BEFORE the legacy import below creates the store: whether this
+        # install has run before decides the key auto-seed default (3.46.0).
+        _existing_install = bool(self.cfg_store) or bool(self._store_unreadable)
         # Only when the file is ABSENT. A present but unreadable one has been
         # set aside and logged, and importing over it would save.
         if not self.cfg_store and not self._store_unreadable:
@@ -210,13 +213,18 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         self.guest_token  = self._load_guest_token()
         self.control_pin  = str(store.get("controlPin") or "")
         self.pin_required = list(store.get("pinRequired") or [])
-        # Bootstrap key auto-seed (v2.36.0). Default True = the LAN convenience
-        # that seeds the API key to any private-source browser on first visit.
-        # A deployment that runs guest-tier devices can set this False to make
-        # the guest boundary real — /bootstrap then 403s and trusted devices
-        # pair via the one-time setup links (menu: Generate One-Time Setup Link)
-        # instead. Default preserves existing behaviour; nobody's setup breaks.
-        self.bootstrap_key_seed = as_bool(pluginPrefs.get("bootstrapKeySeed"), True)
+        # Bootstrap key auto-seed (v2.36.0). On, it hands the full API key to
+        # any private-source browser on first visit — a visitor's phone on the
+        # Wi-Fi in a private tab included. Off, /bootstrap 403s and devices
+        # pair via the one-time setup links (menu: Generate One-Time Setup
+        # Link) instead, which is what makes the guest boundary real.
+        # 3.46.0: OFF for a new install. An existing install keeps whatever it
+        # had: a stored value is used as it is, and one that never stored it
+        # (Configure not saved since before 2.36.0) keeps the old default of on,
+        # which is then written down so it never flips silently, with a
+        # one-time notice recommending the switch. See _bootstrap_seed_pref.
+        self.bootstrap_key_seed = self._settle_bootstrap_seed(
+            pluginPrefs, existing=_existing_install or self._prefs_have_history(pluginPrefs))
 
         # Routine activity narration (06-09-2026). OFF means the file copies,
         # page syncs and poller/proxy/go2rtc start-stop lines are written at
@@ -2558,7 +2566,11 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
             return
         prefs = valuesDict or {}
         self._apply_log_level(prefs.get("logLevel", 20))
-        self.bootstrap_key_seed = as_bool(prefs.get("bootstrapKeySeed"), True)
+        # The dialog always carries the checkbox; should it ever not, keep what
+        # is in force rather than fall back to a default (3.46.0: the default
+        # changed, and a save must never be what flips it).
+        self.bootstrap_key_seed = as_bool(prefs.get("bootstrapKeySeed"),
+                                          getattr(self, "bootstrap_key_seed", False))
         self.log_activity = as_bool(prefs.get("logActivityToEventLog"), False)
         secrets_mod = None
         try:

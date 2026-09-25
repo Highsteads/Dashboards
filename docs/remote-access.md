@@ -19,8 +19,10 @@ Why this plugin needs it:
   video. Over Tailscale the pages time the connection and go live wherever it is fast enough, and
   stay on stills where it is not, so a phone that keeps Tailscale on at home gets every camera
   live there.
-- **No pairing ceremony.** A new browser on the tailnet auto-pairs on first visit, exactly as at
-  home. Any other way in, you would need a one-time setup link or to type the API key.
+- **Pairing works as it does at home.** A device on the tailnet pairs with a one-time setup link,
+  exactly as on the sofa (or pairs itself on first visit, if you have turned on *Auto-seed the API
+  key to LAN browsers*). Any other way in, you would need a setup link opened there or to type the
+  API key.
 - **Nothing exposed.** No port forwarding, no public attack surface, WireGuard encryption end to
   end.
 
