@@ -36,7 +36,7 @@ There are three places a setting can come from, and one of them wins.
 | System Health thresholds | How many hours quiet makes a battery device "quiet", and what counts as a low battery |
 | go2rtc binary path | Where to find go2rtc if it is not on the PATH |
 | SQL Logger backend | SQLite (the default) or PostgreSQL, with the connection fields for Postgres |
-| Refuse the reflector | Off by default. When on, the pages refuse to run over the Indigo reflector and show the LAN address instead — see [Remote access](remote-access.md) |
+| Refuse the reflector | Off by default. When on, the pages refuse to run over the Indigo reflector and show the LAN address instead, and the plugin's endpoints refuse requests that came that way. Indigo's web server still serves the static files there (the pages, `config.js`, `rooms.json`, stills to anyone who knows their folder) — only switching the reflector off in Indigo stops that; see [Remote access](remote-access.md#the-indigo-reflector) |
 | Log routine activity to the Indigo Event Log | Whether the plugin's own housekeeping lines go to the event log or only to its own log file |
 | Log Level | Debug puts the narration back |
 

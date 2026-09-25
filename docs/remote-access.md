@@ -86,10 +86,19 @@ connection's speed. A page that can see it was reached through the reflector pol
 at a tenth of the home rate, stops altogether after ten minutes untouched, and shows a banner with
 the LAN link. The plugin notes each device that arrives over the reflector, once an hour, in its
 log, naming the device and the LAN address it should use instead. And **Refuse the reflector**
-under Configure turns it away entirely: every page then stops before asking for anything and shows
-the LAN address instead. It is off by default, because plenty of installs have no other way in,
-and it should go on the day you have Tailscale — which is how this house runs now, with the
-reflector switched off in Indigo as well.
+under Configure stops the dashboards working over it: every page stops before asking for anything
+and shows the LAN address instead, and the plugin's own endpoints refuse a request that came that
+way, so no device data, history or camera list crosses it. It is off by default, because plenty of
+installs have no other way in, and it should go on the day you have Tailscale.
+
+**What that switch cannot do.** The files under `/public/dashboards/` are served by Indigo's own web
+server, not by the plugin, and a plugin cannot stop Indigo serving them. Over the reflector, anyone
+who has the address can still fetch the pages themselves, `config.js` (the site name, your favourites,
+the camera names and addresses; never a credential), `rooms.json`, `scenes.json` and `weather.json`, the camera pictures
+to anyone who knows the secret folder's name, and a one-time setup link during the ten minutes
+before it is used or expires. Indigo's own REST API also still answers there, to anyone holding the
+API key. The only way to close all of that is to switch the reflector off in Indigo itself, which
+is how this house runs now.
 
 **"Remote" can be your own house.** A phone that was paired with the reflector address while
 sitting on the home Wi-Fi goes out to Indigo's servers and back for every request, and looks
