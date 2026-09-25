@@ -214,8 +214,9 @@ for you if you ask.
 The pages also work over the Indigo reflector, which is metered, and my advice is not to use it:
 run cameras through it and Indigo Domotics will write to you, then switch it off, as I found out.
 A page that can see it was reached that way polls stills at a tenth of the home rate and stops
-after ten minutes untouched, and a Configure switch refuses the reflector altogether once you have
-Tailscale. Details, and the guest-device pairing for a wall tablet, on the
+after ten minutes untouched, and a Configure switch stops the dashboards working over it once you
+have Tailscale (Indigo still serves the static files there; only switching the reflector off in
+Indigo closes it completely). Details, and the guest-device pairing for a wall tablet, on the
 [Remote access](https://highsteads.github.io/Dashboards/remote-access.html) page.
 
 ## Ports

@@ -101,7 +101,8 @@ measured about 1 MB/s together, so the pages allow 1.4 Mbit/s a tile and want tw
 before going live: about 11 Mbit/s for the hub's four and 17 for six. The Cameras page keeps a live
 kB/s figure in its header, counted from what this browser actually receives, so the
 number is visible before it becomes a phone bill. Over the Indigo reflector the pages poll at a
-tenth of the home rate, and the plugin can refuse the reflector entirely; see
+tenth of the home rate, and the pages and the plugin can refuse the reflector (Indigo's web server
+still serves the static files there, stills included to anyone who knows their folder); see
 [Remote access](remote-access.md). Live video only works remotely over Tailscale, because nothing
 else reaches ports 8177 and 8555.
 

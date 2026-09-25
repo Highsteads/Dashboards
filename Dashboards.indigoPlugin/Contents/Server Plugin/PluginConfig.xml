@@ -150,7 +150,7 @@
 	<Field id="sep_reflector" type="separator"/>
 
 	<Field id="lblReflector" type="label" fontSize="small">
-		<Label>Indigo's reflector relays remote traffic through Indigo Domotics' own servers, and they pay for it. Camera pictures are far heavier than the reflector is meant for: nine snapshots a second from one page away from home is several gigabytes a day. If you reach this server another way when you are out — Tailscale, WireGuard, a VPN back to the house — turn this on and the dashboards will refuse the reflector entirely.</Label>
+		<Label>Indigo's reflector relays remote traffic through Indigo Domotics' own servers, and they pay for it. Camera pictures are far heavier than the reflector is meant for: nine snapshots a second from one page away from home is several gigabytes a day. If you reach this server another way when you are out — Tailscale, WireGuard, a VPN back to the house — turn this on and the pages and the plugin's endpoints will refuse the reflector. Indigo's web server still serves the static files there (the pages, config.js, rooms.json, camera stills to anyone who knows their folder); only switching the reflector off in Indigo stops that.</Label>
 	</Field>
 	<Field id="reflectorBlock" type="checkbox" defaultValue="false">
 		<Label>Refuse the reflector:</Label>
