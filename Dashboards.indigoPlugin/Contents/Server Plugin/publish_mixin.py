@@ -5,8 +5,8 @@
 #              and writing config.js with the feature flags for optional plugins.
 #              Split out of plugin.py in v3.32.0; Plugin inherits it.
 # Author:      CliveS & Claude Opus 5.5
-# Date:        23-09-2026
-# Version:     1.0
+# Date:        25-09-2026
+# Version:     1.1 (config.js publishes the saved livePoolSize, not the constant)
 
 try:
     import indigo
@@ -20,15 +20,31 @@ from dash_common import (
     CAMERA_POLL_SECONDS,
     CAMERA_THUMB_WIDTH,
     COLOUR_PRESETS,
+    LIVE_POOL_MAX,
     LIVE_POOL_SIZE,
     PROXY_PORT,
     PAGES_SOURCE_DIR,
     PUBLIC_SUBDIR,
     log,
 )
+from dash_util import live_pool_size
 
 
 class PublishMixin:
+    def _live_pool_size(self, store):
+        """The saved livePoolSize, clamped to 0..LIVE_POOL_MAX, or the default.
+
+        A bad value is logged once per distinct value (config.js is rewritten
+        on every settings save and feature-flag change, and the same warning
+        every time would be noise) and the default published instead.
+        """
+        raw = store.get("livePoolSize") if isinstance(store, dict) else None
+        size, problem = live_pool_size(raw, LIVE_POOL_SIZE, LIVE_POOL_MAX)
+        if problem and getattr(self, "_live_pool_warned", None) != repr(raw):
+            self._live_pool_warned = repr(raw)
+            log(f"[Config] {problem}; the Cameras page will use {size}", level="WARNING")
+        return size
+
     def _lan_origin(self):
         """The Indigo web server's origin at the detected LAN address, e.g.
         http://192.168.1.10:8176, or "" when no LAN address was found.
@@ -377,7 +393,10 @@ class PublishMixin:
             "pollSeconds":    CAMERA_POLL_SECONDS,
             "proxyPort":      PROXY_PORT,                  # the plugin's own port: WebRTC signalling
             "webrtcPath":     "/webrtc/{host}",            # WHEP signalling, on proxyPort
-            "livePoolSize":   LIVE_POOL_SIZE,              # how many cams run live at once
+            # How many cams may run live at once. Read from the store since
+            # 3.46.0: Settings and the docs offered the key for months while
+            # this line published the constant, so a saved value did nothing.
+            "livePoolSize":   self._live_pool_size(store),
             "mainCameras":    list(self.main_cameras),     # ordered IPs for the index.html mosaic
             "swapOutHost":    self.swap_out_host,               # bumped to still when peeking a non-default cam
         }

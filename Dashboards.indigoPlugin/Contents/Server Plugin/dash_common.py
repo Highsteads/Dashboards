@@ -100,6 +100,7 @@ CAMERA_POLL_MAX_WORKERS = 9                                # concurrent snapshot
                                                            # every ~4.1s (measured); these are all network waits,
                                                            # so overlapping them costs nothing.
 LIVE_POOL_SIZE       = 6                                   # how many cameras run live (WebRTC) on cameras.html at home; the rest poll stills
+LIVE_POOL_MAX        = 12                                  # 3.46.0: the most a saved livePoolSize may ask for (each live tile is ~1 Mbit/s and a decoder)
 CAMERA_HTTP_TIMEOUT  = 15.0                                # per-snapshot timeout (4K snapshots can take 5-10s on busy cams)
 PRESENCE_REFRESH_SECONDS = 300                             # how often to re-run Presence_Watch.py (refreshes presence.json for the Presence tile — live-tonight needs periodic rebuilds)
 LOG_WATCH_REFRESH_SECONDS = 3600                           # how often to re-run Log_Error_Watch.py (hourly by design — it dedupes against its own state file, so a double-run is harmless)

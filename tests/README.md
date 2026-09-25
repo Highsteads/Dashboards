@@ -108,6 +108,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_link_class.mjs` | Contract test for DashUI.linkClass / measuredClass — how the |
 | `test_live_bandwidth.mjs` | Contract test for live camera video decided by MEASURED |
 | `test_live_dot_stale.mjs` | The top bar's "· live" can say it is not (3.46.0). The hub, |
+| `test_live_pool_size.py` | config.js publishes the SAVED livePoolSize (3.46.0). Settings |
 | `test_log_watch_alive.py` | The plugin ticks Log_Error_Watch.py hourly, so the plugin is |
 | `test_mains_meters.py` | Contract tests for the Mains instrument page's pure helpers |
 | `test_mains_reference_quality.py` | The Mains page's reference and offsets (review 24-09-2026): |
