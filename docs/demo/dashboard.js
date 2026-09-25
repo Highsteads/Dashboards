@@ -215,6 +215,14 @@ class IndigoAPI {
     // through exactly the same gate as _cmd — a second command path that
     // quietly skipped the PIN would be a hole, and a silent one.
     async _gate(objectId) {
+        return this.gateAny([objectId]);
+    }
+
+    // The same gate for a command that acts on SEVERAL devices at once
+    // (3.46.0): the Heating page's boost and force buttons went straight to
+    // the plugin and skipped the PIN every radiator's own buttons asked for.
+    // Asks once per session if ANY of `ids` is on the PIN list.
+    async gateAny(ids) {
         if (this._guest) {
             alert("This device has read-only guest access — controls are disabled.");
             throw new IndigoAPIError("Guest access is read-only", 403);
@@ -222,7 +230,8 @@ class IndigoAPI {
         // Per-tile PIN speed bump (v2.1.0): a paired device must enter the
         // control PIN once per session before commanding a protected device.
         const pinIds = (window.INDIGO_CONFIG || {}).pinRequired || [];
-        if (pinIds.includes(objectId) && !sessionStorage.getItem("dash_pin_ok")) {
+        const guarded = (ids || []).some(id => pinIds.includes(id));
+        if (guarded && !sessionStorage.getItem("dash_pin_ok")) {
             const pin = prompt("This control is PIN-protected. Enter the control PIN:");
             if (pin == null) throw new IndigoAPIError("PIN entry cancelled", 0);
             const res = await this._fetch(

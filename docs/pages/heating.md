@@ -16,7 +16,9 @@ whole-house overrides where the heating plugin supports them.
 **Controls card.** Drawn only when the EvoHomeControl plugin is installed and enabled — the buttons
 are wired to that plugin's own actions. Two rows: *Timed boost* (+2 °C for one hour, +2 °C for two
 hours, Cancel boost) and *Force heating* (force on for 24 hours, Cancel force, and a link that
-writes the current heating state into the Indigo event log).
+writes the current heating state into the Indigo event log). Each of them asks for the control
+PIN, once per session, when any heating zone on the page is on the PIN list (Settings → Security),
+as the zones' own buttons do; before 3.46.0 they skipped it.
 
 **Summary strip.** Zones calling for heat, the house average, the coldest zone with its name, the
 warmest with its name, and the outside temperature. A coloured edge on the strip reflects whether

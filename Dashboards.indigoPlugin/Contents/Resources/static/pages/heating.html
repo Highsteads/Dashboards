@@ -320,10 +320,13 @@
         return html;
     }
 
+    // The zones on screen, for the boost buttons' PIN check (3.46.0).
+    let _shownZoneIds = [];
     function render(devices) {
         const zones = devices
             .filter(isZone)
             .sort((a, b) => a.name.localeCompare(b.name));
+        _shownZoneIds = zones.map(d => d.id);
 
         if (zones.length === 0) {
             document.getElementById("content").innerHTML = '<p class="loading">No heating zones returned by the API.</p>';
@@ -353,6 +356,21 @@
 
     async function callEvoAction(actionId, btn) {
         const toast = document.getElementById("evo-toast");
+        // The same PIN guard every radiator's own buttons use (3.46.0): a boost
+        // or a forced 24 hours heats every zone, so it asks for the control
+        // PIN once per session if ANY zone on this page is on the PIN list.
+        // It used to go straight to the plugin, past the PIN, from any tablet.
+        try {
+            if (!indigo) throw new Error("not connected");
+            await indigo.gateAny(_shownZoneIds);
+        } catch (e) {
+            toast.textContent = /cancelled/i.test(e.message) ? "Cancelled — the control PIN is needed"
+                : /Incorrect PIN/.test(e.message) ? "Incorrect PIN — nothing was sent"
+                : /read-only/.test(e.message) ? "This device has read-only guest access"
+                : "Not sent: " + e.message;
+            toast.className = "ctrl-toast err";
+            return;
+        }
         // Disable all control buttons during the request to prevent double-fire.
         const allBtns = document.querySelectorAll(".ctrl-btn");
         allBtns.forEach(b => { b.disabled = true; });
