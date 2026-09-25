@@ -90,6 +90,78 @@ class ConfigMixin:
             log(f"[Guest] Could not persist guest token ({exc})", level="WARNING")
         return tok
 
+    def _write_guest_token(self, tok):
+        """Persist a guest token: a 0600 temp file, then an atomic rename, so
+        a failed write never leaves the file empty (an empty file reads as "no
+        token" and the next start would mint yet another)."""
+        path = self._guest_token_path()
+        tmp = f"{path}.tmp"
+        try:
+            fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(tok)
+            os.replace(tmp, path)
+        except BaseException:
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+            raise
+
+    def _rotate_guest_and_stills(self):
+        """Revoke what has been handed out (3.46.0): a new guest token and a
+        new camera-stills folder, and the old folder deleted.
+
+        Until now nothing could be taken back. A guest token, once issued,
+        worked for as long as the install did, and the stills folder name —
+        a secret that makes the pictures readable to anyone who knows it,
+        the reflector included — never changed. Each new value is in force
+        at once, even if it cannot be saved (then only until the next start,
+        and the report says so). Returns {"guest": saved?, "stills": saved?,
+        "removedOld": bool, "problems": [str]}."""
+        report = {"guest": False, "stills": False, "removedOld": False, "problems": []}
+
+        new_guest = _stdlib_secrets.token_urlsafe(18)
+        try:
+            self._write_guest_token(new_guest)
+            report["guest"] = True
+        except Exception as exc:
+            report["problems"].append(
+                f"the new guest token could not be saved ({exc}), so the old one comes back "
+                f"at the next plugin start")
+        self.guest_token = new_guest
+
+        old_stills = self._stills_token()
+        new_stills = _stdlib_secrets.token_hex(16)
+        new = dict(getattr(self, "cfg_store", None) or {})
+        new["stillsToken"] = new_stills
+        try:
+            self.cfg_store = self._save_config_store(new)
+            report["stills"] = True
+        except Exception as exc:
+            self.cfg_store = new
+            report["problems"].append(
+                f"the new camera-stills folder name could not be saved ({exc}), so a new one "
+                f"is chosen again at the next plugin start")
+        # The sweep removes every stills-* folder but the current one, which
+        # it (re)creates, so the poller's next write lands in the new folder.
+        try:
+            self._sweep_legacy_stills()
+        except Exception as exc:
+            report["problems"].append(f"the old camera-stills folder could not be removed ({exc})")
+        if old_stills:
+            try:
+                gone = not os.path.exists(os.path.join(self._public_dashboards_dir(),
+                                                       f"stills-{old_stills}"))
+            except Exception:
+                gone = False
+            report["removedOld"] = gone
+            if not gone:
+                report["problems"].append(f"the old folder stills-{old_stills[:4]}… is still there")
+        else:
+            report["removedOld"] = True
+        return report
+
     # Camera stills live in /public/dashboards/stills-<this>/ — see
     # _ensure_stills_token. 32 lowercase hex characters, nothing else.
     _STILLS_TOKEN_RE = re.compile(r"^[0-9a-f]{32}$")

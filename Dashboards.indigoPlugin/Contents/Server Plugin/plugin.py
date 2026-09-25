@@ -3029,6 +3029,41 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
             "Rotate Guest Link and Camera-Stills Folder.")
         return True
 
+    def menuRotateGuestAndStills(self, valuesDict=None, typeId=None):
+        """Menu (3.46.0): rotate the guest token and the camera-stills folder.
+
+        The one way to take back what has been handed out: every guest device
+        is un-paired at once, and anyone who learned the stills folder's name
+        (it is readable over the reflector by anyone who knows it) loses the
+        pictures. A snapshot write that was in flight when the old folder went
+        can recreate it for a moment, so the sweep runs again a few seconds
+        later."""
+        rep = self._rotate_guest_and_stills()
+        try:
+            t = threading.Timer(5.0, self._sweep_legacy_stills)
+            t.daemon = True
+            t.start()
+        except Exception as exc:
+            log(f"[Rotate] could not schedule the second sweep: {exc}", level="WARNING")
+        try:
+            self._write_config_js()
+        except Exception as exc:
+            log(f"[Rotate] config.js rewrite failed: {exc}", level="WARNING")
+        base = self.api_url or "http://localhost:8176"
+        log("[Rotate] Guest link and camera-stills folder rotated.")
+        log("[Rotate]   Every guest device is now un-paired. To let one back in, open the guest "
+            f"page on it again: {base}/public/dashboards/guest.html (the address is unchanged; "
+            "any device on your home network or tailnet can still pair there, so this cuts off "
+            "devices that should no longer have access, and a guest link shared before now).")
+        log("[Rotate]   The camera pictures now live in a new secret folder and the old one "
+            + ("has been deleted." if rep.get("removedOld") else "could NOT be deleted (see below).")
+            + " Reload any dashboard page that is open, or its camera pictures stop.")
+        log("[Rotate]   Your own paired devices keep working: the API key is unchanged. To "
+            "change that, make a new key in your Indigo account and pair each device again.")
+        for problem in rep.get("problems") or []:
+            log(f"[Rotate]   Problem: {problem}", level="WARNING")
+        return True
+
     def _prune_change_ledger(self):
         """Drop ledger entries no client could still ask about — changedSince
         forces a full refetch for anything older than 600s, so an hour's grace
