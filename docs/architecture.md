@@ -49,13 +49,14 @@ The shared scripts, in the order a page loads them:
   proxy to SigenEnergyManager, so the Energy page works away from home), `systemHealth`,
   `carbonAdvisor`, `timelineDay`, `historyQuery`, `mainsMeters` and `mainsMeter`, `homeInsights`,
   `activityFeed`, `logErrors`, `presenceData`, `solarStringHours`, `laundryPlan` and
-  `laundryDeadline`, `evoHomeAction`, `applyColour`, `verifyPin`,
+  `laundryDeadline`, `evoHomeAction`, `applyColour`, `verifyPin`, `cameraStills` (where this
+  install's camera pictures are),
   `getDashboardsConfig` and `saveDashboardsConfig`, `burnSetupToken`, and `mcp_tool_invoke`. The ones that
   change something (`saveDashboardsConfig`, `evoHomeAction`, `applyColour`, `laundryDeadline`,
   `verifyPin`, `burnSetupToken`) also refuse a request that is not sent as `application/json`, so
   a plain HTML form on another website cannot reach them (3.46.0).
 - **Files the plugin writes** under `/public/dashboards/`: `config.js`, `rooms.json`, `weather.json`,
-  `scenes.json`, the camera stills and thumbnails (in a `stills-<token>` folder that only the
+  `scenes.json`, `streams.json` (each camera's health, for the camera pages), the camera stills and thumbnails (in a `stills-<token>` folder that only the
   Bearer-authenticated `cameraStills` action names), and `changed.stamp` — the liveness stamp,
   rewritten every two seconds and flipped to "stopping" on shutdown. A static file cannot stall the
   web server, which is why the gate reads that rather than asking the plugin.
