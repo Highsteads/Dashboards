@@ -26,7 +26,7 @@ There are three places a setting can come from, and one of them wins.
 |---|---|
 | Indigo API URL | The REST base URL, e.g. `http://192.168.1.10:8176`. Blank means the local server on port 8176. The "use this at home" link the pages offer over the reflector takes its scheme and port from here, with the Mac's LAN address |
 | Indigo API Key | The Bearer token the plugin uses for its own diagnostics and the guest passthrough. Never written into any public file |
-| Camera User / Password | One set of camera credentials, shared across every camera. Works for Dahua and Hikvision |
+| Camera User / Password | One set of camera credentials, shared across every camera. Works for Dahua and Hikvision. Sent only to the camera addresses saved when this dialog was last closed with Save (3.46.0) — see [Cameras](cameras.md#the-camera-login-goes-only-to-approved-addresses) |
 | Cameras (JSON) | The camera list, for installs that have never saved from Settings — see below |
 | Swap-Out Host | A camera that can replace another in the hub's strip |
 | Hidden Scenes (JSON) | Action-group names or ids to keep off the Scenes page |

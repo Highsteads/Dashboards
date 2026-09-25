@@ -205,6 +205,13 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         self.swap_out_host = swap_pref if swap_pref else (
             self.cameras[-1]["host"] if self.cameras else "")
 
+        # Which addresses the shared camera login may be sent to (3.46.0; see
+        # CamerasMixin.cam_login_hosts). Never recorded = the first start of
+        # this version: approve what is running now, so nothing breaks.
+        self.cam_login_hosts = self._parse_login_hosts(pluginPrefs.get("cameraLoginHosts"))
+        if self.cam_login_hosts is None:
+            self._record_camera_login_hosts([c["host"] for c in self.cameras], "first start")
+
         self.main_cameras = list(store.get("mainCameras") or [])
         extras = store.get("roomExtras")
         self.room_extras = extras if isinstance(extras, dict) else {}
@@ -2579,6 +2586,21 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
             pass
         old_creds = (self.cam_user, self.cam_pass)
         self._resolve_credentials(prefs, secrets_mod)
+        # Pressing Save in Configure is the confirmation that approves the
+        # camera addresses for the shared login (3.46.0): the ones saved on the
+        # Settings page now, and the ones running. Logged, with any new ones
+        # named, so an address approved by accident is visible.
+        try:
+            saved = _parse_cameras((getattr(self, "cfg_store", None) or {}).get("cameras") or [])
+            hosts = {c.get("host") for c in saved if isinstance(c, dict)}
+            hosts |= {c.get("host") for c in (self.cameras or ()) if isinstance(c, dict)}
+            before = set(self.cam_login_hosts or ())
+            self._record_camera_login_hosts(hosts, "Configure saved", prefs=valuesDict)
+            if set(self.cam_login_hosts or ()) - before and self.cameras:
+                self.logger.info("[Prefs] newly approved camera addresses get the shared login "
+                                 "on the next plugin restart")
+        except Exception as exc:
+            self.logger.warning(f"[Prefs] could not record the approved camera addresses: {exc}")
         try:
             self._write_config_js()
         except Exception as exc:

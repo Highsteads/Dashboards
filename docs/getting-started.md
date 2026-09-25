@@ -88,8 +88,10 @@ The footer of every page carries a *Reset connection* link that forgets the stor
 1. **Rooms.** Open the hub, tap Settings (or the Settings card), and on the Rooms card tick the
    Indigo device folders that are your rooms. Save. Rooms appear on the menu straight away.
 2. **Cameras.** On the Cameras card add each camera's address, name and vendor (Dahua or
-   Hikvision), and tick the ones for the hub's strip. Camera changes need a plugin restart; the
-   card says so.
+   Hikvision), and tick the ones for the hub's strip. Then, on the Indigo Mac, open **Plugins →
+   Dashboards → Configure** and press **Save**: that approves the new addresses for the shared camera
+   login (see [Cameras](cameras.md#the-camera-login-goes-only-to-approved-addresses)). Camera changes
+   need a plugin restart; the card says so.
 3. **Check it.** **Plugins → Dashboards → Test Dashboards Setup** runs every check in one go —
    API URL and key, camera credentials and list, room folders, the SQL Logger history, the public
    pages folder, the liveness stamp, and whether SigenEnergyManager is present — and logs a verdict

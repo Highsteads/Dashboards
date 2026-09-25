@@ -529,8 +529,23 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
                     <label style="font-size:13px;">Swap-out host:
                         <select id="swap-out" style="width:auto; margin-left:6px;"></select>
                     </label>
-                </div></section>`);
+                </div>
+                <div class="hint" id="cam-login-note" hidden></div></section>`);
             const tbody = card.querySelector("#cam-rows");
+            // 3.46.0: the shared camera login is only sent to addresses approved
+            // in Configure on the Indigo Mac, because a camera address can be
+            // changed from here by anyone holding the API key.
+            const withheld = cameraLoginWithheld(cfg.cameras);
+            if (withheld.length) {
+                const note = card.querySelector("#cam-login-note");
+                note.hidden = false;
+                note.innerHTML = `<b>Not yet approved for the camera login:</b> ${withheld.map(esc).join(", ")}.
+                    The shared camera login is only sent to addresses approved on the Indigo Mac, so
+                    ${withheld.length === 1 ? "this camera is" : "these cameras are"} streamed without it
+                    and will not show. If you added or changed ${withheld.length === 1 ? "it" : "them"}
+                    yourself, open <b>Plugins &rarr; Dashboards &rarr; Configure</b> on the Mac, press
+                    <b>Save</b>, then restart the plugin.`;
+            }
 
             function roomsToStr(r) { return Array.isArray(r) ? r.join(", ") : (r || ""); }
             function camRow(c) {
@@ -951,6 +966,15 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
             return (main.querySelector("#sec-pin") || { value: "" }).value.trim();
         }
 
+        // Saved camera hosts the shared login will not be sent to (3.46.0).
+        // Unknown (an older plugin that does not report the list) is none.
+        function cameraLoginWithheld(cams) {
+            const ok = window._camLoginHosts;
+            if (!Array.isArray(ok)) return [];
+            return (cams || []).map(c => String((c && c.host) || "").trim())
+                .filter(h => h && !ok.includes(h));
+        }
+
         function msg(text, ok) {
             const m = document.getElementById("save-msg");
             m.textContent = text;
@@ -975,9 +999,12 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
                 // favourites, rejects bad links and truncates labels, and the
                 // form used to keep showing the un-cleaned values as saved.
                 await load();
-                msg(res.cameraRestartNeeded
+                const held = Array.isArray(res.cameraLoginWithheld) ? res.cameraLoginWithheld : [];
+                msg((res.cameraRestartNeeded
                     ? "Saved. Camera changes need a plugin restart to take effect."
-                    : "Saved — live on the pages now.", true);
+                    : "Saved — live on the pages now.")
+                    + (held.length ? " " + held.join(", ") + " will be streamed without the camera login"
+                        + " until approved: press Save in Plugins → Dashboards → Configure on the Mac." : ""), true);
             } catch (e) { msg("Save failed: " + e.message, false); }
         });
         document.getElementById("reload-btn").addEventListener("click", load);
@@ -1012,6 +1039,7 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
                 DEVICES.forEach(d => { DEVNAMES[d.id] = d.name; });
                 GROUPS = res.actionGroups || [];
                 window._guestToken = res.guestToken || "";
+                window._camLoginHosts = Array.isArray(res.cameraLoginHosts) ? res.cameraLoginHosts : null;
                 window._cfgSource = res.source;
                 document.getElementById("source").textContent =
                     res.source === "store" ? "dashboards_config.json" : "legacy (IndigoSecrets)";
