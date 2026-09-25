@@ -7,9 +7,13 @@
                live in THIS browser's localStorage — nothing is stored on the
                server and there is no push service, so notifications stop when
                every dashboard tab is closed. The page says so honestly.
+               1.1 (3.46.0): the watcher moved to dashboards-alerts.js, which
+               the hub, room and Energy pages load too, so a rule fires while
+               any of them is open; a plain-http address is named as the
+               reason notifications cannot be allowed.
   Author:      CliveS & Claude Fable 5
-  Date:        11-06-2026
-  Version:     1.0
+  Date:        25-09-2026
+  Version:     1.1
 -->
 <html lang="en">
 <head>
@@ -80,17 +84,27 @@
     <div class="card">
         <h2>How this works</h2>
         <div class="hint">
-            Pick the devices and variables you care about below. While this page —
-            or the dashboard installed on your home screen — is <b>open</b>, any
-            matching change raises a notification on this device. Being honest:
-            there is no cloud push service behind this, so when every dashboard
-            tab is closed, notifications stop. It shines on a wall tablet, a
-            kiosk, or a pinned browser tab.
+            Pick the devices and variables you care about below. While the hub, a
+            room page, Energy or this page is <b>open</b> in a browser on this
+            device (a background tab counts, and so does the dashboard on your
+            home screen while it is running), any matching change raises a
+            notification here. Other pages, and other devices, do not watch
+            these rules: they live in this browser only. Being honest: there is
+            no cloud push service behind this, so when every one of those pages
+            is closed, notifications stop. It shines on a wall tablet, a kiosk,
+            or a pinned browser tab.
         </div>
         <div class="row">
             <button id="perm-btn">Enable notifications on this device</button>
             <span id="perm-state" class="pill">checking…</span>
             <label class="pill"><input type="checkbox" id="master" checked> alerts active</label>
+        </div>
+        <div class="hint" id="perm-why" hidden style="margin-top:8px;">
+            Browsers only allow notifications on a secure address: one starting
+            <b>https://</b>, or <b>localhost</b> on the Indigo Mac itself. This
+            page was opened over plain http, so the browser refuses before it
+            asks you. The rules below still show what they would have raised.
+            <a href="https://highsteads.github.io/Dashboards/remote-access.html#notifications-and-install-need-https">How to get an https address</a>.
         </div>
     </div>
 
@@ -128,6 +142,7 @@
     <script src="dashboards-ui.js"></script>
 <script src="dashboards-gate.js"></script>
 <script src="dashboard.js"></script>
+<script src="dashboards-alerts.js"></script>
 <script>
 // Declared BEFORE the watcher (v2.95.1). This used to sit in the THIRD script
 // block, after the watcher had already run — and the watcher's paintRules()
@@ -143,18 +158,29 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
     const $ = id => document.getElementById(id);
 
     // ── rules persistence (this browser only) ────────────────────────────
-    let rules = [];
-    try { rules = (JSON.parse(localStorage.getItem(STORE_KEY) || "{}").rules) || []; }
-    catch (e) { rules = []; }
-    const saveRules = () => localStorage.setItem(STORE_KEY, JSON.stringify({ rules }));
+    // 3.46.0: the rules, the "alerts active" switch, the watcher and the
+    // recent-alerts list live in dashboards-alerts.js, which the hub, the
+    // room pages and Energy load too — so a rule fires while ANY of them is
+    // open, not only this page. This page keeps the editing and the painting.
+    let state = DashAlerts.load();
+    let rules = state.rules;
+    const saveRules = () => { state.rules = rules; DashAlerts.save(state); };
 
     // ── notification permission ──────────────────────────────────────────
-    let swReg = null;
-    if ("serviceWorker" in navigator) {
-        navigator.serviceWorker.register("sw.js").then(r => { swReg = r; }).catch(() => {});
-    }
+    DashAlerts.registerWorker();
     function paintPerm() {
-        const el = $("perm-state");
+        const el = $("perm-state"), why = $("perm-why");
+        why.hidden = true;
+        // 3.46.0: browsers only offer notifications to a secure page (https,
+        // or this Mac as localhost). On a plain http address the permission
+        // is refused before anyone is asked, and "blocked in browser
+        // settings" sent people to a setting that could not help.
+        if (window.isSecureContext === false) {
+            el.textContent = "needs an https address";
+            why.hidden = false;
+            $("perm-btn").disabled = true;
+            return;
+        }
         if (!("Notification" in window)) { el.textContent = "not supported in this browser"; $("perm-btn").disabled = true; return; }
         el.textContent = { granted: "allowed", denied: "blocked in browser settings", default: "not yet allowed" }[Notification.permission];
         $("perm-btn").disabled = Notification.permission !== "default";
@@ -162,27 +188,23 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
     $("perm-btn").onclick = () => Notification.requestPermission().then(paintPerm);
     paintPerm();
 
-    function notify(title, body) {
-        if (!("Notification" in window) || Notification.permission !== "granted") return;
-        try {
-            if (swReg && swReg.showNotification) {
-                swReg.showNotification(title, { body, icon: "apple-touch-icon-192.png", tag: title + "|" + body });
-            } else {
-                new Notification(title, { body, icon: "apple-touch-icon-192.png", tag: title + "|" + body });
-            }
-        } catch (e) { /* notification refused — nothing else to do */ }
-    }
+    $("master").checked = state.active;
+    $("master").onchange = () => { state = DashAlerts.load(); state.active = $("master").checked; DashAlerts.save(state); };
 
-    function logAlert(text) {
+    function paintLog() {
         const log = $("log");
-        if (log.firstElementChild && log.firstElementChild.classList.contains("hint")) log.innerHTML = "";
-        const li = document.createElement("li");
-        const t = document.createElement("time");
-        t.textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-        li.appendChild(t); li.appendChild(document.createTextNode(text));
-        log.prepend(li);
-        while (log.children.length > 50) log.removeChild(log.lastChild);
+        const rows = DashAlerts.readLog();
+        if (!rows.length) { log.innerHTML = '<li class="hint">Nothing yet.</li>'; return; }
+        log.innerHTML = "";
+        rows.forEach(r => {
+            const li = document.createElement("li");
+            const t = document.createElement("time");
+            t.textContent = new Date(r.t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+            li.appendChild(t); li.appendChild(document.createTextNode(r.text));
+            log.appendChild(li);
+        });
     }
+    paintLog();
 
     // ── connection + pickers ─────────────────────────────────────────────
     let api = null;
@@ -264,73 +286,25 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
     };
     paintRules();
 
-    // ── the watcher ──────────────────────────────────────────────────────
-    // prev holds last-seen state per entity; first poll only seeds it so
-    // opening the page never fires a storm of "alerts" for current state.
-    const prev = new Map();   // "device:123" -> {on, ui} / "variable:9" -> {val}
-    let seeded = false;
+    // Another tab (or another Alerts tab) changed the rules or raised one.
+    window.addEventListener("storage", (ev) => {
+        if (ev.key === DashAlerts.STORE_KEY) {
+            state = DashAlerts.load(); rules = state.rules;
+            $("master").checked = state.active; paintRules();
+        } else if (ev.key === DashAlerts.LOG_KEY) {
+            paintLog();
+        }
+    });
 
+    // ── the watcher (dashboards-alerts.js) ───────────────────────────────
+    // This page always polls, because it paints the "now" column; the hub,
+    // room and Energy tabs stand by while it does. Whichever tab sees a
+    // change, only one of them raises it.
     function paintNow(key, text) {
         document.querySelectorAll(`[data-now="${key}"]`)
             .forEach(el => { el.textContent = text; });
     }
-
-    async function pollDevices() {
-        if (!api || !rules.some(r => r.kind === "device")) return;
-        let devs;
-        try { devs = await api.getDevices(); } catch (e) { return; }
-        const byId = new Map(devs.map(d => [d.id, d]));
-        for (const r of rules.filter(r => r.kind === "device")) {
-            const d = byId.get(r.id);
-            const key = "device:" + r.id;
-            if (!d) { paintNow(key, "missing"); continue; }
-            const now = { on: !!d.onState, ui: String(d.displayStateValUi ?? "") };
-            paintNow(key, now.ui || (now.on ? "ON" : "OFF"));
-            const was = prev.get(key);
-            prev.set(key, now);
-            if (!was || !seeded || !r.enabled || !$("master").checked) continue;
-            if (r.cond === "on"  && now.on && !was.on)
-                fire(r, `${r.name} turned on`);
-            if (r.cond === "off" && !now.on && was.on)
-                fire(r, `${r.name} turned off`);
-            if (r.cond === "change" && (now.on !== was.on || now.ui !== was.ui))
-                fire(r, `${r.name}: ${now.ui || (now.on ? "ON" : "OFF")}`);
-        }
-        seeded = true;
-    }
-
-    async function pollVariables() {
-        if (!api || !rules.some(r => r.kind === "variable")) return;
-        let vars;
-        try { vars = await api.getVariables(); } catch (e) { return; }
-        const byId = new Map(vars.map(v => [v.id, v]));
-        for (const r of rules.filter(r => r.kind === "variable")) {
-            const v = byId.get(r.id);
-            const key = "variable:" + r.id;
-            if (!v) { paintNow(key, "missing"); continue; }
-            paintNow(key, String(v.value));
-            const was = prev.get(key);
-            prev.set(key, { val: String(v.value) });
-            if (!was || !r.enabled || !$("master").checked) continue;
-            if (String(v.value) !== was.val)
-                fire(r, `${r.name} is now ${v.value}`);
-        }
-    }
-
-    // per-rule cooldown so a chattering sensor can't spam 20 notifications
-    const lastFired = new Map();
-    function fire(rule, text) {
-        const key = rule.kind + ":" + rule.id + ":" + rule.cond;
-        const now = Date.now();
-        if ((now - (lastFired.get(key) || 0)) < 30000) return;   // 30s per rule
-        lastFired.set(key, now);
-        notify(((window.INDIGO_CONFIG || {}).siteName || "Dashboards"), text);
-        logAlert(text);
-    }
-
-    setInterval(pollDevices, 3000);
-    setInterval(pollVariables, 10000);
-    pollDevices(); pollVariables();
+    if (api) DashAlerts.watch({ api, alwaysPoll: true, onPaint: paintNow, onFire: paintLog });
 })();
 </script>
 <script>

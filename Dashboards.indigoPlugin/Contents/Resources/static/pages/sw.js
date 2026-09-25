@@ -1,10 +1,12 @@
 // Filename:    sw.js
-// Description: Minimal service worker for the Dashboards alerts page.
+// Description: Minimal service worker for the Dashboards alert rules.
 //              Exists so notifications can be raised via
 //              registration.showNotification() (required on Android Chrome)
 //              and so tapping a notification brings the dashboard forward.
-//              No caching, no push subscription — alerts are raised by the
-//              open page itself (see alerts.html for the honest small print).
+//              No caching, no push subscription — alerts are raised by an
+//              open page itself (dashboards-alerts.js, loaded by the hub, the
+//              room pages, Energy and Alerts since 3.46.0; see alerts.html
+//              for the honest small print). Code unchanged since 1.0.
 // Author:      CliveS & Claude Fable 5
 // Date:        11-06-2026
 // Version:     1.0

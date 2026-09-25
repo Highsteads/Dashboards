@@ -88,8 +88,10 @@ The footer of every page carries a *Reset connection* link that forgets the stor
    pages folder, the liveness stamp, and whether SigenEnergyManager is present — and logs a verdict
    per line. An optional piece that is absent is a SKIP, not a failure.
 4. **Pin it.** On an iPhone or iPad, open the hub in Safari, tap Share, then **Add to Home
-   Screen**. On a Mac, Safari's **File → Add to Dock…**, or Chrome's install icon in the address
-   bar. The dashboard then opens full-screen like an app, and links stay inside it.
+   Screen**. On a Mac, Safari's **File → Add to Dock…**. The dashboard then opens full-screen like
+   an app, and links stay inside it. Chrome's and Edge's install icon only appears on a secure
+   (`https://`) address, which the usual `http://…:8176` one is not; see
+   [Notifications and install need HTTPS](remote-access.md#notifications-and-install-need-https).
 
 ## Demo mode
 
