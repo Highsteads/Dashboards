@@ -3011,7 +3011,22 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         _tok = self.guest_token or ""
         log(f"[Guest]   Guest token: ends …{_tok[-4:]} (the pairing page enters it for you; "
             f"the full value is in the Settings page's Security card)")
-        log("[Guest]   Guest devices cannot control anything — they hold no API key.")
+        log("[Guest]   Guest devices cannot switch anything: they hold no API key. They can "
+            "READ every device's name and state (so who is home, and which doors are open, "
+            "are visible to them) and the camera pictures.")
+        gids, gnames = self._guest_variable_allow(getattr(self, "cfg_store", None))
+        if gids or gnames:
+            log(f"[Guest]   Variables a guest can read: {len(gids) + len(gnames)} "
+                f"(guestVariables in Settings > Raw JSON).")
+        else:
+            log("[Guest]   Variables: none (add names or ids to guestVariables in Settings > "
+                "Raw JSON to share some).")
+        if getattr(self, "bootstrap_key_seed", False):
+            log("[Guest]   Auto-seed the API key to LAN browsers is ON, so any guest device on "
+                "your network can take the full key instead. Untick it under Configure for the "
+                "guest link to mean anything.", level="WARNING")
+        log("[Guest]   To withdraw every guest device's access, use Plugins > Dashboards > "
+            "Rotate Guest Link and Camera-Stills Folder.")
         return True
 
     def _prune_change_ledger(self):

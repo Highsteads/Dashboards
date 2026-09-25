@@ -90,6 +90,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_go2rtc_orphan_guard.py` | The go2rtc orphan guard finds an orphan whatever binary ran it |
 | `test_go2rtc_supervise.py` | The go2rtc supervisor must keep trying after a FAILED restart. |
 | `test_guest_scrub.py` | A guest-token holder must never receive plugin props. The |
+| `test_guest_variables.py` | A guest reads only the Indigo variables it is allowed (3.46.0). |
 | `test_history_db.py` | Contract tests for history_db.py — the SQL Logger artefact |
 | `test_history_pk_range.py` | Contract test for the PK-range window helpers — the mechanism |
 | `test_history_query.py` | Contract test for Plugin._history_query against a fixture SQL |

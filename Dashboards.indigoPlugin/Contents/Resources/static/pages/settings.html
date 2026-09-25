@@ -851,8 +851,12 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
         function renderSecurity() {
             const card = el(`<section class="card"><h2>Security</h2>
                 <div class="hint"><b>Guest access</b> — open the pairing URL below ON the guest device
-                (wall tablet, visitor's phone on home WiFi). Guest devices are read-only and hold no API
-                key. Works on the home network and Tailscale only.${/indigodomo\.net$/i.test(location.hostname)
+                (wall tablet, visitor's phone on home WiFi). Guest devices hold no API key, so they
+                cannot switch anything, but they can read every device's name and state and see the
+                camera pictures. Indigo variables are hidden from them unless named in the
+                <code>guestVariables</code> key (raw JSON: a list of variable names or ids). To
+                withdraw every guest device, use <b>Plugins &rarr; Dashboards &rarr; Rotate Guest Link
+                and Camera-Stills Folder</b>. Works on the home network and Tailscale only.${/indigodomo\.net$/i.test(location.hostname)
                     ? "<br><b>You are viewing this over the reflector: open the pairing URL on the home network, not this address.</b>" : ""}<br><br>
                 <b>Control PIN</b> — devices listed below ask for this PIN once per session before any
                 command (a speed bump for shared/family devices, not a security boundary).</div>

@@ -6,8 +6,10 @@
 #              stream and camera-health files the Cameras page reads.
 #              Split out of plugin.py in v3.32.0; Plugin inherits it.
 # Author:      CliveS & Claude Opus 5.5
-# Date:        23-09-2026
-# Version:     1.1 (v3.36.0: MJPEG route and transcode streams removed)
+# Date:        25-09-2026
+# Version:     1.2 (3.46.0: guest variables are an allow-list; the shared camera
+#              login goes only to hosts approved in Configure)
+#              1.1 (v3.36.0: MJPEG route and transcode streams removed)
 
 try:
     import indigo
@@ -462,9 +464,21 @@ class CamerasMixin:
 
                     # Read-only passthroughs to IWS (server-side Bearer).
                     iws_path = None
+                    # 3.46.0: variables are an ALLOW-LIST. They were passed
+                    # through whole, and Indigo variables are where a house
+                    # keeps alarm states, door codes and away-from-home flags.
+                    # No guest page needs one (only the Alerts picker lists
+                    # them), so the default is none; guestVariables in the
+                    # settings store names any a guest should see.
+                    guest_vars = None
                     if sub == "devices":
                         iws_path = "/v2/api/indigo.devices"
                     elif sub == "variables":
+                        guest_vars = plugin_self._guest_variable_allow(
+                            getattr(plugin_self, "cfg_store", None))
+                        if not (guest_vars[0] or guest_vars[1]):
+                            _send_json(b"[]")
+                            return
                         iws_path = "/v2/api/indigo.variables"
                     elif sub.startswith("device/"):
                         dev_part = sub[len("device/"):]
@@ -490,7 +504,10 @@ class CamerasMixin:
                         # scanned the pairing QR. The pages read names, states
                         # and the class fields only.
                         try:
-                            body = plugin_self._guest_scrub(json.loads(raw))
+                            body = json.loads(raw)
+                            if guest_vars is not None:
+                                body = plugin_self._guest_filter_variables(body, *guest_vars)
+                            body = plugin_self._guest_scrub(body)
                             _send_json(json.dumps(body).encode("utf-8"))
                         except ValueError:
                             self.send_error(502, "IWS returned non-JSON")
@@ -1464,6 +1481,51 @@ class CamerasMixin:
             return {k: (cls._guest_scrub(v) if isinstance(v, (list, dict)) else v)
                     for k, v in obj.items() if k not in cls._GUEST_DROP_KEYS}
         return obj
+
+    @staticmethod
+    def _guest_variable_allow(store):
+        """(ids, names) a guest may read, from the store's guestVariables.
+
+        A list of variable ids (numbers, or digit strings) and/or names
+        (matched without regard to case). Anything else — a missing key, a
+        string, a dict, true — allows nothing: this is a privacy boundary and
+        it fails closed (3.46.0)."""
+        raw = (store or {}).get("guestVariables") if isinstance(store, dict) else None
+        ids, names = set(), set()
+        if not isinstance(raw, (list, tuple)):
+            return ids, names
+        for x in raw:
+            if isinstance(x, bool):
+                continue
+            if isinstance(x, int):
+                ids.add(x)
+            elif isinstance(x, str) and x.strip():
+                t = x.strip()
+                if t.lstrip("-").isdigit():
+                    ids.add(int(t))
+                else:
+                    names.add(t.casefold())
+        return ids, names
+
+    @staticmethod
+    def _guest_filter_variables(payload, ids, names):
+        """Only the allowed variables from a v2 API variables payload (a list,
+        or the {"objects": [...]} envelope). A shape it does not know yields
+        an empty list rather than the payload: fail closed."""
+        def keep(v):
+            if not isinstance(v, dict):
+                return False
+            vid = v.get("id")
+            if isinstance(vid, int) and not isinstance(vid, bool) and vid in ids:
+                return True
+            return str(v.get("name") or "").casefold() in names if names else False
+        if isinstance(payload, list):
+            return [v for v in payload if keep(v)]
+        if isinstance(payload, dict) and isinstance(payload.get("objects"), list):
+            out = dict(payload)
+            out["objects"] = [v for v in payload["objects"] if keep(v)]
+            return out
+        return []
 
     @staticmethod
     def _camera_health_payload(cameras, states):

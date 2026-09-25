@@ -97,10 +97,22 @@ keep it for a device that is genuinely away, and close the page when you have fi
 
 A wall tablet or a visitor's phone should be able to look and not touch. **Plugins → Dashboards →
 Show Guest Access Info** logs a pairing URL; open it on the device and `guest.html` takes a guest
-token from the plugin's LAN-only proxy, stores it, and forwards to the hub. The device never holds
-the API key, so there is no control surface on it at all. That proxy refuses any non-private source
-address, which makes guest access home-network and Tailscale only by construction. Clearing the
-browser's site data un-pairs it.
+token from the plugin's LAN-only proxy, stores it, and forwards to the hub. That proxy refuses any
+non-private source address, which makes guest access home-network and Tailscale only by
+construction. Clearing the browser's site data un-pairs it.
+
+A guest device cannot switch anything: it holds no API key, so that is not a matter of the
+interface politely hiding buttons. It is not a private view, though. It reads every device's name
+and state through the plugin, which tells whoever holds it who is home, which doors and windows are
+open and when the house is empty, and it sees the camera pictures. Indigo variables are hidden from
+it unless you name them in `guestVariables` (Settings → Raw JSON; none by default, from 3.46.0). So
+give a guest link to a device you would let watch the house, not to anyone passing through, and
+withdraw it with **Plugins → Dashboards → Rotate Guest Link and Camera-Stills Folder**, which cuts
+off every guest device at once.
+
+A guest link only means something while *Auto-seed the API key to LAN browsers* is off (the default
+for a new install from 3.46.0): with it on, any device on your network, a guest's included, can ask
+the plugin for the full key instead.
 
 ## Notifications and install need HTTPS
 
