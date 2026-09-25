@@ -36,7 +36,8 @@ and typing in a field searches the device list.
 that hides the whole folder.
 
 **Security.** The guest pairing URL (open it on the guest device), the guest token shown for
-reference, and the control PIN — asked once per session before any command on the listed devices. A
+reference, and the control PIN — asked once per session before any command on the listed devices
+(and before the Heating page's boost and force buttons when any heating zone is listed). A
 speed bump for shared and family devices rather than a security boundary. The PIN field hides what
 you type and is not offered to the browser's form memory. Leave it blank to keep the current PIN, or
 tick *Remove the PIN* to take it away. Below it, the list of PIN-protected device ids.
