@@ -27,6 +27,7 @@ There are three places a setting can come from, and one of them wins.
 | Indigo API URL | The REST base URL, e.g. `http://192.168.1.10:8176`. Blank means the local server on port 8176. The "use this at home" link the pages offer over the reflector takes its scheme and port from here, with the Mac's LAN address |
 | Indigo API Key | The Bearer token the plugin uses for its own diagnostics and the guest passthrough. Never written into any public file |
 | Camera User / Password | One set of camera credentials, shared across every camera. Works for Dahua and Hikvision. Sent only to the camera addresses saved when this dialog was last closed with Save (3.46.0) — see [Cameras](cameras.md#the-camera-login-goes-only-to-approved-addresses) |
+| Pushover User Key | Your Pushover user key, for alert rules sent to your phone (3.47.0). The fallback for `PUSHOVER_USER_TOKEN` in `IndigoSecrets.py`. Sent through the Pushover plugin, which must be installed and running |
 | Cameras (JSON) | The camera list, for installs that have never saved from Settings — see below |
 | Swap-Out Host | A camera that can replace another in the hub's strip |
 | Hidden Scenes (JSON) | Action-group names or ids to keep off the Scenes page |
@@ -129,6 +130,12 @@ model can be set in the raw-JSON box.
 | `livePoolSize` | number, default 6 | How many cameras the Cameras page may show as live (WebRTC) video at once, 0 to 12; the rest refresh as stills. The page also holds it to what the connection's measured speed carries. Each live tile costs about 1 Mbit/s and some decoding work on the device, so lower it for an older tablet. Before 3.46.0 a saved value was ignored and six was always used |
 | `guestVariables` | list of variable names or ids, default none | The Indigo variables a guest-paired device may read (3.46.0). Anything not listed is withheld from guests; a value that is not a list shares nothing |
 
+The alert rules live in the same file (3.47.0) but belong to the Alerts page, which saves them
+itself: `alertRules` (the rules), `alertsActive` (the "alerts active" tick), `alertEmail` (the
+default address) and `alertRulesRev` (a counter that stops an out-of-date page saving over a newer
+list). The Settings page neither shows them nor changes them, and its raw-JSON box cannot set them.
+The recent alerts are kept in `alert_firings.json` beside it.
+
 ## Credentials in `IndigoSecrets.py`
 
 If you already use `IndigoSecrets.py` with the author's other plugins, these are the keys this one
@@ -152,6 +159,8 @@ on the Settings page owns them and the keys are no longer read. A hand edit of
 | `DASHBOARDS_HIDDEN_SCENES` | Action groups to keep off the Scenes page (imported once) |
 | `OWM_API_KEY` / `LATITUDE` / `LONGITUDE` | OpenWeatherMap and your site's coordinates |
 | `HISTORY_PG_HOST` / `_PORT` / `_USER` / `_PASSWORD` / `_DATABASE` | PostgreSQL, when the SQL Logger writes to Postgres |
+| `PUSHOVER_USER_TOKEN` | Your Pushover user key, for alert rules (3.47.0); the Configure field is the fallback |
+| `DASHBOARDS_ALERT_EMAIL` | Where alert email goes when a rule names no address and the Alerts page has no default (3.47.0). Read at every start, unlike the other `DASHBOARDS_*` keys |
 
 Never put a credential into anything under `/public/` — that namespace is served without
 authentication, and over the reflector it is reachable from the internet.

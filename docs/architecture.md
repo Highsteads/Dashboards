@@ -33,7 +33,7 @@ The shared scripts, in the order a page loads them:
 | `dashboards-action.js` | Control buttons: run the action, take the button over, watch the device states until the thing has really happened. Its rule evaluator is a pure function driven by `tests/test_action_watch.mjs` |
 | `dashboards-controls.js`, `dashboards-controls.css` | The device tiles the room, Active, Heating and weather pages share: the one on/off rule, the toggle and brightness handlers and the hub's favourite device press (each confirmed from the device, and put right if the command went nowhere), the heating zone tile with its read-back setpoint buttons, and their styles. Needs `dashboards-action.js` loaded first. Driven by `tests/test_dash_tile.mjs` |
 | `dashboards-ui.js` | Link classification, the idle guard, the camera cross-fade (`swapImage`), the tap guard, and the other pieces several pages share |
-| `dashboards-alerts.js` | The Alerts page's rules and the watcher that raises them, loaded by the hub, the room pages, Energy and Alerts so a rule fires while any of them is open. One tab polls at a time, and a firing is claimed in `localStorage` so two open tabs never announce the same change twice. Driven by `tests/test_alerts_shared.mjs` |
+| `dashboards-alerts.js` | Browser notifications for the alert rules, loaded by the hub, the room pages, Energy and Alerts. The plugin judges the rules (3.47.0); this asks it for new firings and raises a notification for each whose rule includes Browser. One tab polls at a time, and a firing is claimed in `localStorage` so two open tabs never announce it twice. It also keeps the page-side statement of what a rule means, which the plugin's Python is held to case for case (`tests/lib/alert_rule_cases.json`). Driven by `tests/test_alerts_shared.mjs` |
 | `when-to-run.js` | The Energy page's When to run it card: the laundry plan and grid carbon |
 | `energy-calc.js` | The arithmetic shared by the Energy and Cost pages — unit formatting, the daily energy allocation behind the Sankey, the half-hourly balance, the rolling money sums. DOM-free, so `tests/test_energy_cost.mjs` can drive it |
 | `a11y.js`, `dashboards-icons.js`, `standalone-nav.js`, `sw.js` | Accessibility polish, the icon set, keeping links inside the home-screen app, and the service worker that raises notifications |
@@ -51,15 +51,26 @@ The shared scripts, in the order a page loads them:
   `activityFeed`, `logErrors`, `presenceData`, `solarStringHours`, `laundryPlan` and
   `laundryDeadline`, `evoHomeAction`, `applyColour`, `verifyPin`, `cameraStills` (where this
   install's camera pictures are),
-  `getDashboardsConfig` and `saveDashboardsConfig`, `burnSetupToken`, and `mcp_tool_invoke`. The ones that
-  change something (`saveDashboardsConfig`, `evoHomeAction`, `applyColour`, `laundryDeadline`,
-  `verifyPin`, `burnSetupToken`) also refuse a request that is not sent as `application/json`, so
-  a plain HTML form on another website cannot reach them (3.46.0).
+  `getDashboardsConfig` and `saveDashboardsConfig`, `burnSetupToken`, `alertRules`,
+  `saveAlertRules` and `sendTestAlert` (the Alerts page, 3.47.0), and `mcp_tool_invoke`. The ones
+  that change something (`saveDashboardsConfig`, `evoHomeAction`, `applyColour`, `laundryDeadline`,
+  `verifyPin`, `burnSetupToken`, `saveAlertRules`, `sendTestAlert`) also refuse a request that is
+  not sent as `application/json`, so a plain HTML form on another website cannot reach them
+  (3.46.0). None of them is reachable with a guest link.
+- **Indigo's change callbacks.** The plugin subscribes to device changes (and to variable changes
+  once an alert rule needs them) and receives the old and new copy of each. They feed the
+  `changedSince` ledger and, from 3.47.0, the alert rules: a rule is judged in memory on the
+  callback, and the Pushover and email sending is handed to the plugin's own alert thread, so a
+  slow mail server or a stopped Pushover plugin never holds Indigo up.
 - **Files the plugin writes** under `/public/dashboards/`: `config.js`, `rooms.json`, `weather.json`,
   `scenes.json`, `streams.json` (each camera's health, for the camera pages), the camera stills and thumbnails (in a `stills-<token>` folder that only the
   Bearer-authenticated `cameraStills` action names), and `changed.stamp` — the liveness stamp,
   rewritten every two seconds and flipped to "stopping" on shutdown. A static file cannot stall the
   web server, which is why the gate reads that rather than asking the plugin.
+- **Files the plugin keeps to itself** in its Preferences folder (`Preferences/Plugins/<plugin
+  id>/`, never served): `dashboards_config.json` (the Settings page's store, and the alert rules)
+  with a `.bak` beside it, `guest_token.txt`, and `alert_firings.json`, the last fifty alert
+  firings, so a restart does not lose them. All three are 0600.
 - **The plugin's proxy on port 8177** for camera streams and stills, guest pairing and WebRTC
   signalling. LAN and Tailscale only.
 - **The SQL Logger's history database**, read by primary-key range after a binary search for the
@@ -134,6 +145,7 @@ lives in modules beside it, which `Plugin` inherits, so every method is still `s
 |---|---|
 | `cameras_mixin.py` | go2rtc, the :8177 server (WebRTC set-up, bootstraps, guest reads), the snapshot poller and its thumbnails, and the stream and camera-health files |
 | `config_mixin.py` | The settings store (`dashboards_config.json`), the one-time import of legacy settings, and the Settings page's load and save |
+| `alerts_mixin.py` | The alert rules (3.47.0): judged on Indigo's change callbacks, delivered by Pushover and email on a worker thread, the recent firings, and the Alerts page's endpoints |
 | `publish_mixin.py` | Copying the pages into `Web Assets/public/dashboards` and writing `config.js`, with its flags for optional plugins |
 | `health_mixin.py` | The System Health page: Mac vitals, storage, services and the device census |
 | `scripts_mixin.py` | The companion-script runner, its schedule and the hand-over to Script Ticker |

@@ -98,6 +98,24 @@ Guest pairing works on the home network and over Tailscale only; the proxy refus
 address. A device that was previously paired with the full key is demoted to a guest, not left
 holding both.
 
+## An alert rule did not tell me
+
+Start with **Send test** on the Alerts page, or **Plugins → Dashboards → Send Test Alert**: each
+channel says whether it was sent, and why not.
+
+- **Pushover: no user key** — put your user key in `IndigoSecrets.py` as `PUSHOVER_USER_TOKEN`, or in
+  the Pushover User Key field in Configure.
+- **Pushover: plugin not running** (or not installed, not enabled) — the message goes through the
+  Pushover plugin, so it has to be running. The log says so once every half hour while it is not.
+- **Email: no address** — set one under Where alerts go on the Alerts page. If an address is set and
+  the test still fails, the reason is Indigo's own: check its mail settings (Indigo → Preferences).
+- **Browser** notifications need one of the main pages open on that device and an `https://`
+  address; Pushover and email do not.
+- A rule fires on a change, not on a state: "turns on" says nothing about a light that is already
+  on. After it fires it waits thirty seconds before it can fire again. "alerts active" off, a
+  paused rule or a device that is disabled in Indigo all stay quiet, and a rule whose device was
+  deleted is marked "target gone".
+
 ## Something is wrong and none of the above fits
 
 - The plugin's own log, via **Plugins → Dashboards → Show Plugin Info** for the environment and the

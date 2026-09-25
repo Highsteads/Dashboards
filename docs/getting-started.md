@@ -37,6 +37,7 @@ showing an empty chart:
 | **EvoHomeControl** plugin | The heating page's boost and force buttons. Zone temperatures and setpoints work with any thermostat device |
 | **UniFiHealth** plugin (v0.2.0 or later) | The Wi-Fi pages |
 | **OpenWeatherMap** key | The hub's weather card forecast and sun times |
+| **Pushover** plugin and a user key | Alert rules sent to your phone (3.47.0). Without it a rule can still email you, through Indigo's own mail settings, or raise a browser notification. See [Alerts](using.md#alerts) |
 | **Pillow** and **qrcode** | Camera thumbnails and setup-link QR codes. These install themselves from `requirements.txt` the first time the plugin starts |
 | **The companion scripts** in `scripts/` | The Presence page, the hourly error watch behind the Alerts card and the Activity page, and the Laundry page. Copy the ones you want into Indigo's `Python Scripts` folder; the plugin picks them up on its next tick and logs which are missing at startup. See [How it is built](architecture.md#companion-scripts) |
 

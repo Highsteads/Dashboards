@@ -112,20 +112,34 @@ restriction is not a matter of the interface politely hiding buttons. It can sti
 device's state and see the cameras, so treat a guest link as a view of the house; see
 [Guest devices](remote-access.md#guest-devices).
 
-## Alerts from your own browser
+## Alerts
 
-The Alerts page lets any device that shows the dashboard also watch it: pick devices and variables,
-choose a condition ("turns on", "turns off", "changes at all"), and matching changes raise a system
-notification on that device, with a thirty-second per-rule cooldown so a chattering sensor cannot
-spam you. Rules live in the browser that made them, nothing on the server. There is no cloud push
-service behind this, so notifications only arrive while one of the pages that watch the rules is
-open in that browser: the hub, a room page, Energy or Alerts itself (a background tab counts, and so
-does the home-screen app while it is running). With several of them open, one tab watches and only
-one notification is raised. It is ideal for a wall tablet, a kiosk, or a pinned tab, rather than a
-phone in a pocket. Browsers only allow notifications on a secure (`https://`) address; see
-[Notifications and install need HTTPS](remote-access.md#notifications-and-install-need-https). The
-server-side error watch on the same page is a different thing: it is always on and sends its own
-notifications whether or not any page is open.
+The Alerts page is where you tell the plugin what to watch: pick a device or a variable, choose a
+condition ("turns on", "turns off", "changes at all"; a variable fires whenever its value changes),
+and choose how you want to be told. From 3.47.0 the **plugin** keeps the rules and watches them on
+the Indigo server itself, so they fire whether or not any dashboard is open, with a thirty-second
+per-rule cooldown so a chattering sensor cannot spam you. Each rule can go out by:
+
+- **Pushover**, to your phone, through the Pushover plugin (it must be installed, enabled and
+  running) and the user key in `IndigoSecrets.py` (`PUSHOVER_USER_TOKEN`) or Configure;
+- **email**, through Indigo's own mail settings, to the address on the rule, else the default
+  address on the Alerts page, else `DASHBOARDS_ALERT_EMAIL` in `IndigoSecrets.py`;
+- **browser**, a notification on any device that has the hub, a room page, Energy or Alerts open.
+  This one still needs a page open, and a secure (`https://`) address; see
+  [Notifications and install need HTTPS](remote-access.md#notifications-and-install-need-https).
+  With several of those pages open, one notification is raised, not one per tab.
+
+The page says which channels are ready ("Pushover: ready", "plugin not running", "no user key"),
+has a **Send test** button that reports each channel's result, and lists the plugin's recent
+alerts with what each channel did. **Plugins → Dashboards → Send Test Alert** does the same test
+from the Indigo menu and writes the result to the log. A channel that fails is logged as a warning
+(at most once every half hour for the same reason) and never stops the others.
+
+Before 3.47.0 the rules lived in each browser and only fired while a page was open there. A browser
+that still holds rules from then is offered a one-click **Move these rules to the plugin** the first
+time it opens the Alerts page, as long as the plugin has none yet; they are removed from the browser
+only once the plugin has them. The server-side error watch on the same page is a different thing:
+it is always on and sends its own notifications.
 
 ## Standalone app
 

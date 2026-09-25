@@ -129,15 +129,15 @@ the plugin for the full key instead.
 ## Notifications and install need HTTPS
 
 Browsers keep two features for secure pages only, meaning an address that starts `https://`, or
-`localhost` on the Indigo Mac itself: **notifications** (the Alerts page's rules) and Chrome's and
-Edge's **Install app**. The dashboards are served by Indigo's Web Server over plain `http://` on port
+`localhost` on the Indigo Mac itself: **notifications** (an alert rule's Browser channel) and
+Chrome's and Edge's **Install app**. The dashboards are served by Indigo's Web Server over plain `http://` on port
 8176, so on any other device the browser refuses notification permission before it asks you, and
 Chrome and Edge do not offer Install. The Alerts page says so when that is the reason, rather than
 blaming a browser setting.
 
-What still works over plain http: every page, the rules themselves (they are listed under Recent
-alerts on the Alerts page), and pinning to the home screen on an iPhone or iPad (Safari → Share →
-**Add to Home Screen**) or to the Dock on a Mac (Safari → **File → Add to Dock…**). On an iPhone or
+What still works over plain http: every page, the alert rules themselves, which the plugin sends by
+Pushover or email whatever address the pages use (3.47.0), and pinning to the home screen on an
+iPhone or iPad (Safari → Share → **Add to Home Screen**) or to the Dock on a Mac (Safari → **File → Add to Dock…**). On an iPhone or
 iPad a notification also needs the dashboard opened from the home screen, and a secure address.
 
 To get a secure address you need a certificate for the name you open the dashboards by. Tailscale

@@ -134,7 +134,7 @@ file — no build step, no framework, no bundler — and every one has [a page o
 | **[Weather](docs/pages/ecowitt.md)** `ecowitt.html` | The weather station in full |
 | **[System](docs/pages/system-health.md)** `system-health.html` | The Indigo server's own vitals, a device-health census, and what the automation is about to do |
 | **[Wi-Fi](docs/pages/wifi.md)** `wifi.html` | Every access point and how hard it is working; tap one for [its own page](docs/pages/wifi-ap.md). Needs UniFiHealth |
-| **[Alerts](docs/pages/alerts.md)** `alerts.html` | Notification rules from your own browser, no third-party service anywhere |
+| **[Alerts](docs/pages/alerts.md)** `alerts.html` | Alert rules the plugin watches with no page open, sent to your phone by Pushover, by email or as a browser notification |
 | **[Settings](docs/pages/settings.md)** `settings.html` | Forms-based configuration — favourites, links, cameras, rooms, scenes, security, raw JSON |
 | **[Setup](docs/pages/setup.md)**, **[Guest](docs/pages/guest.md)** and **[Demo](docs/pages/demo.md)** | First-run pairing, read-only pairing, and the fixtures-only demo |
 
@@ -144,6 +144,7 @@ file — no build step, no framework, no bundler — and every one has [a page o
 - **UniFiHealth plugin ≥ v0.2.0** for the Wi-Fi detail pages (optional)
 - **EvoHomeControl plugin** for the heating page's boost / force buttons (optional — the panel hides itself when that plugin is not installed; zone temperatures and setpoints work with any thermostat device)
 - **SigenEnergyManager plugin** for the Energy page (with its When to run it card), the Cost page and the hub's Energy · Now card (optional — without it those pages hide themselves, the menu drops their tiles and the hub says in one line which plugin is missing; Mains does not need it)
+- **Pushover plugin** (`io.thechad.indigoplugin.pushover`) and a Pushover user key for alert rules sent to your phone (optional, 3.47.0 — without it a rule can still email you, through Indigo's own mail settings, or raise a browser notification)
 - **SQL Logger plugin** (ships with Indigo) for the Timeline (with its Chart view) and the hub's Home Insights check (optional — not everyone runs it, and everything else works without it, and the pages say so clearly rather than showing empty charts)
 - **PostgreSQL** (v2.47.0, optional) — if your SQL Logger writes to PostgreSQL rather than the default SQLite, pick the backend under the plugin's Configure. Reads go through the `psql` command-line client, so **Postgres.app** or the `postgresql` client package must be installed. No Python driver is added, so SQLite users install nothing. Use **Plugins → Dashboards → Test History Connection** to check the settings before relying on them
 
@@ -265,6 +266,7 @@ manifest. An Indigo MCP server that reads those — [mlamoure's Indigo MCP Serve
 | `dashboards_set_camera` | Add a camera, or change the one with that host. Says whether a restart is needed |
 | `dashboards_remove_camera` | Remove a camera, and take it out of the hub mosaic |
 | `dashboards_read_log` | The last lines of the plugin's own log, optionally filtered to a phrase |
+| `dashboards_list_alerts` | The alert rules the plugin watches (3.47.0), each with its channels and whether its device or variable still exists, which channels are ready, and the recent firings with what each channel did. Read-only |
 
 The writes are refused if the MCP server's "allow plugin-provided tools to make changes" setting is off, and every write goes through the same validation as the Settings page. Reads never return a credential. Without an MCP server the manifest is inert and nothing about the plugin changes. More on the [Claude Code and MCP tools](https://highsteads.github.io/Dashboards/claude-code.html) page.
 

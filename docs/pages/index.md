@@ -43,7 +43,7 @@ and the things worth knowing before you trust it.
 
 | Page | File | What it is for |
 |---|---|---|
-| [Alerts](alerts.md) | `alerts.html` | Notification rules for this browser, and the server-side error watch |
+| [Alerts](alerts.md) | `alerts.html` | Alert rules the plugin watches and sends by Pushover, email or browser, and the server-side error watch |
 | [System health](system-health.md) | `system-health.html` | The Indigo server's own vitals, a device-health census, and what the automation is about to do |
 | [Wi-Fi](wifi.md) | `wifi.html` | Every access point and how hard it is working. Needs UniFiHealth |
 | [Wi-Fi AP](wifi-ap.md) | `wifi-ap.html?id=N` | One access point in detail |

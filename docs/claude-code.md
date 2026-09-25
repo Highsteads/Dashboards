@@ -68,6 +68,7 @@ either side:
 | `dashboards_set_camera` | Add a camera, or change the one with that host. Says whether a restart is needed, and whether the address still needs approving for the camera login (only the owner can, by pressing Save in Configure) |
 | `dashboards_remove_camera` | Remove a camera, and take it out of the hub strip |
 | `dashboards_read_log` | The last lines of the plugin's own log, optionally filtered to a phrase |
+| `dashboards_list_alerts` | The alert rules the plugin watches (3.47.0), each with its channels and whether its device or variable still exists, which channels are ready, and the recent firings with what each channel did. Read-only |
 
 So "set my dashboard rooms to Kitchen, Hall and Lounge" or "why is the garden camera not streaming"
 is a conversation with no source files in it.
