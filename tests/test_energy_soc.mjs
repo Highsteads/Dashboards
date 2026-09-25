@@ -99,6 +99,7 @@ globalThis.Chart = function () { return { destroy() {}, update() {} }; };
 globalThis.Chart.getChart = () => null;
 globalThis.BATTERY_KWH = 35.04;
 globalThis._lastStatus = null;
+globalThis._liveness = { mark() {} };   // 3.46.0: the top bar's stale watch
 // Page-level tables and section renderers update() reaches for. Stubbed, not
 // exercised — this test owns the SOC path only, and a renderer that throws on
 // its own account would mask the very thing being measured.

@@ -157,7 +157,7 @@ h1 .dsh-icon {width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;
     </div>
     <div class="hdr-center">
         <h1><span data-icon="health"></span> System</h1>
-        <span class="topbar-status"><span class="ts">Updated <span id="ts">&#8212;</span></span> &middot; every 30s</span>
+        <span class="topbar-status" data-live><span class="ts">Updated <span id="ts">&#8212;</span></span> <span class="live-cadence">&middot; every 30s</span></span>
     </div>
     <div class="hdr-right">
         <a class="nav-btn" href="settings.html">Settings &rarr;</a>
@@ -191,7 +191,11 @@ function setTs() {
     const p = n => String(n).padStart(2, "0");
     const el = document.getElementById("ts");
     if (el) el.textContent = p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
+    _liveness.mark();
 }
+// 3.46.0: "· every 30s" turns amber and says "out of date" after three missed
+// polls, as Mains does (DashUI.liveness). Only setTs, on real data, marks it.
+const _liveness = DashUI.liveness({ staleAfterMs: 90000 });
 
 if (!window.INDIGO_CONFIG || !window.INDIGO_CONFIG.apiKey) { location.href = "index.html"; }
 else {

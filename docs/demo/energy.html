@@ -383,7 +383,7 @@ h1 .dsh-icon {width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;
     </div>
     <div class="hdr-center">
         <h1><span data-icon="bolt"></span> Energy</h1>
-        <span class="topbar-status"><span class="ts">Updated <span id="ts">&#8212;</span></span> &middot; live</span>
+        <span class="topbar-status" data-live><span class="ts">Updated <span id="ts">&#8212;</span></span> <span class="live-cadence">&middot; live</span></span>
     </div>
     <div class="hdr-right">
         <button class="nav-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Back to top">&uarr;</button>
@@ -1155,11 +1155,15 @@ function renderSocSparkline(slots) {
 
 /* ════════ main update ════════ */
 let _lastStatus = null;
+// 3.46.0: "· live" turns amber and says "out of date" after six status polls
+// (five seconds apart) have brought nothing back (DashUI.liveness).
+const _liveness = DashUI.liveness({ staleAfterMs: 30000 });
 
 function update(d) {
   if (d.error) { setText('ts', 'Error: ' + d.error); return; }
   _lastStatus = d;
   setText('ts', d.timestamp || '—');
+  _liveness.mark();
 
   /* Pack size from the plugin (v5.52.0+); the constant is only the fallback. */
   if (d.battery && d.battery.capacity_kwh > 0 && BATTERY_KWH !== d.battery.capacity_kwh) {

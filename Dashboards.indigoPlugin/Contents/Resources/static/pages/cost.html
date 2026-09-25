@@ -291,7 +291,7 @@ h1 .dsh-icon {width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;
     </div>
     <div class="hdr-center">
         <h1><span data-icon="money"></span> Cost</h1>
-        <span class="topbar-status"><span class="ts">Updated <span id="ts">&#8212;</span></span> &middot; every 30s</span>
+        <span class="topbar-status" data-live><span class="ts">Updated <span id="ts">&#8212;</span></span> <span class="live-cadence">&middot; every 30s</span></span>
     </div>
     <div class="hdr-right">
         <a class="nav-btn" href="energy.html">Energy &rarr;</a>
@@ -1275,6 +1275,9 @@ async function refreshVpp() {
 }
 
 /* ── boot ── */
+// 3.46.0: "· every 30s" turns amber and says "out of date" after three missed
+// polls, as Mains does (DashUI.liveness).
+const _liveness = DashUI.liveness({ staleAfterMs: 90000 });
 async function load() {
   try {
     const r = await sigenFetch('status');
@@ -1285,6 +1288,7 @@ async function load() {
     // the error in the header and keep the last good figures on screen.
     if (d && d.error) { setText('ts', 'Error: ' + d.error); return; }
     setText('ts', d.timestamp || new Date().toLocaleTimeString('en-GB'));
+    _liveness.mark();
     render(d);
   } catch (e) {
     setText('ts', 'Fetch error: ' + e.message);

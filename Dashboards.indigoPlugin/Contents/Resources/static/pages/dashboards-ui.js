@@ -13,8 +13,9 @@
  *              attributes and styles, so it can sit inside a card that
  *              repaints on a 3-second poll without tearing down animations.
  * Author:      CliveS & Claude Opus 5 (v1.0); Claude Fable 5 (v1.1); Claude Opus 5.5 (v1.2)
- * Date:        23-09-2026
- * Version:     1.4 (the MJPEG bandwidth probe is gone with MJPEG); 1.3 (swapImage:
+ * Date:        25-09-2026
+ * Version:     1.5 (liveness: the top bar's "live" turns amber when the
+ *              data stops); 1.4 (the MJPEG bandwidth probe is gone with MJPEG); 1.3 (swapImage:
  *              camera frames cross-fade instead of cutting);
  *              1.2 (tap guard: a scroll touch never presses a tile, and only
  *              tiles that do something flash); 1.1 (solarHoursChart — the stacked per-string hourly chart,
@@ -1557,6 +1558,79 @@
     }
   };
 
+  /* ---- liveness: the top bar's "· live" that can say it is not (3.46.0) --
+     The hub, Energy, Cost and System pages printed "· live" (or "every 30s")
+     beside a pulsing green dot as fixed text, so a page whose data had
+     stopped arriving still claimed to be live, with only a frozen clock to
+     give it away. Mains and Meter already turned amber (their freshness
+     indicator); this is the same idea in one place the other pages share.
+
+     liveness(opts) watches every `[data-live]` status bar (or opts.bars,
+     elements or ids) and returns {mark, paint, stop}. The page calls mark()
+     when a poll has RETURNED DATA and nowhere else. A bar is stale once
+     nothing has been marked for opts.staleAfterMs; it then gains the class
+     "stale" (amber dot, no pulse — dashboards-chrome.css) and its
+     `.live-cadence` text reads "· out of date" until the next mark() puts
+     the page's own wording back.
+
+     It runs on its OWN timer, never the poll's: a poll that has died cannot
+     report that it has died. Time spent hidden does not count — a hidden tab
+     does not poll, and coming back should not flash amber before the first
+     poll has had its chance. Before the first mark there is nothing to be
+     stale about; the page's loading state already says so. */
+  var LIVE_STALE_TEXT = '&middot; out of date';
+  function livenessState(ageMs, staleAfterMs) {
+    if (!(ageMs >= 0) || !(staleAfterMs > 0)) return { stale: false };
+    return { stale: ageMs > staleAfterMs };
+  }
+  function liveness(opts) {
+    var o = opts || {};
+    var d = root.document;
+    var staleAfter = o.staleAfterMs > 0 ? o.staleAfterMs : 90000;
+    var now = typeof o.now === 'function' ? o.now : function () { return Date.now(); };
+    var last = 0, resumed = 0;
+    var bars = [];
+    function collect() {
+      var list = o.bars || (d && d.querySelectorAll ? d.querySelectorAll('[data-live]') : []);
+      bars = [];
+      for (var i = 0; i < list.length; i++) {
+        var bar = (typeof list[i] === 'string' && d) ? d.getElementById(list[i]) : list[i];
+        if (!bar || bars.some(function (b) { return b.bar === bar; })) continue;
+        var cad = bar.querySelector ? bar.querySelector('.live-cadence') : null;
+        bars.push({ bar: bar, cad: cad, fresh: cad ? cad.innerHTML : '' });
+      }
+    }
+    function paint() {
+      if (!last || (d && d.hidden)) return;
+      if (!bars.length) collect();
+      var st = livenessState(now() - Math.max(last, resumed), staleAfter);
+      bars.forEach(function (b) {
+        if (b.bar.classList) b.bar.classList.toggle('stale', st.stale);
+        if (b.cad) {
+          var want = st.stale ? LIVE_STALE_TEXT : b.fresh;
+          if (b.cad.innerHTML !== want) b.cad.innerHTML = want;
+        }
+      });
+    }
+    function mark() { last = now(); paint(); }
+    function onVisible() { if (d && !d.hidden) { resumed = now(); paint(); } }
+    if (d && typeof d.addEventListener === 'function') {
+      d.addEventListener('visibilitychange', onVisible);
+      // A page may mark before its footer bar has been parsed; look again
+      // once the whole document is there.
+      if (d.readyState === 'loading') d.addEventListener('DOMContentLoaded', function () { bars = []; paint(); });
+    }
+    var timer = setInterval(paint, Math.max(1000, Math.min(5000, staleAfter / 6)));
+    return {
+      mark: mark,
+      paint: paint,
+      stop: function () {
+        clearInterval(timer);
+        if (d && typeof d.removeEventListener === 'function') d.removeEventListener('visibilitychange', onVisible);
+      }
+    };
+  }
+
   /* ---- UniFi access point: is its reading live? ------------------------
      One rule for wifi.html and wifi-ap.html, which used to disagree about
      the same AP (the list said stale, the detail page said online). A
@@ -1598,6 +1672,8 @@
     cameraHealthTracker: cameraHealthTracker,
     wx: wx,
     unifiStale: unifiStale,
+    liveness: liveness,
+    livenessState: livenessState,
     linkClass: linkClass,
     pressFeedback: pressFeedback,
     isScrollTouch: isScrollTouch,

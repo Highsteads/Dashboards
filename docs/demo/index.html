@@ -427,7 +427,7 @@
         <div class="hdr-left"></div>
         <div class="hdr-center">
             <h1 id="site-name">Dashboards</h1>
-            <span class="topbar-status"><span class="ts">Updated <span id="ts">—</span></span> · live</span>
+            <span class="topbar-status" data-live><span class="ts">Updated <span id="ts">—</span></span> <span class="live-cadence">· live</span></span>
         </div>
         <div class="hdr-right">
             <button class="nav-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Back to top">↑ Top</button>
@@ -526,9 +526,13 @@
     const POLL_INTERVAL_MS = 3000;
     let _lastUpdate = 0;
     function _pad(n) { return String(n).padStart(2, "0"); }
+    // 3.46.0: "· live" turns amber and says "out of date" when loadSummary
+    // has brought nothing back for ten polls (DashUI.liveness).
+    const _liveness = DashUI.liveness({ staleAfterMs: 30000 });
     function markRefreshed() {
         _lastUpdate = Date.now();
         tickRefreshStatus();
+        _liveness.mark();
     }
     function tickRefreshStatus() {
         let tsStr = "—";
@@ -2481,7 +2485,7 @@
 
     <footer class="bottombar">
         <div class="bottombar-inner">
-            Updated <span id="ts-bot">—</span> · live every 3s
+            <span data-live>Updated <span id="ts-bot">—</span> <span class="live-cadence">· live every 3s</span></span>
         </div>
     </footer>
 
