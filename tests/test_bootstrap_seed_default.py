@@ -136,3 +136,44 @@ def test_the_hub_tells_an_unpaired_browser_how_to_pair():
     hub = (ROOT / "Dashboards.indigoPlugin/Contents/Resources/static/pages/index.html").read_text(encoding="utf-8")
     form = hub.split("function showConfigForm()", 1)[1].split("function connect()", 1)[0]
     assert "Generate" in form and "One-Time Setup Link" in form
+
+
+def _start_plugin(prefs, tmp_path, monkeypatch):
+    """Run the REAL Plugin.__init__ against `prefs` (the stub PluginBase is
+    swapped for one that keeps the prefs object, as Indigo's does), with the
+    install folder in tmp_path. The helpers above are tested alone; this
+    catches an __init__ that asks them the question at the wrong moment."""
+    from unittest.mock import MagicMock
+    import indigo
+
+    def base_init(self, pid, _name, _ver, p):
+        self.pluginId = pid
+        self.pluginPrefs = p
+        self.logger = MagicMock()
+        self.stopThread = self.stop_thread = False
+    monkeypatch.setattr(indigo.PluginBase, "__init__", base_init)
+    monkeypatch.setattr(indigo.server, "getInstallFolderPath",
+                        lambda: str(tmp_path / "Indigo"), raising=False)
+    monkeypatch.setattr(plugin.Plugin, "savePluginPrefs", lambda self: None, raising=False)
+    monkeypatch.setattr(config_mixin, "log", lambda msg, level="INFO": None)
+    # Logging is process-global: leave the event-log mirror and the timestamp
+    # filter alone, or the next test in the session inherits them.
+    monkeypatch.setattr(plugin, "_install_file_mirror", lambda _h: None)
+    monkeypatch.setattr(plugin, "install_timestamp_filter", None, raising=False)
+    (tmp_path / "Indigo" / "Web Assets" / "public").mkdir(parents=True)
+    return plugin.Plugin("com.clives.indigoplugin.dashboards", "Dashboards", "3.46.0", prefs)
+
+
+def test_a_real_first_start_leaves_auto_seed_off(tmp_path, monkeypatch):
+    # __init__ writes cameraLoginHosts on a first start. The history check once
+    # ran after that write, so every new install read as an old one: ON.
+    prefs = {}
+    p = _start_plugin(prefs, tmp_path, monkeypatch)
+    assert p.bootstrap_key_seed is False
+    assert prefs.get("bootstrapKeySeed") is False
+
+
+def test_a_real_start_of_an_old_install_keeps_auto_seed_on(tmp_path, monkeypatch):
+    prefs = {"logLevel": "20"}
+    p = _start_plugin(prefs, tmp_path, monkeypatch)
+    assert p.bootstrap_key_seed is True

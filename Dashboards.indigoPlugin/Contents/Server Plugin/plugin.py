@@ -157,6 +157,11 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
 
     def __init__(self, pluginId, pluginDisplayName, pluginVersion, pluginPrefs):
         super().__init__(pluginId, pluginDisplayName, pluginVersion, pluginPrefs)
+        # Whether Indigo held any prefs for this plugin BEFORE this start wrote
+        # one (3.46.0). Taken first: the camera-login record below writes
+        # cameraLoginHosts on a first start, and read after that, every new
+        # install looked like an old one and kept the key auto-seed on.
+        _prefs_history = self._prefs_have_history(pluginPrefs)
 
         self.timestamp_enabled = as_bool(pluginPrefs.get("timestampEnabled"), True)
         if install_timestamp_filter:
@@ -231,7 +236,7 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         # which is then written down so it never flips silently, with a
         # one-time notice recommending the switch. See _bootstrap_seed_pref.
         self.bootstrap_key_seed = self._settle_bootstrap_seed(
-            pluginPrefs, existing=_existing_install or self._prefs_have_history(pluginPrefs))
+            pluginPrefs, existing=_existing_install or _prefs_history)
 
         # Routine activity narration (06-09-2026). OFF means the file copies,
         # page syncs and poller/proxy/go2rtc start-stop lines are written at
