@@ -34,7 +34,9 @@ battery state of charge and the solar output. **Tap a device name to open it in 
 **Lanes.** One row per category — Presence, Lights, Doors & windows, Heating, and Battery & solar —
 each spanning midnight to midnight. The first four are activity bars with a count of how many
 devices were active. Battery and solar is a chart: state of charge as a line, solar as a filled
-area. A vertical marker shows where you are scrubbing, and an empty lane says so in words.
+area. A vertical marker shows where you are scrubbing, and an empty lane says so in words. The
+Battery & solar lane, and the battery and solar pills on the moment card, come from the Sigenergy
+inverter, so without SigenEnergyManager they are left out and the other four lanes carry on.
 
 Data: `timelineDay` with `{"date": "YYYY-MM-DD"}`. The plugin builds the day server-side from the
 SQL Logger history, by primary-key range rather than by timestamp: the history database has no index

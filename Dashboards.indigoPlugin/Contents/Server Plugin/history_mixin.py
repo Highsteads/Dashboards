@@ -496,7 +496,12 @@ class HistoryMixin:
 
     def _timeline_energy(self, hist, conn, bounds):
         """Battery SOC + solar-power trace for the day, 5-min samples. Uses the
-        same raw-ts / epoch approach as the lanes (index-friendly)."""
+        same raw-ts / epoch approach as the lanes (index-friendly).
+
+        None without SigenEnergyManager (3.48.6): the lane is left out, and an
+        inverter device that outlived its plugin is not read for it."""
+        if not self._sigen_available():
+            return None
         start_epoch, start_utc, end_utc = bounds
         dev = self._sigen_inverter()
         if dev is None:

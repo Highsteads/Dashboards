@@ -266,6 +266,23 @@ def test_carbon_advice_is_given_with_the_plugin():
     assert body["ok"] is True and body["carbon"]["current"]["intensity"] == 120
 
 
+def test_timeline_energy_lane_is_left_out_without_the_plugin():
+    """3.48.6: the Battery & solar lane is Sigenergy data; without the plugin
+    it is not built, and a leftover inverter device is never read for it."""
+    wire_plugins(sem=(False, False))
+    p = bare_plugin()
+    p._sigen_inverter = lambda: pytest.fail("must not look for an inverter without the plugin")
+    assert p._timeline_energy(None, None, (0, "", "")) is None
+
+
+def test_timeline_energy_lane_asks_for_the_inverter_with_the_plugin():
+    wire_plugins(sem=(True, True))
+    p = bare_plugin()
+    asked = []
+    p._sigen_inverter = lambda: asked.append(1)      # returns None: no inverter device
+    assert p._timeline_energy(None, None, (0, "", "")) is None and asked == [1]
+
+
 def test_laundry_plan_is_served_when_the_plugin_is_present():
     wire_plugins(sem=(True, True))
     p = bare_plugin()

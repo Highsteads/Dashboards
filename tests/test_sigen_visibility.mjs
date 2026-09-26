@@ -250,6 +250,23 @@ console.log("\nmains.html and meter.html — the meters stay, the inverter parts
     check("meter: present, the offset card is drawn", /How far this meter is out/.test(mctx.__t({ offset: null, meter: { sources: {} } })));
 }
 
+console.log("\ntimeline.html — the Battery & solar lane goes without the plugin (3.48.6)");
+{
+    const tl = read("timeline.html");
+    const ctx = { Object };
+    vm.runInNewContext(extractFn(tl, "dayForThisHouse") + "\nglobalThis.__d = dayForThisHouse;", ctx);
+    const day = { lanes: [{ key: "lights" }], energy: { points: [{ m: 0, soc: 50, pv: 100 }] } };
+    ctx.window = { INDIGO_CONFIG: { sigenAvailable: false } };
+    let out = ctx.__d(day);
+    check("absent: energy is dropped, the lanes are kept", out.energy === null && out.lanes.length === 1);
+    check("absent: the fetched payload itself is not changed", day.energy !== null);
+    ctx.window = { INDIGO_CONFIG: { sigenAvailable: true } };
+    check("present: the day is untouched", ctx.__d(day) === day);
+    ctx.window = { INDIGO_CONFIG: {} };
+    check("no key: treated as present", ctx.__d(day).energy === day.energy);
+    check("load() passes every fetched day through it", /DAY = dayForThisHouse\(day\);/.test(tl) && !/DAY = day;/.test(tl));
+}
+
 console.log("\nthe three pages guard their boot");
 {
     const iE = energy.indexOf("DashFeatures.sigenAbsent('Energy')");

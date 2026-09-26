@@ -351,8 +351,9 @@ await section(async () => {
     const waits = {}, drawn = [];
     const body = { innerHTML: "" };
     const ctx = {
-        console, Promise, Date, String,
+        console, Promise, Date, String, Object,
         document: { getElementById: () => body },
+        window: { INDIGO_CONFIG: {} },      // 3.48.6: load() passes each day through dayForThisHouse
         setStatus() {}, esc, currentView: "day",
         fetchDay: d => new Promise((res, rej) => { waits[d] = { res, rej }; }),
     };
@@ -360,7 +361,7 @@ await section(async () => {
     vm.runInContext("function pad(n){ return String(n).padStart(2, '0'); }\n" + extractFn(src, "ymd")
         + "\nlet selDate = new Date(2026, 8, 20); let DAY = null; let playMin = null; let dayLoaded = false;"
         + "\nfunction render(){ drawnDays.push(DAY.date + ' under ' + ymd(selDate)); }\n"
-        + (src.match(/let _loadSeq = 0;/) || [""])[0] + "\n" + extractFn(src, "load")
+        + (src.match(/let _loadSeq = 0;/) || [""])[0] + "\n" + extractFn(src, "dayForThisHouse") + "\n" + extractFn(src, "load")
         + "\nglobalThis.__t = { load, back(){ selDate.setDate(selDate.getDate() - 1); return load(); } };", Object.assign(ctx, { drawnDays: drawn }));
     const a = ctx.__t.load();                 // the 20th, cold
     const b = ctx.__t.back();                 // then the 19th, cached

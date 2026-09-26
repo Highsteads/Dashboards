@@ -307,6 +307,14 @@ function render(){
   setPlayhead(playMin == null ? nowMin : playMin);
 }
 
+/* The Battery & solar lane and its chips are Sigenergy data (3.48.6). Without
+   SigenEnergyManager they are left out, whatever a cached day still carries,
+   as the hub, Energy and Mains pages already do. Pure, for the test. */
+function dayForThisHouse(day){
+  if (day && (window.INDIGO_CONFIG || {}).sigenAvailable === false) return Object.assign({}, day, { energy: null });
+  return day;
+}
+
 function drawEnergy(){
   const svg = document.getElementById("energy-svg");
   if (!svg || !DAY.energy) return;
@@ -406,7 +414,7 @@ async function load(){
   try {
     const day = await fetchDay(want);
     if (!current()) return;
-    DAY = day;
+    DAY = dayForThisHouse(day);
     playMin = null;
     render();
     dayLoaded = true;
