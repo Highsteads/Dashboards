@@ -8,7 +8,7 @@ Browser dashboards for [Indigo Domotics](https://www.indigodomo.com/), built for
 wall, a phone in your pocket and a Mac on the desk. No app to install, no cloud account,
 nothing leaving the house.
 
-<img src="https://img.shields.io/badge/version-3.48.1-5856d6" alt="Version 3.48.1">
+<img src="https://img.shields.io/badge/version-3.48.2-5856d6" alt="Version 3.48.2">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-21-0a84ff" alt="21 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
@@ -21,7 +21,7 @@ nothing leaving the house.
 
 ---
 
-**Version:** 3.48.1
+**Version:** 3.48.2
 
 **Documentation:** **[highsteads.github.io/Dashboards](https://highsteads.github.io/Dashboards/)** —
 getting started, configuration, a page of notes for every one of the 21 pages, cameras, remote
@@ -67,11 +67,11 @@ simulator, touching no live devices.
 The three most recent releases, word for word. Every release before these is in
 **[the version history](docs/changelog.md)**, which the documentation site also carries.
 
+**3.48.2** (26-Sep-2026) - **Without SigenEnergyManager the Energy and Cost pages are left out quietly too.** Their menu tiles were already dropped, but opening either page from a bookmark, or through the old Laundry and Carbon addresses, showed a card saying the plugin was missing. Now it opens the hub instead, as though the pages were never there. The Setup check wording and several documentation pages were brought up to date, including the menu page, which still listed Carbon and Laundry tiles that became the When to run it card in 3.34.0. Nothing changes where SigenEnergyManager is installed and enabled.
+
 **3.48.1** (26-Sep-2026) - **Without SigenEnergyManager the hub leaves the energy cards out.** The Energy and Solar cards and the power-cut banner were already hidden when SigenEnergyManager is not installed, but a line took their place saying the plugin was missing. Almost nobody running Indigo has a Sigenergy system, so that line is gone: the Weather card now takes the full width, and the Menu tile reads Cameras, history, system rather than promising Energy. Nothing changes where SigenEnergyManager is installed and enabled.
 
 **3.48.0** (25-Sep-2026) - **Camera pictures are taken only while someone is watching.** Every camera used to have a still taken every two seconds, day and night, whether or not a page was open. Each still opens a fresh video connection to the camera, so with ten cameras that was five connections a second, about 4.4 Mbit/s coming in from the cameras and around 13 GB a day of pictures written to disk, for pictures nobody saw. Now the hub, the room pages and the Cameras page tell the plugin which cameras they have on screen, and only those get a picture every two seconds, until half a minute after the last page stops asking. A page in a hidden tab asks for nothing, and nor does a tile showing live video. A camera nobody is watching still gets one picture every five minutes, so the hub can still say when a camera has gone offline, and a failed picture is tried again after half a minute, so an offline camera shows in about a minute. The new stillsIdleMinutes setting changes the five minutes, or 0 stops those pictures altogether. After a quiet spell the first picture a page shows can be a few minutes old; a fresh one follows within about two seconds, and the Cameras page's age readout says which is which. The get_status tool now says which cameras are being watched.
-
-**3.47.0** (25-Sep-2026) - **Alerts reach your phone with no page open.** The alert rules on the Alerts page used to live in each browser, fired only while a dashboard was open there, and then only as a browser notification, which needs an https address. The plugin now keeps the rules and watches them on the Indigo server itself, the moment Indigo reports a change, and tells you by Pushover (through the Pushover plugin, with your user key in IndigoSecrets or the new field in Configure), by email (through Indigo's own mail settings), or both. Tick Browser on a rule and any open hub, room, Energy or Alerts page also raises a notification, once however many tabs are open. Each rule chooses its own ways to tell you and can have its own email address; the rest go to a default address set on the Alerts page. The page says which ways are ready, sends a test over any of them and reports what happened to each, marks a rule whose device has been deleted, and lists the plugin's last fifty alerts, which survive a restart. Plugins > Dashboards > Send Test Alert runs the same test from the Indigo menu. A way that fails, such as the Pushover plugin being stopped, is noted in the log once every half hour rather than at every alert, and never stops the others. After upgrading, rules saved in a browser no longer fire: the first time that browser opens the Alerts page it offers to move them to the plugin in one click, and removes them from the browser once the plugin has them. A new tool, list_alerts, lets Claude read the rules and recent alerts.
 
 ## A look around
 
@@ -124,7 +124,7 @@ file — no build step, no framework, no bundler — and every one has [a page o
 | **[Room](docs/pages/room.md)** `room.html?room=Name` | One room end to end — lights and sockets with real controls, blinds, sensors, cameras, doors |
 | **[Active](docs/pages/active.md)** `active.html` | Everything currently on, across the whole house |
 | **[Scenes](docs/pages/scenes.md)** `scenes.html` | Every Indigo action group as a button, each reporting what actually happened |
-| **[Energy](docs/pages/energy.md)** `energy.html` | The whole solar and battery picture, and when to run the washing (cheapest) and anything else (cleanest grid). Needs SigenEnergyManager, and hides itself without it |
+| **[Energy](docs/pages/energy.md)** `energy.html` | The whole solar and battery picture, and when to run the washing (cheapest) and anything else (cleanest grid). Needs SigenEnergyManager, and is left out without it |
 | **[Cost](docs/pages/cost.md)** `cost.html` | What the house costs to run, from bill-exact economics. Needs SigenEnergyManager |
 | **[Mains](docs/pages/mains.md)** `mains.html` | Every mains meter and how far each one disagrees with the others |
 | **[Meter](docs/pages/meter.md)** `meter.html?id=N` | One meter in detail — live reading, rank, seven-day offset, history |
@@ -143,7 +143,7 @@ file — no build step, no framework, no bundler — and every one has [a page o
 - **Indigo 2025.2** (Python 3.13, IWS 8176)
 - **UniFiHealth plugin ≥ v0.2.0** for the Wi-Fi detail pages (optional)
 - **EvoHomeControl plugin** for the heating page's boost / force buttons (optional — the panel hides itself when that plugin is not installed; zone temperatures and setpoints work with any thermostat device)
-- **SigenEnergyManager plugin** for the Energy page (with its When to run it card), the Cost page and the hub's Energy · Now card (optional — without it those pages hide themselves, the menu drops their tiles and the hub leaves out its Energy and Solar cards; Mains does not need it)
+- **SigenEnergyManager plugin** for the Energy page (with its When to run it card), the Cost page and the hub's Energy · Now card (optional — without it the menu drops both tiles, the hub leaves out its Energy and Solar cards, and a bookmark to either page opens the hub; Mains does not need it)
 - **Pushover plugin** (`io.thechad.indigoplugin.pushover`) and a Pushover user key for alert rules sent to your phone (optional, 3.47.0 — without it a rule can still email you, through Indigo's own mail settings, or raise a browser notification)
 - **SQL Logger plugin** (ships with Indigo) for the Timeline (with its Chart view) and the hub's Home Insights check (optional — not everyone runs it, and everything else works without it, and the pages say so clearly rather than showing empty charts)
 - **PostgreSQL** (v2.47.0, optional) — if your SQL Logger writes to PostgreSQL rather than the default SQLite, pick the backend under the plugin's Configure. Reads go through the `psql` command-line client, so **Postgres.app** or the `postgresql` client package must be installed. No Python driver is added, so SQLite users install nothing. Use **Plugins → Dashboards → Test History Connection** to check the settings before relying on them

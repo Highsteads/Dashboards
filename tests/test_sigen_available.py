@@ -213,7 +213,7 @@ def test_setup_check_reports_the_plugin_as_optional(monkeypatch, tmp_path, sem, 
     out = json.loads(mcp_tools.dispatch(p, "run_setup_check", {}))["result"]
     row = next(c for c in out["checks"] if c["label"] == "SigenEnergyManager")
     assert row["verdict"] == verdict and row["optional"] is True
-    assert "Energy, Cost and Laundry" in row["detail"]
+    assert "Energy and Cost pages" in row["detail"]
 
 
 def test_status_tool_carries_the_feature_flags(monkeypatch, tmp_path):

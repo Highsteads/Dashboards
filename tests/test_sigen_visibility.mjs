@@ -80,27 +80,27 @@ check("DashFeatures is published before the reflector early-return",
 {
     const src = extractFn(auth, "_dashSigenOn") + "\n" + extractFn(auth, "_dashSigenAbsent") +
                 "\nglobalThis.__on = _dashSigenOn; globalThis.__absent = _dashSigenAbsent;";
-    const run = (cfg, readyState) => {
-        const document = fakeDocument([], readyState);
-        const ctx = { window: { INDIGO_CONFIG: cfg }, document, console };
+    const run = cfg => {
+        const document = fakeDocument([]);
+        document.documentElement = { style: {} };
+        const went = [];
+        const ctx = { window: { INDIGO_CONFIG: cfg }, document, console,
+                      location: { replace: u => went.push(u) } };
         vm.runInNewContext(src, ctx);
-        return { r: ctx.__absent("Energy <b>"), document, on: ctx.__on() };
+        return { r: ctx.__absent("Energy"), document, went, on: ctx.__on() };
     };
     let t = run({ sigenAvailable: false });
-    check("absent: returns true and draws the notice into <main>",
-          t.r === true && /needs the SigenEnergyManager plugin/.test(t.document.main.innerHTML));
-    check("absent: the page label is escaped", /Energy &lt;b&gt;/.test(t.document.main.innerHTML));
-    check("absent: offers the way back", /href="index\.html"/.test(t.document.main.innerHTML));
+    check("absent: returns true and goes back to the hub", t.r === true && t.went.join() === "index.html");
+    check("absent: the page is hidden while it goes", t.document.documentElement.style.visibility === "hidden");
+    check("absent: no notice is drawn", t.document.main.innerHTML === "");
     check("absent: sigen() reads false", t.on === false);
+    check("no text about the missing plugin is left in the shim",
+          !/needs the SigenEnergyManager plugin/.test(auth) && !/It is not installed on/.test(auth));
     t = run({ sigenAvailable: true });
-    check("present: returns false and touches nothing", t.r === false && t.document.main.innerHTML === "");
+    check("present: returns false and touches nothing",
+          t.r === false && t.went.length === 0 && t.document.documentElement.style.visibility === undefined);
     t = run({});
-    check("no key at all: treated as present", t.r === false && t.on === true);
-    t = run({ sigenAvailable: false }, "loading");
-    check("absent while still loading: draws on DOMContentLoaded",
-          t.document.main.innerHTML === "" && (t.document.listeners.DOMContentLoaded || []).length === 1);
-    t.document.listeners.DOMContentLoaded[0]();
-    check("...and then the notice is there", /needs the SigenEnergyManager plugin/.test(t.document.main.innerHTML));
+    check("no key at all: treated as present", t.r === false && t.on === true && t.went.length === 0);
 }
 
 console.log("\nmenu.html — exactly the right tiles go");

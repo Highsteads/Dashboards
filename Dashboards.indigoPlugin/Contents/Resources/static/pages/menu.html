@@ -162,8 +162,9 @@
     }
 
     /* A tile for a page that needs something optional is dropped when config.js
-       says it is absent: SigenEnergyManager for Energy and Cost (v3.13.0). Not
-       silent: the hub says which plugin is missing. Several needs join with "+". */
+       says it is absent: SigenEnergyManager for Energy and Cost (v3.13.0). Since
+       3.48.2 nothing says why; a section left with no tiles is dropped whole.
+       Several needs join with "+". */
     function tileHidden(t, cfgM) {
         cfgM = cfgM || {};
         return String(t[5] || "").split("+").filter(Boolean).some(need =>

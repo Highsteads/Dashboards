@@ -57,10 +57,11 @@ Read the resolved counts under each room before assuming a page is broken.
   blocks 8555; away, only Tailscale reaches them. Over the reflector you get stills, slowly, by
   design.
 
-## Energy, Cost or Laundry are missing from the menu
+## Energy or Cost are missing from the menu
 
-They need the SigenEnergyManager plugin and hide themselves without it. Installing (or enabling) it
-is noticed within thirty seconds; the hub says which plugin is missing until then.
+They need the SigenEnergyManager plugin and are left out without it, along with the hub's Energy
+and Solar cards. A bookmark to either page opens the hub instead. Installing (or enabling) the
+plugin is noticed within thirty seconds.
 
 ## The heating page has no boost or force buttons
 

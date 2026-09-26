@@ -10,8 +10,8 @@ nav_order: 3
 
 Everything the solar and battery system knows, on one long page in labelled bands. The hub's energy
 card is the summary; this is the whole thing. **Needs the SigenEnergyManager plugin.** Without it
-the page shows one card saying so, the menu drops its tile and the hub hides its energy card;
-nothing else on the dashboards depends on the plugin.
+the menu drops the tile, the hub leaves out its energy cards, and a bookmark to this page opens the
+hub instead; nothing else on the dashboards depends on the plugin.
 
 ## Down the page
 

@@ -4,7 +4,7 @@
 //              page that talks to the Indigo REST API.
 // Author:      CliveS & Claude Fable 5
 // Date:        11-06-2026
-// Version:     1.2
+// Version:     1.3
 //
 // As of plugin v1.20.0 the server no longer publishes the Indigo API key in
 // config.js — the /public/ namespace is served by IWS with NO authentication
@@ -34,41 +34,24 @@
 (function () {
     "use strict";
 
-    // --- Optional plugins (v1.2, plugin v3.13.0) ------------------------------
-    // config.js says which optional plugins are present. A page that has
-    // nothing to draw without one hides itself and SAYS why — a gap with no
-    // word beside it reads as a fault. Hoisted, so window.DashFeatures below
-    // exists on every page whichever early return this file takes.
+    // --- Optional plugins (v1.2, plugin v3.13.0; v1.3, plugin 3.48.2) --------
+    // config.js says which optional plugins are present. Hoisted, so
+    // window.DashFeatures below exists on every page whichever early return
+    // this file takes.
     function _dashSigenOn() {
         return !(window.INDIGO_CONFIG && window.INDIGO_CONFIG.sigenAvailable === false);
     }
     function _dashSigenAbsent(pageLabel) {
-        // Draw one card in place of the page and return true when the
-        // SigenEnergyManager plugin is absent; return false and touch nothing
-        // when it is present. A page wraps its boot in this, so a bookmark to
-        // it on a server without the plugin explains itself instead of showing
-        // empty charts and fetch errors.
+        // Return false and touch nothing when SigenEnergyManager is present.
+        // When it is absent, go back to the hub and return true, so the page
+        // skips its boot. Until 3.48.2 this drew a card saying the plugin was
+        // missing; almost nobody running Indigo has a Sigenergy system, so the
+        // Energy and Cost pages are now left out as quietly as their menu
+        // tiles, and a bookmark to one simply opens the hub. pageLabel is kept
+        // so the callers need not change.
         if (_dashSigenOn()) return false;
-        var esc = function (s) {
-            return String(s).replace(/[&<>"]/g, function (c) {
-                return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
-            });
-        };
-        var draw = function () {
-            var main = document.querySelector("main") || document.body;
-            if (!main) return;
-            main.innerHTML =
-                '<section style="max-width:36em;margin:2em auto;padding:1.2em 1.4em;border-radius:14px;' +
-                'background:var(--card-bg,#fff);color:var(--text,#1d1d1f);line-height:1.55">' +
-                '<h2 style="margin:0 0 .5em;font-size:1.15em">The ' + esc(pageLabel) +
-                ' page needs the SigenEnergyManager plugin</h2>' +
-                '<p style="margin:0 0 .6em;color:var(--text-secondary,#86868b)">It is not installed on ' +
-                'this Indigo server, so there is nothing for this page to show. Everything else on ' +
-                'the dashboards works without it.</p>' +
-                '<p style="margin:0"><a href="index.html">Back to the hub</a></p></section>';
-        };
-        if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", draw);
-        else draw();
+        try { document.documentElement.style.visibility = "hidden"; } catch (e) { /* no flash */ }
+        location.replace("index.html");
         return true;
     }
 

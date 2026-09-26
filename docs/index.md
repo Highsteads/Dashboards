@@ -21,7 +21,7 @@ Safari, Edge and anything Chromium-based.
 ## One house, not a template
 
 **Everything here is my interpretation of my house.** The rooms are mine, the energy pages exist
-because I have solar and a battery, the Laundry page because I was tired of guessing when to put
+because I have solar and a battery, the When to run it card because I was tired of guessing when to put
 the washing on. Yours will be different, and they should be. Nothing on this site is a shape you
 have to fit into — it shows what is possible when you can describe a page and have it built, and
 the right way to use it is to take the ideas that suit your house, ignore the rest, and ask for

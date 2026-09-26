@@ -91,9 +91,9 @@ running pre-2.70 JavaScript is the reason the upgrade note says to reload long-o
 ## Companion scripts
 
 The plugin ticks a handful of Python scripts from its own thread, so they need no schedule in
-Indigo: the presence watch that writes the Presence page's data, the hourly event-log watch behind
-the Alerts card and the Activity page, the drive-lights and night-sweep helpers, the FP300 presence
-sensor configuration watch, the appliance scheduler behind the Laundry page, and the reflector
+Indigo: the presence watch that writes the Timeline's Nights data, the hourly event-log watch behind
+the Alerts page and the hub's needs-a-look check, the drive-lights and night-sweep helpers, the FP300 presence
+sensor configuration watch, the appliance scheduler behind the When to run it card, and the reflector
 bandwidth watch. They live in `scripts/` in the repo with their own tests and a README; copy the ones you want
 into Indigo's `Python Scripts` folder and the plugin picks them up on its next tick — no restart. At
 startup it logs one line naming whichever are missing. Each is optional; a page whose script is
