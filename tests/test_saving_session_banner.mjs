@@ -100,9 +100,14 @@ check(alerts({ upcoming: [row(at(-0.5, 96))] }, NOW).length === 1,
 
 // ── direction ──────────────────────────────────────────────────
 m = one(row({ direction: "WEEKEND_HAPPY_HOUR", joined: false }));
-check(m.length === 1 && /not booked/.test(m[0].text) && m[0].warn === false,
-      "an unbooked free hour says booked, not opted-in, and never warns",
-      JSON.stringify(m[0] && m[0].text));
+check(m.length === 0, "an unbooked free hour gets no line (CliveS, 26-Sep-2026)",
+      JSON.stringify(m));
+// Tomorrow's real list: 11-12 and 12-13 unbooked, 13-14 and 14-15 booked.
+m = alerts({ upcoming: [2, 3, 4, 5].map((h, i) => row(Object.assign(
+        { id: 10 + i, direction: "WEEKEND_HAPPY_HOUR", joined: h >= 4 }, at(h)))) }, NOW);
+check(m.length === 2 && m.every((x) => /Free hour booked/.test(x.text) && x.warn === false)
+      && !m.some((x) => /not booked/.test(x.text)),
+      "only the two booked hours are listed", JSON.stringify(m.map((x) => x.text)));
 m = one(row({ direction: "TURN_UP" }));
 check(m.length === 1 && /Power Up/.test(m[0].text) && /not driven/.test(m[0].text),
       "a Power Up says the battery is not driven", JSON.stringify(m[0] && m[0].text));

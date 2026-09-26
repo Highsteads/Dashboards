@@ -1469,10 +1469,10 @@
         const range = DashCalc.sessionRange(r.startMs, r.endMs, nowMs);
         let cls, txt;
         if (r.isHappyHour) {
-            /* Booking a free hour spends a token, so not having booked one is a
-               decision and never wants attention. */
-            cls = r.joined ? "ok" : "";
-            txt = "Free hour · " + range + (r.joined ? " · booked" : " · not booked");
+            /* Only booked free hours arrive — DashCalc.savingSessions leaves the
+               unbooked ones out. */
+            cls = "ok";
+            txt = "Free hour · " + range + " · booked";
         } else if (r.isTurnDown) {
             const rate = r.pence > 0
                 ? " · " + (r.pence >= 1 ? r.pence.toFixed(0) : r.pence.toFixed(1)) + "p/kWh" : "";
@@ -1512,10 +1512,10 @@
         /* sessionRange already puts the weekday in front when it is not today. */
         const when = sameDay ? (start.getHours() >= 17 ? " tonight" : " today") : "";
         if (r.isHappyHour) {
+            /* Booked only — see DashCalc.savingSessions. */
             return r.live
-                ? { cls: r.joined ? "good" : "", text: "Free hour running · until " + DashCalc.sessionEndTime(r.endMs) }
-                : { cls: r.joined ? "good" : "",
-                    text: "Free hour" + when + " · " + range + (r.joined ? " · booked" : " · not booked") };
+                ? { cls: "good", text: "Free hour running · until " + DashCalc.sessionEndTime(r.endMs) }
+                : { cls: "good", text: "Free hour" + when + " · " + range + " · booked" };
         }
         if (r.isTurnDown) {
             if (!r.joined) return { cls: "warn", text: "Saving Session" + (r.live ? " running" : when)

@@ -938,12 +938,11 @@ function savingSessionAlerts(oct, nowMs) {
       ? ', ' + (r.pence >= 1 ? r.pence.toFixed(0) : r.pence.toFixed(1)) + 'p/kWh extra' : '';
 
     if (r.isHappyHour) {
-      /* A Happy Hour is BOOKED, and booking spends a token. Not having booked
-         one is a decision, not a fault, so it never warns. */
+      /* Only BOOKED free hours reach here — DashCalc.savingSessions leaves the
+         unbooked ones out — and a booked one is good news, so it never warns. */
       out.push({ icon: I('money'), warn: false,
-                 text: r.joined ? (r.live ? ' FREE HOUR ACTIVE — charging ' + when
-                                          : ' Free hour booked ' + when)
-                                : ' Free hour ' + when + ' — not booked' });
+                 text: r.live ? ' FREE HOUR ACTIVE — charging ' + when
+                              : ' Free hour booked ' + when });
     } else if (r.isTurnDown) {
       out.push({ icon: I('money'), warn: r.needsAttention,
                  text: r.joined

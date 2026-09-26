@@ -596,6 +596,11 @@
       if (!isFinite(start) || !isFinite(end) || end <= nowMs) continue;
       var live = start <= nowMs;
       if (!live && start - nowMs > SS_LOOKAHEAD_MS) continue;
+      /* An unbooked free hour is left out (CliveS, 26-Sep-2026): only the hours
+         that are booked are worth a line. Octopus offers several a Sunday and the
+         plugin books the ones the battery can use, so "not booked" beside each of
+         the rest was a list of decisions already made, not news. */
+      if (r.direction === SS_HAPPY_HOUR && !r.joined) continue;
       out.push({
         id: r.id,
         startMs: start,

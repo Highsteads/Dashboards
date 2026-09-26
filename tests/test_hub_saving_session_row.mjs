@@ -85,8 +85,11 @@ check(/9p\/kWh/.test(h), "and quotes 72 points as 9p/kWh");
 h = one(ev(at(-0.5)));
 check(/Running/.test(h) && /val warn/.test(h), "a live session says Running", h.slice(-70));
 h = one(ev({ direction: "WEEKEND_HAPPY_HOUR", joined: false }));
-check(/Free hour/.test(h) && /not booked/.test(h) && !/val warn/.test(h),
-      "an unbooked free hour never goes amber", h.slice(-70));
+check(h === "", "an unbooked free hour gives no row at all (CliveS, 26-Sep-2026)", h);
+h = row({ upcoming: [ev(Object.assign({ direction: "WEEKEND_HAPPY_HOUR", joined: false }, at(2))),
+                     ev(Object.assign({ direction: "WEEKEND_HAPPY_HOUR", joined: true }, at(4)))] }, NOW);
+check(/Free hour/.test(h) && /booked/.test(h) && !/not booked/.test(h) && /val ok/.test(h),
+      "an earlier unbooked hour does not hide the booked one after it", h.slice(-70));
 h = one(ev({ direction: "TURN_UP" }));
 check(/Power Up/.test(h) && /battery not driven/.test(h),
       "a Power Up says the battery is not driven", h.slice(-70));

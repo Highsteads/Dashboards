@@ -131,7 +131,7 @@ c = savingSessionChip(sess(s, e, { direction: "WEEKEND_HAPPY_HOUR" }), now);
 check(c && c.cls === "good" && c.text === `Free hour today · ${range(s, e, now)} · booked`,
       "a booked free hour is green", c);
 c = savingSessionChip(sess(s, e, { direction: "WEEKEND_HAPPY_HOUR", joined: false }), now);
-check(c && c.cls === "" && /not booked/.test(c.text), "an unbooked free hour is plain, never amber", c);
+check(c === null, "an unbooked free hour gives no chip (CliveS, 26-Sep-2026)", c);
 
 // 9. An unknown direction surfaces, escaped.
 c = savingSessionChip(sess(s, e, { direction: "<b>NEW</b>" }), now);
