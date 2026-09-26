@@ -583,7 +583,13 @@ class MainsMixin:
         frozen house total made "unmetered" out of a figure hours old. When
         they are not current, houseWatts and volts are None and `stale` says
         why; the id and name stay, because the offsets read the HISTORY, which
-        a stopped plugin does not spoil."""
+        a stopped plugin does not spoil.
+
+        None without SigenEnergyManager (3.48.4): an inverter device can outlive
+        its plugin, and a reference nothing maintains would only give the page
+        a frozen figure to explain."""
+        if not self._sigen_available():
+            return None
         dev = self._sigen_inverter()
         if dev is None:
             return None
@@ -696,6 +702,15 @@ class MainsMixin:
                 "reference": {"id": ref["id"], "name": ref["name"]},
                 "meters": meters, "spread": self._mains_spread(offsets)}
 
+    def _mains_offsets_if_sigen(self):
+        """The offsets, or None without SigenEnergyManager (3.48.4). They are
+        measured against the inverter, so without it there is nothing to
+        build — and a cold cache would otherwise start a week-long history
+        sweep only to report that it had no reference."""
+        if not self._sigen_available():
+            return None
+        return self._mains_offsets_cached()
+
     def _mains_offsets_cached(self):
         """The offsets cache, starting the background build when it is cold.
 
@@ -730,7 +745,7 @@ class MainsMixin:
             ref = self._mains_reference()
             unmetered, unmetered_why = self._mains_unmetered(
                 (ref or {}).get("houseWatts"), metered)
-            offsets = self._mains_offsets_cached()
+            offsets = self._mains_offsets_if_sigen()
             return self._evo_reply({
                 "ok": True, "generated": time.time(),
                 "meters": rows, "meteredWatts": metered,
@@ -784,7 +799,7 @@ class MainsMixin:
                     "offset": None, "reference": None,
                     "why": "this device reports no power, so it is not a mains meter"}
 
-        offsets = self._mains_offsets_cached() or {}
+        offsets = self._mains_offsets_if_sigen() or {}
         offset = (offsets.get("meters") or {}).get(str(dev_id))
         ref = self._mains_reference()
         # No `fleet` here any more: the voltage map it fed was removed from this

@@ -94,6 +94,7 @@ body{
 /* gauges */
 .strip{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
 @media(max-width:720px){.strip{grid-template-columns:repeat(2,1fr)}}
+.strip.strip-two{grid-template-columns:repeat(2,1fr)}
 .gauge{background:var(--card-bg);border:1px solid var(--border-soft);border-radius: var(--r-lg);padding:14px 16px;box-shadow:var(--shadow)}
 .gauge-lab{font-size:10.5px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.6px}
 .gauge-big{font-size:26px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums;margin-top:4px;letter-spacing:-.02em}
@@ -319,6 +320,12 @@ function paint(html) {
 }
 
 /* ── the trust hero: the headline is the DISAGREEMENT ─────────────────────── */
+/* Without SigenEnergyManager (3.48.4) there is no inverter: no reference to
+   measure the meters against and no whole-house figure. The page keeps what
+   it is for — the meters — and leaves out everything that needed the
+   inverter, with no line explaining the gap, as the hub does. */
+function sigenOn() { return (window.INDIGO_CONFIG || {}).sigenAvailable !== false; }
+
 function renderTrust(off, refName) {
     const head = (verdict, sub) => `<section class="card hero">
       <div class="hero-top">
@@ -372,6 +379,7 @@ function refMissingWhy(ref) {
 
 /* ── the four numbers worth seeing at a glance ────────────────────────────── */
 function renderStrip(d) {
+    if (!sigenOn()) return renderStripMetersOnly(d);
     const ref = d.reference || {};
     const refWhy = refMissingWhy(d.reference);
     const rows = d.meters || [];
@@ -399,6 +407,25 @@ function renderStrip(d) {
             : Math.round(share) + "% of the house"}</div>
         ${share === null ? "" : `<div class="bar"><div class="bar-fill"
             style="width:${share.toFixed(1)}%;background:var(--home-load)"></div></div>`}
+      </div>
+      <div class="gauge${gone ? " warn" : ""}">
+        <div class="gauge-lab">Meters</div>
+        <div class="gauge-big">${rows.length}</div>
+        <div class="gauge-sub">${gone ? gone + " not answering" : "all answering"}</div>
+      </div>
+    </div>`;
+}
+
+/* The strip without an inverter: what the meters measure and how many answer. */
+function renderStripMetersOnly(d) {
+    const rows = d.meters || [];
+    const live = rows.filter(r => r.state === "live").length;
+    const gone = rows.length - live;
+    return `<div class="strip strip-two">
+      <div class="gauge">
+        <div class="gauge-lab">Measured</div>
+        <div class="gauge-big">${num(d.meteredWatts, 0)} W</div>
+        <div class="gauge-sub">across ${live} live ${plural(live, "meter")}</div>
       </div>
       <div class="gauge${gone ? " warn" : ""}">
         <div class="gauge-lab">Meters</div>
@@ -498,8 +525,8 @@ function renderMeters(rows, off, staleAfter) {
     html += `<div class="note">A reading older than ${Math.round(staleAfter / 60)} minutes from a
       meter that polls, or any reading from a plugin that is not running, is a last known value
       rather than a measurement. A meter that reports only when something changes is judged on
-      whether it is answering, not on the clock. The figure in the corner is how far that meter
-      normally sits from the reference. Power factor marked <span class="sub">calc</span> is
+      whether it is answering, not on the clock.${sigenOn() ? ` The figure in the corner is how far
+      that meter normally sits from the reference.` : ""} Power factor marked <span class="sub">calc</span> is
       worked out from watts against volts times amps; the rest is reported by the meter itself.
       Watts are never calculated from volts and amps — on a switch-mode supply that overstates
       the load by more than half.</div></section>`;
@@ -513,12 +540,12 @@ function render(d) {
     // meter's page (v3.9.0). They are context for ONE reading, and keeping them
     // here pushed the thing this page is actually for — the meters themselves —
     // below two full screens of analysis, which is how CliveS came to miss them.
-    paint(renderTrust(d.offsets, refName)
+    const on = sigenOn();
+    paint((on ? renderTrust(d.offsets, refName) : "")
         + renderStrip(d)
         + `<div class="sec-label">The meters</div>`
-        + renderMeters(rows, d.offsets, d.staleAfterSeconds || 900)
-        + `<div class="sec-label">The house</div>`
-        + renderUnmetered(d));
+        + renderMeters(rows, on ? d.offsets : null, d.staleAfterSeconds || 900)
+        + (on ? `<div class="sec-label">The house</div>` + renderUnmetered(d) : ""));
     // No icon pass needed: I() inlines the SVG, and dashboards-icons.js keeps a
     // MutationObserver on the body for any data-icon that arrives later. There
     // is no DashIcons.render — a guarded call to one would be a silent no-op.

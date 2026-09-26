@@ -92,7 +92,7 @@
             ["system-health.html", "System", "Server, plugins, devices, automation", "system", "system"],
             ["alerts.html",   "Alerts",   "Errors in the log",                 "",         "bell"],
             ["wifi.html",     "WiFi",     "Access points \u00b7 health",       "wifi",     "wifi"],
-            ["mains.html",    "Mains",    "Every 240 V meter and its trust",   "energy",   "bolt"],
+            ["mains.html",    "Mains",    "Every 240 V meter and its trust",   "energy",   "bolt", "", "Every 240 V meter"],
         ]},
         { key: "setup", title: "Setup", tiles: [
             ["settings.html", "Settings", "Cameras, favourites, rooms",        "settings", "gear"],
@@ -171,8 +171,16 @@
             (need === "sigen" && cfgM.sigenAvailable === false));
     }
 
+    /* A tile's seventh element (3.48.4) is its description without
+       SigenEnergyManager: Mains stays, but its trust figures need the inverter. */
+    function tileArgs(t, cfgM) {
+        const a = t.slice(0, 5);
+        if (t[6] && (cfgM || {}).sigenAvailable === false) a[2] = t[6];
+        return a;
+    }
+
     function sectionHtml(sec, cfgM) {
-        const tiles = sec.tiles.filter(t => !tileHidden(t, cfgM)).map(t => tile(...t.slice(0, 5))).join("")
+        const tiles = sec.tiles.filter(t => !tileHidden(t, cfgM)).map(t => tile(...tileArgs(t, cfgM))).join("")
                     + (sec.key === "setup" ? customLinkTiles() : "");
         if (!tiles) return "";
         return `<section class="menu-sec" aria-labelledby="sec-${sec.key}">

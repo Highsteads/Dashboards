@@ -83,7 +83,8 @@ def _inv(**kw):
 def sem(monkeypatch):
     mod = load_plugin_module()
     running = {"v": True}
-    plug = SimpleNamespace(isRunning=lambda: running["v"], isInstalled=lambda: True)
+    plug = SimpleNamespace(isRunning=lambda: running["v"], isInstalled=lambda: True,
+                           isEnabled=lambda: True)   # 3.48.4: the reference asks _sigen_available() first
     monkeypatch.setattr(mod.indigo.server, "getPlugin", lambda pid: plug)
     return running
 

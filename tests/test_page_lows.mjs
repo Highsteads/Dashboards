@@ -512,9 +512,11 @@ await section(async () => {
 console.log("\nX2 Mains: the whole-house reference says why it is missing");
 await section(async () => {
     const src = code("mains.html");
-    const ctx = { Number, isNaN, Math, String, esc, I: () => "" };
+    // Installed but not answering, so the plugin IS present (3.48.4 left the
+    // absent case out of the page altogether; test_sigen_visibility covers it).
+    const ctx = { Number, isNaN, Math, String, esc, I: () => "", window: { INDIGO_CONFIG: { sigenAvailable: true } } };
     vm.createContext(ctx);
-    vm.runInContext(["has", "num", "plural", "refMissingWhy", "renderStrip", "renderUnmetered"].map(n => extractFn(src, n)).join("\n")
+    vm.runInContext(["has", "num", "plural", "sigenOn", "refMissingWhy", "renderStrip", "renderStripMetersOnly", "renderUnmetered"].map(n => extractFn(src, n)).join("\n")
         + "\nglobalThis.__m = { renderStrip, renderUnmetered, refMissingWhy };", ctx);
     const d = { reference: { id: 1, name: "Sigen Inverter", houseWatts: null, volts: null, stale: "SigenEnergyManager is not running" },
                 meters: [], meteredWatts: 350, unmeteredWatts: null, unmeteredWhy: "no whole-house reading" };

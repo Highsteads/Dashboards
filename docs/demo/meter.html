@@ -389,8 +389,9 @@ function renderHero(d) {
     // look perfectly ordinary. A plug with no mains still reads 250 V here.
     const frozen = (m && m.state !== "live")
         ? `<div class="note">Every figure below is the last value this meter sent before it
-           stopped answering, not a reading of now. Its lifetime energy and its measured
-           offset still stand — those are history by nature.</div>` : "";
+           stopped answering, not a reading of now. ${sigenOn()
+           ? "Its lifetime energy and its measured offset still stand — those are history by nature."
+           : "Its lifetime energy still stands — that is history by nature."}</div>` : "";
     return `<section class="card hero">
       <div class="hero-top">
         <div class="hero-icon">${I("plug")}</div>
@@ -471,7 +472,12 @@ function renderIdentity(d) {
       nothing like a television.</div></section>`;
 }
 
+/* Without SigenEnergyManager (3.48.4) there is no inverter to measure this
+   meter against, so the offset card is left out rather than explaining why. */
+function sigenOn() { return (window.INDIGO_CONFIG || {}).sigenAvailable !== false; }
+
 function renderTrust(d) {
+    if (!sigenOn()) return "";
     const o = d.offset;
     const head = `<section class="card"><h2>How far this meter is out</h2>`;
     if (d.offsetBuilding)

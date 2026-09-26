@@ -13,10 +13,15 @@ with the others. None of them are calibrated. Rather than pretend one of them is
 leads with how far they disagree, and shows every reading raw with its own measured offset beside
 it. On the house it was built on they span 3.7 V.
 
+The reference the meters are measured against, and the whole-house figure, come from the Sigenergy
+inverter. Without SigenEnergyManager the page is simply the meters: the trust panel, House now,
+Unmeasured and The house are left out, the strip keeps Measured and Meters, and the meter cards
+carry no offset.
+
 ## Down the page
 
 **Trust panel.** The headline is the spread, not a reading: how many volts apart, across how many
-voltage meters, measured against which reference (the inverter, where there is one). Pills give the
+voltage meters, measured against the inverter. Pills give the
 comparison basis — seven days of ten-minute means — and the lowest and highest offsets. The note
 underneath says why nothing here is corrected: a corrected number would claim an authority none of
 these meters has.

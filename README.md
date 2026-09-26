@@ -8,7 +8,7 @@ Browser dashboards for [Indigo Domotics](https://www.indigodomo.com/), built for
 wall, a phone in your pocket and a Mac on the desk. No app to install, no cloud account,
 nothing leaving the house.
 
-<img src="https://img.shields.io/badge/version-3.48.3-5856d6" alt="Version 3.48.3">
+<img src="https://img.shields.io/badge/version-3.48.4-5856d6" alt="Version 3.48.4">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-21-0a84ff" alt="21 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
@@ -21,7 +21,7 @@ nothing leaving the house.
 
 ---
 
-**Version:** 3.48.3
+**Version:** 3.48.4
 
 **Documentation:** **[highsteads.github.io/Dashboards](https://highsteads.github.io/Dashboards/)** —
 getting started, configuration, a page of notes for every one of the 21 pages, cameras, remote
@@ -67,11 +67,11 @@ simulator, touching no live devices.
 The three most recent releases, word for word. Every release before these is in
 **[the version history](docs/changelog.md)**, which the documentation site also carries.
 
+**3.48.4** (26-Sep-2026) - **Without SigenEnergyManager the Mains page is just the meters.** The Mains page measures every meter against the Sigenergy inverter and takes the whole-house figure from it. Without the plugin it used to lead with Not measured, show House now as No inverter to measure the whole house, and give a whole section to saying the same thing again. Now those parts are left out: the page shows what the meters measure, how many are answering, and every meter's card. Each meter's own page leaves out its How far this meter is out card, and the Menu tile reads Every 240 V meter. The plugin no longer treats an inverter device left behind by a removed plugin as the reference, and no longer reads a week of history to measure offsets it cannot have. Nothing changes where SigenEnergyManager is installed and enabled.
+
 **3.48.3** (26-Sep-2026) - **Without SigenEnergyManager nothing solar is left behind either.** The hub's Solar card was already hidden, but the page still asked the plugin for the hourly solar chart every five minutes, and the plugin searched the history for an inverter to draw it from. Now the page does not ask, and the plugin answers at once if something else does. On the Weather page, the Solar / UV card no longer shows the solar output or the roof-vs-sky check when an inverter device has outlived its plugin, so it shows the station's own readings only. Nothing changes where SigenEnergyManager is installed and enabled.
 
 **3.48.2** (26-Sep-2026) - **Without SigenEnergyManager the Energy and Cost pages are left out quietly too.** Their menu tiles were already dropped, but opening either page from a bookmark, or through the old Laundry and Carbon addresses, showed a card saying the plugin was missing. Now it opens the hub instead, as though the pages were never there. The Setup check wording and several documentation pages were brought up to date, including the menu page, which still listed Carbon and Laundry tiles that became the When to run it card in 3.34.0. Nothing changes where SigenEnergyManager is installed and enabled.
-
-**3.48.1** (26-Sep-2026) - **Without SigenEnergyManager the hub leaves the energy cards out.** The Energy and Solar cards and the power-cut banner were already hidden when SigenEnergyManager is not installed, but a line took their place saying the plugin was missing. Almost nobody running Indigo has a Sigenergy system, so that line is gone: the Weather card now takes the full width, and the Menu tile reads Cameras, history, system rather than promising Energy. Nothing changes where SigenEnergyManager is installed and enabled.
 
 ## A look around
 
@@ -143,7 +143,7 @@ file — no build step, no framework, no bundler — and every one has [a page o
 - **Indigo 2025.2** (Python 3.13, IWS 8176)
 - **UniFiHealth plugin ≥ v0.2.0** for the Wi-Fi detail pages (optional)
 - **EvoHomeControl plugin** for the heating page's boost / force buttons (optional — the panel hides itself when that plugin is not installed; zone temperatures and setpoints work with any thermostat device)
-- **SigenEnergyManager plugin** for the Energy page (with its When to run it card), the Cost page and the hub's Energy · Now card (optional — without it the menu drops both tiles, the hub leaves out its Energy and Solar cards, and a bookmark to either page opens the hub; Mains does not need it)
+- **SigenEnergyManager plugin** for the Energy page (with its When to run it card), the Cost page and the hub's Energy · Now card (optional — without it the menu drops both tiles, the hub leaves out its Energy and Solar cards, and a bookmark to either page opens the hub; Mains still lists every meter, without the trust figures that are measured against the inverter)
 - **Pushover plugin** (`io.thechad.indigoplugin.pushover`) and a Pushover user key for alert rules sent to your phone (optional, 3.47.0 — without it a rule can still email you, through Indigo's own mail settings, or raise a browser notification)
 - **SQL Logger plugin** (ships with Indigo) for the Timeline (with its Chart view) and the hub's Home Insights check (optional — not everyone runs it, and everything else works without it, and the pages say so clearly rather than showing empty charts)
 - **PostgreSQL** (v2.47.0, optional) — if your SQL Logger writes to PostgreSQL rather than the default SQLite, pick the backend under the plugin's Configure. Reads go through the `psql` command-line client, so **Postgres.app** or the `postgresql` client package must be installed. No Python driver is added, so SQLite users install nothing. Use **Plugins → Dashboards → Test History Connection** to check the settings before relying on them

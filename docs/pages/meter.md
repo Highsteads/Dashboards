@@ -41,7 +41,8 @@ nothing was recorded.
 **How far this meter is out.** Its average difference from the reference, the range over the week,
 that difference as a percentage, how many paired readings back it, and the spread across every
 meter in the house. Neither instrument is calibrated, so this is a distance between two readings,
-not an error.
+not an error. The reference is the Sigenergy inverter, so without SigenEnergyManager this card is
+left out.
 
 **Energy and condition.** Used today, used this month, how long it has been powered, its own
 temperature, and its Wi-Fi signal — whichever of those the device reports.

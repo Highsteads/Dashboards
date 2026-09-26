@@ -207,6 +207,40 @@ def test_solar_string_hours_are_built_when_the_plugin_is_present():
     assert body["ok"] is True
 
 
+def test_mains_has_no_reference_without_the_plugin():
+    """3.48.4: an inverter device can outlive its plugin; without the plugin it
+    is never the Mains reference, so the page has no frozen figure to explain."""
+    wire_plugins(sem=(False, False))
+    p = bare_plugin()
+    p._sigen_inverter = lambda: pytest.fail("must not look for an inverter without the plugin")
+    assert p._mains_reference() is None
+
+
+def test_mains_offsets_are_never_built_without_the_plugin():
+    wire_plugins(sem=(False, False))
+    p = bare_plugin()
+    p._mains_offsets_cached = lambda: pytest.fail("must not start the week-long offsets sweep")
+    assert p._mains_offsets_if_sigen() is None
+
+
+def test_mains_offsets_are_built_with_the_plugin():
+    wire_plugins(sem=(True, True))
+    p = bare_plugin()
+    p._mains_offsets_cached = lambda: {"ok": True, "meters": {}}
+    assert p._mains_offsets_if_sigen() == {"ok": True, "meters": {}}
+
+
+def test_mains_endpoint_serves_the_meters_without_the_plugin():
+    wire_plugins(sem=(False, False))
+    p = bare_plugin()
+    p._refuse_reflector = lambda action: None
+    p._mains_live = lambda: ([{"id": 1, "name": "Kettle", "watts": 2000.0}], 2000.0)
+    p._mains_offsets_cached = lambda: pytest.fail("must not start the offsets sweep")
+    body = json.loads(p.handleMainsMeters(FakeAction())["content"])
+    assert body["ok"] is True and body["meters"][0]["name"] == "Kettle"
+    assert body["reference"] is None and body["offsets"] is None
+
+
 def test_laundry_plan_is_served_when_the_plugin_is_present():
     wire_plugins(sem=(True, True))
     p = bare_plugin()

@@ -123,13 +123,24 @@ console.log("\nmenu.html — exactly the right tiles go");
     check("no key: nothing dropped", hidden({}).length === 0 && hidden(undefined).length === 0);
     check("carbon and laundry are no longer menu tiles (v3.34.0: a card on Energy)",
           !tiles.some(t => t[0] === "carbon.html" || t[0] === "laundry.html"));
-    const tagged = tiles.filter(t => t.length > 5).map(t => t[0] + ":" + t[5]).sort();
+    const tagged = tiles.filter(t => t[5]).map(t => t[0] + ":" + t[5]).sort();
     check("only those tiles carry a needs-key",
           JSON.stringify(tagged) === JSON.stringify(["cost.html:sigen", "energy.html:sigen"]),
           JSON.stringify(tagged));
     check("the filter is the one the sections use",
-          /\.filter\(t => !tileHidden\(t, cfgM\)\)/.test(menu) && /tile\(\.\.\.t\.slice\(0, 5\)\)/.test(menu),
-          "a sixth element must not leak into tile()'s arguments");
+          /\.filter\(t => !tileHidden\(t, cfgM\)\)\.map\(t => tile\(\.\.\.tileArgs\(t, cfgM\)\)\)/.test(menu),
+          "the sixth and seventh elements must not leak into tile()'s arguments");
+    // 3.48.4: Mains stays without Sigen, but its description drops "trust".
+    const tctx = {};
+    vm.runInNewContext(extractFn(menu, "tileArgs") + "\nglobalThis.__a = tileArgs;", tctx);
+    const mains = tiles.find(t => t[0] === "mains.html");
+    check("mains stays without the plugin", mains && !tiles.filter(t => ctx.__h(t, { sigenAvailable: false })).includes(mains));
+    check("mains: absent, the description no longer promises trust",
+          tctx.__a(mains, { sigenAvailable: false })[2] === "Every 240 V meter");
+    check("mains: present, the description is unchanged",
+          tctx.__a(mains, { sigenAvailable: true })[2] === "Every 240 V meter and its trust");
+    check("tileArgs always hands tile() exactly five arguments",
+          tiles.every(t => tctx.__a(t, { sigenAvailable: false }).length === 5 && tctx.__a(t, {}).length === 5));
 }
 
 console.log("\nindex.html — the hub hides its energy cards, quietly");
@@ -198,6 +209,45 @@ console.log("\nindex.html — the Solar card and its chart stand down without th
     const eco = read("ecowitt.html");
     check("ecowitt: no 'Solar now' row from a leftover inverter device without the plugin",
           /const sigen = \(window\.INDIGO_CONFIG \|\| \{\}\)\.sigenAvailable === false \? null\s*: devices\.find\(x => x\.states && x\.states\.pvPowerWatts !== undefined\);/.test(eco));
+}
+
+console.log("\nmains.html and meter.html — the meters stay, the inverter parts go (3.48.4)");
+{
+    const mainsSrc = read("mains.html"), meterSrc = read("meter.html");
+    const fns = ["sigenOn", "renderTrust", "refMissingWhy", "renderStrip", "renderStripMetersOnly",
+                 "renderUnmetered", "meterTile", "renderMeters", "render"];
+    const ctx = { console };
+    vm.runInNewContext(
+        "function esc(t){return String(t==null?'':t);} function has(v){return v!==null&&v!==undefined&&!isNaN(Number(v));}" +
+        "function num(v,dp){return has(v)?Number(v).toFixed(dp==null?1:dp):'-';} function signed(v){return String(v);}" +
+        "function plural(n,one,many){return Number(n)===1?one:(many||one+'s');} function I(){return '';}" +
+        "let painted=''; function paint(h){painted=h;} globalThis.__p=()=>painted;\n" +
+        fns.map(f => extractFn(mainsSrc, f)).join("\n") + "\nglobalThis.__render = render;", ctx);
+    const d = { meters: [{ id: 1, name: "Kettle", state: "live", watts: 2000 }], meteredWatts: 2000,
+                reference: null, offsets: null, unmeteredWatts: null, staleAfterSeconds: 900 };
+    ctx.window = { INDIGO_CONFIG: { sigenAvailable: false } };
+    ctx.__render(d);
+    let html = ctx.__p();
+    check("absent: the meters are drawn", /Kettle/.test(html) && /Every meter/.test(html));
+    check("absent: the Measured and Meters gauges stay", /Measured/.test(html) && />Meters</.test(html));
+    check("absent: no trust headline, no House now, no Unmeasured, no house section",
+          !/Not measured|Measuring|House now|Unmeasured|What nothing is measuring/.test(html));
+    check("absent: nothing mentions an inverter or a reference", !/inverter|reference/i.test(html));
+    check("absent: the two-gauge strip fills its row", /class="strip strip-two"/.test(html) &&
+          /\.strip\.strip-two\{grid-template-columns:repeat\(2,1fr\)\}/.test(mainsSrc));
+    ctx.window = { INDIGO_CONFIG: { sigenAvailable: true } };
+    ctx.__render(Object.assign({}, d, { reference: { name: "Sigen", houseWatts: 2500 }, unmeteredWatts: 500 }));
+    html = ctx.__p();
+    check("present: House now, Unmeasured and the house section are all there",
+          /House now/.test(html) && /Unmeasured/.test(html) && /What nothing is measuring/.test(html));
+
+    const mctx = { console };
+    vm.runInNewContext("function esc(t){return String(t);} function num(v){return String(v);} function signed(v){return String(v);} function plural(n,o){return o;}\n" +
+        extractFn(meterSrc, "sigenOn") + "\n" + extractFn(meterSrc, "renderTrust") + "\nglobalThis.__t = renderTrust;", mctx);
+    mctx.window = { INDIGO_CONFIG: { sigenAvailable: false } };
+    check("meter: absent, no offset card at all", mctx.__t({ offset: null, meter: { sources: {} } }) === "");
+    mctx.window = { INDIGO_CONFIG: { sigenAvailable: true } };
+    check("meter: present, the offset card is drawn", /How far this meter is out/.test(mctx.__t({ offset: null, meter: { sources: {} } })));
 }
 
 console.log("\nthe three pages guard their boot");
