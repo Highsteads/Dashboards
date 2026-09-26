@@ -33,7 +33,7 @@ showing an empty chart:
 | **ffmpeg** and **go2rtc** (Homebrew) | The camera grid, the hub's camera strip and the cameras on room pages. Both are required; without either the plugin logs a warning and shows no streams. See [Cameras](cameras.md) |
 | **SQL Logger** plugin (ships with Indigo) | The Timeline (all four views), the hub's Home Insights check, the Mains page's trust figures and the Meter page's history |
 | **PostgreSQL** behind the SQL Logger | Supported as an alternative backend to SQLite. Reads go through the `psql` client, so Postgres.app or the `postgresql` client package must be installed. Use **Plugins → Dashboards → Test History Connection** before relying on it |
-| **SigenEnergyManager** plugin | The Energy, Cost and Laundry pages and the hub's Energy · Now card. Without it the three pages hide themselves, the menu drops their tiles and the hub says in one line which plugin is missing. Carbon and Mains do not need it |
+| **SigenEnergyManager** plugin | The Energy, Cost and Laundry pages and the hub's Energy · Now card. Without it the three pages hide themselves, the menu drops their tiles and the hub leaves out its Energy and Solar cards. Carbon and Mains do not need it |
 | **EvoHomeControl** plugin | The heating page's boost and force buttons. Zone temperatures and setpoints work with any thermostat device |
 | **UniFiHealth** plugin (v0.2.0 or later) | The Wi-Fi pages |
 | **OpenWeatherMap** key | The hub's weather card forecast and sun times |

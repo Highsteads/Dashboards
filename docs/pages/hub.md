@@ -49,11 +49,14 @@ again.
 
 **Energy · now.** The power-flow diagram — solar, grid, home and battery around a central node, the
 flowing edges showing which way the power is going and how much. Underneath, today's totals and
-today's money. Hidden, with a one-line note saying why, when SigenEnergyManager is not installed.
+today's money. Only shown when SigenEnergyManager is installed and enabled. Without it this card,
+the Solar card and the power-cut banner are left out altogether, the Weather card takes the full
+width, and the Menu tile no longer mentions Energy.
 
 **Solar · today.** Today's kWh against the forecast with a progress bar, then a stacked hourly
 chart of per-array actuals with a dashed forecast tick on each, and a line giving remaining,
-tomorrow, and how many daylight hours beat their forecast.
+tomorrow, and how many daylight hours beat their forecast. Like Energy · now, it needs
+SigenEnergyManager and is left out without it.
 
 **Weather station.** What the local station reads: outdoor temperature, humidity, wind with gust
 and maximum, rain today, pressure, UV index and the indoor reading. Conditions, today's range and

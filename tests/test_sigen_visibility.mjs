@@ -132,27 +132,34 @@ console.log("\nmenu.html — exactly the right tiles go");
           "a sixth element must not leak into tile()'s arguments");
 }
 
-console.log("\nindex.html — the hub hides its cards and says why");
+console.log("\nindex.html — the hub hides its energy cards, quietly");
 {
     const ctx = { console };
     vm.runInNewContext(extractFn(hub, "applySigenAvailability") + "\nglobalThis.__a = applySigenAvailability;", ctx);
     const run = cfg => {
-        const document = fakeDocument(["energy-detail", "solar-now", "house-banner", "hub-feature-note", "weather-now"]);
+        const document = fakeDocument(["energy-detail", "solar-now", "house-banner", "menu-card-desc", "weather-now"]);
+        const classes = new Set();
+        const row = { classList: { add: c => classes.add(c) } };
+        document.querySelector = sel => (sel === ".dash-row.glance" ? row : null);
         ctx.window = { INDIGO_CONFIG: cfg }; ctx.document = document;
-        return { off: ctx.__a(), d: document.els };
+        return { off: ctx.__a(), d: document.els, classes };
     };
     let t = run({ sigenAvailable: false });
     check("absent: returns true", t.off === true);
     check("absent: energy, solar and banner hidden",
           ["energy-detail", "solar-now", "house-banner"].every(id => t.d[id].style.display === "none"));
     check("absent: the weather card is untouched", t.d["weather-now"].style.display !== "none");
-    check("absent: the note is shown and names the plugin",
-          t.d["hub-feature-note"].hidden === false && /SigenEnergyManager/.test(t.d["hub-feature-note"].textContent));
+    check("absent: the glance row goes to one column", t.classes.has("no-energy"));
+    check("absent: the Menu tile no longer promises Energy",
+          t.d["menu-card-desc"].textContent === "Cameras, history, system");
     t = run({ sigenAvailable: true });
-    check("present: nothing hidden, note hidden and empty",
-          t.off === false && t.d["energy-detail"].style.display !== "none" &&
-          t.d["hub-feature-note"].hidden === true && t.d["hub-feature-note"].textContent === "");
-    check("the note element exists in the markup", /<p id="hub-feature-note" class="muted" hidden><\/p>/.test(hub));
+    check("present: nothing hidden, row untouched, Menu tile names Energy",
+          t.off === false && t.d["energy-detail"].style.display !== "none" && t.classes.size === 0 &&
+          t.d["menu-card-desc"].textContent === "Energy, cameras, history, system");
+    check("no note about the missing plugin is left in the hub",
+          !/hub-feature-note/.test(hub) && !/which is not installed/.test(hub));
+    check("the one-column rule exists", /\.dash-row\.glance\.no-energy \{ grid-template-columns: 1fr; \}/.test(hub));
+    check("the Menu tile description carries its id", /<div class="card-desc" id="menu-card-desc">Energy, cameras, history, system<\/div>/.test(hub));
     const boot = extractFn(hub, "bootCommandCentre");
     check("boot applies the availability before polling",
           boot.indexOf("applySigenAvailability()") > 0 && boot.indexOf("applySigenAvailability()") < boot.indexOf("_refreshSigen();"));

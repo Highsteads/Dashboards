@@ -238,6 +238,10 @@
             .dash-row.glance                   { align-items: start; }
             .dash-row.glance > #energy-detail  { grid-row: span 2; }
         }
+        /* No SigenEnergyManager (3.48.1): Energy and Solar are gone, so
+           Weather takes the full width rather than sitting in the left half
+           beside an empty column. */
+        .dash-row.glance.no-energy { grid-template-columns: 1fr; }
         /* Everything collapses to a single column at phone width, the glance
            row (Energy + Weather) included — see the note on it below. Their
            renderers emit a shorter row set on narrow viewports, since the
@@ -472,9 +476,6 @@
             <a id="solar-now"     class="dash-card" href="energy.html" style="display:none"></a>
             <a id="weather-now"   class="dash-card" href="ecowitt.html"></a>
         </div>
-        <!-- v3.13.0: the one line that explains a missing Energy card. Hidden
-             unless config.js says SigenEnergyManager is absent. -->
-        <p id="hub-feature-note" class="muted" hidden></p>
         <!-- v2.97.0: House, Rooms and Tools sit ABOVE Doors & Windows. They
              are how you leave this page, so they belong within reach rather
              than under two status cards. -->
@@ -482,7 +483,7 @@
             <a class="card card-energy" href="menu.html">
                 <div class="card-icon" data-icon="house"></div>
                 <div class="card-title">Menu</div>
-                <div class="card-desc">Energy, cameras, history, system</div>
+                <div class="card-desc" id="menu-card-desc">Energy, cameras, history, system</div>
             </a>
             <a class="card card-room" href="menu.html?g=rooms">
                 <div class="card-icon" data-icon="lounge"></div>
@@ -584,22 +585,22 @@
     }
 
     // Optional plugin (v3.13.0): without SigenEnergyManager there is no energy
-    // to draw, so the Energy card, the Solar card and the power-cut banner go,
-    // and ONE line says why — a gap on this page reads as a fault otherwise.
-    // Returns true when the plugin is absent.
+    // to draw, so the Energy card, the Solar card and the power-cut banner go.
+    // Since 3.48.1 they go quietly: almost nobody running Indigo has a
+    // Sigenergy system, so a line explaining the gap was a note about a
+    // feature they never wanted. The row goes to one column so Weather takes
+    // the full width, and the Menu tile stops promising Energy. Returns true
+    // when absent.
     function applySigenAvailability() {
         const off = (window.INDIGO_CONFIG || {}).sigenAvailable === false;
         for (const id of ["energy-detail", "solar-now", "house-banner"]) {
             const el = document.getElementById(id);
             if (el && off) el.style.display = "none";
         }
-        const note = document.getElementById("hub-feature-note");
-        if (note) {
-            note.hidden = !off;
-            note.textContent = off
-                ? "Energy, Cost and Laundry need the SigenEnergyManager plugin, which is not installed. Everything else here works without it."
-                : "";
-        }
+        const row = document.querySelector(".dash-row.glance");
+        if (row && off) row.classList.add("no-energy");
+        const desc = document.getElementById("menu-card-desc");
+        if (desc) desc.textContent = off ? "Cameras, history, system" : "Energy, cameras, history, system";
         return off;
     }
 
