@@ -577,7 +577,8 @@
     return new Date(endMs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
 
-  function savingSessions(oct, nowMs) {
+  function savingSessions(oct, nowMs, lookaheadMs) {
+    var ahead = lookaheadMs || SS_LOOKAHEAD_MS;
     var rows = (oct && oct.upcoming) || null;
     if (!rows) {
       rows = ((oct && oct.windows) || []).map(function (w) {
@@ -595,7 +596,7 @@
          clock is re-checked here rather than trusting the cache to be fresh. */
       if (!isFinite(start) || !isFinite(end) || end <= nowMs) continue;
       var live = start <= nowMs;
-      if (!live && start - nowMs > SS_LOOKAHEAD_MS) continue;
+      if (!live && start - nowMs > ahead) continue;
       /* An unbooked free hour is left out (CliveS, 26-Sep-2026): only the hours
          that are booked are worth a line. Octopus offers several a Sunday and the
          plugin books the ones the battery can use, so "not booked" beside each of
@@ -624,6 +625,157 @@
       });
     }
     out.sort(function (a, b) { return a.startMs - b.startMs; });
+    return out;
+  }
+
+  /* ── The Octopus sessions card (v3.49.0) ────────────────────────────────
+     CliveS, 26-Sep-2026: "show all the details it can", and keep showing the
+     money Octopus owes for a free hour until it is paid. SigenEnergyManager
+     5.116.0 publishes three things for it under octopus_sessions:
+       history            every joined event with Octopus's OWN result;
+       points_balance /
+       token_balance      the balances, verbatim (null = not reported);
+       free_hour_credits  one row per Sunday: what is owed and whether it is paid.
+     Everything below turns those into words; the page only lays them out.
+     Money is never shown as raw points (8 points = 1p): "256 points" reads
+     like far more than 32p. */
+
+  function penceWords(p) {
+    var n = Math.round(Number(p));
+    if (!isFinite(n)) return '\u2014';
+    return Math.abs(n) < 100 ? n + 'p' : '\u00a3' + (n / 100).toFixed(2);
+  }
+
+  /* "6 kWh", "15.2 kWh": a whole number without the ".0". */
+  function kwhWords(v) {
+    var n = num(v);
+    if (n == null) return '\u2014';
+    var r = Math.round(n * 10) / 10;
+    return (r === Math.round(r) ? r.toFixed(0) : r.toFixed(1)) + ' kWh';
+  }
+
+  /* Octopus reports a Power Down's usage as NET import: negative is export. */
+  function netKwhWords(v) {
+    var n = num(v);
+    if (n == null) return '\u2014';
+    if (Math.abs(n) < 0.05) return 'none';
+    return kwhWords(Math.abs(n)) + (n < 0 ? ' out' : ' in');
+  }
+
+  function dayWords(ms) {
+    return new Date(ms).toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' });
+  }
+
+  function clock(ms) {
+    return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function sessionKind(direction) {
+    if (direction === SS_TURN_DOWN) return 'Power Down';
+    if (direction === SS_HAPPY_HOUR) return 'Free hour';
+    if (direction === 'TURN_UP') return 'Power Up';
+    return 'Session "' + String(direction) + '"';
+  }
+
+  /* One row per joined event, newest first, from Octopus's own record. */
+  function sessionHistoryRows(history, nowMs) {
+    var out = [];
+    (history || []).forEach(function (r) {
+      var start = Date.parse(r.start), end = Date.parse(r.end);
+      if (!isFinite(start) || !isFinite(end)) return;
+      var free = r.direction === SS_HAPPY_HOUR;
+      var result, cls = '';
+      if (end > nowMs || r.status === 'UPCOMING') { result = start <= nowMs ? 'Running now' : 'Coming up'; }
+      else if (r.results === 'SUCCESS') { result = free ? 'Used' : 'Won'; cls = 'good'; }
+      else if (r.results === 'FAIL') { result = 'Missed'; }
+      else { result = 'Being scored'; }
+      var scored = Date.parse(r.results_set_at);
+      out.push({
+        when: new Date(start).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' })
+              + ' ' + clock(start) + '-' + clock(end),
+        kind: sessionKind(r.direction),
+        result: result, cls: cls,
+        scored: isFinite(scored) ? 'scored ' + new Date(scored).toLocaleDateString([], { day: 'numeric', month: 'short' }) : '',
+        usual: free ? '' : netKwhWords(r.baseline_kwh),
+        actual: free ? '' : netKwhWords(r.consumption_kwh),
+        counted: free ? '' : (num(r.energy_delta_kwh) == null ? '\u2014' : kwhWords(r.energy_delta_kwh)),
+        /* A free hour pays nothing here: its money is the credit on the bill,
+           which the free-hour list above tracks. */
+        reward: free ? '' : (num(r.pence) != null && r.pence > 0) ? penceWords(r.pence)
+              : (num(r.points) != null ? penceWords(r.points / OCTOPOINTS_PER_PENNY) : '\u2014'),
+        co2: num(r.co2_g) != null ? Math.round(r.co2_g) + ' g CO\u2082' : '',
+      });
+    });
+    return out;
+  }
+
+  function octopusSummary(oct) {
+    oct = oct || {};
+    var tokens = num(oct.token_balance), points = num(oct.points_balance);
+    var owed = 0, open = 0;
+    (oct.free_hour_credits || []).forEach(function (c) {
+      if (['awaiting', 'late', 'short'].indexOf(c.state) >= 0 && num(c.owed_p) != null) {
+        owed += c.owed_p; open += 1;
+      }
+    });
+    return {
+      tokens: tokens,
+      hoursLeft: tokens == null ? null : Math.floor(tokens / 2),
+      pointsText: points == null ? '\u2014' : penceWords(points / OCTOPOINTS_PER_PENNY),
+      points: points,
+      owedP: owed, openClaims: open,
+    };
+  }
+
+  /* One line per Sunday with booked free hours: what Octopus owes and whether
+     it has paid. `cls` is '' | 'good' | 'warn'. */
+  function freeHourCreditLines(rows, nowMs) {
+    var out = [];
+    (rows || []).forEach(function (c) {
+      var p = (c.date || '').split('-').map(Number);
+      var dayMs = p.length === 3 ? new Date(p[0], p[1] - 1, p[2], 12).getTime() : NaN;
+      var head = isFinite(dayMs) ? dayWords(dayMs) : c.date;
+      var s = Date.parse(c.start), e = Date.parse(c.end);
+      if (isFinite(s) && isFinite(e)) head += ', ' + clock(s) + '-' + clock(e);
+      var rates = (c.rate_p || []).map(Number).filter(isFinite);
+      var rate = rates.length === 1 ? rates[0].toFixed(1) + 'p' : 'the rates at the time';
+      var used = num(c.kwh) != null
+        ? 'The free hours used ' + kwhWords(c.kwh) + ' at ' + rate
+          + ', so Octopus owes ' + penceWords(c.expected_p) + '.' : '';
+      var estimate = c.kwh_source === 'inverter'
+        ? ' That is our own reading; Octopus\u2019s meter reading replaces it in a day or two.' : '';
+      var text, cls = '';
+      var days = num(c.days_waiting) || 0;
+      if (c.state === 'measuring') {
+        text = 'Waiting for the reading of what the free hours used.';
+      } else if (c.state === 'nothing_due') {
+        text = 'No grid electricity was used, so nothing is owed.';
+      } else if (c.state === 'paid') {
+        var last = (c.credits || []).slice(-1)[0];
+        var when = last ? Date.parse(last.posted) : NaN;
+        text = 'Octopus has paid ' + penceWords(c.paid_p)
+             + (isFinite(when) ? ' (on ' + dayWords(when) + ')' : '')
+             + ', which is what the free hours were worth.';
+        cls = 'good';
+      } else if (c.state === 'short') {
+        text = used + ' Octopus has paid ' + penceWords(c.paid_p) + ', so '
+             + penceWords(c.owed_p) + ' is still owed.';
+        cls = 'warn';
+      } else if (c.state === 'late') {
+        text = used + ' Still not paid after ' + days + ' days.' + estimate;
+        cls = 'warn';
+      } else {
+        text = used + ' Not paid yet' + (days > 0 ? ', ' + days + (days === 1 ? ' day' : ' days') + ' so far' : '') + '.' + estimate;
+      }
+      var others = (c.other_credits || []).map(function (o) {
+        var t = Date.parse(o.posted);
+        return penceWords(o.amount_p) + (isFinite(t) ? ' on ' + new Date(t).toLocaleDateString([], { day: 'numeric', month: 'long' }) : '')
+             + (o.title ? ' (' + o.title + ')' : '');
+      });
+      out.push({ head: head, text: text, cls: cls, state: c.state,
+                 others: others.length && c.state !== 'paid'
+                   ? 'Other credits on the account since then: ' + others.join(', ') + '.' : '' });
+    });
     return out;
   }
 
@@ -666,6 +818,9 @@
     gridVoltageState: gridVoltageState,
     savingSessions: savingSessions,
     sessionRange: sessionRange,
+    penceWords: penceWords, kwhWords: kwhWords, netKwhWords: netKwhWords,
+    sessionHistoryRows: sessionHistoryRows, octopusSummary: octopusSummary,
+    freeHourCreditLines: freeHourCreditLines,
     sessionEndTime: sessionEndTime,
     OCTOPOINTS_PER_PENNY: OCTOPOINTS_PER_PENNY,
   };

@@ -265,6 +265,15 @@ svg{max-width:100%}
 .period-table td:first-child{text-align:left;font-weight:600}
 /* week-on-week compare (v2.43.0) */
 .note{font-size:11px;color:var(--text-muted);margin-top:10px;line-height:1.45}
+.oct-list{margin-top:14px}
+.oct-list h3{font-size:11px;font-weight:600;color:var(--text-secondary);margin:0 0 6px;text-transform:uppercase;letter-spacing:.04em}
+.oct-line{font-size:12.5px;line-height:1.45;padding:6px 0;border-bottom:1px solid var(--border-soft)}
+.oct-line b{font-weight:600}
+.oct-line.good b{color:var(--on-color)}
+.oct-line.warn{color:var(--warn)}
+.oct-line .oct-sub{display:block;font-size:11px;color:var(--text-muted)}
+#oct-history td.good{color:var(--on-color)}
+#oct-history td:nth-child(2),#oct-history td:nth-child(3){text-align:left}
 .wow-delta{font-size:11px;font-weight:700;margin-left:4px;white-space:nowrap}
 .wow-delta.good{color:var(--ok,#34c759)}
 .wow-delta.bad{color:#ff453a}
@@ -552,6 +561,25 @@ h1 .dsh-icon {width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;
       </div>
     </div>
     <div class="eco-sub muted" id="eco-rates" style="margin-top:12px">&#8212;</div>
+  </section>
+
+  <!-- v3.49.0: Octopus Saving Sessions and Weekend Happy Hours, in full -->
+  <section class="card" id="oct-card" style="display:none">
+    <h2 data-help-title="Octopus sessions" data-help="Octopus Power Downs and Weekend Happy Hours on this account, from Octopus's own records: what is coming up, how each Power Down was scored and what it paid, and what Octopus owes back for electricity used in a booked free hour. The plugin checks the account for that credit four times a day and keeps it here until it is paid. OctoPoints are worth an eighth of a penny each and become money when you redeem them in the Octopus app.">Octopus sessions <span class="h2sub">Power Downs and free hours</span></h2>
+    <div class="mtiles">
+      <div class="mtile" data-help-title="Free hours left" data-help="Weekend Happy Hour tokens on the account, as Octopus reports them. Two tokens buy one free hour; each Power Down you win earns one.">
+        <div class="mt-lab">Free hours left</div><div class="mt-val" id="oct-hours">&#8212;</div><div class="mt-sub" id="oct-tokens">&#8212;</div>
+      </div>
+      <div class="mtile" data-help-title="OctoPoints" data-help="The OctoPoints balance, shown as money. It only reaches the account when you redeem it in the Octopus app.">
+        <div class="mt-lab">OctoPoints</div><div class="mt-val" id="oct-points">&#8212;</div><div class="mt-sub">yours to redeem in the app</div>
+      </div>
+      <div class="mtile" data-help-title="Owed for free hours" data-help="What Octopus still has to credit for electricity used in booked free hours: up to 16 kWh an hour at the price in force at the time.">
+        <div class="mt-lab">Owed for free hours</div><div class="mt-val" id="oct-owed">&#8212;</div><div class="mt-sub" id="oct-owed-sub">&#8212;</div>
+      </div>
+    </div>
+    <div id="oct-credits"></div>
+    <div id="oct-upcoming"></div>
+    <div class="table-scroll"><table class="period-table" id="oct-history"></table></div>
   </section>
 
   <!-- ═══ MANAGER ═══ -->
@@ -986,6 +1014,15 @@ function updateAlerts(d) {
      for the same reason: an announced window changes what the battery is about
      to do, and it is worth nothing if nobody is told before it starts. */
   for (const m of savingSessionAlerts(d.octopus_sessions, Date.now())) msgs.push(m);
+  /* v3.49.0: a free-hour credit that is late or short stays at the top of the
+     page until Octopus pays it. The normal wait for one lives in the card. */
+  const owedLate = ((d.octopus_sessions || {}).free_hour_credits || [])
+    .filter(c => c.state === 'late' || c.state === 'short');
+  if (owedLate.length) {
+    const owedP = owedLate.reduce((t, c) => t + (Number(c.owed_p) || 0), 0);
+    msgs.push({icon: I('money'), warn: true,
+               text: ' Octopus still owes ' + DashCalc.penceWords(owedP) + ' for free hours'});
+  }
   if (d.storm && d.storm.level !== 'none') {
     msgs.push({icon: I('storm'), text: ' Storm watch: ' + d.storm.level + ' — dawn SOC target raised',
                warn: true});
@@ -1391,8 +1428,73 @@ function update(d) {
     renderEconomics('eco-', d.economics.today);
   }
 
+  renderOctopusCard(d.octopus_sessions);
+
   updateAlerts(d);
   _wireHelpTips();
+}
+
+/* ── v3.49.0: the Octopus sessions card ──
+   Words come from DashCalc (octopusSummary, freeHourCreditLines,
+   sessionHistoryRows) so they are tested; this only lays them out. Hidden until
+   the plugin has something to say — an older SigenEnergyManager publishes none
+   of these fields, and an empty card would read as "no sessions ever". */
+const OCT_LOOKAHEAD_MS = 8 * 24 * 3600 * 1000;
+function renderOctopusCard(oct) {
+  const card = document.getElementById('oct-card');
+  if (!card) return;
+  oct = oct || {};
+  const now = Date.now();
+  const credits  = DashCalc.freeHourCreditLines(oct.free_hour_credits, now);
+  const history  = DashCalc.sessionHistoryRows(oct.history, now);
+  const upcoming = DashCalc.savingSessions(oct, now, OCT_LOOKAHEAD_MS);
+  const sum      = DashCalc.octopusSummary(oct);
+  if (!credits.length && !history.length && !upcoming.length && sum.tokens == null) {
+    card.style.display = 'none';
+    return;
+  }
+  card.style.display = '';
+  document.getElementById('oct-hours').textContent =
+    sum.hoursLeft == null ? '\u2014' : String(sum.hoursLeft);
+  document.getElementById('oct-tokens').textContent = sum.tokens == null ? 'not reported'
+    : sum.tokens + (sum.tokens === 1 ? ' token' : ' tokens') + ', two buy an hour';
+  document.getElementById('oct-points').textContent = sum.pointsText;
+  const owed = document.getElementById('oct-owed');
+  owed.textContent = sum.openClaims ? DashCalc.penceWords(sum.owedP) : 'Nothing';
+  owed.className = 'mt-val' + (credits.some(c => c.cls === 'warn') ? ' warn' : '');
+  document.getElementById('oct-owed-sub').textContent = sum.openClaims
+    ? 'waiting for Octopus to credit it' : 'every free hour is settled';
+
+  document.getElementById('oct-credits').innerHTML = credits.length
+    ? '<div class="oct-list"><h3>Free-hour credits</h3>' + credits.map(c =>
+        `<div class="oct-line ${c.cls}"><b>${esc(c.head)}</b> ${esc(c.text)}`
+        + (c.others ? `<span class="oct-sub">${esc(c.others)}</span>` : '') + '</div>').join('')
+      + '</div>' : '';
+
+  document.getElementById('oct-upcoming').innerHTML = upcoming.length
+    ? '<div class="oct-list"><h3>Coming up</h3>' + upcoming.map(r => {
+        const when = DashCalc.sessionRange(r.startMs, r.endMs, now);
+        const extra = r.pence > 0 ? ', ' + (r.pence >= 1 ? r.pence.toFixed(0) : r.pence.toFixed(1)) + 'p per kWh extra' : '';
+        let text, cls = '';
+        if (r.isHappyHour)     { text = 'Free hour, booked'; cls = 'good'; }
+        else if (r.isTurnDown) { text = r.joined ? 'Power Down, opted in' + extra
+                                                 : 'Power Down, NOT OPTED IN' + extra;
+                                 cls = r.joined ? 'good' : 'warn'; }
+        else { text = (r.direction === 'TURN_UP' ? 'Power Up' : 'Session "' + r.direction + '"')
+                      + ', the battery is not driven'; }
+        if (r.live) text += ', running now';
+        return `<div class="oct-line ${cls}"><b>${esc(when)}</b> ${esc(text)}</div>`;
+      }).join('') + '</div>' : '';
+
+  const table = document.getElementById('oct-history');
+  table.innerHTML = history.length
+    ? '<thead><tr><th>When</th><th>Session</th><th>Result</th><th>Usually</th>'
+      + '<th>This time</th><th>Counted</th><th>Paid</th></tr></thead><tbody>'
+      + history.map(h => `<tr><td>${esc(h.when)}</td><td>${esc(h.kind)}</td>`
+          + `<td class="${h.cls}" title="${esc(h.scored)}">${esc(h.result)}</td>`
+          + `<td>${esc(h.usual)}</td><td>${esc(h.actual)}</td><td>${esc(h.counted)}</td>`
+          + `<td>${esc(h.reward)}</td></tr>`).join('') + '</tbody>'
+    : '';
 }
 
 /* ── v2.78.0: cumulative actual-vs-expected solar progress ──

@@ -130,6 +130,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_no_orphan_pages.py` | Every page can be reached from another page (v3.33.0). The |
 | `test_no_private_strings.py` | This repository is public. Nothing in it may carry a real |
 | `test_observe_all_generation.mjs` | observeAll used to JSON.stringify the whole device list (685 kB |
+| `test_octopus_card.mjs` | Contract test for the Energy page's Octopus sessions card (3.49.0): |
 | `test_offpath_day_keys.py` | A Timeline day (and a Solar string-hours day) built while it |
 | `test_offpath_pool.py` | No /message/ handler may do slow work on the dispatch path. One |
 | `test_page_batch_fixes.mjs` | The page half of the 24-09-2026 bug batch. Where a fix is a |

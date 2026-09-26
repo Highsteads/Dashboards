@@ -8,7 +8,7 @@ Browser dashboards for [Indigo Domotics](https://www.indigodomo.com/), built for
 wall, a phone in your pocket and a Mac on the desk. No app to install, no cloud account,
 nothing leaving the house.
 
-<img src="https://img.shields.io/badge/version-3.48.7-5856d6" alt="Version 3.48.7">
+<img src="https://img.shields.io/badge/version-3.49.0-5856d6" alt="Version 3.49.0">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-21-0a84ff" alt="21 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
@@ -21,7 +21,7 @@ nothing leaving the house.
 
 ---
 
-**Version:** 3.48.7
+**Version:** 3.49.0
 
 **Documentation:** **[highsteads.github.io/Dashboards](https://highsteads.github.io/Dashboards/)** —
 getting started, configuration, a page of notes for every one of the 21 pages, cameras, remote
@@ -67,11 +67,11 @@ simulator, touching no live devices.
 The three most recent releases, word for word. Every release before these is in
 **[the version history](docs/changelog.md)**, which the documentation site also carries.
 
+**3.49.0** (26-Sep-2026) - **The Energy page shows Octopus Power Downs and free hours in full, and what Octopus still owes.** A new Octopus sessions card lists what is coming up over the next eight days, and Octopus's own result for every Power Down you joined: won or missed, your usual usage against this time, the energy counted and what it paid. It also shows your free-hour tokens, your OctoPoints as money, and for each Sunday with booked free hours what Octopus owes for the electricity used, until the credit arrives. A credit that is late or short also shows at the top of the page. Needs SigenEnergyManager 5.116.0 or later; with an older one the card stays hidden.
+
 **3.48.7** (26-Sep-2026) - **Only booked free hours are listed.** On a Sunday with Octopus Weekend Happy Hours, the Energy page listed every hour on offer, with "not booked" beside the ones the battery manager had left alone. It now shows only the hours that are booked, and the hub's energy card and chip do the same, so an earlier unbooked hour no longer stands in front of a booked one later in the day.
 
 **3.48.6** (26-Sep-2026) - **Without SigenEnergyManager the Timeline leaves out battery and solar.** The Timeline's Day view draws a Battery & solar lane and, for the moment you are looking at, pills with the battery's charge and the solar output. Those come from the Sigenergy inverter, so without SigenEnergyManager they are now left out, and the plugin no longer reads an inverter device left behind by a removed plugin to draw them. Presence, lights, doors and windows, and heating carry on as before. Nothing changes where SigenEnergyManager is installed and enabled.
-
-**3.48.5** (26-Sep-2026) - **Without SigenEnergyManager there are no carbon lookups either.** The grid-carbon advice lives in the Energy page's When to run it card, so it had already gone with that page. The plugin would still have asked the UK Carbon Intensity API if anything had requested it; now it answers at once without a lookup, and the card leaves its carbon half out whenever SigenEnergyManager is missing. The Carbon Region help in Configure now says where the advice appears and that it needs SigenEnergyManager, and several documentation pages that still described a Carbon page, a carbon chip on the hub or the old House, Rooms and Tools cards were corrected. Nothing changes where SigenEnergyManager is installed and enabled.
 
 ## A look around
 
