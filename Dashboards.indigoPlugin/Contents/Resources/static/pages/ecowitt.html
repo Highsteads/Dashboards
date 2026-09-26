@@ -428,7 +428,11 @@
         if (wind)    html += renderWind(wind);
         if (rain)    html += renderRain(rain);
         // Find the Sigen inverter's live PV output for the solar-vs-PV cross-check.
-        const sigen = devices.find(x => x.states && x.states.pvPowerWatts !== undefined);
+        // Not without SigenEnergyManager (3.48.3): an inverter device can
+        // outlive its plugin, and its frozen reading would then earn a
+        // "Solar now" row explaining a system this house may not have.
+        const sigen = (window.INDIGO_CONFIG || {}).sigenAvailable === false ? null
+            : devices.find(x => x.states && x.states.pvPowerWatts !== undefined);
         if (solar)   html += renderSolar(solar, sigenPv(sigen, Date.now()));
         html += '</div>';
 

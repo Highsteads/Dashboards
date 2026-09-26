@@ -97,6 +97,7 @@ console.log("\nstill idempotent");
         _heavyStarted: false, _heavyTimers: [],
         _refreshStringHours: () => {}, _refreshInsights: () => {}, _refreshLogWatch: () => {}, _refreshCamHealth: () => {},
         renderCamerasOnce: () => { n++; return Promise.resolve(); }, setInterval: () => 0, console,
+        window: { INDIGO_CONFIG: {} },   // 3.48.3: the solar timer asks whether Sigen is here
     };
     vm.createContext(ctx);
     vm.runInContext(fn + "\nstartHeavyRefreshers(); startHeavyRefreshers();", ctx);

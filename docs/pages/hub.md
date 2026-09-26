@@ -56,7 +56,8 @@ width, and the Menu tile no longer mentions Energy.
 **Solar · today.** Today's kWh against the forecast with a progress bar, then a stacked hourly
 chart of per-array actuals with a dashed forecast tick on each, and a line giving remaining,
 tomorrow, and how many daylight hours beat their forecast. Like Energy · now, it needs
-SigenEnergyManager and is left out without it.
+SigenEnergyManager and is left out without it, and the page then never asks the server for the
+hourly chart either.
 
 **Weather station.** What the local station reads: outdoor temperature, humidity, wind with gust
 and maximum, rain today, pressure, UV index and the indoor reading. Conditions, today's range and
@@ -78,7 +79,8 @@ key from this browser.
 | Devices, rooms, favourites, doors | Indigo REST `/v2/api`, through the shared delta cache |
 | Room list and membership | `rooms.json`, written by the plugin |
 | Weather | `weather.json`, written by the plugin from OpenWeatherMap |
-| Energy, solar, money, VPP | `sigenApi` — the plugin's proxy to SigenEnergyManager |
+| Energy, solar, money, VPP | `sigenApi` — the plugin's proxy to SigenEnergyManager (not asked without it) |
+| Hourly solar chart | `solarStringHours`, from the SQL Logger's inverter history (not asked without SigenEnergyManager) |
 | Needs a look | devices from the poll, `logErrors`, `homeInsights`, and the camera health in `streams.json` |
 | Camera stills | The snapshots the plugin writes to a private folder under `/public/dashboards`, found through the `cameraStills` action |
 

@@ -186,6 +186,27 @@ def test_laundry_plan_says_why_when_the_plugin_is_absent():
     assert "SigenEnergyManager" in body["error"]
 
 
+def test_solar_string_hours_stand_down_without_the_plugin():
+    wire_plugins(sem=(False, False))
+    p = bare_plugin()
+    def boom(*a, **k):
+        raise AssertionError("must not query the history without the plugin")
+    p._offpath_get = boom
+    p._solar_string_hours = boom
+    reply = p.handleSolarStringHours(FakeAction('{"date": "2026-09-26"}'))
+    assert reply.get("status", 200) == 200, "a 503 would read as 'still building' and be polled"
+    body = json.loads(reply["content"])
+    assert body == {"ok": False, "reason": "sem_absent", "error": "SigenEnergyManager is not installed"}
+
+
+def test_solar_string_hours_are_built_when_the_plugin_is_present():
+    wire_plugins(sem=(True, True))
+    p = bare_plugin()
+    p._offpath_get = lambda key, producer, ttl, wait=None: ("fresh", {"ok": True, "hours": {}})
+    body = json.loads(p.handleSolarStringHours(FakeAction('{"date": "2026-09-26"}'))["content"])
+    assert body["ok"] is True
+
+
 def test_laundry_plan_is_served_when_the_plugin_is_present():
     wire_plugins(sem=(True, True))
     p = bare_plugin()

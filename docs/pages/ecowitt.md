@@ -22,7 +22,9 @@ an Ecowitt station through the Ecowitt plugin is what it was built on.
 - *Solar / UV* — irradiance in W/m², the UV index with a band, and the array's current output. In
   daylight a fourth row appears, "roof vs sky": what the roof is producing as a percentage of what
   the sky irradiance implies (set `arrayKwp` in the configuration). It is absent after dark, when
-  a ratio of nothing to nothing would be a number that means nothing.
+  a ratio of nothing to nothing would be a number that means nothing. The array's output and the
+  roof-vs-sky row need SigenEnergyManager and are left out without it, so the card then shows the
+  station's own readings only.
 
 **Inside.** Indoor temperature, humidity and pressure.
 

@@ -691,6 +691,13 @@ class HistoryMixin:
         upstream by IWS like every /message route. Cached 120 s — the chart
         polls with the page's 5-min history cycle, but several open pages
         must not each pay a history query."""
+        if not self._sigen_available():
+            # No SigenEnergyManager (3.48.3): there is no inverter history to
+            # chart, so answer at once rather than scan the biggest table for
+            # nothing. 200, not 503 — a 503 reads as "still building" and the
+            # pages would poll it.
+            return self._evo_reply({"ok": False, "reason": "sem_absent",
+                                    "error": "SigenEnergyManager is not installed"})
         params, _reply = self._request_body(action)
         if _reply:
             return _reply

@@ -8,7 +8,7 @@ Browser dashboards for [Indigo Domotics](https://www.indigodomo.com/), built for
 wall, a phone in your pocket and a Mac on the desk. No app to install, no cloud account,
 nothing leaving the house.
 
-<img src="https://img.shields.io/badge/version-3.48.2-5856d6" alt="Version 3.48.2">
+<img src="https://img.shields.io/badge/version-3.48.3-5856d6" alt="Version 3.48.3">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-21-0a84ff" alt="21 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
@@ -21,7 +21,7 @@ nothing leaving the house.
 
 ---
 
-**Version:** 3.48.2
+**Version:** 3.48.3
 
 **Documentation:** **[highsteads.github.io/Dashboards](https://highsteads.github.io/Dashboards/)** —
 getting started, configuration, a page of notes for every one of the 21 pages, cameras, remote
@@ -67,11 +67,11 @@ simulator, touching no live devices.
 The three most recent releases, word for word. Every release before these is in
 **[the version history](docs/changelog.md)**, which the documentation site also carries.
 
+**3.48.3** (26-Sep-2026) - **Without SigenEnergyManager nothing solar is left behind either.** The hub's Solar card was already hidden, but the page still asked the plugin for the hourly solar chart every five minutes, and the plugin searched the history for an inverter to draw it from. Now the page does not ask, and the plugin answers at once if something else does. On the Weather page, the Solar / UV card no longer shows the solar output or the roof-vs-sky check when an inverter device has outlived its plugin, so it shows the station's own readings only. Nothing changes where SigenEnergyManager is installed and enabled.
+
 **3.48.2** (26-Sep-2026) - **Without SigenEnergyManager the Energy and Cost pages are left out quietly too.** Their menu tiles were already dropped, but opening either page from a bookmark, or through the old Laundry and Carbon addresses, showed a card saying the plugin was missing. Now it opens the hub instead, as though the pages were never there. The Setup check wording and several documentation pages were brought up to date, including the menu page, which still listed Carbon and Laundry tiles that became the When to run it card in 3.34.0. Nothing changes where SigenEnergyManager is installed and enabled.
 
 **3.48.1** (26-Sep-2026) - **Without SigenEnergyManager the hub leaves the energy cards out.** The Energy and Solar cards and the power-cut banner were already hidden when SigenEnergyManager is not installed, but a line took their place saying the plugin was missing. Almost nobody running Indigo has a Sigenergy system, so that line is gone: the Weather card now takes the full width, and the Menu tile reads Cameras, history, system rather than promising Energy. Nothing changes where SigenEnergyManager is installed and enabled.
-
-**3.48.0** (25-Sep-2026) - **Camera pictures are taken only while someone is watching.** Every camera used to have a still taken every two seconds, day and night, whether or not a page was open. Each still opens a fresh video connection to the camera, so with ten cameras that was five connections a second, about 4.4 Mbit/s coming in from the cameras and around 13 GB a day of pictures written to disk, for pictures nobody saw. Now the hub, the room pages and the Cameras page tell the plugin which cameras they have on screen, and only those get a picture every two seconds, until half a minute after the last page stops asking. A page in a hidden tab asks for nothing, and nor does a tile showing live video. A camera nobody is watching still gets one picture every five minutes, so the hub can still say when a camera has gone offline, and a failed picture is tried again after half a minute, so an offline camera shows in about a minute. The new stillsIdleMinutes setting changes the five minutes, or 0 stops those pictures altogether. After a quiet spell the first picture a page shows can be a few minutes old; a fresh one follows within about two seconds, and the Cameras page's age readout says which is which. The get_status tool now says which cameras are being watched.
 
 ## A look around
 

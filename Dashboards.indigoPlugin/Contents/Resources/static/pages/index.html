@@ -625,8 +625,12 @@
     function startHeavyRefreshers() {
         if (_heavyStarted) return;
         _heavyStarted = true;
-        _refreshStringHours();
-        _heavyTimers.push(setInterval(_refreshStringHours, 5 * 60 * 1000));
+        // The per-array solar chart is Sigen data too (3.48.3): without the
+        // plugin there is nothing to ask for, so no request every 5 minutes.
+        if ((window.INDIGO_CONFIG || {}).sigenAvailable !== false) {
+            _refreshStringHours();
+            _heavyTimers.push(setInterval(_refreshStringHours, 5 * 60 * 1000));
+        }
         _refreshInsights();
         _heavyTimers.push(setInterval(_refreshInsights, 5 * 60 * 1000));
         _refreshLogWatch();
@@ -1711,6 +1715,7 @@
     let _wxStringHours = null;
     async function _refreshStringHours() {
         if (document.hidden) return;   // a background tab has nothing to draw
+        if ((window.INDIGO_CONFIG || {}).sigenAvailable === false) return;   // 3.48.3
         try {
             // Built on a worker since v3.25.0: _msg waits out a pending build.
             const d = await _msg("solarStringHours", {}, { pendingMs: 15000 });
@@ -1739,6 +1744,10 @@
         const card = document.getElementById("solar-now");
         const d = _sigen();
         if (!card) return;
+        // Without SigenEnergyManager the card is left out, whatever else has
+        // loaded (3.48.3) — applySigenAvailability hid it, and nothing here
+        // may put it back.
+        if ((window.INDIGO_CONFIG || {}).sigenAvailable === false) { card.style.display = "none"; return; }
         // No inverter, or nothing from it yet: the card is not drawn at all
         // rather than left as an empty box on the landing page.
         if (!d || !d.solar) { card.style.display = "none"; return; }

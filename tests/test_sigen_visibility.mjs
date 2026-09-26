@@ -173,6 +173,33 @@ console.log("\nindex.html — the hub hides its energy cards, quietly");
           rec.indexOf('sigenAvailable === false) {') > 0 && rec.indexOf('sigenAvailable === false) {') < rec.indexOf("Sigen device not found"));
 }
 
+console.log("\nindex.html — the Solar card and its chart stand down without the plugin (3.48.3)");
+{
+    const ctx = { console };
+    vm.runInNewContext(extractFn(hub, "renderWeatherSolar") + "\nglobalThis.__r = renderWeatherSolar;", ctx);
+    const run = cfg => {
+        const document = fakeDocument(["solar-now"]);
+        ctx.window = { INDIGO_CONFIG: cfg }; ctx.document = document;
+        ctx._sigen = () => ({ solar: { actual_today_kwh: 12.3, today_kwh: 20 } });
+        ctx._ensureSolarShell = () => {};
+        ctx.__r();
+        return document.els["solar-now"].style.display;
+    };
+    check("absent: the card stays hidden even when solar data is to hand", run({ sigenAvailable: false }) === "none");
+    check("present: the card is drawn", run({ sigenAvailable: true }) === "");
+
+    const rsh = extractFn(hub, "_refreshStringHours");
+    check("_refreshStringHours returns before asking the server",
+          rsh.indexOf("sigenAvailable === false) return;") > 0 &&
+          rsh.indexOf("sigenAvailable === false) return;") < rsh.indexOf('_msg("solarStringHours"'));
+    const heavy = extractFn(hub, "startHeavyRefreshers");
+    check("the 5-minute solar chart timer only starts with the plugin",
+          /if \(\(window\.INDIGO_CONFIG \|\| \{\}\)\.sigenAvailable !== false\) \{\s*_refreshStringHours\(\);\s*_heavyTimers\.push\(setInterval\(_refreshStringHours, 5 \* 60 \* 1000\)\);\s*\}/.test(heavy));
+    const eco = read("ecowitt.html");
+    check("ecowitt: no 'Solar now' row from a leftover inverter device without the plugin",
+          /const sigen = \(window\.INDIGO_CONFIG \|\| \{\}\)\.sigenAvailable === false \? null\s*: devices\.find\(x => x\.states && x\.states\.pvPowerWatts !== undefined\);/.test(eco));
+}
+
 console.log("\nthe three pages guard their boot");
 {
     const iE = energy.indexOf("DashFeatures.sigenAbsent('Energy')");
