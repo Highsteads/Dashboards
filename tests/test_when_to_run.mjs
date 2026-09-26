@@ -119,6 +119,9 @@ console.log("\nthe card hides what it cannot say");
     check("no scheduler script: only the laundry half goes", o.laundryEl.hidden && !o.carbonEl.hidden && calls.join() === "loadCarbon");
     o = mk({});
     check("an older config.js shows both", !o.laundryEl.hidden && !o.carbonEl.hidden && calls.length === 2);
+    o = mk({ sigenAvailable: false, scripts: { laundry: true } });
+    check("3.48.5 no SigenEnergyManager: the carbon half goes and is not polled",
+          o.carbonEl.hidden && calls.join() === "loadLaundry");
 }
 
 console.log("\na refusal and a failed poll (lows batch [53] [54])");

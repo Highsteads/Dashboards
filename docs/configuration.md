@@ -31,7 +31,7 @@ There are three places a setting can come from, and one of them wins.
 | Cameras (JSON) | The camera list, for installs that have never saved from Settings — see below |
 | Swap-Out Host | A camera that can replace another in the hub's strip |
 | Hidden Scenes (JSON) | Action-group names or ids to keep off the Scenes page |
-| Carbon Region | Your UK grid region, for the Carbon page and the hub's carbon chip |
+| Carbon Region | Your UK grid region, for the grid-carbon half of the Energy page's When to run it card. Off stops the lookups. Needs SigenEnergyManager, like the Energy page |
 | Auto-seed the API key to LAN browsers | Off for a new install (3.46.0). On, a new browser on the home network or tailnet pairs itself on first visit, which hands the full API key to any device that asks, a visitor's included. Off, each device pairs once with a one-time setup link — see [Pairing a browser](getting-started.md#pairing-a-browser) |
 | OpenWeatherMap API key, latitude, longitude | The hub weather card's forecast and sun times |
 | System Health thresholds | How many hours quiet makes a battery device "quiet", and what counts as a low battery |

@@ -64,7 +64,7 @@ and maximum, rain today, pressure, UV index and the indoor reading. Conditions, 
 the sun times are in the greeting card, so this card does not repeat them, and without a station
 of its own it steps aside.
 
-**House / Rooms / Tools.** Three cards, each a doorway into the menu at that group.
+**Menu / Rooms.** Two cards: one opens the [Menu](menu.md), the other its list of rooms.
 
 **Doors & windows.** Everything currently open, most recent first, with how long it has been that
 way.
@@ -99,8 +99,8 @@ stops calling it.
 
 - Tap a favourite to toggle a device, run a scene, or work a door in the direction its own state
   calls for.
-- Tap a room, a camera or any card to open its page, or a House / Rooms / Tools card to open the
-  menu at that group.
+- Tap a room, a camera or any card to open its page, or the Menu or Rooms card to open the menu
+  or its list of rooms.
 
 Control tiles honour the PIN if the device is on the PIN list, and a guest-paired browser cannot
 control anything at all.

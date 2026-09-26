@@ -169,7 +169,9 @@
         const card = opts.card, label = opts.label;
         const lEl = opts.laundryEl, cEl = opts.carbonEl, fEl = opts.freshEl;
         const wantLaundry = !((cfg.scripts || {}).laundry === false);
-        const wantCarbon = cfg.carbon !== false;
+        // Carbon also needs SigenEnergyManager (3.48.5): the advice weighs its
+        // solar and tariff, and the plugin will not fetch it without one.
+        const wantCarbon = cfg.carbon !== false && cfg.sigenAvailable !== false;
         if (!wantLaundry && !wantCarbon) {
             if (card) card.hidden = true;
             if (label) label.hidden = true;

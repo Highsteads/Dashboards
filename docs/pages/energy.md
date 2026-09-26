@@ -69,7 +69,8 @@ lockout, and a short log of recent grid events.
   with a plain-English band, the cleanest half hour in the next day, a 24-hour forecast chart, and,
   folded away, the live generation mix and how the advice is worked out: spare solar first, then a
   clean grid, then the cleanest window in the next 16 hours. Great Britain only, from the free UK
-  Carbon Intensity API; switch it off under Configure.
+  Carbon Intensity API; switch it off under Configure. Like the rest of this page it needs
+  SigenEnergyManager, and without it the plugin makes no carbon lookups at all.
 
 Each half hides itself when it has nothing to say, and the card goes when both do. The old
 `carbon.html` and `laundry.html` addresses land here.

@@ -8,8 +8,8 @@ nav_order: 5
 ## The hub, and the menu
 
 The hub (`index.html`) is the page on the wall tablet. It answers "is the house all right" from the
-top of the screen — who is home, the heating, the battery, today's carbon, a strip of live cameras —
-and then offers a way into everything else through three cards: House, Rooms and Tools. Those open
+top of the screen — who is home, the heating, the battery, a strip of live cameras — and then
+offers a way into everything else through two cards: Menu and Rooms. Those open
 the menu (`menu.html`), which is the only page that lists every page and every room, so a room added
 in Settings appears there without touching any HTML.
 

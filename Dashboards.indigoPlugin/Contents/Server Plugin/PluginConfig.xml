@@ -72,7 +72,7 @@
 		</List>
 	</Field>
 	<Field id="hlpCarbon" type="label" fontSize="mini" alignWithControl="true">
-		<Label>Region used by the Carbon page for grid-intensity + generation-mix data (the free Carbon Intensity API, no key needed — it covers Great Britain only). Pick the DNO region closest to you, or Off to hide the Carbon page and stop the lookups.</Label>
+		<Label>Region for the grid-carbon half of the Energy page's When to run it card (the free Carbon Intensity API, no key needed — it covers Great Britain only). Pick the DNO region closest to you, or Off to hide it and stop the lookups. Needs SigenEnergyManager, like the Energy page.</Label>
 	</Field>
 
 	<Field id="sep_boot" type="separator"/>

@@ -11,7 +11,7 @@ Browser dashboards for [Indigo Domotics](https://www.indigodomo.com/), built for
 wall, a phone in your pocket and a Mac on the desk. No app to install, no cloud account, nothing
 leaving the house.
 
-<img src="screenshots/index.png" width="860" alt="The hub — who is home, the heating, the battery, today's carbon, and a strip of live cameras">
+<img src="screenshots/index.png" width="860" alt="The hub — who is home, the heating, the battery, and a strip of live cameras">
 
 Pages live under Indigo's `/public/` namespace, so any browser on the LAN — or on the tailnet
 when you are away — opens them without typing credentials. The plugin handles all the camera-side

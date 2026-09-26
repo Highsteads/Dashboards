@@ -37,6 +37,13 @@ class CarbonMixin:
         _refused = self._refuse_reflector(action)
         if _refused:
             return _refused
+        if not self._sigen_available():
+            # The only place this advice is shown is the Energy page's When to
+            # run it card, and without SigenEnergyManager that page is left out
+            # (3.48.5). Answer at once rather than call the Carbon Intensity API
+            # for a card nobody can see. 200, not 503 — a 503 reads as pending.
+            return self._evo_reply({"ok": False, "reason": "sem_absent",
+                                    "error": "SigenEnergyManager is not installed"})
         out = {"ok": True, "now": time.time()}
         try:
             out["carbon"] = self._carbon_intensity()

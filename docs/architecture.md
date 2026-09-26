@@ -152,6 +152,6 @@ lives in modules beside it, which `Plugin` inherits, so every method is still `s
 | `history_mixin.py` | Everything that reads the SQL Logger history: Graphs, Timeline, the per-string solar hours, and the primary-key helpers that keep those queries off a full scan |
 | `mains_mixin.py` | The Mains and Meter pages: every 240 V meter and how far each can be trusted |
 | `insights_mixin.py` | Home Insights, the hub's "out of the ordinary" card |
-| `carbon_mixin.py` | The Carbon page's grid-intensity advice |
+| `carbon_mixin.py` | The grid-carbon advice in the Energy page's When to run it card (answers at once, with no lookup, without SigenEnergyManager) |
 | `dash_common.py` | The constants and the `log()` helper every module shares |
 | `dash_util.py` | Small pure helpers the modules share |

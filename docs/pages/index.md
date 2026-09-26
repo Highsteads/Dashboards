@@ -15,7 +15,7 @@ and the things worth knowing before you trust it.
 
 | Page | File | What it is for |
 |---|---|---|
-| [Hub](hub.md) | `index.html` | The front page. Who is home, the heating, the battery, today's carbon, a strip of live cameras, your favourites, and a way into everything else |
+| [Hub](hub.md) | `index.html` | The front page. Who is home, the heating, the battery, a strip of live cameras, your favourites, and a way into everything else |
 | [Menu](menu.md) | `menu.html` | Every page in one grouped list, with each room as its own entry |
 
 ## Energy and money

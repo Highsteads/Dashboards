@@ -241,6 +241,31 @@ def test_mains_endpoint_serves_the_meters_without_the_plugin():
     assert body["reference"] is None and body["offsets"] is None
 
 
+def test_carbon_advice_makes_no_lookup_without_the_plugin():
+    """3.48.5: the advice is only shown on the Energy page, which is left out
+    without SigenEnergyManager, so the Carbon Intensity API is never called."""
+    wire_plugins(sem=(False, False))
+    p = bare_plugin()
+    p._refuse_reflector = lambda action: None
+    p._carbon_intensity = lambda: pytest.fail("must not call the Carbon Intensity API")
+    reply = p.handleCarbonAdvisor(FakeAction())
+    assert reply.get("status", 200) == 200, "a 503 would read as 'still building' and be polled"
+    assert json.loads(reply["content"]) == {"ok": False, "reason": "sem_absent",
+                                            "error": "SigenEnergyManager is not installed"}
+
+
+def test_carbon_advice_is_given_with_the_plugin():
+    wire_plugins(sem=(True, True))
+    p = bare_plugin()
+    p._refuse_reflector = lambda action: None
+    p._carbon_intensity = lambda: {"current": {"intensity": 120}}
+    p._carbon_solar = lambda: {}
+    p._carbon_tariff = lambda: {}
+    p._carbon_advice = lambda c, s, t: {"action": "run_now"}
+    body = json.loads(p.handleCarbonAdvisor(FakeAction())["content"])
+    assert body["ok"] is True and body["carbon"]["current"]["intensity"] == 120
+
+
 def test_laundry_plan_is_served_when_the_plugin_is_present():
     wire_plugins(sem=(True, True))
     p = bare_plugin()
