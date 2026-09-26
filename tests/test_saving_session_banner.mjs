@@ -105,9 +105,19 @@ check(m.length === 0, "an unbooked free hour gets no line (CliveS, 26-Sep-2026)"
 // Tomorrow's real list: 11-12 and 12-13 unbooked, 13-14 and 14-15 booked.
 m = alerts({ upcoming: [2, 3, 4, 5].map((h, i) => row(Object.assign(
         { id: 10 + i, direction: "WEEKEND_HAPPY_HOUR", joined: h >= 4 }, at(h)))) }, NOW);
-check(m.length === 2 && m.every((x) => /Free hour booked/.test(x.text) && x.warn === false)
-      && !m.some((x) => /not booked/.test(x.text)),
-      "only the two booked hours are listed", JSON.stringify(m.map((x) => x.text)));
+check(m.length === 1 && /Free hours booked/.test(m[0].text) && m[0].warn === false
+      && !/not booked/.test(m[0].text),
+      "the two booked hours are one line, and the unbooked ones are left out",
+      JSON.stringify(m.map((x) => x.text)));
+const both = DashCalc.savingSessions({ upcoming: [4, 5].map((h, i) => row(Object.assign(
+        { id: 20 + i, direction: "WEEKEND_HAPPY_HOUR", joined: true }, at(h)))) }, NOW);
+check(both.length === 1 && both[0].hours === 2
+      && both[0].endMs - both[0].startMs === 2 * 3600e3,
+      "back-to-back booked hours become one two-hour row", JSON.stringify(both));
+const apart = DashCalc.savingSessions({ upcoming: [2, 5].map((h, i) => row(Object.assign(
+        { id: 30 + i, direction: "WEEKEND_HAPPY_HOUR", joined: true }, at(h)))) }, NOW);
+check(apart.length === 2 && apart.every((r) => r.hours === 1),
+      "hours with a gap between them stay separate", JSON.stringify(apart));
 m = one(row({ direction: "TURN_UP" }));
 check(m.length === 1 && /Power Up/.test(m[0].text) && /not driven/.test(m[0].text),
       "a Power Up says the battery is not driven", JSON.stringify(m[0] && m[0].text));

@@ -970,7 +970,7 @@ function savingSessionAlerts(oct, nowMs) {
          unbooked ones out — and a booked one is good news, so it never warns. */
       out.push({ icon: I('money'), warn: false,
                  text: r.live ? ' FREE HOUR ACTIVE — charging ' + when
-                              : ' Free hour booked ' + when });
+                              : (r.hours > 1 ? ' Free hours booked ' : ' Free hour booked ') + when });
     } else if (r.isTurnDown) {
       out.push({ icon: I('money'), warn: r.needsAttention,
                  text: r.joined
@@ -1476,7 +1476,7 @@ function renderOctopusCard(oct) {
         const when = DashCalc.sessionRange(r.startMs, r.endMs, now);
         const extra = r.pence > 0 ? ', ' + (r.pence >= 1 ? r.pence.toFixed(0) : r.pence.toFixed(1)) + 'p per kWh extra' : '';
         let text, cls = '';
-        if (r.isHappyHour)     { text = 'Free hour, booked'; cls = 'good'; }
+        if (r.isHappyHour)     { text = (r.hours > 1 ? r.hours + ' free hours' : 'Free hour') + ', booked'; cls = 'good'; }
         else if (r.isTurnDown) { text = r.joined ? 'Power Down, opted in' + extra
                                                  : 'Power Down, NOT OPTED IN' + extra;
                                  cls = r.joined ? 'good' : 'warn'; }

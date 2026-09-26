@@ -1472,7 +1472,7 @@
             /* Only booked free hours arrive — DashCalc.savingSessions leaves the
                unbooked ones out. */
             cls = "ok";
-            txt = "Free hour · " + range + " · booked";
+            txt = (r.hours > 1 ? "Free hours · " : "Free hour · ") + range + " · booked";
         } else if (r.isTurnDown) {
             const rate = r.pence > 0
                 ? " · " + (r.pence >= 1 ? r.pence.toFixed(0) : r.pence.toFixed(1)) + "p/kWh" : "";
@@ -1514,8 +1514,10 @@
         if (r.isHappyHour) {
             /* Booked only — see DashCalc.savingSessions. */
             return r.live
-                ? { cls: "good", text: "Free hour running · until " + DashCalc.sessionEndTime(r.endMs) }
-                : { cls: "good", text: "Free hour" + when + " · " + range + " · booked" };
+                ? { cls: "good", text: (r.hours > 1 ? "Free hours" : "Free hour")
+                                          + " running · until " + DashCalc.sessionEndTime(r.endMs) }
+                : { cls: "good", text: (r.hours > 1 ? "Free hours" : "Free hour") + when
+                                          + " · " + range + " · booked" };
         }
         if (r.isTurnDown) {
             if (!r.joined) return { cls: "warn", text: "Saving Session" + (r.live ? " running" : when)

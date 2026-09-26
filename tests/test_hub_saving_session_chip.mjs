@@ -132,6 +132,13 @@ check(c && c.cls === "good" && c.text === `Free hour today · ${range(s, e, now)
       "a booked free hour is green", c);
 c = savingSessionChip(sess(s, e, { direction: "WEEKEND_HAPPY_HOUR", joined: false }), now);
 check(c === null, "an unbooked free hour gives no chip (CliveS, 26-Sep-2026)", c);
+// Tomorrow's real booking: two hours back to back. The chip showed only the first.
+const two = { upcoming: [
+    { id: 6540, start: iso(s), end: iso(e), direction: "WEEKEND_HAPPY_HOUR", joined: true },
+    { id: 6541, start: iso(e), end: iso(at(16, 13)), direction: "WEEKEND_HAPPY_HOUR", joined: true }] };
+c = savingSessionChip(two, now);
+check(c && c.text === `Free hours today · ${range(s, at(16, 13), now)} · booked`,
+      "two booked hours in a row show as one two-hour range", c && c.text);
 
 // 9. An unknown direction surfaces, escaped.
 c = savingSessionChip(sess(s, e, { direction: "<b>NEW</b>" }), now);

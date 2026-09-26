@@ -625,7 +625,23 @@
       });
     }
     out.sort(function (a, b) { return a.startMs - b.startMs; });
-    return out;
+    /* Back-to-back booked free hours are one stretch of free electricity, so
+       they become one row: "Free hours 13:00-15:00" (CliveS, 26-Sep-2026 — the
+       hub shows only the soonest row and so showed only the first hour).
+       `hours` says how many were joined; a single hour stays hours: 1. */
+    var merged = [];
+    out.forEach(function (r) {
+      r.hours = 1;
+      var prev = merged[merged.length - 1];
+      if (prev && prev.isHappyHour && r.isHappyHour && r.startMs === prev.endMs) {
+        prev.endMs = r.endMs;
+        prev.hours += 1;
+        prev.live = prev.live || r.live;
+        return;
+      }
+      merged.push(r);
+    });
+    return merged;
   }
 
   /* ── The Octopus sessions card (v3.49.0) ────────────────────────────────
