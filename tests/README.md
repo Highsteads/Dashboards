@@ -134,6 +134,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_octopus_card.mjs` | Contract test for the Energy page's Octopus sessions card (3.49.0): |
 | `test_offpath_day_keys.py` | A Timeline day (and a Solar string-hours day) built while it |
 | `test_offpath_pool.py` | No /message/ handler may do slow work on the dispatch path. One |
+| `test_other_camera.py` | The "other" camera make and per-camera logins (3.52.0). |
 | `test_page_batch_fixes.mjs` | The page half of the 24-09-2026 bug batch. Where a fix is a |
 | `test_page_count_claims.py` | Every place the docs say how many pages the plugin ships agrees |
 | `test_page_frame.py` | Every page's top bar matches the Energy page (v3.29.0): one |
@@ -168,6 +169,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_security.py` | Regression tests for the /public credential-leak fixes. The |
 | `test_self_suff_and_demo_sun.mjs` | v3.40.0. (1) A low self-sufficiency figure on a day the grid |
 | `test_settings_fav_passthrough.mjs` | Contract test for the settings editor carrying favourites it |
+| `test_settings_other_camera.mjs` | The Settings page's camera table and the "other" make (3.52.0). |
 | `test_shared_ui_present.mjs` | Every user-facing page must load dashboards-ui.js (v2.97.0). |
 | `test_shutdown_budget.py` | shutdown() must not wait on the snapshot pool. Until 2.95.1 |
 | `test_shutdown_setup_links.py` | A one-time setup link is a /public file holding the API key. |

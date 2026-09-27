@@ -51,7 +51,11 @@ def test_the_yaml_gets_one_line_per_vetted_camera(monkeypatch, tmp_path):
     assert [s.split(":")[0].strip() for s in streams] == ["front_door"]
 
 
-def test_the_save_and_the_load_share_one_host_rule():
+def test_the_save_and_the_load_share_one_camera_rule():
+    """3.52.0: the make, the host and an "other" camera's own address are
+    checked by ONE function, which the Settings save and the running list
+    both import, so they cannot disagree."""
     import config_mixin
     import dash_common
-    assert config_mixin.CAMERA_HOST_RE is dash_common.CAMERA_HOST_RE
+    assert config_mixin.camera_problem is dash_common.camera_problem
+    assert cameras_mixin.camera_problem is dash_common.camera_problem

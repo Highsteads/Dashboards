@@ -90,7 +90,9 @@ ALERT_STORE_KEYS = ("alertRules", "alertsActive", "alertEmail", "alertRulesRev")
 # Cameras configuration is now user-supplied via:
 #   1. IndigoSecrets.DASHBOARDS_CAMERAS (JSON string or list of dicts), or
 #   2. PluginConfig "camerasJson" textfield (JSON list).
-# Each entry must have keys: host, name, vendor ("dahua" or "hikvision").
+# Each entry must have keys: host, name, vendor ("dahua", "hikvision" or
+# "other"). An "other" camera also carries `rtsp`, its own stream address
+# (3.52.0), since only Dahua and Hikvision have a known one.
 # When empty, the camera grid, WebRTC and go2rtc are simply disabled.
 #
 # Order matters: the first entry is the default "focused" tile on
@@ -99,7 +101,6 @@ ALERT_STORE_KEYS = ("alertRules", "alertsActive", "alertEmail", "alertRulesRev")
 # "swap-out" cam — the one bumped to still when the user peeks at a tail-of-
 # list camera. Override with PluginConfig "swapOutHost" if a different cam
 # is better to drop from the live pool.
-CAMERA_PORT          = 80                                  # snapshot HTTP port (Dahua & Hikvision)
 CAMERA_POLL_SECONDS  = 2.0                                 # snapshot poll interval per camera (drives all thumbnail tiles, including cameras with live viewers)
 # 3.48.0: stills are taken only while a page is showing them. Each still opens a
 # fresh RTSP session to the camera and waits for a keyframe (go2rtc keeps nothing
@@ -206,6 +207,110 @@ def _safe_int_list(values):
 CAMERA_HOST_RE = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9.-]{0,252}[A-Za-z0-9])?$")
 
 
+# The camera makes. Dahua and Hikvision have a known stream address; "other"
+# is any camera, with the address typed in by the owner (3.52.0).
+CAMERA_VENDORS = ("dahua", "hikvision", "other")
+CAMERA_RTSP_MAX = 400
+# An "other" camera's address is written into go2rtc.yaml, so it may hold the
+# characters a stream address needs and nothing that could end a YAML value or
+# start a new line: no spaces, quotes, "#", "@" or backslash. "@" is out
+# because a login belongs in Configure, never in an address the Settings page
+# shows to anyone holding the API key.
+_RTSP_URL_RE = re.compile(r"^rtsps?://[A-Za-z0-9._~:/?&=%+,;!$*()-]+$", re.IGNORECASE)
+
+
+def camera_rtsp_problem(url, host):
+    """None when `url` is a usable stream address for an "other" camera at
+    `host`, else what is wrong with it, worded to follow "its RTSP address".
+
+    The address must point at the camera's own host. The login approved for a
+    host is sent to whatever the address names, so an address that could name
+    another machine would hand that login to it."""
+    from urllib.parse import urlsplit
+    url = str(url or "").strip()
+    if not url:
+        return "is missing (it looks like rtsp://192.168.1.50:554/stream1)"
+    if len(url) > CAMERA_RTSP_MAX:
+        return f"is longer than {CAMERA_RTSP_MAX} characters"
+    if "@" in url:
+        return ("must not carry a user name or password. Put the camera's login in "
+                "Plugins > Dashboards > Configure instead")
+    if not _RTSP_URL_RE.match(url):
+        return ("must start rtsp:// or rtsps:// and hold no spaces, quotes or "
+                "\"#\" characters")
+    parts = urlsplit(url)
+    try:
+        parts.port
+    except ValueError:
+        return "has a port that is not a number"
+    if (parts.hostname or "").lower() != str(host or "").lower():
+        return f"must point at the camera's own host ({host})"
+    return None
+
+
+def camera_problem(cam):
+    """None when a camera entry can be streamed, else why not, worded to
+    follow "camera N". ONE rule for the Settings save, the MCP tool and the
+    running list, so the three cannot disagree."""
+    vendor = cam.get("vendor")
+    if vendor not in CAMERA_VENDORS:
+        return "its make (vendor) must be dahua, hikvision or other"
+    host = str(cam.get("host") or "")
+    if not CAMERA_HOST_RE.match(host):
+        return ("its host must be an IP address or plain hostname "
+                "(letters, digits, dots, hyphens)")
+    if vendor == "other":
+        why = camera_rtsp_problem(cam.get("rtsp"), host)
+        if why:
+            return f"its RTSP address {why}"
+    return None
+
+
+def rtsp_with_login(url, user, pwd):
+    """`url` with a login written in, both parts percent-encoded so nothing in
+    them can change where the address points. A blank user means no login."""
+    from urllib.parse import quote
+    if not user:
+        return url
+    scheme, rest = url.split("://", 1)
+    return f"{scheme}://{quote(user, safe='')}:{quote(pwd or '', safe='')}@{rest}"
+
+
+def parse_camera_logins(value):
+    """({host: (user, password)}, problem) from IndigoSecrets CAMERA_LOGINS or
+    the Configure field of the same purpose (3.52.0): a login for one camera
+    that differs from the shared one. Accepts a dict or its JSON text, each
+    value {"user": ..., "password": ...}. Entries that are not usable are left
+    out and counted; `problem` says so without quoting any value, because the
+    values are passwords."""
+    if value is None or value == "" or value == {}:
+        return {}, None
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except (ValueError, TypeError):
+            return {}, "the camera logins are not valid JSON, so none are used"
+    if not isinstance(value, dict):
+        return {}, "the camera logins must be a JSON object keyed by camera host"
+    out, bad = {}, 0
+    for host, login in value.items():
+        host = str(host).strip()
+        if not isinstance(login, dict) or not CAMERA_HOST_RE.match(host):
+            bad += 1
+            continue
+        user = str(login.get("user") or "").strip()
+        pwd  = str(login.get("password") or login.get("pass") or "")
+        if not user:
+            bad += 1
+            continue
+        out[host] = (user, pwd)
+    problem = None
+    if bad:
+        problem = (f"{bad} camera login{' was' if bad == 1 else 's were'} left out: each "
+                   f"needs a camera host and a \"user\"")
+    return out, problem
+
+
 def dict_entries(value):
     """(entries, dropped): the dict items of a stored list, each copied, and
     how many items were not dicts (review 24-09-2026). A hand-edited
@@ -223,8 +328,8 @@ def dict_entries(value):
 def _parse_cameras(value):
     """Parse camera config — accepts a JSON string, a Python list, or empty.
 
-    Required keys per entry: ``host``, ``name``, ``vendor`` (in {"dahua",
-    "hikvision"}).
+    Required keys per entry: ``host``, ``name``, ``vendor`` (in
+    CAMERA_VENDORS). An "other" camera keeps ``rtsp``, its stream address.
     Optional: ``room`` — the dashboard room(s) this cam should also appear
     on. Either a string (``"Garage"``) for a single room or a list
     (``["Garage", "Hall"]``) so one camera can surface on multiple room
@@ -266,13 +371,16 @@ def _parse_cameras(value):
         stream = str(entry.get("stream", CAMERA_DEFAULT_STREAM)).lower().strip()
         if stream not in ("main", "sub2"):
             stream = CAMERA_DEFAULT_STREAM
-        cleaned.append({
+        cam = {
             "host":   str(entry["host"]),
             "name":   str(entry["name"]),
             "vendor": str(entry["vendor"]).lower(),
             "room":   room_val,
             "stream": stream,
-        })
+        }
+        if cam["vendor"] == "other":
+            cam["rtsp"] = str(entry.get("rtsp") or "").strip()
+        cleaned.append(cam)
     return cleaned
 
 

@@ -51,7 +51,7 @@ Live video comes from go2rtc over WebRTC, set up by one request to the plugin's 
 (`/webrtc/<host>`). Stills are `cam-<host>.jpg` and its smaller `-thumb.jpg`, which the plugin
 writes into a private folder on the web server. The page asks the plugin where that folder is, and
 only a browser holding the API key gets an answer. If the page cannot find out, every still tile
-says "No picture" rather than guess. Camera hosts, vendors, stream names and room membership all come from the configuration.
+says "No picture" rather than guess. Camera hosts, makes, stream names and room membership all come from the configuration.
 Changing them needs a plugin restart. The state dots come from Indigo's `/v2/api`.
 
 ## Refresh

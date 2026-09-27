@@ -23,7 +23,7 @@ understands and this editor does not rides through a save untouched rather than 
 
 **Custom links.** Extra tiles for the menu's Tools group.
 
-**Cameras.** One row per camera: host, name, vendor, stream, rooms, and whether it is in the hub's
+**Cameras.** One row per camera: host, name, make, stream, rooms, and whether it is in the hub's
 strip. A swap-out host picker sits at the bottom. Camera changes need a plugin restart, and the card
 says so.
 

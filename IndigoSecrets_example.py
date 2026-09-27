@@ -134,7 +134,7 @@ LONGITUDE = 0.0
 #                        A new install can simply leave them empty and use
 #                        Settings from the start.
 # DASHBOARDS_CAMERAS   — JSON string OR python list of camera dicts. Each
-#                        dict needs host, name, vendor ("dahua" or "hikvision").
+#                        dict needs host, name, vendor ("dahua", "hikvision", or "other" plus "rtsp").
 #                        Leave blank to disable the cameras grid + MJPEG
 #                        proxy + go2rtc. All cams share DAHUA_USER /
 #                        DAHUA_PASS (despite the name, those work for
@@ -293,6 +293,10 @@ POWERCUT_EMAIL        = ""
 DAHUA_USER    = ""                          # camera admin username (e.g. "admin")
 DAHUA_PASS    = ""                          # camera admin password
 DAHUA_CAM_IPS = []                          # e.g. ["192.168.x.10", "192.168.x.11"]
+# A login for each camera whose login is not the one above, keyed by the
+# camera's address (Dashboards 3.52.0; used for cameras of other makes).
+# e.g. {"192.168.x.20": {"user": "admin", "password": "..."}}
+CAMERA_LOGINS = {}
 
 # ============================
 # Ecowitt Weather Station plugin

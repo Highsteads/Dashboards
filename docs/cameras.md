@@ -64,8 +64,10 @@ pages show nothing.
   [go2rtc releases](https://github.com/AlexxIT/go2rtc/releases) and put the binary anywhere on your
   PATH. The plugin looks in the path set under **Plugins → Dashboards → Configure** first, then on
   the PATH, then at `~/bin/go2rtc` as a last resort.
-- IP cameras reachable on the LAN with RTSP enabled. Dahua and Hikvision are supported out of the
-  box, `vendor` selects the RTSP URL template.
+- IP cameras reachable on the LAN with RTSP, their video stream, switched on. Any make will do.
+  For Dahua and Hikvision the plugin knows where the video is. For any other make, set it to
+  **other** and type in the camera's own RTSP address — see
+  [Any other make of camera](#any-other-make-of-camera) below.
 - A browser with WebRTC, which is every current one. Without it every tile is a still.
 
 Pillow (thumbnails) installs itself from `requirements.txt` the first time the plugin starts.
@@ -73,7 +75,7 @@ Pillow (thumbnails) installs itself from `requirements.txt` the first time the p
 ## Architecture
 
 ```
-   ┌──────────────── Camera (Dahua or Hikvision) ────────────────┐
+   ┌───────────────────────── IP camera ─────────────────────────┐
    │  RTSP :554  —  H.264 mainstream or substream 2              │
    └─────────────────────┬───────────────────────────────────────┘
                          │ RTSP (one consumer per camera, shared)
@@ -138,9 +140,58 @@ live video over its still. Where it is not, and always over the reflector, they 
 cross-fade from frame to frame. A camera with a `room` in its entry also appears on that room's
 page, as a still that does not stream. Tap a tile and the Cameras page opens with it at the top.
 
+## Any other make of camera
+
+Dahua and Hikvision put their video at a fixed place on the camera, so for those the plugin works
+the address out from the camera's IP address. Every other maker puts it somewhere of its own, so
+for any other camera choose **other** as its make on the Settings page and type the whole address
+into the box that appears beside it, for example:
+
+| Make | A typical address |
+|---|---|
+| Reolink | `rtsp://192.168.1.50:554/h264Preview_01_sub` |
+| Amcrest | `rtsp://192.168.1.50:554/cam/realmonitor?channel=1&subtype=1` |
+| TP-Link Tapo | `rtsp://192.168.1.50:554/stream2` |
+| Axis | `rtsp://192.168.1.50/axis-media/media.amp` |
+
+The camera's manual or its maker's website gives the right one, and many cameras list it in
+their own settings pages. Most offer a smaller second stream as well, which is kinder to a
+wall tablet and the network, so use that one if you can.
+
+Three rules, and the Settings page says which one an address breaks:
+
+- It must start `rtsp://` or `rtsps://`, and point at the same address as the camera's Host.
+- It must not carry a user name or password. The login is added for you, from Configure.
+- It may not hold spaces, quotes or `#`.
+
+The Stream column does not apply to an **other** camera, because the address already names the
+stream.
+
+Each camera needs an address of its own, because the plugin tells cameras apart by it. Cameras
+whose video comes through a recorder, such as UniFi Protect or a Synology, all share the
+recorder's address, so only one of them can be added that way for now.
+
+## A camera with a login of its own
+
+When every camera uses the same login, **Camera User** and **Camera Password** in Configure are
+all you need. When one does not, often because it is of another make, give it a login of its own
+in **Plugins → Dashboards → Configure → Camera Logins**, written against the camera's address:
+
+```json
+{"192.168.1.50": {"user": "admin", "password": "its password"}}
+```
+
+Add one entry per camera that needs it, separated by commas, and restart the plugin. A camera
+listed here gets its own login and not the shared one, and the login goes only to the address it
+is written against, so it needs no approval. If you use `IndigoSecrets.py`, the same thing can go
+there as `CAMERA_LOGINS`, which wins over the Configure field. The field is shown and stored in
+plain text, as the camera password is.
+
+A camera of another make that needs no login at all works with nothing set in either place.
+
 ## The camera login goes only to approved addresses
 
-Every camera shares one login (Configure → Camera User / Password), and go2rtc hands it to each
+Every camera without a login of its own shares one (Configure → Camera User / Password), and go2rtc hands it to each
 camera's address when it connects. A camera's address can be changed by anyone holding the API key,
 from the Settings page or the `dashboards_set_camera` tool, so from 3.46.0 the login is only sent to
 addresses approved on the Indigo Mac itself: the cameras that were saved when **Plugins → Dashboards

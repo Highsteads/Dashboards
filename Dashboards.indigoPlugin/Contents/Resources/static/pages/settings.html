@@ -64,6 +64,7 @@
             color: var(--text); font-family: inherit; font-size: 13px;
         }
         input[type=checkbox] { width: 17px; height: 17px; accent-color: var(--accent); }
+        .c-rtsp { margin-top: 4px; min-width: 16em; }
         textarea { font-family: ui-monospace, Menlo, monospace; font-size: 12px; min-height: 260px; }
         .btn {
             background: var(--card-bg); border: 1px solid var(--border);
@@ -521,11 +522,11 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
         // ── cameras ──────────────────────────────────────────────────────
         function renderCameras() {
             const card = el(`<section class="card"><h2>Cameras</h2>
-                <div class="hint">Host is an IP address or plain hostname (no port). Vendor decides the RTSP URL template. Stream sub2 is the low-bandwidth default. Rooms is a comma list of room names whose page should show this camera. Main = include in the hub's camera mosaic. Camera changes need a plugin restart.</div>
+                <div class="hint">Host is an IP address or plain hostname (no port). For a Dahua or Hikvision camera the plugin knows where the video is, and Stream picks the full picture (main) or the low-bandwidth one (sub2, the default). For any other make choose <b>other</b> and type the camera's own RTSP address, such as <code>rtsp://192.168.1.50:554/stream1</code>, which the camera's manual or its maker's website gives. Leave the user name and password out of it: the shared camera login, or a login of its own set in Plugins &rarr; Dashboards &rarr; Configure, is added for you. Rooms is a comma list of room names whose page should show this camera. Main = include in the hub's camera mosaic. Camera changes need a plugin restart.</div>
                 <div class="hint"><b>Live pictures.</b> The Cameras page times the connection and shows as many cameras as live video as its speed can carry, at home or away, up to the <code>livePoolSize</code> key (raw JSON, 0 to 12, default 6); the rest are pictures that refresh every second or two. Each live tile costs about 1.4 Mbit/s on the network and some work for the device showing it, so an older tablet may be happier with fewer. Through the Indigo reflector none are live.</div>
                 <div class="hint"><b>Stills.</b> A camera gets a picture every two seconds only while a page is showing it. The rest get one every <code>stillsIdleMinutes</code> (raw JSON, 0 to 60, default 5) so the hub can still say when a camera goes offline; 0 takes none while nobody is watching.</div>
                 <table><thead><tr>
-                    <th>Name</th><th>Host</th><th>Vendor</th><th>Stream</th><th>Rooms</th><th>Main</th><th class="row-del"></th>
+                    <th>Name</th><th>Host</th><th>Make</th><th>Stream</th><th>Rooms</th><th>Main</th><th class="row-del"></th>
                 </tr></thead><tbody id="cam-rows"></tbody></table>
                 <div style="margin-top:10px; display:flex; gap:10px; align-items:center;">
                     <button class="btn" id="cam-add">+ Add camera</button>
@@ -545,7 +546,7 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
                 note.innerHTML = `<b>Not yet approved for the camera login:</b> ${withheld.map(esc).join(", ")}.
                     The shared camera login is only sent to addresses approved on the Indigo Mac, so
                     ${withheld.length === 1 ? "this camera is" : "these cameras are"} streamed without it
-                    and will not show. If you added or changed ${withheld.length === 1 ? "it" : "them"}
+                    and will not show unless it needs no login. If you added or changed ${withheld.length === 1 ? "it" : "them"}
                     yourself, open <b>Plugins &rarr; Dashboards &rarr; Configure</b> on the Mac, press
                     <b>Save</b>, then restart the plugin.`;
             }
@@ -558,7 +559,10 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
                     <td><select class="c-vendor">
                         <option value="dahua"${c.vendor === "dahua" ? " selected" : ""}>dahua</option>
                         <option value="hikvision"${c.vendor === "hikvision" ? " selected" : ""}>hikvision</option>
-                    </select></td>
+                        <option value="other"${c.vendor === "other" ? " selected" : ""}>other</option>
+                    </select>
+                    <input type="text" class="c-rtsp" placeholder="rtsp://address:554/path"
+                        aria-label="RTSP address" value="${esc(c.rtsp || "")}"></td>
                     <td><select class="c-stream">
                         <option value=""${!c.stream || c.stream === "sub2" ? " selected" : ""}>sub2</option>
                         <option value="main"${c.stream === "main" ? " selected" : ""}>main</option>
@@ -569,6 +573,16 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
                     <td class="row-del"><button class="btn danger c-del">${I("cross")}</button></td>
                 </tr>`);
                 tr.querySelector(".c-del").addEventListener("click", () => { tr.remove(); rebuildSwap(); });
+                // An "other" camera names its stream in its own address, so the
+                // address box shows and the Stream choice does not apply.
+                const vendorSel = tr.querySelector(".c-vendor");
+                function showMake() {
+                    const other = vendorSel.value === "other";
+                    tr.querySelector(".c-rtsp").hidden = !other;
+                    tr.querySelector(".c-stream").disabled = other;
+                }
+                vendorSel.addEventListener("change", showMake);
+                showMake();
                 return tr;
             }
             (cfg.cameras || []).forEach(c => tbody.appendChild(camRow(c)));
@@ -621,8 +635,12 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
                     host, name,
                     vendor: tr.querySelector(".c-vendor").value
                 };
-                const stream = tr.querySelector(".c-stream").value;
-                if (stream) cam.stream = stream;
+                if (cam.vendor === "other") {
+                    cam.rtsp = tr.querySelector(".c-rtsp").value.trim();
+                } else {
+                    const stream = tr.querySelector(".c-stream").value;
+                    if (stream) cam.stream = stream;
+                }
                 const rooms = tr.querySelector(".c-rooms").value
                     .split(",").map(s => s.trim()).filter(Boolean);
                 if (rooms.length === 1) cam.room = rooms[0];
@@ -971,11 +989,13 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
 
         // Saved camera hosts the shared login will not be sent to (3.46.0).
         // Unknown (an older plugin that does not report the list) is none.
+        // A camera with a login of its own in Configure (3.52.0) is not one.
         function cameraLoginWithheld(cams) {
             const ok = window._camLoginHosts;
             if (!Array.isArray(ok)) return [];
+            const own = Array.isArray(window._camOwnLoginHosts) ? window._camOwnLoginHosts : [];
             return (cams || []).map(c => String((c && c.host) || "").trim())
-                .filter(h => h && !ok.includes(h));
+                .filter(h => h && !ok.includes(h) && !own.includes(h));
         }
 
         function msg(text, ok) {
@@ -1043,6 +1063,7 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
                 GROUPS = res.actionGroups || [];
                 window._guestToken = res.guestToken || "";
                 window._camLoginHosts = Array.isArray(res.cameraLoginHosts) ? res.cameraLoginHosts : null;
+                window._camOwnLoginHosts = Array.isArray(res.cameraOwnLoginHosts) ? res.cameraOwnLoginHosts : [];
                 window._cfgSource = res.source;
                 document.getElementById("source").textContent =
                     res.source === "store" ? "dashboards_config.json" : "legacy (IndigoSecrets)";

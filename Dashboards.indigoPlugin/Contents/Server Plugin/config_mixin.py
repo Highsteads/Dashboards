@@ -25,8 +25,8 @@ import time
 from dash_common import (
     ALERT_STORE_KEYS,
     as_bool,
-    CAMERA_HOST_RE,
     _parse_cameras,
+    camera_problem,
     _safe_int_list,
     log,
 )
@@ -555,6 +555,9 @@ class ConfigMixin:
                 # secret; full-auth callers only), so the Cameras card can say
                 # which of its cameras will be streamed without it.
                 "cameraLoginHosts": sorted(self.cam_login_hosts or ()),
+                # 3.52.0: the addresses with a login of their own in Configure
+                # (the hosts only, never the login), which is not withheld.
+                "cameraOwnLoginHosts": sorted(self.cam_logins or ()),
             })
         except Exception as exc:
             self.logger.error(f"[Config] getDashboardsConfig failed: {exc}")
@@ -603,18 +606,17 @@ class ConfigMixin:
         if not isinstance(cameras, list):
             errors.append("cameras must be a list")
             cameras = []
-        # Hosts are later interpolated into go2rtc.yaml RTSP producer lines
-        # and WebRTC signalling URLs — an arbitrary string here is a config/URL
-        # injection. IP addresses or plain hostnames only.
-        _host_ok = CAMERA_HOST_RE        # shared with _vet_cameras (the running list)
+        # Hosts and an "other" camera's own address are later interpolated
+        # into go2rtc.yaml and WebRTC signalling URLs — an arbitrary string
+        # here is a config/URL injection. camera_problem is the one rule,
+        # shared with _vet_cameras (the running list) and the MCP tool.
         for i, c in enumerate(cameras):
             if not isinstance(c, dict) or not all(c.get(k) for k in ("host", "name", "vendor")):
-                errors.append(f"camera {i + 1} needs host, name and vendor")
-            elif c.get("vendor") not in ("dahua", "hikvision"):
-                errors.append(f"camera {i + 1}: vendor must be dahua or hikvision")
-            elif not _host_ok.match(str(c.get("host") or "")):
-                errors.append(f"camera {i + 1}: host must be an IP address or "
-                              f"plain hostname (letters, digits, dots, hyphens)")
+                errors.append(f"camera {i + 1} needs host, name and make")
+                continue
+            why = camera_problem(c)
+            if why:
+                errors.append(f"camera {i + 1} ({c.get('name')}): {why}")
         _slugs = {}
         for i, c in enumerate(cameras):
             if isinstance(c, dict) and c.get("name"):

@@ -51,7 +51,7 @@ LOG_LINES_DEFAULT = 60
 LOG_LINES_MAX     = 400
 LOG_TAIL_BYTES    = 512 * 1024       # more than 400 lines of anything this plugin writes
 
-VENDORS = ("dahua", "hikvision")
+VENDORS = ("dahua", "hikvision", "other")
 STREAMS = ("sub2", "main")
 # Same rule as the Settings endpoint: a host is later interpolated into
 # go2rtc.yaml and WebRTC signalling URLs, so an IP or plain hostname only.
@@ -230,6 +230,9 @@ def _camera_public(cam):
     """A camera dict as the AI should see it — never a credential."""
     out = {"host": cam.get("host", ""), "name": cam.get("name", ""),
            "vendor": cam.get("vendor", ""), "stream": cam.get("stream") or "sub2"}
+    if cam.get("vendor") == "other":
+        # Its own address, which the save refuses to hold a login (3.52.0).
+        out["rtsp"] = cam.get("rtsp", "")
     room = cam.get("room")
     if isinstance(room, str):
         out["rooms"] = [room] if room.strip() else []
@@ -353,6 +356,8 @@ def tool_list_cameras(plugin, args):
         "mainCameras":       list(cfg.get("mainCameras") or []),
         "swapOutHost":       cfg.get("swapOutHost") or "",
         "credentialsSet":    bool(getattr(plugin, "cam_user", "") and getattr(plugin, "cam_pass", "")),
+        # 3.52.0: saved cameras with a login of their own in Configure.
+        "ownLoginHosts":     sorted(getattr(plugin, "cam_logins", None) or ()),
         "go2rtcRunning":     go2rtc is not None and go2rtc.poll() is None,
         "proxyRunning": getattr(plugin, "_proxy_server", None) is not None,
         "restartPending":    mod._parse_cameras(saved) != mod._parse_cameras(running),
@@ -370,6 +375,7 @@ def tool_set_camera(plugin, args):
     name   = _arg_str(args, "name", max_len=60)
     vendor = _arg_str(args, "vendor", choices=VENDORS)
     stream = _arg_str(args, "stream", choices=STREAMS)
+    rtsp   = _arg_str(args, "rtsp", max_len=400)
     rooms  = _arg_str_list(args, "rooms")
     main   = _arg_bool(args, "main")
 
@@ -394,6 +400,10 @@ def tool_set_camera(plugin, args):
         action = "updated"
     if stream:
         cam["stream"] = stream
+    if rtsp:
+        cam["rtsp"] = rtsp
+    if cam.get("vendor") != "other":
+        cam.pop("rtsp", None)
     if rooms is not None:
         if rooms:
             cam["room"] = rooms if len(rooms) > 1 else rooms[0]

@@ -161,9 +161,11 @@ without you finding a single file. See [Claude Code and MCP tools](claude-code.m
 
 ### 5. Cameras, if you have them
 
-They need to be Dahua or Hikvision IP cameras, or a make built on the same insides, such as
-Amcrest, which is Dahua underneath. The plugin knows where those two makers put the video on the
-camera, and no others yet. A camera that only talks to its maker's cloud app will not do.
+They need to be IP cameras: the kind with an address on your home network and a video stream of
+its own, which is most Dahua, Hikvision, Reolink, Amcrest, Tapo and Axis models and plenty of
+others. For Dahua and Hikvision the plugin knows where the video is. For any other make, Claude
+can look up the camera's stream address for you. A camera that only talks to its maker's cloud
+app will not do.
 
 > *"Install ffmpeg and go2rtc with Homebrew so the camera grid works, then add my front door
 > camera at 192.168.1.50 — it is a Dahua."*

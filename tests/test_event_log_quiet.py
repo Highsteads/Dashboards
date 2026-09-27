@@ -383,7 +383,7 @@ FAULT_SIBLINGS = [
     ("_write_config_js",      "Failed to write"),
     ("_stop_proxy",     "[Proxy] Shutdown error"),
     ("_stop_go2rtc",          "[go2rtc] Shutdown error"),
-    ("runConcurrentThread",   "DAHUA_USER/DAHUA_PASS are not set"),
+    ("runConcurrentThread",   "no camera login is set"),
 ]
 
 

@@ -47,7 +47,9 @@ from dash_common import (
     GO2RTC_WEBRTC_PORT,
     PROXY_PORT,
     VENDOR_URLS,
+    camera_problem,
     log,
+    rtsp_with_login,
 )
 from dash_util import stills_idle_minutes
 
@@ -102,6 +104,11 @@ class CamerasMixin:
     # None = never recorded (the first start of 3.46.0 records what is
     # running then, so an existing install keeps working).
     cam_login_hosts = None
+    # A camera's own login, {host: (user, password)}, from IndigoSecrets
+    # CAMERA_LOGINS or Configure (3.52.0), for a camera whose login is not the
+    # shared one. Keyed by host and set only where the API key cannot reach,
+    # so it goes to nothing but the host it was written down for.
+    cam_logins = {}
 
     @staticmethod
     def _parse_login_hosts(raw):
@@ -122,10 +129,38 @@ class CamerasMixin:
         return bool(hosts) and str(host) in hosts
 
     def _camera_login_withheld(self, cameras):
-        """Hosts in `cameras` (dicts with "host") the shared login is not sent to."""
+        """Hosts in `cameras` (dicts with "host") the shared login is not sent
+        to and that have no login of their own."""
+        own = self.cam_logins or {}
         return [c.get("host") for c in (cameras or [])
                 if isinstance(c, dict) and c.get("host")
+                and c.get("host") not in own
                 and not self._camera_login_approved(c.get("host"))]
+
+    def _camera_login_for(self, host):
+        """(user, password) go2rtc dials `host` with, or None for no login.
+        The camera's own login first, then the shared one if the address was
+        approved for it in Configure (3.52.0)."""
+        own = (self.cam_logins or {}).get(host)
+        if own:
+            return own
+        if self.cam_user and self.cam_pass and self._camera_login_approved(host):
+            return (self.cam_user, self.cam_pass)
+        return None
+
+    def _cameras_can_stream(self):
+        """Whether go2rtc, the stills poller and the camera routes should run.
+        With the shared login set, any camera will do. Without it, only a
+        camera that has its own login, or an "other" camera, which may need
+        no login at all (3.52.0). Before 3.52.0 the shared login was needed
+        whatever the cameras were."""
+        if not self.cameras:
+            return False
+        if self.cam_user and self.cam_pass:
+            return True
+        own = self.cam_logins or {}
+        return any(c.get("vendor") == "other" or c.get("host") in own
+                   for c in self.cameras)
 
     def _record_camera_login_hosts(self, hosts, why, prefs=None):
         """Approve exactly `hosts` for the shared login, write the list to
@@ -297,7 +332,7 @@ class CamerasMixin:
         # v1.20.1: the proxy also serves /bootstrap (LAN/Tailscale-only API-key
         # seed for the dashboard pages), so it now starts even with no cameras
         # configured — camera routes just 404 in that case.
-        cameras_enabled = bool(self.cam_user and self.cam_pass and self.cameras)
+        cameras_enabled = self._cameras_can_stream()
         if not cameras_enabled and not self.api_key:
             log("[Proxy] No cameras configured and no API key — proxy disabled",
                 level="WARNING")
@@ -305,8 +340,9 @@ class CamerasMixin:
             return
         if not cameras_enabled:
             if self.cameras:
-                log("[Proxy] cameras are configured but DAHUA_USER/DAHUA_PASS are not "
-                    "set — camera routes disabled, /bootstrap only", level="WARNING")
+                log("[Proxy] cameras are configured but no camera login is set "
+                    "(DAHUA_USER/DAHUA_PASS, or a login of its own in Configure) — "
+                    "camera routes disabled, /bootstrap only", level="WARNING")
             else:
                 self.logger.info("[Proxy] no cameras configured — /bootstrap only")
 
@@ -735,13 +771,10 @@ class CamerasMixin:
             time.sleep(0.25)
 
     def _write_go2rtc_config(self):
-        """Generate go2rtc.yaml from self.cameras + DAHUA_USER/PASS. Each camera
+        """Generate go2rtc.yaml from self.cameras and their logins. Each camera
         gets a stream name = sanitised display name; the RTSP URL pulls the
-        mainstream so go2rtc can repackage to WebRTC/MSE on demand."""
+        stream go2rtc repackages to WebRTC on demand."""
         import shutil
-        from urllib.parse import quote
-        user_q = quote(self.cam_user, safe="")
-        pass_q = quote(self.cam_pass, safe="")
 
         # Indigo's plugin host runs with a minimal PATH that excludes Homebrew,
         # so go2rtc would otherwise fail with `exec: "ffmpeg": executable file
@@ -824,26 +857,43 @@ class CamerasMixin:
         # camera being watched, re-encoding video nobody needed re-encoded.
         sub2_count = 0
         main_count = 0
+        other_count = 0
         withheld = []
+        no_login = []
         for cam in self.cameras:
             slug   = self._cam_slug(cam["name"])
             vendor = cam.get("vendor", "dahua")
             stream = cam.get("stream", CAMERA_DEFAULT_STREAM)
-            tpl_key = f"rtsp_{stream}"
-            v_urls = VENDOR_URLS.get(vendor, VENDOR_URLS["dahua"])
-            tpl   = v_urls.get(tpl_key, v_urls["rtsp_main"])
+            if vendor == "other":
+                # 3.52.0: the owner's own address, already held by
+                # camera_problem to the camera's host and to characters that
+                # cannot break this file. `stream` does not apply: the
+                # address names the stream.
+                base = cam["rtsp"]
+            else:
+                v_urls = VENDOR_URLS.get(vendor, VENDOR_URLS["dahua"])
+                tpl    = v_urls.get(f"rtsp_{stream}", v_urls["rtsp_main"])
+                base   = tpl.replace("{user}:{pwd}@", "").format(host=cam["host"])
             # 3.46.0: the shared login only for an address approved in
             # Configure (see cam_login_hosts). Any other is dialled with no
             # login at all: a real camera then refuses and shows as offline,
-            # and a stranger's RTSP server learns nothing.
-            if self._camera_login_approved(cam["host"]):
-                rtsp = tpl.format(user=user_q, pwd=pass_q, host=cam["host"])
+            # and a stranger's RTSP server learns nothing. A camera's own
+            # login (3.52.0) is keyed to its host and goes only there.
+            login = self._camera_login_for(cam["host"])
+            if login:
+                rtsp = rtsp_with_login(base, *login)
             else:
-                rtsp = tpl.replace("{user}:{pwd}@", "").format(host=cam["host"])
-                withheld.append(f"{cam.get('name') or slug} ({cam['host']})")
-            lines.append(f"  {slug}: {rtsp}")
-            if stream == "sub2": sub2_count += 1
-            else:                main_count += 1
+                rtsp = base
+                label = f"{cam.get('name') or slug} ({cam['host']})"
+                if self.cam_user and self.cam_pass:
+                    withheld.append(label)
+                elif vendor != "other":
+                    no_login.append(label)
+            # Quoted, so no character the address may hold can end the value.
+            lines.append(f"  {slug}: '{rtsp}'" if vendor == "other" else f"  {slug}: {rtsp}")
+            if vendor == "other":   other_count += 1
+            elif stream == "sub2":  sub2_count += 1
+            else:                   main_count += 1
 
         path = self._go2rtc_config_path()
         # Create 0600 in one step (v2.38.0): this file holds the camera RTSP
@@ -854,7 +904,7 @@ class CamerasMixin:
             f.write("\n".join(lines) + "\n")
         os.chmod(path, 0o600)        # ensure 0600 even if the file pre-existed
         self._activity(f"[go2rtc] Wrote config {path} ({len(self.cameras)} streams: "
-                       f"{main_count} main, {sub2_count} sub2)")
+                       f"{main_count} main, {sub2_count} sub2, {other_count} own address)")
         if withheld:
             log(f"[Cameras] streaming {', '.join(withheld)} WITHOUT the shared camera login: "
                 f"{'its address was' if len(withheld) == 1 else 'their addresses were'} not among "
@@ -862,6 +912,12 @@ class CamerasMixin:
                 f"address can be changed by anyone holding the API key. If you added or changed "
                 f"it yourself, open Plugins > Dashboards > Configure, press Save to approve it, "
                 f"and restart the plugin.", level="WARNING")
+        if no_login:
+            log(f"[Cameras] streaming {', '.join(no_login)} WITHOUT a login: no shared camera "
+                f"login is set and {'it has' if len(no_login) == 1 else 'they have'} none of "
+                f"{'its' if len(no_login) == 1 else 'their'} own, so "
+                f"{'it' if len(no_login) == 1 else 'they'} will not show. Set one in "
+                f"Plugins > Dashboards > Configure.", level="WARNING")
         return path
 
     def _vet_cameras(self, cams):
@@ -878,16 +934,12 @@ class CamerasMixin:
             label = f"camera {i + 1} ({cam.get('name') or '?'})"
             host  = str(cam.get("host") or "")
             slug  = self._cam_slug(str(cam.get("name") or ""))
-            why = None
-            if cam.get("vendor") not in ("dahua", "hikvision"):
-                why = "its vendor is not dahua or hikvision"
-            elif not CAMERA_HOST_RE.match(host):
-                why = "its host is not an IP address or plain hostname"
-            elif not slug:
+            why = camera_problem(cam)          # make, host, own address: the shared rule
+            if not why and not slug:
                 why = "its name has no letters or digits for a stream name"
-            elif slug in slugs:
+            elif not why and slug in slugs:
                 why = f"its name makes the same stream name ({slug}) as an earlier camera"
-            elif host in hosts:
+            elif not why and host in hosts:
                 why = f"its host {host} is already used by an earlier camera"
             if why:
                 log(f"[Cameras] leaving out {label}: {why}. Fix it on the Settings "
@@ -925,8 +977,9 @@ class CamerasMixin:
         if not self.cameras:
             self._go2rtc_proc = None             # nothing to stream: quiet by design
             return
-        if not (self.cam_user and self.cam_pass):
-            log("[go2rtc] cameras are configured but DAHUA_USER/DAHUA_PASS are not set — "
+        if not self._cameras_can_stream():
+            log("[go2rtc] cameras are configured but no camera login is set "
+                "(DAHUA_USER/DAHUA_PASS, or a login of its own in Configure) — "
                 "WebRTC backend disabled", level="WARNING")
             self._go2rtc_proc = None
             return

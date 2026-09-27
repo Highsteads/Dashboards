@@ -2,11 +2,11 @@
 
 **Your house on a screen — energy, cameras, heating, every room, and the whole day replayed.**
 
-**Version:** 3.51.1 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
+**Version:** 3.52.0 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
 
 **[Read the full guide](https://highsteads.github.io/Dashboards/)** — setting up, a page of notes for every one of the 21 pages, and what to do when something goes wrong.
 
-<img src="https://img.shields.io/badge/version-3.51.1-5856d6" alt="Version 3.51.1">
+<img src="https://img.shields.io/badge/version-3.52.0-5856d6" alt="Version 3.52.0">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-21-0a84ff" alt="21 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
@@ -21,7 +21,7 @@ This plugin gives [Indigo](https://www.indigodomo.com) a set of web pages for yo
 
 - **A hub page** says at a glance whether anything needs a look, who is home, how the heating is doing, and shows your favourite controls and a strip of camera pictures.
 - **A page for every room**, built from your Indigo device folders, with lights, sockets, blinds, sensors, doors and cameras, and buttons that check the device really did what you asked.
-- **Live camera video** from Dahua and Hikvision cameras, which drops to still pictures on a slow connection so it does not run up a bill.
+- **Live camera video** from any IP camera with a video stream, which drops to still pictures on a slow connection so it does not run up a bill.
 - **The solar and battery picture, and what the house costs to run**, for anyone with a Sigenergy solar and battery system, through my free SigenEnergyManager plugin.
 - **Any day replayed** — presence, lights, doors and heating hour by hour, and a chart of anything Indigo has recorded, from the SQL Logger that comes with Indigo.
 - **Alerts** when a device or variable changes, sent to your phone by Pushover or by email with no page open, or shown as a browser notification.
@@ -82,7 +82,7 @@ For the cameras, also install ffmpeg and go2rtc on the Indigo Mac, which the [gu
 
 ## Setting it up
 
-1. Open **Plugins → Dashboards → Configure**, fill in **Indigo API Key** with an API key from your Indigo account, add the **Camera User** and **Camera Password** if you have cameras, and click **Save**.
+1. Open **Plugins → Dashboards → Configure**, fill in **Indigo API Key** with an API key from your Indigo account, add the **Camera User** and **Camera Password** your cameras share if you have cameras (a camera with a different login gets its own under **Camera Logins**), and click **Save**.
 2. Pair each phone, tablet or computer once with **Plugins → Dashboards → Generate One-Time Setup Link (+QR)** — open the link on the device, or scan the QR code with its camera, and it is paired with nothing to type.
 3. Open the hub, go to the Settings page, and on the Rooms card tick the Indigo device folders that are your rooms. Until you do, there are no room pages.
 4. Run **Plugins → Dashboards → Test Dashboards Setup**, which checks the lot and writes a line for each check into the Indigo event log.
@@ -94,11 +94,11 @@ The [Getting started](https://highsteads.github.io/Dashboards/getting-started.ht
 The three most recent releases, word for word. Every release before these is in
 **[the version history](https://highsteads.github.io/Dashboards/changelog.html)**.
 
+**3.52.0** (27-Sep-2026) - **Any IP camera, not just Dahua and Hikvision.** A camera can now be set to **other** on the Settings page, with its own RTSP address typed in beside it, such as `rtsp://192.168.1.50:554/h264Preview_01_sub` for a Reolink. The address must point at the camera's own address and carry no user name or password, and the Settings page says which rule an address breaks. A camera whose login is not the one your cameras share can now have its own, under **Camera Logins** in Configure (or `CAMERA_LOGINS` in IndigoSecrets.py), and that login goes only to the address it is written against. The cameras now start with no shared login set, as long as one of them can be reached without it. The Claude tool that adds cameras takes the new make and address as well. The guide's [Cameras](https://highsteads.github.io/Dashboards/cameras.html#any-other-make-of-camera) page lists the address for several makes.
+
 **3.51.1** (27-Sep-2026) - **The Through the day chart draws the everyday pattern straight between the hours.** It was a smoothed curve, which rose and fell between the hourly figures and showed values the pattern does not hold. The legend now lists the measured pattern first.
 
 **3.51.0** (27-Sep-2026) - **The Energy page shows how the house uses electricity through each kind of day.** A new card, Through the day, charts every hour of a typical Monday, Tuesday to Friday, Saturday and Sunday, with buttons to switch between them. It opens on today. The bars are the pattern SigenEnergyManager plans the battery with, measured from the last 18 weeks. The dashed line is the everyday pattern at the same daily total, so the gap between them shows what that day does differently, and a sentence above the chart says it in words: on a Sunday here, more between 2pm and 4pm and less in the late morning. A table view is folded underneath. Needs SigenEnergyManager 5.122.0. With an older one the card stays hidden.
-
-**3.50.0** (27-Sep-2026) - **The plugin's own messages name the pages you can actually find.** A few messages still pointed at pages that went in 3.33.0 and 3.34.0. The history setting under Configure named the old Graphs page, the setup check said Graphs, Timeline and Insights need the SQL Logger, and the message about the laundry script talked about a laundry page. They now name what you see today: the Timeline page, the hub's Home Insights check and the history on the Mains and Meter pages for the SQL Logger, and the When to run it card on the Energy page for the laundry plan.
 
 ## Authors & licence
 

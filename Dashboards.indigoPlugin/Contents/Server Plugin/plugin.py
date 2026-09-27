@@ -17,9 +17,9 @@
 #              browser for live tiles, and a small HTTP server on port 8177
 #              for the WebRTC signalling and the bootstrap routes. Tiles that
 #              are not live poll the snapshots.
-# Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.51.1); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
+# Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.52.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
 # Date:        27-09-2026
-# Version:     3.51.1
+# Version:     3.52.0
 #
 # Version history: docs/changelog.md (what each release does, for users) and
 # `git log` (why, for developers). The per-version engineering notes that sat
@@ -103,7 +103,7 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION = "3.51.1"
+PLUGIN_VERSION = "3.52.0"
 
 import logging
 from dash_common import (  # noqa: E402
@@ -124,6 +124,7 @@ from dash_common import (  # noqa: E402
     _parse_cameras,
     log,
     normalise_appliance_key,
+    parse_camera_logins,
     normalise_deadline,
 )
 
@@ -293,9 +294,13 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         return "no key in IndigoSecrets — browser prompts"
 
     def _camera_state(self):
+        own = len(self.cam_logins or {})
+        own_txt = f", {own} with a login of {'its' if own == 1 else 'their'} own" if own else ""
         if self.cam_user and self.cam_pass:
-            return f"{len(self.cameras)} configured (DAHUA_USER/DAHUA_PASS from IndigoSecrets)"
-        return f"{len(self.cameras)} configured but DAHUA_USER/DAHUA_PASS missing"
+            return f"{len(self.cameras)} configured (shared login set{own_txt})"
+        if self._cameras_can_stream():
+            return f"{len(self.cameras)} configured (no shared login{own_txt})"
+        return f"{len(self.cameras)} configured but no camera login is set"
 
     # Script Ticker (v3.31.0): a small plugin that runs the companion scripts
     # on its own. While it is RUNNING Dashboards leaves them to it; the moment
@@ -996,7 +1001,7 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
                 log(f"[Poller] {name} recovered")
             return True
 
-        cameras_on = bool(self.cam_user and self.cam_pass and self.cameras)
+        cameras_on = self._cameras_can_stream()
         if cameras_on:
             idle_min = self._stills_idle_seconds() // 60
             idle_txt = (f"a check every {idle_min} min otherwise" if idle_min
@@ -1005,7 +1010,8 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
                            f"a still every {CAMERA_POLL_SECONDS:g}s while a page shows it, "
                            f"{idle_txt}")
         elif self.cameras:
-            log("[Cameras] cameras are configured but DAHUA_USER/DAHUA_PASS are not set — "
+            log("[Cameras] cameras are configured but no camera login is set "
+                "(DAHUA_USER/DAHUA_PASS, or a login of its own in Configure) — "
                 "snapshot poller idle", level="WARNING")
         else:
             self.logger.info("[Cameras] no cameras configured — camera features off")
@@ -1651,8 +1657,8 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
             proc = getattr(self, "_go2rtc_proc", None)
             chk("go2rtc running", proc is not None and proc.poll() is None,
                 getattr(self, "_go2rtc_bin", GO2RTC_BIN))
-            chk("Camera credentials", self.cam_user and self.cam_pass,
-                "" if (self.cam_user and self.cam_pass) else "DAHUA_USER/DAHUA_PASS not set")
+            chk("Camera credentials", self._cameras_can_stream(),
+                self._camera_state())
             ff = shutil.which("ffmpeg") or next((c for c in ("/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg")
                                                  if os.path.exists(c)), None)
             chk("ffmpeg found", bool(ff), ff or "brew install ffmpeg — go2rtc needs it to transcode")
@@ -2590,7 +2596,7 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         has to say what the plugin ended up running - which is exactly what
         the nine demoted start-up lines used to convey between them."""
         bits = []
-        if getattr(self, "cam_user", "") and getattr(self, "cam_pass", "") and self.cameras:
+        if self.cameras and self._cameras_can_stream():
             bits.append(f"{len(self.cameras)} camera{'' if len(self.cameras) == 1 else 's'}")
         elif self.cameras:
             bits.append(f"{len(self.cameras)} camera(s) configured but no credentials")
@@ -2636,6 +2642,12 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
                          or p("indigoApiKey")).strip()
         self.cam_user = (g("DAHUA_USER") or p("dahuaUser")).strip()
         self.cam_pass = (g("DAHUA_PASS") or p("dahuaPass")).strip()
+        # A login per camera, for cameras whose login is not the shared one
+        # (3.52.0). Never logged: the problem text names no value.
+        self.cam_logins, problem = parse_camera_logins(g("CAMERA_LOGINS") or p("cameraLogins"))
+        if problem:
+            log(f"[Cameras] {problem}. Check Camera logins in Plugins > Dashboards > "
+                f"Configure (or CAMERA_LOGINS in IndigoSecrets.py).", level="WARNING")
         # Alert delivery (3.47.0). The Pushover USER key, as Log_Error_Watch.py
         # reads it, with a Configure field for installs without IndigoSecrets;
         # and the estate-wide fallback address for alert email, which the
@@ -2687,7 +2699,7 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
             import IndigoSecrets as secrets_mod
         except ImportError:
             pass
-        old_creds = (self.cam_user, self.cam_pass)
+        old_creds = (self.cam_user, self.cam_pass, dict(self.cam_logins or {}))
         self._resolve_credentials(prefs, secrets_mod)
         # Pressing Save in Configure is the confirmation that approves the
         # camera addresses for the shared login (3.46.0): the ones saved on the
@@ -2718,7 +2730,7 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
             self._start_weather_thread()
         except Exception as exc:
             self.logger.warning(f"[Prefs] weather thread restart failed: {exc}")
-        if (self.cam_user, self.cam_pass) != old_creds and self.cameras:
+        if (self.cam_user, self.cam_pass, dict(self.cam_logins or {})) != old_creds and self.cameras:
             self.logger.info("[Prefs] camera credentials changed — go2rtc and the snapshot "
                              "poller pick them up on the next plugin restart")
 

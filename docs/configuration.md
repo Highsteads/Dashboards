@@ -27,7 +27,8 @@ Open it with **Plugins → Dashboards → Configure…**. The fields, in the ord
 |---|---|
 | Indigo API URL | The address of Indigo's web server, such as `http://192.168.1.10:8176`. Leave it blank for the Indigo Mac itself on the usual port 8176, and fill it in only if your web server uses another port. The "use this at home" link the pages offer over the reflector takes its start and port from here |
 | Indigo API Key | The Indigo API key — the long code Indigo gives other programs so they can read and control your devices. The plugin uses it for its own checks, for guest devices and for setup links. It is never written into any public file |
-| Camera User / Camera Password | One camera login, shared by every camera, for Dahua and Hikvision alike. Only needed if you have cameras. Pressing **Save** here approves the camera addresses saved on the Settings page at that moment, and the login is only ever sent to approved addresses — so after adding or changing a camera, come back here, press Save and restart the plugin. See [Cameras](cameras.md#the-camera-login-goes-only-to-approved-addresses) |
+| Camera User / Camera Password | One camera login, shared by every camera that has no login of its own, whatever its make. Only needed if you have cameras. Pressing **Save** here approves the camera addresses saved on the Settings page at that moment, and the login is only ever sent to approved addresses — so after adding or changing a camera, come back here, press Save and restart the plugin. See [Cameras](cameras.md#the-camera-login-goes-only-to-approved-addresses) |
+| Camera Logins | Only for a camera whose login is not the shared one, written against its address as `{"192.168.1.50": {"user": "admin", "password": "its password"}}`, one entry per camera. Each goes only to the address it is written against, so it needs no approval. Shown and stored in plain text. Restart the plugin after changing it. See [Cameras](cameras.md#a-camera-with-a-login-of-its-own) |
 | Pushover User Key | Your Pushover user key, for alert rules sent to your phone (3.47.0). The message goes through the Pushover plugin, which must be installed, enabled and running |
 | Carbon Region | Your part of Great Britain, for the grid-carbon half of the Energy page's When to run it card. **Off** hides it and stops the lookups. North East England unless you change it. Needs SigenEnergyManager, like the Energy page |
 | Auto-seed the API key to LAN browsers | Off for a new install (3.46.0). Ticked, any browser on your home network or Tailscale pairs itself on its first visit, which hands the full API key to any device that asks, a visitor's phone included, and makes guest links pointless. Unticked, you pair each device once with a setup link — see [Pairing a browser](getting-started.md#pairing-a-browser). Installs from before 3.46.0 keep the setting they had |
@@ -54,8 +55,8 @@ where it writes.
   lookup showing which device they resolve to. A favourite pointing at something that no longer
   exists is named rather than silently dropped.
 - **Custom links.** Extra tiles for the menu's Tools group — anything with a URL.
-- **Cameras.** Host, name, vendor (Dahua or Hikvision), stream (`sub2`, the default, or `main`), the
-  rooms it belongs to, and whether it is in the hub's strip. A swap-out host picker sits at the
+- **Cameras.** Host, name, make (Dahua, Hikvision or other), stream (`sub2`, the default, or
+  `main`), for another make its own RTSP address, the rooms it belongs to, and whether it is in the hub's strip. A swap-out host picker sits at the
   bottom. Changes here need a plugin restart.
 - **Rooms.** Which Indigo device folders become rooms, and a per-room override for anything the
   automatic classifier gets wrong. Each room shows what it currently resolves to ("1 doors · 0
@@ -77,12 +78,19 @@ after a restart, and a save landing on a restarting plugin used to stall the web
 [
   {"host": "192.168.1.50", "name": "Front Door", "vendor": "dahua"},
   {"host": "192.168.1.51", "name": "Drive",      "vendor": "hikvision"},
-  {"host": "192.168.1.52", "name": "Garden",     "vendor": "dahua", "stream": "main", "room": "Garden"}
+  {"host": "192.168.1.52", "name": "Garden",     "vendor": "dahua", "stream": "main", "room": "Garden"},
+  {"host": "192.168.1.53", "name": "Porch",      "vendor": "other",
+   "rtsp": "rtsp://192.168.1.53:554/h264Preview_01_sub"}
 ]
 ```
 
-- `vendor` — `dahua` or `hikvision`. It selects the RTSP URL template.
-- `stream` — `sub2` (the default, roughly a quarter of the mainstream's bitrate) or `main`.
+- `vendor` — the make: `dahua`, `hikvision` or `other`. For the first two the plugin knows the
+  stream address. `other` is any other camera and needs `rtsp`.
+- `rtsp` — for an `other` camera only: its own stream address, pointing at the same address as
+  `host` and with no user name or password in it. See
+  [Any other make of camera](cameras.md#any-other-make-of-camera).
+- `stream` — `sub2` (the default, roughly a quarter of the mainstream's bitrate) or `main`. Not
+  used by an `other` camera, whose address names its stream.
 - `room` — a name or a list of names. Which room pages show this camera. Omit it to keep the
   camera off room pages.
 
@@ -163,7 +171,8 @@ in the log. After that the Settings page owns them and the keys are not read aga
 |---|---|
 | `INDIGO_URL` | REST API base URL |
 | `INDIGO_API_KEY` | REST API Bearer token (`CLAUDEBRIDGE_BEARER_TOKEN` is accepted as an alias) |
-| `DAHUA_USER` / `DAHUA_PASS` | Camera credentials |
+| `DAHUA_USER` / `DAHUA_PASS` | The camera login every camera shares, whatever its make |
+| `CAMERA_LOGINS` | A login for each camera that has its own, as `{"192.168.1.50": {"user": "admin", "password": "..."}}` |
 | `DASHBOARDS_CAMERAS` | The camera list (imported once, see above) |
 | `DASHBOARDS_MAIN_CAMERAS` | Host addresses for the hub's strip (imported once) |
 | `DASHBOARDS_ROOM_EXTRAS` | The per-room extras dictionary (imported once) |
