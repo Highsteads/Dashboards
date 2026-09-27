@@ -73,8 +73,8 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_dash_poll.mjs` | Contract test for DashUI.poll (v3.28.0): one polling loop for |
 | `test_dash_tile.mjs` | One tile system (v3.37.0). Runs the shipped dashboards-controls.js |
 | `test_day_patterns.mjs` | Node contract test for DashCalc.dayPattern / dayPatternCaption / |
+| `test_demo_api_is_sanitised.py` | The canned endpoint answers demo mode reads (demo-data/api/, |
 | `test_demo_fixture_is_sanitised.py` | The demo fixture (demo-data/devices.json) is a snapshot of a |
-| `test_demo_site.py` | The online demo (docs/demo/, published on the docs site from |
 | `test_diagnostic_banner.py` | Every diagnostic menu dumps the SAME banner, extras included |
 | `test_docs_site.py` | The documentation site (docs/, GitHub Pages) and the README |
 | `test_door_tile.mjs` | Contract test for the hub's state-driven door favourite — |

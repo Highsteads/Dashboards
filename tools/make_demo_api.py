@@ -21,8 +21,8 @@
 #                  not captured: the real ones name who holds a door code and
 #                  quote log lines nobody has read for identifiers.
 #              Read the output by hand before committing it, then run
-#              ~/bin/published-identifier-scan. tests/test_demo_site.py checks
-#              the rules above hold.
+#              ~/bin/published-identifier-scan. tests/test_demo_api_is_sanitised.py
+#              checks the rules above hold.
 # Author:      CliveS & Claude Opus 5.5
 # Date:        23-09-2026 (1.1: 25-09-2026)
 # Version:     1.1 (the alert rules, invented)

@@ -94,7 +94,7 @@ The rest are on their own pages under [Every page](pages/index.md).
 
 ## Demo mode
 
-**[Try the demo online](demo/demo.html)**, or open `demo.html` on any install: every page runs from sanitised sample data with a gentle state
+Open `demo.html` on any install and every page runs from sanitised sample data with a gentle state
 simulator, touching no live devices. It is the quickest way to see the whole thing before you
 configure a single room.
 

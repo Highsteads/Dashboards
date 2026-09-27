@@ -30,8 +30,6 @@ This plugin gives [Indigo](https://www.indigodomo.com) a set of web pages for yo
 
 Every page is my interpretation of my own house — my rooms, my solar and battery, my washing machine. Yours will be different, so take the ideas that suit your house and leave the rest. Every page, the plugin and the guide were written by Claude from conversation, and [Start with nothing but Claude](https://highsteads.github.io/Dashboards/no-coding-needed.html) shows how to have it build the pages you want without writing a line yourself.
 
-**[Try the demo online](https://highsteads.github.io/Dashboards/demo/demo.html)** — every page running on made-up sample data, touching nothing real.
-
 ## What it works with
 
 It needs Indigo 2025.2 and nothing else. Each of these adds to it, and a page that needs one that you do not have says so or leaves itself out:

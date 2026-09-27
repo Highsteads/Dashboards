@@ -6,9 +6,6 @@ nav_order: 26
 
 # Demo — `demo.html`
 
-**Try it online: [highsteads.github.io/Dashboards/demo/](https://highsteads.github.io/Dashboards/demo/demo.html)**
-— every page, running in your browser from sample data, with nothing to install.
-
 Three lines that do the work:
 
 ```html
@@ -42,5 +39,3 @@ none of this is your house. Tap to exit."
   doors, the Nights view is left out altogether, account figures and outage history are blanked,
   and the activity diary and error log are invented rather than captured.
 - The demo works out today's sunrise and sunset for the north-east of England, so the hub's sun line follows the season rather than the day the weather sample was taken.
-- The online copy is `docs/demo/`, built by `tools/build_demo_site.sh`. A test fails when it falls
-  behind the pages, so it cannot quietly go stale.
