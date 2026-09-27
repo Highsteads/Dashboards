@@ -1934,11 +1934,13 @@ function renderPatterns() {
         data: p.hours, backgroundColor: C.home, borderRadius: 4, borderSkipped: 'start', order: 2 },
       { type: 'line', label: 'Everyday pattern', data: p.everyday, borderColor: ref,
         backgroundColor: ref, borderWidth: 2, borderDash: [6, 4], pointRadius: 0,
-        pointHoverRadius: 4, tension: 0.3, order: 1, hidden: !g.own_pattern },
+        pointHoverRadius: 4, tension: 0, order: 1, hidden: !g.own_pattern },   // straight: a curve would invent values between the hours
     ] },
     options: { ...CHART_BASE,
       plugins: { ...CHART_BASE.plugins,
-        legend: { ...CHART_BASE.plugins.legend, display: !!g.own_pattern },
+        legend: { ...CHART_BASE.plugins.legend, display: !!g.own_pattern,
+                  labels: { ...CHART_BASE.plugins.legend.labels,
+                            sort: (a, b) => a.datasetIndex - b.datasetIndex } },
         tooltip: { ...CHART_BASE.plugins.tooltip, callbacks: {
           title: items => items.length ? _patHourLabel(items[0].dataIndex) + ' to ' +
                                          _patHourLabel(items[0].dataIndex + 1) : '',
