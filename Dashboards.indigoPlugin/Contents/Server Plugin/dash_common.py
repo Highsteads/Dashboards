@@ -207,9 +207,9 @@ def _safe_int_list(values):
 CAMERA_HOST_RE = re.compile(r"^[A-Za-z0-9]([A-Za-z0-9.-]{0,252}[A-Za-z0-9])?$")
 
 
-# The camera makes. Dahua and Hikvision have a known stream address; "other"
-# is any camera, with the address typed in by the owner (3.52.0).
-CAMERA_VENDORS = ("dahua", "hikvision", "other")
+# The camera makes are CAMERA_VENDORS, defined beside CAMERA_MAKES below:
+# every make with a known stream address, then "other" (3.52.0), any camera
+# with the address typed in by its owner.
 CAMERA_RTSP_MAX = 400
 # An "other" camera's address is written into go2rtc.yaml, so it may hold the
 # characters a stream address needs and nothing that could end a YAML value or
@@ -251,16 +251,21 @@ def camera_rtsp_problem(url, host):
 def camera_problem(cam):
     """None when a camera entry can be streamed, else why not, worded to
     follow "camera N". ONE rule for the Settings save, the MCP tool and the
-    running list, so the three cannot disagree."""
+    running list, so the three cannot disagree.
+
+    An "other" camera must carry its own address. Any other make may (3.53.0):
+    a typed address replaces the make's standard one, for a model that differs,
+    and is held to exactly the same rule."""
     vendor = cam.get("vendor")
     if vendor not in CAMERA_VENDORS:
-        return "its make (vendor) must be dahua, hikvision or other"
+        return f"its make (vendor) must be one of {', '.join(CAMERA_VENDORS)}"
     host = str(cam.get("host") or "")
     if not CAMERA_HOST_RE.match(host):
         return ("its host must be an IP address or plain hostname "
                 "(letters, digits, dots, hyphens)")
-    if vendor == "other":
-        why = camera_rtsp_problem(cam.get("rtsp"), host)
+    typed = str(cam.get("rtsp") or "").strip()
+    if vendor == "other" or typed:
+        why = camera_rtsp_problem(typed, host)
         if why:
             return f"its RTSP address {why}"
     return None
@@ -329,7 +334,8 @@ def _parse_cameras(value):
     """Parse camera config — accepts a JSON string, a Python list, or empty.
 
     Required keys per entry: ``host``, ``name``, ``vendor`` (in
-    CAMERA_VENDORS). An "other" camera keeps ``rtsp``, its stream address.
+    CAMERA_VENDORS). ``rtsp``, a typed stream address, is kept when given,
+    and always for an "other" camera, which needs one.
     Optional: ``room`` — the dashboard room(s) this cam should also appear
     on. Either a string (``"Garage"``) for a single room or a list
     (``["Garage", "Hall"]``) so one camera can surface on multiple room
@@ -378,8 +384,9 @@ def _parse_cameras(value):
             "room":   room_val,
             "stream": stream,
         }
-        if cam["vendor"] == "other":
-            cam["rtsp"] = str(entry.get("rtsp") or "").strip()
+        typed = str(entry.get("rtsp") or "").strip()
+        if typed or cam["vendor"] == "other":
+            cam["rtsp"] = typed
         cleaned.append(cam)
     return cleaned
 
@@ -402,32 +409,94 @@ def _detect_lan_ip():
     except Exception:
         return "127.0.0.1"
 
-# Vendor URL templates: {host} {user} {pwd} are substituted. Each vendor has
-# both a mainstream URL (highest quality, big bandwidth) and a substream 2 URL
-# (typically 720p / ~512 kbps — plenty for an at-a-glance dashboard mosaic).
-# Per-camera `stream` field in DASHBOARDS_CAMERAS picks which one go2rtc uses
-# as the ffmpeg source. Default is sub2 — see CAMERA_DEFAULT_STREAM below.
+# The camera makes whose stream addresses are known (3.53.0; Dahua and
+# Hikvision only before). {host} is the camera's address. There is no login in
+# a template: rtsp_with_login adds the right one per camera, so every make and
+# every typed address gets its login the same way. `main` is the full picture,
+# `sub` the smaller stream the per-camera `stream: "sub2"` choice picks (the
+# name is historic). An owner can type an address over any of these on the
+# Settings page, which is how a model that differs from its maker's usual one
+# still works; "other" is a camera with no template at all.
 #
-# Stream conventions per vendor:
-#   Dahua     — subtype=0 main, subtype=1 sub1 (unused), subtype=2 sub2
-#   Hikvision — Channels/101 main (ch 1 stream 01), Channels/102 sub2
+# Dahua's sub is subtype=2, the third stream, because the house this was built
+# on uses it; plenty of Dahua models only have subtype=1, and the guide says to
+# pick main or type the address when a Dahua shows nothing. Amcrest and Lorex
+# are Dahua inside and Annke is Hikvision inside, so they share those paths but
+# use the standard subtype=1 substream.
 #
-# Why sub2 by default: the dashboard is a "is anything moving?" surface, not
-# a recording archive. Mainstream lives in the Synology NVR at 4K for the
-# actual footage. Using sub2 here halves ffmpeg CPU and cuts LAN bandwidth
-# from ~50 Mbps to ~5 Mbps across the 9 cameras.
-VENDOR_URLS = {
+# Only Dahua and Hikvision have been proven on real cameras here. The rest are
+# the makers' published addresses, checked against their own support pages on
+# 27-09-2026 (Reolink's current form is Preview_01_*, which serves whatever
+# codec the camera sends; Uniview's /unicast/... form is for its recorders, and
+# /media/videoN for its cameras; Axis is asked for H.264 because a camera that
+# defaults to H.265 will not play in most browsers). The guide's Cameras page
+# carries each make's catches.
+CAMERA_MAKES = {
     "dahua": {
-        "snapshot_path": "/cgi-bin/snapshot.cgi",
-        "rtsp_main":     "rtsp://{user}:{pwd}@{host}:554/cam/realmonitor?channel=1&subtype=0",
-        "rtsp_sub2":     "rtsp://{user}:{pwd}@{host}:554/cam/realmonitor?channel=1&subtype=2",
+        "label": "Dahua",
+        "main":  "rtsp://{host}:554/cam/realmonitor?channel=1&subtype=0",
+        "sub":   "rtsp://{host}:554/cam/realmonitor?channel=1&subtype=2",
     },
     "hikvision": {
-        "snapshot_path": "/ISAPI/Streaming/channels/101/picture",
-        "rtsp_main":     "rtsp://{user}:{pwd}@{host}:554/Streaming/Channels/101",
-        "rtsp_sub2":     "rtsp://{user}:{pwd}@{host}:554/Streaming/Channels/102",
+        "label": "Hikvision",
+        "main":  "rtsp://{host}:554/Streaming/Channels/101",
+        "sub":   "rtsp://{host}:554/Streaming/Channels/102",
+    },
+    "amcrest": {
+        "label": "Amcrest",
+        "main":  "rtsp://{host}:554/cam/realmonitor?channel=1&subtype=0",
+        "sub":   "rtsp://{host}:554/cam/realmonitor?channel=1&subtype=1",
+    },
+    "lorex": {
+        "label": "Lorex",
+        "main":  "rtsp://{host}:554/cam/realmonitor?channel=1&subtype=0",
+        "sub":   "rtsp://{host}:554/cam/realmonitor?channel=1&subtype=1",
+    },
+    "annke": {
+        "label": "Annke",
+        "main":  "rtsp://{host}:554/Streaming/Channels/101",
+        "sub":   "rtsp://{host}:554/Streaming/Channels/102",
+    },
+    "reolink": {
+        "label": "Reolink",
+        "main":  "rtsp://{host}:554/Preview_01_main",
+        "sub":   "rtsp://{host}:554/Preview_01_sub",
+    },
+    "tapo": {
+        "label": "TP-Link Tapo",
+        "main":  "rtsp://{host}:554/stream1",
+        "sub":   "rtsp://{host}:554/stream2",
+    },
+    "axis": {
+        "label": "Axis",
+        "main":  "rtsp://{host}:554/axis-media/media.amp?videocodec=h264",
+        "sub":   "rtsp://{host}:554/axis-media/media.amp?videocodec=h264&resolution=640x360",
+    },
+    "foscam": {
+        "label": "Foscam",
+        "main":  "rtsp://{host}:88/videoMain",
+        "sub":   "rtsp://{host}:88/videoSub",
+    },
+    "uniview": {
+        "label": "Uniview",
+        "main":  "rtsp://{host}:554/media/video1",
+        "sub":   "rtsp://{host}:554/media/video2",
     },
 }
+
+
+CAMERA_VENDORS = tuple(CAMERA_MAKES) + ("other",)
+
+
+def camera_make_address(vendor, host, stream):
+    """The make's standard stream address for `host`, or "" for "other" or an
+    unknown make. `stream` "main" gives the full picture, anything else the
+    smaller stream."""
+    make = CAMERA_MAKES.get(vendor)
+    if not make:
+        return ""
+    return make["main" if stream == "main" else "sub"].format(host=host)
+
 
 # Default stream when a DASHBOARDS_CAMERAS entry omits `stream` — sub2 saves
 # CPU + bandwidth and quality is plenty for tile-sized viewing. Override per

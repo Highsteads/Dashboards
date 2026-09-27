@@ -46,7 +46,7 @@ from dash_common import (
     GO2RTC_RTSP_PORT,
     GO2RTC_WEBRTC_PORT,
     PROXY_PORT,
-    VENDOR_URLS,
+    camera_make_address,
     camera_problem,
     log,
     rtsp_with_login,
@@ -864,16 +864,16 @@ class CamerasMixin:
             slug   = self._cam_slug(cam["name"])
             vendor = cam.get("vendor", "dahua")
             stream = cam.get("stream", CAMERA_DEFAULT_STREAM)
-            if vendor == "other":
-                # 3.52.0: the owner's own address, already held by
+            typed  = str(cam.get("rtsp") or "")
+            if typed:
+                # An address the owner typed: needed for "other" (3.52.0),
+                # and over any make's standard one (3.53.0). Already held by
                 # camera_problem to the camera's host and to characters that
                 # cannot break this file. `stream` does not apply: the
                 # address names the stream.
-                base = cam["rtsp"]
+                base = typed
             else:
-                v_urls = VENDOR_URLS.get(vendor, VENDOR_URLS["dahua"])
-                tpl    = v_urls.get(f"rtsp_{stream}", v_urls["rtsp_main"])
-                base   = tpl.replace("{user}:{pwd}@", "").format(host=cam["host"])
+                base = camera_make_address(vendor, cam["host"], stream)
             # 3.46.0: the shared login only for an address approved in
             # Configure (see cam_login_hosts). Any other is dialled with no
             # login at all: a real camera then refuses and shows as offline,
@@ -890,8 +890,8 @@ class CamerasMixin:
                 elif vendor != "other":
                     no_login.append(label)
             # Quoted, so no character the address may hold can end the value.
-            lines.append(f"  {slug}: '{rtsp}'" if vendor == "other" else f"  {slug}: {rtsp}")
-            if vendor == "other":   other_count += 1
+            lines.append(f"  {slug}: '{rtsp}'" if typed else f"  {slug}: {rtsp}")
+            if typed:               other_count += 1
             elif stream == "sub2":  sub2_count += 1
             else:                   main_count += 1
 

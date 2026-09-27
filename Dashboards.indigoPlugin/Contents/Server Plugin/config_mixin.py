@@ -25,6 +25,7 @@ import time
 from dash_common import (
     ALERT_STORE_KEYS,
     as_bool,
+    CAMERA_MAKES,
     _parse_cameras,
     camera_problem,
     _safe_int_list,
@@ -558,6 +559,11 @@ class ConfigMixin:
                 # 3.52.0: the addresses with a login of their own in Configure
                 # (the hosts only, never the login), which is not withheld.
                 "cameraOwnLoginHosts": sorted(self.cam_logins or ()),
+                # 3.53.0: the makes and their standard addresses ({host} to
+                # fill in), so the Settings page draws its list and shows each
+                # camera's address from the table the plugin streams with.
+                "cameraMakes": [{"id": k, "label": v["label"], "main": v["main"],
+                                 "sub": v["sub"]} for k, v in CAMERA_MAKES.items()],
             })
         except Exception as exc:
             self.logger.error(f"[Config] getDashboardsConfig failed: {exc}")

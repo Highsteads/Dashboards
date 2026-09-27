@@ -74,16 +74,62 @@ def test_a_bad_address_is_refused_and_says_why(url, needle):
 def test_an_other_camera_needs_its_address_and_a_known_make_does_not():
     assert "RTSP address" in dash_common.camera_problem(_other(rtsp=""))
     assert dash_common.camera_problem(_other()) is None
-    dahua = {"host": "192.0.2.1", "name": "Front", "vendor": "dahua", "rtsp": "junk"}
-    assert dash_common.camera_problem(dahua) is None, "a known make ignores rtsp"
-    assert "make" in dash_common.camera_problem({"host": "192.0.2.1", "vendor": "axis"})
+    dahua = {"host": "192.0.2.1", "name": "Front", "vendor": "dahua"}
+    assert dash_common.camera_problem(dahua) is None, "a known make needs no address"
+    assert "make" in dash_common.camera_problem({"host": "192.0.2.1", "vendor": "nosuchmake"})
 
 
-def test_parsing_keeps_the_address_only_for_an_other_camera():
+def test_a_typed_address_on_a_known_make_is_held_to_the_same_rule():
+    """3.53.0: any make may carry an address over its standard one, for a model
+    that differs. It must pass exactly what an "other" address passes."""
+    base = {"host": "192.0.2.1", "name": "Front", "vendor": "reolink"}
+    assert dash_common.camera_problem(dict(base, rtsp="rtsp://192.0.2.1:554/h265Preview_01_main")) is None
+    assert "own host" in dash_common.camera_problem(dict(base, rtsp="rtsp://203.0.113.9/s"))
+    assert "user name" in dash_common.camera_problem(dict(base, rtsp="rtsp://a:b@192.0.2.1/s"))
+    assert "rtsp://" in dash_common.camera_problem(dict(base, rtsp="junk"))
+
+
+def test_parsing_keeps_a_typed_address_for_any_make_and_only_when_given():
     cams = dash_common._parse_cameras([
-        _other(), {"host": "192.0.2.1", "name": "Front", "vendor": "dahua", "rtsp": "x"}])
+        _other(), {"host": "192.0.2.1", "name": "Front", "vendor": "dahua", "rtsp": " rtsp://192.0.2.1/x "},
+        {"host": "192.0.2.2", "name": "Drive", "vendor": "hikvision", "rtsp": ""}])
     assert cams[0]["rtsp"] == "rtsp://192.0.2.50:554/h264Preview_01_sub"
-    assert "rtsp" not in cams[1]
+    assert cams[1]["rtsp"] == "rtsp://192.0.2.1/x"
+    assert "rtsp" not in cams[2]
+
+
+# ── the table of makes ───────────────────────────────────────────────────
+
+@pytest.mark.parametrize("make", list(dash_common.CAMERA_MAKES))
+@pytest.mark.parametrize("stream", ["main", "sub2"])
+def test_every_standard_address_passes_the_rule_a_typed_one_must(make, stream):
+    """A template the owner could not have typed would be a way round the
+    rule, and a bad one would break go2rtc.yaml for every camera."""
+    for host in ("192.0.2.7", "cam-porch.lan"):
+        url = dash_common.camera_make_address(make, host, stream)
+        assert dash_common.camera_rtsp_problem(url, host) is None, (make, stream, url)
+
+
+def test_the_makes_are_the_table_then_other_and_the_old_two_are_unchanged():
+    assert dash_common.CAMERA_VENDORS == tuple(dash_common.CAMERA_MAKES) + ("other",)
+    assert dash_common.CAMERA_VENDORS[:2] == ("dahua", "hikvision")
+    addr = dash_common.camera_make_address
+    # The two makes proven on real cameras: exactly what 3.51 streamed.
+    assert addr("dahua", "h", "sub2") == "rtsp://h:554/cam/realmonitor?channel=1&subtype=2"
+    assert addr("dahua", "h", "main") == "rtsp://h:554/cam/realmonitor?channel=1&subtype=0"
+    assert addr("hikvision", "h", "sub2") == "rtsp://h:554/Streaming/Channels/102"
+    assert addr("hikvision", "h", "main") == "rtsp://h:554/Streaming/Channels/101"
+    assert addr("other", "h", "main") == "" and addr("nosuchmake", "h", "main") == ""
+
+
+def test_the_mcp_manifest_offers_exactly_the_plugins_makes():
+    from pathlib import Path
+    root = Path(dash_common.__file__).parents[1]
+    m = json.loads((root / "Resources/mcp-manifest.json").read_text(encoding="utf-8"))
+    tool = next(t for t in m["tools"] if t["name"] == "set_camera")
+    assert tuple(tool["inputSchema"]["properties"]["vendor"]["enum"]) == dash_common.CAMERA_VENDORS
+    import mcp_tools
+    assert mcp_tools.VENDORS is dash_common.CAMERA_VENDORS
 
 
 # ── the login ────────────────────────────────────────────────────────────
@@ -157,6 +203,22 @@ def test_a_bad_other_camera_never_reaches_the_file(monkeypatch, tmp_path):
     assert any("leaving out camera 1 (Evil)" in m for _l, m in said)
     text = (tmp_path / "go2rtc.yaml").read_text(encoding="utf-8")
     assert text.count("listen: ':1984'") == 0
+
+
+@pytest.mark.parametrize("make", [m for m in dash_common.CAMERA_MAKES])
+def test_each_make_streams_its_standard_address_with_the_login(monkeypatch, tmp_path, make):
+    cam = {"host": "192.0.2.7", "name": "Cam", "vendor": make}
+    streams, _, _ = _yaml(monkeypatch, tmp_path, [cam], approved={"192.0.2.7"})
+    want = dash_common.rtsp_with_login(
+        dash_common.camera_make_address(make, "192.0.2.7", "sub2"), "admin", SECRET)
+    assert streams["cam"] == want
+
+
+def test_a_typed_address_replaces_the_makes_own(monkeypatch, tmp_path):
+    cam = {"host": "192.0.2.7", "name": "Cam", "vendor": "reolink",
+           "rtsp": "rtsp://192.0.2.7:554/h265Preview_01_main"}
+    streams, _, _ = _yaml(monkeypatch, tmp_path, [cam], approved={"192.0.2.7"})
+    assert streams["cam"] == f"'rtsp://admin:{SECRET}@192.0.2.7:554/h265Preview_01_main'"
 
 
 def test_a_known_make_with_no_login_at_all_is_named(monkeypatch, tmp_path):

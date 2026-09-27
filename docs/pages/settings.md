@@ -24,7 +24,8 @@ understands and this editor does not rides through a save untouched rather than 
 **Custom links.** Extra tiles for the menu's Tools group.
 
 **Cameras.** One row per camera: host, name, make, stream, rooms, and whether it is in the hub's
-strip. A swap-out host picker sits at the bottom. Camera changes need a plugin restart, and the card
+strip. The box under the make shows the address the plugin will use, in grey; type into it only
+when the camera needs a different one, which **other** always does. A swap-out host picker sits at the bottom. Camera changes need a plugin restart, and the card
 says so.
 
 **Rooms.** Which Indigo device folders become rooms, and per-room overrides. Device sections —

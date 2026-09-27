@@ -56,7 +56,7 @@ def test_valid_config_round_trips(monkeypatch):
 
 def test_bad_vendor_rejected():
     p, _ = make_plugin()
-    body, status = save(p, {"cameras": [{"host": "h", "name": "n", "vendor": "axis"}]})
+    body, status = save(p, {"cameras": [{"host": "h", "name": "n", "vendor": "nosuchmake"}]})
     assert status == 400 and body["ok"] is False
     assert "vendor" in body["error"]
 

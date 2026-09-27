@@ -30,7 +30,7 @@ def test_bad_cameras_are_left_out_with_a_warning_and_the_rest_run(monkeypatch):
         _cam("192.0.2.3", "---"),                 # empty slug
         _cam("192.0.2.4 x\nstreams:", "Drive"),   # injection-shaped host
         _cam("192.0.2.1", "Garage"),              # host already used
-        _cam("192.0.2.5", "Patio", vendor="axis"),
+        _cam("192.0.2.5", "Patio", vendor="nosuchmake"),
         _cam("cam-back.lan", "Back"),
     ]
     kept = p._vet_cameras(cams)

@@ -302,7 +302,7 @@ def test_set_camera_new_needs_name_and_vendor(monkeypatch, tmp_path):
 
 
 @pytest.mark.parametrize("args,needle", [
-    ({"host": "10.0.0.9", "name": "X", "vendor": "axis"}, "vendor"),
+    ({"host": "10.0.0.9", "name": "X", "vendor": "nosuchmake"}, "vendor"),
     ({"host": "bad host!", "name": "X", "vendor": "dahua"}, "host"),
     ({"host": "10.0.0.9", "name": "X", "vendor": "dahua", "stream": "sub9"}, "stream"),
     ({"host": "10.0.0.9", "name": "X", "vendor": "dahua", "main": "yes"}, "main"),

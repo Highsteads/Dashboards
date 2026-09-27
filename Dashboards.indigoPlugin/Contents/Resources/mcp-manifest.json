@@ -63,9 +63,9 @@
         "properties": {
           "host": {"type": "string", "description": "IP address or plain hostname of the camera on the LAN. Identifies the camera; changing it means removing and re-adding."},
           "name": {"type": "string", "description": "Display name, e.g. Front Door. Required when adding. It becomes the go2rtc stream name, so two cameras cannot share one."},
-          "vendor": {"type": "string", "enum": ["dahua", "hikvision", "other"], "description": "The camera's make. dahua and hikvision use their known stream addresses; other is any IP camera and needs rtsp. Required when adding."},
-          "stream": {"type": "string", "enum": ["sub2", "main"], "description": "Dahua and Hikvision only: which stream to use. Default sub2 (the low-bandwidth substream)."},
-          "rtsp": {"type": "string", "description": "For an \"other\" camera: its own RTSP address, e.g. rtsp://192.168.1.50:554/stream1. It must point at the camera's host and must not carry a user name or password; the login comes from Configure on the Indigo Mac."},
+          "vendor": {"type": "string", "enum": ["dahua", "hikvision", "amcrest", "lorex", "annke", "reolink", "tapo", "axis", "foscam", "uniview", "other"], "description": "The camera's make. Each make but other has a standard stream address the plugin fills in (only dahua and hikvision are proven on real cameras); other is any IP camera and needs rtsp. Required when adding."},
+          "stream": {"type": "string", "enum": ["sub2", "main"], "description": "Which of the make's standard streams to use: sub2 (the default, the smaller stream) or main. Ignored when rtsp is set."},
+          "rtsp": {"type": "string", "description": "The camera's own RTSP address, e.g. rtsp://192.168.1.50:554/stream1. Needed for an \"other\" camera; for any other make it replaces the standard address, for a model that differs. It must point at the camera's host and must not carry a user name or password; the login comes from Configure on the Indigo Mac. Changing vendor without giving rtsp drops a previously typed address."},
           "rooms": {"type": "array", "items": {"type": "string"}, "description": "Room folder names whose room pages should show this camera. An empty list keeps the camera off every room page."},
           "main": {"type": "boolean", "description": "true puts the camera in the hub's mosaic, false takes it out. Omit to leave that as it is."}
         },

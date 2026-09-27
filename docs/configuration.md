@@ -55,8 +55,9 @@ where it writes.
   lookup showing which device they resolve to. A favourite pointing at something that no longer
   exists is named rather than silently dropped.
 - **Custom links.** Extra tiles for the menu's Tools group — anything with a URL.
-- **Cameras.** Host, name, make (Dahua, Hikvision or other), stream (`sub2`, the default, or
-  `main`), for another make its own RTSP address, the rooms it belongs to, and whether it is in the hub's strip. A swap-out host picker sits at the
+- **Cameras.** Host, name, make (one of the [known makes](cameras.md#camera-makes), or other),
+  stream (`sub2`, the default, or `main`), an RTSP address when the camera needs its own, the
+  rooms it belongs to, and whether it is in the hub's strip. A swap-out host picker sits at the
   bottom. Changes here need a plugin restart.
 - **Rooms.** Which Indigo device folders become rooms, and a per-room override for anything the
   automatic classifier gets wrong. Each room shows what it currently resolves to ("1 doors · 0
@@ -84,13 +85,16 @@ after a restart, and a save landing on a restarting plugin used to stall the web
 ]
 ```
 
-- `vendor` — the make: `dahua`, `hikvision` or `other`. For the first two the plugin knows the
-  stream address. `other` is any other camera and needs `rtsp`.
-- `rtsp` — for an `other` camera only: its own stream address, pointing at the same address as
-  `host` and with no user name or password in it. See
+- `vendor` — the make: `dahua`, `hikvision`, `amcrest`, `lorex`, `annke`, `reolink`, `tapo`,
+  `axis`, `foscam`, `uniview` or `other`. For all but `other` the plugin knows the usual stream
+  address — see [Camera makes](cameras.md#camera-makes). `other` is any other camera and needs
+  `rtsp`.
+- `rtsp` — the camera's own stream address, pointing at the same address as `host` and with no
+  user name or password in it. Needed for `other`. For any other make it replaces the usual
+  address, for a model that differs. See
   [Any other make of camera](cameras.md#any-other-make-of-camera).
-- `stream` — `sub2` (the default, roughly a quarter of the mainstream's bitrate) or `main`. Not
-  used by an `other` camera, whose address names its stream.
+- `stream` — `sub2` (the default, the smaller picture) or `main`. Not used when `rtsp` is set,
+  because the address names its stream.
 - `room` — a name or a list of names. Which room pages show this camera. Omit it to keep the
   camera off room pages.
 

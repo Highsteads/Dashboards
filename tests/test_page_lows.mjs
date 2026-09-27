@@ -421,7 +421,7 @@ await section(async () => {
     check("[75] a swap host that is gone is not kept selected", !/selected/.test(h) && /Drive \(10\.0\.0\.7\)/.test(h), h);
     check("[75] one still present stays selected", /value="10\.0\.0\.7" selected/.test(ctx.__s.swapOptionsHtml([{ host: "10.0.0.7", name: "Drive" }], "10.0.0.7")));
     const row = (host, name, main = false) => ({ querySelector: q => ({ ".c-host": { value: host }, ".c-name": { value: name },
-        ".c-vendor": { value: "dahua" }, ".c-stream": { value: "" }, ".c-rooms": { value: "" }, ".c-main": { checked: main } })[q] });
+        ".c-vendor": { value: "dahua" }, ".c-rtsp": { value: "" }, ".c-stream": { value: "" }, ".c-rooms": { value: "" }, ".c-main": { checked: main } })[q] });
     const root = { querySelectorAll: () => [row("10.0.0.7", "Drive")], querySelector: () => ({ value: "10.0.0.5" }) };
     checkEq("[75] collecting drops a swap host no camera has", ctx.__s.collectCameras(root).swap, "");
     const body = strip(src);

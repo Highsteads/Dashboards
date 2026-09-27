@@ -55,18 +55,40 @@ function root(rows) {
 
 const win = {};
 const ctx = vm.createContext({ window: win });
-vm.runInContext(extractFn(src, "collectCameras") + "\n" + extractFn(src, "cameraLoginWithheld")
-                + "\nthis.collectCameras = collectCameras; this.cameraLoginWithheld = cameraLoginWithheld;", ctx);
+const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+ctx.esc = esc;
+vm.runInContext(["collectCameras", "cameraLoginWithheld", "cameraMakes", "makeOptionsHtml", "makeAddress"]
+                .map(n => extractFn(src, n)).join("\n")
+                + "\nthis.collectCameras = collectCameras; this.cameraLoginWithheld = cameraLoginWithheld;"
+                + " this.cameraMakes = cameraMakes; this.makeOptionsHtml = makeOptionsHtml; this.makeAddress = makeAddress;", ctx);
 
 const out = ctx.collectCameras(root([
     row({ host: "192.0.2.50", name: "Porch", vendor: "other",
           rtsp: "  rtsp://192.0.2.50:554/stream1 ", stream: "main" }),
-    row({ host: "192.0.2.1", name: "Front", vendor: "dahua", rtsp: "left over", stream: "main" }),
+    row({ host: "192.0.2.1", name: "Front", vendor: "dahua", stream: "main" }),
+    row({ host: "192.0.2.2", name: "Drive", vendor: "reolink", stream: "main",
+          rtsp: "rtsp://192.0.2.2:554/h265Preview_01_main" }),
 ]));
 eq("an other camera saves its address and no stream", out.cams[0],
    { host: "192.0.2.50", name: "Porch", vendor: "other", rtsp: "rtsp://192.0.2.50:554/stream1" });
-eq("a known make saves its stream and no address", out.cams[1],
+eq("a known make with a blank box saves its stream and no address", out.cams[1],
    { host: "192.0.2.1", name: "Front", vendor: "dahua", stream: "main" });
+eq("a known make with a typed address saves the address, which names its stream", out.cams[2],
+   { host: "192.0.2.2", name: "Drive", vendor: "reolink", rtsp: "rtsp://192.0.2.2:554/h265Preview_01_main" });
+
+// The make list comes from the plugin; without it (an older plugin), the two it knew.
+win._camMakes = [{ id: "reolink", label: "Reolink", main: "rtsp://{host}:554/m", sub: "rtsp://{host}:554/s" }];
+eq("the grey hint is the make's address for this host and stream",
+   [ctx.makeAddress("reolink", "10.0.0.9", "main"), ctx.makeAddress("reolink", "10.0.0.9", ""),
+    ctx.makeAddress("reolink", "", "main"), ctx.makeAddress("other", "10.0.0.9", "main")],
+   ["rtsp://10.0.0.9:554/m", "rtsp://10.0.0.9:554/s", "", ""]);
+const opts = ctx.makeOptionsHtml("somefuturemake");
+check("a saved make the page does not know is kept, not swapped for the first",
+      /<option value="somefuturemake" selected>/.test(opts));
+check("other is always offered, last", /<option value="other">Other \(type the address\)<\/option>$/.test(opts));
+delete win._camMakes;
+eq("an older plugin falls back to the two makes it knew",
+   ctx.cameraMakes().map(m => m.id), ["dahua", "hikvision"]);
 
 win._camLoginHosts = ["192.0.2.1"];
 win._camOwnLoginHosts = ["192.0.2.50"];
@@ -77,8 +99,7 @@ delete win._camOwnLoginHosts;
 eq("an older plugin that reports no own logins still works",
    ctx.cameraLoginWithheld([{ host: "192.0.2.50" }]), ["192.0.2.50"]);
 
-check("the make list offers other", /<option value="other"/.test(src));
-check("the address box shows only for other",
-      /\.c-rtsp"\)\.hidden = !other/.test(src) && /\.c-stream"\)\.disabled = other/.test(src));
+check("Stream is greyed out for other or a typed address",
+      /\.c-stream"\)\.disabled = vendor === "other" \|\| !!box\.value\.trim\(\)/.test(src));
 
 done();

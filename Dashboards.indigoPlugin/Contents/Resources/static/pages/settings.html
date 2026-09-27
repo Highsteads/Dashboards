@@ -522,7 +522,7 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
         // ── cameras ──────────────────────────────────────────────────────
         function renderCameras() {
             const card = el(`<section class="card"><h2>Cameras</h2>
-                <div class="hint">Host is an IP address or plain hostname (no port). For a Dahua or Hikvision camera the plugin knows where the video is, and Stream picks the full picture (main) or the low-bandwidth one (sub2, the default). For any other make choose <b>other</b> and type the camera's own RTSP address, such as <code>rtsp://192.168.1.50:554/stream1</code>, which the camera's manual or its maker's website gives. Leave the user name and password out of it: the shared camera login, or a login of its own set in Plugins &rarr; Dashboards &rarr; Configure, is added for you. Rooms is a comma list of room names whose page should show this camera. Main = include in the hub's camera mosaic. Camera changes need a plugin restart.</div>
+                <div class="hint">Host is an IP address or plain hostname (no port). For the makes in the list the plugin knows where the video usually is: the box under the make shows that address in grey, and Stream picks the full picture (main) or the smaller one (sub2, the default). Type an address into the box only if your model differs, and it is used instead. For a make not in the list choose <b>other</b> and type the camera's own RTSP address, such as <code>rtsp://192.168.1.50:554/stream1</code>, which the camera's manual or its maker's website gives. Leave the user name and password out of it: the shared camera login, or a login of its own set in Plugins &rarr; Dashboards &rarr; Configure, is added for you. Only Dahua and Hikvision have been tried on real cameras; the guide's Cameras page lists what catches people out with the others. Rooms is a comma list of room names whose page should show this camera. Main = include in the hub's camera mosaic. Camera changes need a plugin restart.</div>
                 <div class="hint"><b>Live pictures.</b> The Cameras page times the connection and shows as many cameras as live video as its speed can carry, at home or away, up to the <code>livePoolSize</code> key (raw JSON, 0 to 12, default 6); the rest are pictures that refresh every second or two. Each live tile costs about 1.4 Mbit/s on the network and some work for the device showing it, so an older tablet may be happier with fewer. Through the Indigo reflector none are live.</div>
                 <div class="hint"><b>Stills.</b> A camera gets a picture every two seconds only while a page is showing it. The rest get one every <code>stillsIdleMinutes</code> (raw JSON, 0 to 60, default 5) so the hub can still say when a camera goes offline; 0 takes none while nobody is watching.</div>
                 <table><thead><tr>
@@ -556,13 +556,9 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
                 const tr = el(`<tr>
                     <td><input type="text" class="c-name" value="${esc(c.name || "")}"></td>
                     <td><input type="text" class="c-host" value="${esc(c.host || "")}"></td>
-                    <td><select class="c-vendor">
-                        <option value="dahua"${c.vendor === "dahua" ? " selected" : ""}>dahua</option>
-                        <option value="hikvision"${c.vendor === "hikvision" ? " selected" : ""}>hikvision</option>
-                        <option value="other"${c.vendor === "other" ? " selected" : ""}>other</option>
-                    </select>
-                    <input type="text" class="c-rtsp" placeholder="rtsp://address:554/path"
-                        aria-label="RTSP address" value="${esc(c.rtsp || "")}"></td>
+                    <td><select class="c-vendor">${makeOptionsHtml(c.vendor)}</select>
+                    <input type="text" class="c-rtsp" aria-label="RTSP address"
+                        value="${esc(c.rtsp || "")}"></td>
                     <td><select class="c-stream">
                         <option value=""${!c.stream || c.stream === "sub2" ? " selected" : ""}>sub2</option>
                         <option value="main"${c.stream === "main" ? " selected" : ""}>main</option>
@@ -573,15 +569,19 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
                     <td class="row-del"><button class="btn danger c-del">${I("cross")}</button></td>
                 </tr>`);
                 tr.querySelector(".c-del").addEventListener("click", () => { tr.remove(); rebuildSwap(); });
-                // An "other" camera names its stream in its own address, so the
-                // address box shows and the Stream choice does not apply.
-                const vendorSel = tr.querySelector(".c-vendor");
+                // The address box shows the make's standard address in grey
+                // (3.53.0). A typed address, which "other" needs, names its own
+                // stream, so the Stream choice does not apply to it.
                 function showMake() {
-                    const other = vendorSel.value === "other";
-                    tr.querySelector(".c-rtsp").hidden = !other;
-                    tr.querySelector(".c-stream").disabled = other;
+                    const vendor = tr.querySelector(".c-vendor").value;
+                    const host   = tr.querySelector(".c-host").value.trim();
+                    const stream = tr.querySelector(".c-stream").value;
+                    const box    = tr.querySelector(".c-rtsp");
+                    box.placeholder = makeAddress(vendor, host, stream) || "rtsp://address:554/path";
+                    tr.querySelector(".c-stream").disabled = vendor === "other" || !!box.value.trim();
                 }
-                vendorSel.addEventListener("change", showMake);
+                tr.addEventListener("input", showMake);
+                tr.addEventListener("change", showMake);
                 showMake();
                 return tr;
             }
@@ -635,8 +635,9 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
                     host, name,
                     vendor: tr.querySelector(".c-vendor").value
                 };
-                if (cam.vendor === "other") {
-                    cam.rtsp = tr.querySelector(".c-rtsp").value.trim();
+                const typed = tr.querySelector(".c-rtsp").value.trim();
+                if (typed || cam.vendor === "other") {
+                    cam.rtsp = typed;
                 } else {
                     const stream = tr.querySelector(".c-stream").value;
                     if (stream) cam.stream = stream;
@@ -989,6 +990,40 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
 
         // Saved camera hosts the shared login will not be sent to (3.46.0).
         // Unknown (an older plugin that does not report the list) is none.
+        // The camera makes and their standard addresses, from the plugin
+        // (3.53.0). An older plugin sends none, so fall back to the two it knew.
+        function cameraMakes() {
+            const got = window._camMakes;
+            if (Array.isArray(got) && got.length) return got;
+            return [
+                { id: "dahua", label: "Dahua",
+                  main: "rtsp://{host}:554/cam/realmonitor?channel=1&subtype=0",
+                  sub:  "rtsp://{host}:554/cam/realmonitor?channel=1&subtype=2" },
+                { id: "hikvision", label: "Hikvision",
+                  main: "rtsp://{host}:554/Streaming/Channels/101",
+                  sub:  "rtsp://{host}:554/Streaming/Channels/102" },
+            ];
+        }
+        // The <option>s for the make list, with `want` selected. A saved make
+        // this page does not know is kept as an option of its own rather than
+        // silently becoming the first one on the next save.
+        function makeOptionsHtml(want) {
+            const makes = cameraMakes();
+            const opts = makes.map(m =>
+                `<option value="${esc(m.id)}"${m.id === want ? " selected" : ""}>${esc(m.label)}</option>`);
+            if (want && want !== "other" && !makes.some(m => m.id === want))
+                opts.push(`<option value="${esc(want)}" selected>${esc(want)}</option>`);
+            opts.push(`<option value="other"${want === "other" ? " selected" : ""}>Other (type the address)</option>`);
+            return opts.join("");
+        }
+        // A make's standard address for `host`, or "" for "other", an unknown
+        // make or no host yet.
+        function makeAddress(vendor, host, stream) {
+            const m = cameraMakes().find(x => x.id === vendor);
+            if (!m || !host) return "";
+            return (stream === "main" ? m.main : m.sub).split("{host}").join(host);
+        }
+
         // A camera with a login of its own in Configure (3.52.0) is not one.
         function cameraLoginWithheld(cams) {
             const ok = window._camLoginHosts;
@@ -1059,6 +1094,7 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
                 window._guestToken = res.guestToken || "";
                 window._camLoginHosts = Array.isArray(res.cameraLoginHosts) ? res.cameraLoginHosts : null;
                 window._camOwnLoginHosts = Array.isArray(res.cameraOwnLoginHosts) ? res.cameraOwnLoginHosts : [];
+                window._camMakes = Array.isArray(res.cameraMakes) ? res.cameraMakes : null;
                 window._cfgSource = res.source;
                 document.getElementById("source").textContent =
                     res.source === "store" ? "dashboards_config.json" : "legacy (IndigoSecrets)";

@@ -51,7 +51,9 @@ LOG_LINES_DEFAULT = 60
 LOG_LINES_MAX     = 400
 LOG_TAIL_BYTES    = 512 * 1024       # more than 400 lines of anything this plugin writes
 
-VENDORS = ("dahua", "hikvision", "other")
+# The makes come from the one table the plugin streams with (3.53.0), so the
+# tool cannot offer a make the plugin does not know, or miss one it does.
+from dash_common import CAMERA_VENDORS as VENDORS  # noqa: E402
 STREAMS = ("sub2", "main")
 # Same rule as the Settings endpoint: a host is later interpolated into
 # go2rtc.yaml and WebRTC signalling URLs, so an IP or plain hostname only.
@@ -230,8 +232,9 @@ def _camera_public(cam):
     """A camera dict as the AI should see it — never a credential."""
     out = {"host": cam.get("host", ""), "name": cam.get("name", ""),
            "vendor": cam.get("vendor", ""), "stream": cam.get("stream") or "sub2"}
-    if cam.get("vendor") == "other":
-        # Its own address, which the save refuses to hold a login (3.52.0).
+    if cam.get("rtsp") or cam.get("vendor") == "other":
+        # A typed address, which the save refuses to hold a login (3.52.0);
+        # any make may carry one over its standard address (3.53.0).
         out["rtsp"] = cam.get("rtsp", "")
     room = cam.get("room")
     if isinstance(room, str):
@@ -402,7 +405,9 @@ def tool_set_camera(plugin, args):
         cam["stream"] = stream
     if rtsp:
         cam["rtsp"] = rtsp
-    if cam.get("vendor") != "other":
+    elif vendor:
+        # A new make without a new address: its standard address applies, so
+        # an address typed for the old make must not carry over.
         cam.pop("rtsp", None)
     if rooms is not None:
         if rooms:

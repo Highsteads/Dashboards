@@ -65,9 +65,8 @@ pages show nothing.
   PATH. The plugin looks in the path set under **Plugins → Dashboards → Configure** first, then on
   the PATH, then at `~/bin/go2rtc` as a last resort.
 - IP cameras reachable on the LAN with RTSP, their video stream, switched on. Any make will do.
-  For Dahua and Hikvision the plugin knows where the video is. For any other make, set it to
-  **other** and type in the camera's own RTSP address — see
-  [Any other make of camera](#any-other-make-of-camera) below.
+  For the makes listed under [Camera makes](#camera-makes) the plugin knows where the video
+  usually is. For any other, set it to **other** and type in the camera's own RTSP address.
 - A browser with WebRTC, which is every current one. Without it every tile is a still.
 
 Pillow (thumbnails) installs itself from `requirements.txt` the first time the plugin starts.
@@ -140,32 +139,81 @@ live video over its still. Where it is not, and always over the reflector, they 
 cross-fade from frame to frame. A camera with a `room` in its entry also appears on that room's
 page, as a still that does not stream. Tap a tile and the Cameras page opens with it at the top.
 
+## Camera makes
+
+Every maker puts the video at its own place on the camera. For the makes below the plugin knows
+the usual place, so you choose the make on the Settings page and it works the address out from
+the camera's Host. The box under the make shows that address in grey, so you can see what it
+will use. **Stream** picks the full picture (main) or the smaller one (sub2, the default), which
+is kinder to a wall tablet and the network.
+
+| Make | Full picture (main) | Smaller picture (sub2) | Tried here |
+|---|---|---|---|
+| Dahua | `/cam/realmonitor?channel=1&subtype=0` | `/cam/realmonitor?channel=1&subtype=2` | Yes |
+| Hikvision | `/Streaming/Channels/101` | `/Streaming/Channels/102` | Yes |
+| Amcrest | `/cam/realmonitor?channel=1&subtype=0` | `/cam/realmonitor?channel=1&subtype=1` | No |
+| Lorex | `/cam/realmonitor?channel=1&subtype=0` | `/cam/realmonitor?channel=1&subtype=1` | No |
+| Annke | `/Streaming/Channels/101` | `/Streaming/Channels/102` | No |
+| Reolink | `/Preview_01_main` | `/Preview_01_sub` | No |
+| TP-Link Tapo | `/stream1` | `/stream2` | No |
+| Axis | `/axis-media/media.amp?videocodec=h264` | the same, with `&resolution=640x360` | No |
+| Foscam | `/videoMain` on port 88 | `/videoSub` on port 88 | No |
+| Uniview | `/media/video1` | `/media/video2` | No |
+
+Every address starts `rtsp://` and the camera's Host, on port 554 unless the table says
+otherwise. Only Dahua and Hikvision have been tried on real cameras here. The rest come from
+each maker's own support pages, checked in September 2026, so if yours shows nothing, the list
+below is the first place to look, and I would be glad to hear what worked.
+
+**If your model differs**, type its address into the box under the make and the plugin uses that
+instead, with the Stream choice greyed out because the address names the stream. Clear the box
+to go back to the usual one.
+
+### What catches people out, make by make
+
+- **Dahua.** The smaller picture here is the camera's *third* stream (`subtype=2`), because that
+  is what the cameras this was built on use. Plenty of Dahua models only have two, so if a
+  Dahua shows nothing on sub2, choose main, or type the address with `subtype=1`.
+- **Amcrest.** Amcrest cameras are Dahua inside and use the same addresses. Some of the Amcrest
+  Smart Home range (the ASH models) are reported not to offer a stream to anything but
+  Amcrest's own app.
+- **Lorex.** Only some Lorex cameras are Dahua inside, and Lorex does not say which. A Wi-Fi or
+  app-only Lorex camera may have no stream at all. A camera plugged into a Lorex recorder
+  rather than your network is reached through the recorder, which the plugin cannot do yet.
+- **Annke.** Annke cameras are Hikvision inside. Newer firmware will not stream until the
+  camera has been set up with a password. The C800 sends only H.265, which most browsers cannot
+  play live, so it will show pictures but not live video.
+- **Reolink.** Newer firmware ships with the stream switched **off**. Turn on RTSP in the
+  Reolink app or web page under Network, Advanced, Port Settings. Battery Reolinks have no stream
+  of their own. Older firmware may want `/h264Preview_01_main` and `/h264Preview_01_sub` instead,
+  and 4K models send H.265 on the full picture, so keep those on sub2.
+- **TP-Link Tapo.** The stream needs a separate **camera account**, made in the Tapo app under
+  the camera's Advanced Settings. It is not your Tapo login, and it is the one to put in Camera
+  Logins in Configure. Battery models (C410, C420, C425 and the D230 doorbell) have no stream,
+  and some others only when wired. Dual-lens models use `/stream6` and `/stream7` for the second
+  lens.
+- **Axis.** The plugin asks for H.264, because a camera left on H.265 will not play live in most
+  browsers. The smaller picture asks for 640 by 360. A camera that cannot give that size refuses
+  it, so type the address with a size your camera offers, or use main.
+- **Foscam.** Most Foscam cameras stream on port 88, but some newer ones use 554 (the C1 and
+  several of the V3 models among them). If port 88 shows nothing, type the address with 554.
+  The oldest Foscam cameras have no stream at all.
+- **Uniview.** The addresses here are for cameras. A Uniview recorder uses a different form.
+  Dual-lens cameras use `/media2/video1` for the second lens.
+
 ## Any other make of camera
 
-Dahua and Hikvision put their video at a fixed place on the camera, so for those the plugin works
-the address out from the camera's IP address. Every other maker puts it somewhere of its own, so
-for any other camera choose **other** as its make on the Settings page and type the whole address
-into the box that appears beside it, for example:
+For a make not in the list, choose **other** and type the camera's whole address into the box,
+such as `rtsp://192.168.1.50:554/stream1`. The camera's manual or its maker's website gives the
+right one, and many cameras list it in their own settings pages. Most offer a smaller second
+stream as well, so use that one if you can.
 
-| Make | A typical address |
-|---|---|
-| Reolink | `rtsp://192.168.1.50:554/h264Preview_01_sub` |
-| Amcrest | `rtsp://192.168.1.50:554/cam/realmonitor?channel=1&subtype=1` |
-| TP-Link Tapo | `rtsp://192.168.1.50:554/stream2` |
-| Axis | `rtsp://192.168.1.50/axis-media/media.amp` |
-
-The camera's manual or its maker's website gives the right one, and many cameras list it in
-their own settings pages. Most offer a smaller second stream as well, which is kinder to a
-wall tablet and the network, so use that one if you can.
-
-Three rules, and the Settings page says which one an address breaks:
+Three rules apply to any address you type, and the Settings page says which one an address
+breaks:
 
 - It must start `rtsp://` or `rtsps://`, and point at the same address as the camera's Host.
 - It must not carry a user name or password. The login is added for you, from Configure.
 - It may not hold spaces, quotes or `#`.
-
-The Stream column does not apply to an **other** camera, because the address already names the
-stream.
 
 Each camera needs an address of its own, because the plugin tells cameras apart by it. Cameras
 whose video comes through a recorder, such as UniFi Protect or a Synology, all share the
