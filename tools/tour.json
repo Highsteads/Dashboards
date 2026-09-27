@@ -1,0 +1,58 @@
+{
+  "about": "The narrated tour recorded by tools/record_tour.py. Each segment is one page; each beat is what is said while the page scrolls to 'to' (the first words of a heading a viewer can read). Record in daylight, when the solar and battery flows are moving.",
+  "poster_at": 2.5,
+  "segments": [
+    {
+      "page": "index.html",
+      "beats": [
+        {"say": "This is the hub, the page that lives on the wall tablet. It answers one question first: is the house all right?"},
+        {"say": "The pills under the greeting say who is home, how many radiators are calling for heat, and whether anything needs a look."},
+        {"to": "Favourites", "say": "Favourites are one-tap tiles: a light, a scene, a door, or simply a reading, such as the car's battery."},
+        {"to": "Energy · Now", "say": "Below the cameras is the power flow. Dots run along each line in the direction the power is going, and faster when there is more of it."},
+        {"to": "Today", "say": "Then today's totals, what the solar has saved in pounds, and the weather station."}
+      ]
+    },
+    {
+      "page": "energy.html",
+      "beats": [
+        {"say": "The Energy page tells the whole story. Live power at the top, with self-sufficiency, solar and the battery underneath."},
+        {"to": "Generation & forecast", "say": "Each hour's solar is split by roof, and measured against a dashed mark for what the forecast promised."},
+        {"to": "Today's energy flow", "say": "This shows where every kilowatt hour since midnight came from, and where it went."},
+        {"to": "When to run it", "say": "And When to run it plans the washing around the sun and the battery, and shows when the grid is at its cleanest."}
+      ]
+    },
+    {
+      "page": "heating.html",
+      "beats": [
+        {"say": "Heating shows every radiator in the house at once, with a boost for the whole house at the top."},
+        {"to": "Hall Kitchen Radiator", "say": "Each zone has its temperature and a setpoint you can step up or down. A cold room turns blue, a warm one amber."}
+      ]
+    },
+    {
+      "page": "room.html?room=Living%20Room",
+      "beats": [
+        {"say": "Every room has its own page, built from its folder in Indigo. Lights with dimmers and colour scenes, then the television and speakers."},
+        {"to": "Motion", "say": "Below them, the motion sensors, the room's radiators, and its windows and doors."}
+      ]
+    },
+    {
+      "page": "menu.html",
+      "beats": [
+        {"say": "The menu holds the rest: cameras, scenes, a timeline that replays any day, the cost of it all, alerts and Wi-Fi."}
+      ]
+    },
+    {
+      "page": "system-health.html",
+      "beats": [
+        {"say": "And System answers the other question: is the server itself all right? Disk, memory, load and plugins."},
+        {"to": "Devices", "say": "A device in error, or a battery running low, is named, so you know exactly what to go and fix."}
+      ]
+    },
+    {
+      "page": "index.html",
+      "beats": [
+        {"say": "It all runs from Indigo's own web server, in any browser. No app to install, no cloud account, and nothing leaving the house."}
+      ]
+    }
+  ]
+}

@@ -149,6 +149,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_proxy_status_reason.py` | The :8177 proxy's error replies always reach the browser |
 | `test_psql_encoding.py` | Inside IndigoPluginHost3 the preferred encoding is US-ASCII, so |
 | `test_pv_string_sanity.py` | The solarStringHours reader must reject the impossible |
+| `test_record_tour.py` | tools/record_tour.py: the tour script names real pages, the |
 | `test_reflector_block.mjs` | Contract test for "refuse the reflector" (v3.1.0). Indigo |
 | `test_reflector_guard.py` | Every browser-facing handler refuses the reflector when the |
 | `test_reflector_note.py` | Contract test for Plugin._note_reflector_use (v2.96.1) — a |
