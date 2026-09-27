@@ -136,7 +136,7 @@
         async function executeScene(id, name, btn) {
             // Through the shared client, not a hand-rolled fetch — the raw call
             // bypassed every guard in IndigoAPI._cmd (PIN speed-bump, guest
-            // read-only refusal, demo simulation).
+            // read-only refusal).
             if (!window._scenesApi) window._scenesApi = new IndigoAPI();
             // DashAction takes the button over and, where the scene has a watch
             // configured (the doors), holds it until the sensors confirm the

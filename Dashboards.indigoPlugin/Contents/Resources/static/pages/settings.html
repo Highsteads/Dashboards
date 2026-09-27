@@ -1046,11 +1046,6 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
         }
 
         async function load() {
-            if (sessionStorage.getItem("dash_demo")) {
-                document.getElementById("content").innerHTML =
-                    '<div class="loading">Settings are not available in demo mode.</div>';
-                return;
-            }
             window._loadedOk = false;   // becomes true only on a clean load
             try {
                 const res = await api("getDashboardsConfig", {});

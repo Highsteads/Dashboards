@@ -112,4 +112,3 @@ control anything at all.
   to the page. Until it knows, it shows stills.
 - The build number under the greeting is the fastest way to tell whether a wall tablet is running
   old JavaScript after an upgrade.
-- Demo mode enters through this page, so the hub is also what `demo.html` shows.

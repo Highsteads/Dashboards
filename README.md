@@ -2,13 +2,13 @@
 
 **Your house on a screen — energy, cameras, heating, every room, and the whole day replayed.**
 
-**Version:** 3.52.0 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
+**Version:** 3.53.0 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
 
-**[Read the full guide](https://highsteads.github.io/Dashboards/)** — setting up, a page of notes for every one of the 21 pages, and what to do when something goes wrong.
+**[Read the full guide](https://highsteads.github.io/Dashboards/)** — setting up, a page of notes for every one of the 20 pages, and what to do when something goes wrong.
 
-<img src="https://img.shields.io/badge/version-3.52.0-5856d6" alt="Version 3.52.0">
+<img src="https://img.shields.io/badge/version-3.53.0-5856d6" alt="Version 3.53.0">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
-<img src="https://img.shields.io/badge/pages-21-0a84ff" alt="21 pages">
+<img src="https://img.shields.io/badge/pages-20-0a84ff" alt="20 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
 
 <img src="docs/screenshots/index.png" width="860" alt="The hub — whether anything needs a look, who is home, the heating, the battery and a strip of camera stills">
@@ -47,7 +47,7 @@ It needs Indigo 2025.2 and nothing else. Each of these adds to it, and a page th
 
 ## The pages
 
-Sixteen pages you use, plus five that hold the whole thing together (the menu, Settings, Setup, Guest and Demo). Each one has its own page of notes in the guide.
+Sixteen pages you use, plus four that hold the whole thing together (the menu, Settings, Setup and Guest). Each one has its own page of notes in the guide.
 
 | Page | What it is for |
 |---|---|
@@ -68,7 +68,7 @@ Sixteen pages you use, plus five that hold the whole thing together (the menu, S
 | **[Wi-Fi](docs/pages/wifi.md)** | Every access point and how hard it is working, with [a page for each one](docs/pages/wifi-ap.md). Needs UniFiHealth |
 | **[Alerts](docs/pages/alerts.md)** | The alert rules, how each one reaches you, and Indigo's recent errors |
 | **[Settings](docs/pages/settings.md)** | Favourites, links, cameras, rooms, scenes and security, set in the browser |
-| **[Setup](docs/pages/setup.md)**, **[Guest](docs/pages/guest.md)** and **[Demo](docs/pages/demo.md)** | Pairing a browser, pairing a look-only guest device, and the demo |
+| **[Setup](docs/pages/setup.md)** and **[Guest](docs/pages/guest.md)** | Pairing a browser, and pairing a look-only guest device |
 
 ## Installing
 
@@ -92,11 +92,11 @@ The [Getting started](https://highsteads.github.io/Dashboards/getting-started.ht
 The three most recent releases, word for word. Every release before these is in
 **[the version history](https://highsteads.github.io/Dashboards/changelog.html)**.
 
+**3.53.0** (27-Sep-2026) - **Demo mode has gone.** The `demo.html` page and the made-up house behind it are no longer part of the plugin, and the online copy has left the guide site too. When the plugin next starts it clears the old demo files out of Indigo's public folder by itself. Every other page works as before.
+
 **3.52.0** (27-Sep-2026) - **Any IP camera, not just Dahua and Hikvision.** A camera can now be set to **other** on the Settings page, with its own RTSP address typed in beside it, such as `rtsp://192.168.1.50:554/h264Preview_01_sub` for a Reolink. The address must point at the camera's own address and carry no user name or password, and the Settings page says which rule an address breaks. A camera whose login is not the one your cameras share can now have its own, under **Camera Logins** in Configure (or `CAMERA_LOGINS` in IndigoSecrets.py), and that login goes only to the address it is written against. The cameras now start with no shared login set, as long as one of them can be reached without it. The Claude tool that adds cameras takes the new make and address as well. The guide's [Cameras](https://highsteads.github.io/Dashboards/cameras.html#any-other-make-of-camera) page lists the address for several makes.
 
 **3.51.1** (27-Sep-2026) - **The Through the day chart draws the everyday pattern straight between the hours.** It was a smoothed curve, which rose and fell between the hourly figures and showed values the pattern does not hold. The legend now lists the measured pattern first.
-
-**3.51.0** (27-Sep-2026) - **The Energy page shows how the house uses electricity through each kind of day.** A new card, Through the day, charts every hour of a typical Monday, Tuesday to Friday, Saturday and Sunday, with buttons to switch between them. It opens on today. The bars are the pattern SigenEnergyManager plans the battery with, measured from the last 18 weeks. The dashed line is the everyday pattern at the same daily total, so the gap between them shows what that day does differently, and a sentence above the chart says it in words: on a Sunday here, more between 2pm and 4pm and less in the late morning. A table view is folded underneath. Needs SigenEnergyManager 5.122.0. With an older one the card stays hidden.
 
 ## Authors & licence
 

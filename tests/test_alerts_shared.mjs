@@ -240,8 +240,8 @@ function server() {
     check("the watcher no longer reads device or variable lists", !/getDevices|getVariables/.test(SRC));
     check("nor the old rules to evaluate them", !/function load\(/.test(SRC) && !/function save\(/.test(SRC));
     check("it asks the plugin for firings", /ask\('alertRules', \{ firingsSince:/.test(SRC));
-    check("autoStart never runs for a guest or the demo",
-          /if \(!cfg\.apiKey \|\| cfg\.apiKey === 'demo'\) return;/.test(SRC));
+    check("autoStart never runs for a guest",
+          /if \(!cfg\.apiKey\) return;/.test(SRC));
 }
 
 // ── the pages ──

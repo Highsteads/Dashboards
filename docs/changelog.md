@@ -9,6 +9,8 @@ Every release, newest first. The three most recent also appear under **What's ne
 [README](https://github.com/Highsteads/Dashboards#whats-new). This page is the whole record.
 Dates are day-month-year.
 
+**3.53.0** (27-Sep-2026) - **Demo mode has gone.** The `demo.html` page and the made-up house behind it are no longer part of the plugin, and the online copy has left the guide site too. When the plugin next starts it clears the old demo files out of Indigo's public folder by itself. Every other page works as before.
+
 **3.52.0** (27-Sep-2026) - **Any IP camera, not just Dahua and Hikvision.** A camera can now be set to **other** on the Settings page, with its own RTSP address typed in beside it, such as `rtsp://192.168.1.50:554/h264Preview_01_sub` for a Reolink. The address must point at the camera's own address and carry no user name or password, and the Settings page says which rule an address breaks. A camera whose login is not the one your cameras share can now have its own, under **Camera Logins** in Configure (or `CAMERA_LOGINS` in IndigoSecrets.py), and that login goes only to the address it is written against. The cameras now start with no shared login set, as long as one of them can be reached without it. The Claude tool that adds cameras takes the new make and address as well. The guide's [Cameras](https://highsteads.github.io/Dashboards/cameras.html#any-other-make-of-camera) page lists the address for several makes.
 
 **3.51.1** (27-Sep-2026) - **The Through the day chart draws the everyday pattern straight between the hours.** It was a smoothed curve, which rose and fell between the hourly figures and showed values the pattern does not hold. The legend now lists the measured pattern first.

@@ -73,8 +73,6 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_dash_poll.mjs` | Contract test for DashUI.poll (v3.28.0): one polling loop for |
 | `test_dash_tile.mjs` | One tile system (v3.37.0). Runs the shipped dashboards-controls.js |
 | `test_day_patterns.mjs` | Node contract test for DashCalc.dayPattern / dayPatternCaption / |
-| `test_demo_api_is_sanitised.py` | The canned endpoint answers demo mode reads (demo-data/api/, |
-| `test_demo_fixture_is_sanitised.py` | The demo fixture (demo-data/devices.json) is a snapshot of a |
 | `test_diagnostic_banner.py` | Every diagnostic menu dumps the SAME banner, extras included |
 | `test_docs_site.py` | The documentation site (docs/, GitHub Pages) and the README |
 | `test_door_tile.mjs` | Contract test for the hub's state-driven door favourite — |
@@ -167,7 +165,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_script_ticker_handover.py` | v3.31.0 — while the Script Ticker plugin is RUNNING, Dashboards |
 | `test_scripts_match_live.py` | The companion scripts this repo ships in scripts/ must be the |
 | `test_security.py` | Regression tests for the /public credential-leak fixes. The |
-| `test_self_suff_and_demo_sun.mjs` | v3.40.0. (1) A low self-sufficiency figure on a day the grid |
+| `test_self_suff_reason.mjs` | v3.40.0. A low self-sufficiency figure on a day the grid |
 | `test_settings_fav_passthrough.mjs` | Contract test for the settings editor carrying favourites it |
 | `test_settings_other_camera.mjs` | The Settings page's camera table and the "other" make (3.52.0). |
 | `test_shared_ui_present.mjs` | Every user-facing page must load dashboards-ui.js (v2.97.0). |

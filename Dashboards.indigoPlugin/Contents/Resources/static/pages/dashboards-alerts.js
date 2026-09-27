@@ -287,13 +287,12 @@
 
   /* The hub, room and Energy pages load this file and do nothing more: once
      the page has parsed, the watcher starts itself for a paired browser. A
-     guest holds no key, and the demo's made-up house must never raise this
-     house's alerts. alerts.html starts it itself, with alwaysPoll. */
+     guest holds no key, so it raises no alerts. alerts.html starts it itself, with alwaysPoll. */
   function autoStart() {
     if (_started) return;
     try {
       var cfg = root.INDIGO_CONFIG || {};
-      if (!cfg.apiKey || cfg.apiKey === 'demo') return;
+      if (!cfg.apiKey) return;
       // dashboard.js declares `class IndigoAPI` at the top level of a classic
       // script: a global binding, but not a property of window.
       var Api = (typeof IndigoAPI === 'function') ? IndigoAPI : root.IndigoAPI;   // eslint-disable-line no-undef

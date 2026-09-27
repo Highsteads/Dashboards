@@ -172,22 +172,14 @@ for (const [host, rtt, want, why] of CASES) {
 }
 
 
-// ---- demo mode has no link to judge (3.39.1) ---------------------------
-// The published demo is served from github.io, which reads as the reflector
-// and put the reflector's bandwidth note on the demo hub.
+// ---- a name is only the reflector when it is indigodomo.net ------------
 {
-    const box = makeSandbox("highsteads.github.io", 50);
-    box.root.INDIGO_CONFIG = { apiKey: "demo" };
-    vm.createContext(box);
-    vm.runInContext(CODE + "\nvar __d = linkClass();", box);
     const box2 = makeSandbox("highsteads.github.io", 50);
     vm.createContext(box2);
     vm.runInContext(CODE + "\nvar __d = linkClass();", box2);
-    // A github.io NAME now reads 'home' on its own too (a name is only the
-    // reflector when it is indigodomo.net), so both agree.
-    const ok = box.__d === "home" && box2.__d === "home";
+    const ok = box2.__d === "home";
     ok ? pass++ : fail++;
-    console.log(`  ${ok ? "ok  " : "FAIL"} demo mode is home, and a non-reflector name is home without it (${box.__d}/${box2.__d})`);
+    console.log(`  ${ok ? "ok  " : "FAIL"} a non-reflector name is home (${box2.__d})`);
 }
 
 

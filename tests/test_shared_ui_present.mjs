@@ -22,9 +22,9 @@ import { check, done } from "./lib/check.mjs";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DIR = path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
                       "Resources", "static", "pages");
-// demo/setup are standalone utilities; guest.html is the pared-down
+// setup is a standalone utility; guest.html is the pared-down
 // guest view and deliberately loads as little as it can.
-const EXEMPT = new Set(["demo.html", "setup.html", "guest.html"]);
+const EXEMPT = new Set(["setup.html", "guest.html"]);
 
 // A page kept only to forward an old address (v3.33.0) loads nothing at all.
 const isRedirect = f => fs.readFileSync(path.join(DIR, f), "utf8").includes('http-equiv="refresh"');

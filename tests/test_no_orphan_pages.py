@@ -15,8 +15,8 @@ from conftest import redirect_pages
 PAGES = Path(__file__).resolve().parents[1] / "Dashboards.indigoPlugin/Contents/Resources/static/pages"
 
 # Reached from outside the pages: the home page itself, a paired guest's QR
-# code, a one-time setup link, and demo mode's own entry.
-ENTRY_POINTS = {"index.html", "guest.html", "setup.html", "demo.html"}
+# code, and a one-time setup link.
+ENTRY_POINTS = {"index.html", "guest.html", "setup.html"}
 
 
 def _sources():

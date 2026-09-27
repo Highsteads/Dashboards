@@ -103,12 +103,6 @@ The footer of every page carries a *Reset connection* link that forgets the stor
    (`https://`) address, which the usual `http://…:8176` one is not, see
    [Notifications and install need HTTPS](remote-access.md#notifications-and-install-need-https).
 
-## Demo mode
-
-Open `demo.html` and every page runs from sanitised sample data with a gentle state simulator —
-solar wobbles, the battery drifts, motion flickers, and controls change the local fixture so toggles
-feel real. No devices are touched. An orange banner along the bottom says so. Tap it to leave.
-
 ## Upgrading
 
 Download the new zip and double-click the bundle as before. Indigo replaces the old one. The plugin

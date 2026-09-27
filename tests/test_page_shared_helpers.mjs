@@ -150,9 +150,6 @@ console.log("\ncameraStills — asked once, null on failure, never a guessed nam
     checkEq("a missing thumbnail pattern falls back to the full one", g.thumbPattern, "stills-z/cam-{host}.jpg");
     const win3 = loadUi({ fetch: async () => ({ ok: true, status: 200, json: async () => ({ ok: true, imagePattern: "cam.jpg" }) }) });
     check("a pattern with no {host} is refused", (await win3.DashUI.cameraStills()) === null);
-    // Demo mode reads the canned answer.
-    const demo = JSON.parse(read("demo-data/api/cameraStills.json"));
-    check("the demo fixture answers with its placeholder", demo.ok === true && demo.imagePattern === "demo-cam.svg");
 }
 
 console.log("\ncamera health — a frozen summary is not health OK");

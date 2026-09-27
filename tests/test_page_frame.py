@@ -16,7 +16,7 @@ import pytest
 
 PAGES = Path(__file__).resolve().parents[1] / "Dashboards.indigoPlugin/Contents/Resources/static/pages"
 from conftest import redirect_pages  # noqa: E402
-NO_HEADER = {"demo.html", "guest.html", "setup.html"} | redirect_pages(PAGES)
+NO_HEADER = {"guest.html", "setup.html"} | redirect_pages(PAGES)
 FRAME = [p.name for p in sorted(PAGES.glob("*.html")) if p.name not in NO_HEADER]
 
 HEADER_RE = re.compile(r"<header(?![^>]*modal-head)([^>]*)>(.*?)</header>", re.S)

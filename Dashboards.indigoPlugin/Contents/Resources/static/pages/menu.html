@@ -138,7 +138,7 @@
     async function roomTiles() {
         let rooms = {};
         try {
-            const r = await fetch((sessionStorage.getItem("dash_demo") ? "demo-data/rooms.json" : "rooms.json") + "?t=" + Date.now(), { cache: "no-store" });
+            const r = await fetch("rooms.json?t=" + Date.now(), { cache: "no-store" });
             if (r.ok) rooms = (await r.json()).rooms || {};
         } catch (_) { /* fall through to the empty note */ }
         // Living Room first, then the rest alphabetically (v2.97.0) — it is

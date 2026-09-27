@@ -315,7 +315,7 @@ await section(async () => {
 });
 
 // ── [71] [72] X1 the Cameras page's wiring ─────────────────────────────────
-console.log("\n[71] [72] X1 Cameras: health polling, first focus, demo stills");
+console.log("\n[71] [72] X1 Cameras: health polling, first focus, stills beside the page");
 await section(async () => {
     const src = code("cameras.html");
     const bw = extractFn(src, "startBandwidthPoll");
@@ -329,8 +329,8 @@ await section(async () => {
     check("[72] the first tile is focused before the first layout",
           boot.indexOf("focusedHost = hosts[0];") > 0 && boot.indexOf("focusedHost = hosts[0];") < boot.indexOf("relayoutAll();"));
 
-    // X1: the page resolves a still beside itself, so the online demo's
-    // "demo-cam.svg" and the live "stills-<token>/..." both work.
+    // X1: the page resolves a still beside itself, so the live
+    // "stills-<token>/..." pattern works.
     const ctx = { console, window: {}, location: { hostname: "highsteads.github.io" }, document: null,
                   sessionStorage: { getItem: () => null, setItem() {} }, Date, Math, JSON, setInterval, clearInterval, setTimeout, clearTimeout };
     ctx.window = ctx; ctx.self = ctx;
@@ -338,7 +338,6 @@ await section(async () => {
     vm.runInContext(read("dashboards-ui.js"), ctx);
     vm.runInContext("let imgPattern = null, thumbPattern = null;\n" + extractFn(src, "snapshotUrl")
         + "\nglobalThis.__u = (i, t, h, f) => { imgPattern = i; thumbPattern = t; return snapshotUrl(h, f); };", ctx);
-    checkEq("X1 the demo's picture stays beside the page", ctx.__u("demo-cam.svg", "demo-cam.svg", "10.0.0.1", false), "demo-cam.svg");
     checkEq("X1 the live still resolves beside the page too", ctx.__u("stills-ab12/cam-{host}.jpg", "stills-ab12/cam-{host}-thumb.jpg", "10.0.0.1", false),
             "stills-ab12/cam-10.0.0.1-thumb.jpg");
     checkEq("X1 and no pattern is no picture", ctx.__u(null, null, "10.0.0.1", true), "");

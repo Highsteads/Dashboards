@@ -134,7 +134,7 @@ Dashboards/
 ├── docs/                          this site (GitHub Pages), including the screenshots
 ├── scripts/                       the companion scripts and their tests
 ├── tests/                         the contract-test suite
-├── tools/                         capture, demo-fixture and preflight tooling
+├── tools/                         capture and preflight tooling
 └── README.md                      the front page
 ```
 

@@ -3,8 +3,8 @@
 //              because it now takes stills only of those. Runs the real
 //              DashUI.noteStillWanted against a fake plugin: a new camera is
 //              reported at once, the report repeats while stills are being
-//              fetched, stops when they stop, says nothing from a hidden tab
-//              or the demo, and refreshStill and the Cameras page both feed
+//              fetched, stops when they stop, says nothing from a hidden tab,
+//              and refreshStill and the Cameras page both feed
 //              it. The page wiring is read with comments stripped.
 // Author:      CliveS & Claude Opus 5.5
 // Date:        25-09-2026
@@ -143,14 +143,6 @@ await DashUI.refreshStill(img, "stills-x/cam-192.0.2.13-thumb.jpg", {
 await advance(300);
 const last = reports()[reports().length - 1];
 check("a refreshed still is reported", reports().length > before && last.body.hosts.includes("192.0.2.13"));
-
-console.log("\nthe demo has no plugin to tell");
-w.INDIGO_CONFIG.apiKey = "demo";
-const demoBefore = sent.length;
-DashUI.noteStillWanted("192.0.2.14");
-await advance(20000);
-checkEq("nothing sent in the demo", sent.length, demoBefore);
-w.INDIGO_CONFIG.apiKey = "k";
 
 console.log("\nthe Cameras page reports what it fetches");
 const cams = strip(read("cameras.html"));

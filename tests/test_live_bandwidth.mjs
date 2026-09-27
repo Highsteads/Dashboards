@@ -17,7 +17,7 @@
 //                   before the offer, failure reported once, stall and
 //                   crawl detection.
 //                2. DashRTC.decide / measure: fast tunnel -> live, slow ->
-//                   stills, reflector -> stills however fast, demo -> stills,
+//                   stills, reflector -> stills however fast,
 //                   and the cached reading expiring into a new measurement.
 //                3. The hub strip (index.html): live -> video over each still,
 //                   stills -> no stream, hidden -> every stream stopped,
@@ -411,11 +411,10 @@ await section("cameras badge", async () => {
 console.log("\n2. DashRTC.decide: the speed decides, never the address, never the reflector");
 await section("DashRTC.decide", async () => {
     const pcs = [];
-    const state = { link: "vpn", demo: false, rtt: 10, roundMs: 40, size: 50000, fetches: [], fail: false };
+    const state = { link: "vpn", rtt: 10, roundMs: 40, size: 50000, fetches: [], fail: false };
     let clockT = 0;
     const ui = {
         linkClass: () => state.link,
-        isDemo: () => state.demo,
         cameraStills: async () => ({ imagePattern: "stills-x/cam-{host}.jpg" }),
         stillUrl: (p, h) => p.split("{host}").join(h),
         probeRtt: async () => state.rtt,
@@ -476,12 +475,6 @@ await section("DashRTC.decide", async () => {
     check("a reflector verdict that lands mid-measurement still means stills",
           v.live === false && v.why === "reflector", JSON.stringify(v));
     state.flipAt = 0; state.link = "vpn"; state.fetches = [];
-
-    // the demo: stills, nothing measured
-    state.demo = true;
-    v = await R.decide(4, opts());
-    check("the demo -> stills", v.live === false && v.why === "demo" && state.fetches.length === 0);
-    state.demo = false;
 
     // cache expiry re-measures, and a slow link gets stills
     wall += R.VERDICT_TTL_MS + 1;
@@ -564,7 +557,7 @@ await section("hub strip", async () => {
         },
         watchConnection: () => () => {},
     };
-    const ui = { linkClass: () => "vpn", isDemo: () => false };
+    const ui = { linkClass: () => "vpn" };
     const win = { CAMERA_CONFIG: { mainCameras: ["h1", "h2", "h3", "h4"], webrtcPath: "/webrtc/{host}",
                                    names: { h2: "Front Door" } },
                   DashRTC: fakeRTC, DashUI: ui, RTCPeerConnection: function () {},
@@ -584,15 +577,14 @@ await section("hub strip", async () => {
     const liveOf = () => started.filter(h => !h.stopped);
 
     // the pure rule
-    const base = { link: "vpn", demo: false, hidden: false, canRtc: true, hasPath: true };
+    const base = { link: "vpn", hidden: false, canRtc: true, hasPath: true };
     check("the rule: a live verdict on a tunnel address -> live", H.wanted({ live: true }, base) === true);
     check("…a stills verdict -> no stream", H.wanted({ live: false }, base) === false);
     check("…no verdict yet -> no stream", H.wanted(null, base) === false);
     check("…the reflector -> no stream, whatever the verdict says",
           H.wanted({ live: true }, Object.assign({}, base, { link: "reflector" })) === false);
-    check("…the demo, a hidden page or no WebRTC -> no stream",
-          !H.wanted({ live: true }, Object.assign({}, base, { demo: true }))
-            && !H.wanted({ live: true }, Object.assign({}, base, { hidden: true }))
+    check("…a hidden page or no WebRTC -> no stream",
+          !H.wanted({ live: true }, Object.assign({}, base, { hidden: true }))
             && !H.wanted({ live: true }, Object.assign({}, base, { canRtc: false })));
 
     // live verdict -> one stream per tile, video over the still

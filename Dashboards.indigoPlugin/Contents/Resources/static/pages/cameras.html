@@ -433,8 +433,7 @@
         if (!pat) return "";             // not told where the stills are: no picture
         // Relative to the page, as the hub and room pages resolve it: the live
         // pattern is "stills-<token>/cam-{host}.jpg" beside this page in
-        // /public/dashboards/, and the online demo's is "demo-cam.svg" beside
-        // its own copy. Prefixing /public/dashboards/ broke the demo's picture.
+        // /public/dashboards/.
         return DashUI.stillUrl(pat, host);
     }
     function streamsApi() {
@@ -1806,7 +1805,7 @@
             DashUI.probeRtt ? DashUI.probeRtt() : Promise.resolve(null),
             homeByPresence(),
             // The speed of the connection: the live decision (v3.45.0).
-            // Null over the reflector, in the demo, or when it could not be
+            // Null over the reflector, or when it could not be
             // measured, and null opens no stream.
             window.DashRTC ? DashRTC.measure({ hosts }) : Promise.resolve(null),
         ]).then(([cls, ms, presence, bw]) => {

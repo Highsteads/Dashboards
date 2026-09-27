@@ -162,37 +162,6 @@
     // both shipped, looked correct in config.js, and rendered nothing. ANY new
     // config.js field must be added above as well.
 
-    // --- Demo mode (v2.3.0) ---------------------------------------------------
-    // demo.html sets sessionStorage "dash_demo"; every page then runs from the
-    // canned fixtures in demo-data/ with a tiny state simulator — no Indigo
-    // server, no credentials. This is what powers the hosted GitHub Pages
-    // showcase. Demo wins over everything else and never touches real creds.
-    if (sessionStorage.getItem("dash_demo")) {
-        window.INDIGO_CONFIG.apiKey = "demo";
-        window.INDIGO_CONFIG.sigenAvailable = true;   // the fixtures carry energy data whatever this server has
-        window.INDIGO_CONFIG.scripts = { presence: true, laundry: true };
-        // Demo is UNMARKED data that looks real — on a live install anyone
-        // stumbling into demo.html saw plausible-but-fake readings with no
-        // sign and no way out. Every page now wears a banner with the exit.
-        var _addDemoBanner = function () {
-            if (document.getElementById("dash-demo-banner")) return;
-            var b = document.createElement("div");
-            b.id = "dash-demo-banner";
-            b.style.cssText = "position:fixed;bottom:0;left:0;right:0;z-index:9999;" +
-                "background:#b45309;color:#fff;text-align:center;padding:6px 10px;" +
-                "font:600 13px -apple-system,sans-serif;cursor:pointer;";
-            b.textContent = "DEMO DATA — none of this is your house. Tap to exit.";
-            b.addEventListener("click", function () {
-                sessionStorage.removeItem("dash_demo");
-                location.href = "index.html";
-            });
-            document.body.appendChild(b);
-        };
-        if (document.body) _addDemoBanner();
-        else document.addEventListener("DOMContentLoaded", _addDemoBanner);
-        return;
-    }
-
     // --- Guest mode (v2.1.0) ------------------------------------------------
     // A device paired via guest.html holds ONLY the guest token (localStorage
     // "dash_guest") — read-only data via the :8177 proxy, no API key, no

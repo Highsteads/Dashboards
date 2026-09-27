@@ -710,8 +710,8 @@
             // the build actually running rather than one baked into this file —
             // and it deliberately reads the global directly, NOT via
             // INDIGO_CONFIG, because dashboards-auth.js rebuilds that object
-            // from a whitelist and would drop it. Omitted when absent (demo
-            // site, older config.js) rather than shown as an empty separator.
+            // from a whitelist and would drop it. Omitted when absent (an
+            // older config.js) rather than shown as an empty separator.
             const ver = window.DASHBOARDS_BUILD || "";
             dEl.textContent = ver ? `${date} · v${ver}` : date;
         }
@@ -923,7 +923,6 @@
     //              Indigo's servers carry every byte (v2.96.1)
     // Over the reflector the strip never goes live, whatever the measurement.
     // A hidden or closed page holds no stream; showing it again asks again.
-    // The demo shows stills.
     let _stripTimers = [];
     let _measuredLink = null;    // set once the link has been timed, not guessed
     let _stripIdle  = false;     // reflector only: pictures paused until a tap (v2.96.1)
@@ -959,8 +958,8 @@
 
     // Pure, so the test can ask it every case. Live only on a MEASURED
     // verdict that carries the tiles, never over the reflector (asked again
-    // here, not trusted from the verdict), never in the demo, a hidden page
-    // or a browser without WebRTC.
+    // here, not trusted from the verdict), never on a hidden page or a
+    // browser without WebRTC.
     // One line under the strip saying why it is not live, so a fallback to
     // stills is never silent. Empty (and hidden) while every tile is live.
     function _hubNote(text) {
@@ -977,13 +976,12 @@
     }
     function _hubLiveWanted(verdict, o) {
         return !!(verdict && verdict.live) && o.link !== "reflector"
-            && !o.demo && !o.hidden && !!o.canRtc && !!o.hasPath;
+            && !o.hidden && !!o.canRtc && !!o.hasPath;
     }
     function _hubLiveAllowed() {
         const cfg = window.CAMERA_CONFIG || {};
         return _hubLiveWanted(_hubVerdict, {
             link:    window.DashUI && DashUI.linkClass ? DashUI.linkClass() : "reflector",
-            demo:    !!(window.DashUI && DashUI.isDemo && DashUI.isDemo()),
             hidden:  document.hidden,
             canRtc:  ("RTCPeerConnection" in window) && !!window.DashRTC,
             hasPath: !!cfg.webrtcPath,
@@ -1599,9 +1597,7 @@
     async function _refreshOwm() {
         try {
             const r = await fetch("weather.json?t=" + Date.now(), { cache: "no-store" });
-            // In demo mode the sample's sun times are a summer day's; the hub
-            // shows today's instead (v3.40.0). A real install is untouched.
-            if (r.ok) window.__OWM_DATA = DashUI.demoWeather(await r.json());
+            if (r.ok) window.__OWM_DATA = await r.json();
         } catch (_) { /* OWM is optional — never blocks the page */ }
     }
 

@@ -5,8 +5,8 @@
 #              and writing config.js with the feature flags for optional plugins.
 #              Split out of plugin.py in v3.32.0; Plugin inherits it.
 # Author:      CliveS & Claude Opus 5.5
-# Date:        25-09-2026
-# Version:     1.1 (config.js publishes the saved livePoolSize, not the constant)
+# Date:        25-09-2026 (1.2: 27-09-2026)
+# Version:     1.2 (demo mode removed: clears the old demo-data folder instead of copying it)
 
 try:
     import indigo
@@ -15,6 +15,7 @@ except ImportError:
 
 import json
 import os
+import shutil
 
 from dash_common import (
     CAMERA_POLL_SECONDS,
@@ -142,33 +143,17 @@ class PublishMixin:
         except Exception as exc:
             log(f"Stale scan failed in {dst}: {exc}", level="WARNING")
 
-        # Demo fixtures (v2.3.0): mirror the demo-data/ subdirectory so the
-        # local demo (demo.html) works. Additive copy — no stale sweep needed,
-        # the fixtures are regenerated wholesale by tools/make_demo_fixtures.py.
-        # The whole tree (review 24-09-2026): demo mode's DashUI.message reads
-        # demo-data/api/<name>.json since 3.39, and a top-level-only copy left
-        # every such card on an installed plugin saying "not in the demo".
-        demo_src = os.path.join(src, "demo-data")
-        if os.path.isdir(demo_src):
-            demo_dst = os.path.join(dst, "demo-data")
+        # Demo mode was removed in 3.53.0. Older versions mirrored its sample
+        # data into demo-data/ here, and the sweep above only clears files of
+        # the synced extensions, so clear that one folder by name. Nothing
+        # else in the public folder is touched.
+        old_demo = os.path.join(dst, "demo-data")
+        if os.path.isdir(old_demo) and not os.path.islink(old_demo):
             try:
-                for here, dirs, files in os.walk(demo_src):
-                    dirs[:] = sorted(d for d in dirs
-                                     if not os.path.islink(os.path.join(here, d)))
-                    rel = os.path.relpath(here, demo_src)
-                    out = demo_dst if rel == "." else os.path.join(demo_dst, rel)
-                    os.makedirs(out, exist_ok=True)
-                    for name in sorted(files):
-                        if not name.endswith(".json"):
-                            continue
-                        sp = os.path.join(here, name)
-                        dp = os.path.join(out, name)
-                        ss = os.stat(sp)
-                        ds = os.stat(dp) if os.path.exists(dp) else None
-                        if ds is None or ss.st_size != ds.st_size or ss.st_mtime > ds.st_mtime:
-                            self._copy_atomic(sp, dp)
+                shutil.rmtree(old_demo)
+                self._activity(f"Removed the old demo-data folder from {dst}")
             except Exception as exc:
-                log(f"Demo fixtures copy failed: {exc}", level="WARNING")
+                log(f"Could not remove the old demo-data folder: {exc}", level="WARNING")
 
         # Explicit one-off copy of manifest.json (PWA manifest for iOS
         # standalone navigation). Not part of the general EXT sweep because we

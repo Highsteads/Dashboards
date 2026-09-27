@@ -4,8 +4,7 @@
 //              and its DashFeatures notice, the menu dropping exactly the
 //              three tiles, the hub hiding its Energy/Solar cards and the
 //              banner while SAYING why, the hub never polling the proxy, and
-//              each of the three pages guarding its boot. Demo mode forces the
-//              flag on, and an old config.js without the key reads as present.
+//              each of the three pages guarding its boot. An old config.js without the key reads as present.
 // Author:      CliveS & Claude Fable 5.1
 // Date:        10-09-2026
 // Version:     1.0
@@ -69,14 +68,6 @@ check("sigenAvailable defaults to TRUE when config.js lacks the key",
 check("DashFeatures is published before the reflector early-return",
       auth.indexOf("window.DashFeatures = {") > 0 &&
       auth.indexOf("window.DashFeatures = {") < auth.indexOf("cfg.reflectorBlock === true"));
-{
-    const demo = auth.slice(auth.indexOf('window.INDIGO_CONFIG.apiKey = "demo";'));
-    // Anchored to the START of a statement: a commented-out line still
-    // contains the words, and a bare substring match let exactly that survive.
-    check("demo mode forces the flag on",
-          /^\s*window\.INDIGO_CONFIG\.sigenAvailable = true;/m.test(demo.slice(0, 300)),
-          "the fixtures carry energy data whatever this server has");
-}
 {
     const src = extractFn(auth, "_dashSigenOn") + "\n" + extractFn(auth, "_dashSigenAbsent") +
                 "\nglobalThis.__on = _dashSigenOn; globalThis.__absent = _dashSigenAbsent;";

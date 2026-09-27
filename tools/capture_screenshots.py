@@ -691,13 +691,9 @@ def main():
         # A PNG on disk is NOT success: an unauthenticated page redirects to
         # index.html and screenshots the Connect form perfectly happily. Catch
         # the bounce by watching which documents the browser actually asked for.
-        # demo.html is exempt for the same reason index.html is — forwarding to
-        # the hub after setting the demo flag is the whole of what it does, by
-        # design, credentials or none, so seeing index.html requested here is
-        # not evidence of anything wrong.
         with lock:
             bounced = any(p.endswith("index.html") for p, _ in seen_paths) \
-                and page not in ("index", "demo")
+                and page != "index"
             # A 404 renders perfectly well: IWS serves a styled "Not Found"
             # page and Chrome screenshots it without complaint. Asking for a
             # page name that does not exist (`hub` rather than `index`) wrote

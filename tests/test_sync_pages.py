@@ -11,7 +11,7 @@
 #              on EVERY sync. Nothing tested it.
 # Author:      CliveS & Claude Fable 5.1
 # Date:        02-09-2026
-# Version:     1.0
+# Version:     1.1 (demo mode removed in 3.53.0: the old demo-data folder is cleared)
 
 import os
 from conftest import bare_plugin, load_plugin_module
@@ -67,35 +67,34 @@ def test_no_tmp_files_left_behind(tmp_path, monkeypatch):
     assert not [f for f in os.listdir(dst) if f.endswith(".tmp")]
 
 
-def test_the_whole_demo_data_tree_is_mirrored(tmp_path, monkeypatch):
-    """Review 24-09-2026 [31]: demo mode's DashUI.message reads
-    demo-data/api/<name>.json, but the copy only took demo-data/*.json, so on an
-    installed plugin every such card in the local demo said "not in the demo"."""
+def test_the_old_demo_data_folder_is_cleared(tmp_path, monkeypatch):
+    """3.53.0 removed demo mode. Older versions mirrored its sample data into
+    demo-data/, which the extension sweep cannot see, so the sync clears that
+    one folder by name and leaves everything else in place."""
     plugin, p, src, dst = _setup(tmp_path, monkeypatch)
-    (src / "demo-data" / "api").mkdir(parents=True)
-    (src / "demo-data" / "devices.json").write_text("[]", encoding="utf-8")
-    (src / "demo-data" / "api" / "timelineDay.json").write_text("{}", encoding="utf-8")
-    (src / "demo-data" / "api" / "notes.txt").write_text("x", encoding="utf-8")
+    (dst / "demo-data" / "api").mkdir(parents=True)
+    (dst / "demo-data" / "devices.json").write_text("[]", encoding="utf-8")
+    (dst / "demo-data" / "api" / "timelineDay.json").write_text("{}", encoding="utf-8")
+    (dst / "demo.html").write_text("<html>demo</html>", encoding="utf-8")
     p._sync_pages_to_public()
-    assert (dst / "demo-data" / "devices.json").exists()
-    assert (dst / "demo-data" / "api" / "timelineDay.json").exists()
-    assert not (dst / "demo-data" / "api" / "notes.txt").exists()
+    assert not (dst / "demo-data").exists()
+    assert not (dst / "demo.html").exists()
+    for keep in ("config.js", "rooms.json", "cam-1.2.3.4.jpg"):
+        assert (dst / keep).exists(), keep
 
 
-def test_every_bundled_demo_fixture_is_mirrored(tmp_path, monkeypatch):
-    """The real bundle: every .json under static/pages/demo-data/** lands."""
-    import publish_mixin
+def test_a_demo_data_link_is_not_followed(tmp_path, monkeypatch):
+    """rmtree must never walk into a folder the plugin did not make."""
+    plugin, p, src, dst = _setup(tmp_path, monkeypatch)
+    elsewhere = tmp_path / "elsewhere"; elsewhere.mkdir()
+    (elsewhere / "keep.json").write_text("{}", encoding="utf-8")
+    os.symlink(elsewhere, dst / "demo-data")
+    p._sync_pages_to_public()
+    assert (elsewhere / "keep.json").exists()
+
+
+def test_the_bundle_ships_no_demo(tmp_path):
     from conftest import SP
     real = os.path.join(SP, "..", "Resources", "static", "pages")
-    p = bare_plugin()
-    monkeypatch.setattr(publish_mixin, "PAGES_SOURCE_DIR", real)
-    monkeypatch.setattr(p, "_public_dashboards_dir", lambda: str(tmp_path))
-    monkeypatch.setattr(publish_mixin, "log", lambda *a, **k: None)
-    p._activity = lambda *a, **k: None
-    p._sync_pages_to_public()
-    want = []
-    for here, _, files in os.walk(os.path.join(real, "demo-data")):
-        want += [os.path.relpath(os.path.join(here, f), real) for f in files if f.endswith(".json")]
-    assert any(w.startswith(os.path.join("demo-data", "api")) for w in want)
-    missing = [w for w in want if not (tmp_path / w).exists()]
-    assert missing == [], missing
+    assert not os.path.exists(os.path.join(real, "demo-data"))
+    assert not os.path.exists(os.path.join(real, "demo.html"))

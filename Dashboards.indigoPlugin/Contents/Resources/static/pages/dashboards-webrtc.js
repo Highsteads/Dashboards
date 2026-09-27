@@ -525,7 +525,6 @@
     var u = opts.ui || ui();
     if (!u || !u.linkClass) return 'no link check';
     if (u.linkClass() === 'reflector') return 'reflector';
-    if (u.isDemo && u.isDemo()) return 'demo';
     if (!('RTCPeerConnection' in (opts.win || root))) return 'no webrtc';
     return '';
   }
@@ -600,7 +599,7 @@
 
   /* Measure (or reuse a fresh reading). opts: { hosts, force, ui, fetch,
      storage, now, clock, win }. Resolves {mbps, rttMs, at, cached} or null
-     when it must not or could not measure (the reflector, the demo, no
+     when it must not or could not measure (the reflector, no
      WebRTC, no stills to time, a failed download). Single flight: pages that
      ask together share one measurement. */
   var _inflight = null;

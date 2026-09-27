@@ -6,7 +6,7 @@ has_children: true
 
 # Every page
 
-Sixteen pages you use, plus five that hold the whole thing together. Every one is a plain HTML
+Sixteen pages you use, plus four that hold the whole thing together. Every one is a plain HTML
 file, and every one reads live Indigo data through the same Bearer-authed API. Each has a page of
 notes here: what is on it, where the numbers come from, how often it refreshes, what you can do,
 and the things worth knowing before you trust it.
@@ -55,4 +55,3 @@ and the things worth knowing before you trust it.
 | [Settings](settings.md) | `settings.html` | The forms-based configuration editor |
 | [Setup](setup.md) | `setup.html` | First-run pairing from a one-time link |
 | [Guest](guest.md) | `guest.html` | Pairing for a read-only device |
-| [Demo](demo.md) | `demo.html` | The whole thing running on fixtures, with no Indigo behind it |

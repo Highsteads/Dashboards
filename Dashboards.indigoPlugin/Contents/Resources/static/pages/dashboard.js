@@ -59,8 +59,6 @@ class IndigoAPI {
         if (!c) throw new IndigoAPIError("Not configured", 0);
         this._base = ""; // same-origin: Indigo /v2/api lacks CORS preflight, so always use page origin
         this._key = c.apiKey;
-        // Demo mode (v2.3.0): canned fixtures + local simulator, no server.
-        this._demo = (c.apiKey === "demo");
         // Guest mode (v2.1.0): no API key, reads go via the :8177 proxy with
         // the guest token, commands are politely refused client-side (and
         // would fail server-side anyway — a guest holds no IWS credential).
@@ -160,56 +158,6 @@ class IndigoAPI {
         return r.json();
     }
 
-    // ── Demo mode internals (v2.3.0) ────────────────────────────────────
-    async _demoLoad() {
-        if (_INDIGO_STORE.devices) return;
-        const res = await fetch("demo-data/devices.json", { cache: "no-store" });
-        const list = await res.json();
-        _INDIGO_STORE.devices  = new Map(list.map(d => [d.id, d]));
-        _INDIGO_STORE.lastFull = Date.now();
-        _INDIGO_STORE.gen++;
-    }
-    _demoSimulate() {
-        // Gentle drift so the demo feels alive: solar wobbles, the battery
-        // creeps, and the odd motion sensor flickers.
-        const devs = Array.from(_INDIGO_STORE.devices.values());
-        _INDIGO_STORE.gen++;              // every call drifts something
-        for (const d of devs) {
-            const st = d.states || {};
-            if (st.pvPowerWatts !== undefined) {
-                const pv = Math.max(0, parseFloat(st.pvPowerWatts) * (0.92 + Math.random() * 0.16));
-                st.pvPowerWatts = String(Math.round(pv));
-                st.batterySoc = String(Math.min(100,
-                    (parseFloat(st.batterySoc) || 60) + (Math.random() - 0.45) * 0.2).toFixed(1));
-            }
-        }
-        if (Math.random() < 0.25) {
-            const motion = devs.filter(d => /motion|presence/i.test(d.name) && typeof d.onState === "boolean");
-            if (motion.length) {
-                const pick = motion[Math.floor(Math.random() * motion.length)];
-                pick.onState = !pick.onState;
-                pick.lastChanged = new Date().toISOString();
-            }
-        }
-    }
-    _demoCmd(message, objectId, parameters) {
-        const d = _INDIGO_STORE.devices && _INDIGO_STORE.devices.get(objectId);
-        if (d) {
-            if (message.endsWith(".toggle")) d.onState = !d.onState;
-            else if (message.endsWith(".turnOn"))  d.onState = true;
-            else if (message.endsWith(".turnOff")) d.onState = false;
-            else if (message.endsWith(".setBrightness") && parameters) {
-                d.brightness = parameters.value;
-                d.onState = parameters.value > 0;
-            } else if (message.endsWith(".setHeatSetpoint") && parameters && d.states) {
-                d.states.setpointHeat = parameters.value;
-            }
-            d.lastChanged = new Date().toISOString();
-            _INDIGO_STORE.gen++;
-        }
-        return Promise.resolve({ ok: true, demo: true });
-    }
-
     // Guest block + per-tile PIN speed bump, shared by every path that
     // COMMANDS a device. Factored out in v2.94.0 so applyColour() below goes
     // through exactly the same gate as _cmd — a second command path that
@@ -255,14 +203,6 @@ class IndigoAPI {
        reports each step, so a failure is a thrown error here rather than a
        silence. Pass either {preset:"warm"} or explicit level keys. */
     async applyColour(objectId, payload) {
-        if (this._demo) {
-            const p = ((window.INDIGO_CONFIG || {}).colourPresets || {})[payload && payload.preset];
-            return this._demoCmd("indigo.device.turnOn", objectId)
-                .then(() => (p && p.brightness != null)
-                    ? this._demoCmd("indigo.dimmer.setBrightness", objectId, { value: p.brightness })
-                    : null)
-                .then(() => ({ ok: true, demo: true }));
-        }
         await this._gate(objectId);
         const res = await this._fetch(
             "/message/com.clives.indigoplugin.dashboards/applyColour/", {
@@ -279,7 +219,6 @@ class IndigoAPI {
     }
 
     async _cmd(message, objectId, parameters) {
-        if (this._demo) return this._demoCmd(message, objectId, parameters);
         await this._gate(objectId);
         const body = { message, objectId };
         if (parameters) body.parameters = parameters;
@@ -320,17 +259,11 @@ class IndigoAPI {
         // could store an older per-device read over a newer one and then
         // advance the cursor past it. One cycle in flight at a time.
         const s = _INDIGO_STORE;
-        if (this._demo) return this._getDevicesInner();
         if (s.inflight) return s.inflight;
         s.inflight = this._getDevicesInner();
         try { return await s.inflight; } finally { s.inflight = null; }
     }
     async _getDevicesInner() {
-        if (this._demo) {
-            await this._demoLoad();
-            this._demoSimulate();
-            return Array.from(_INDIGO_STORE.devices.values());
-        }
         const s = _INDIGO_STORE;
         // v2.70.0 liveness gate: while the plugin is stopping/stopped, a
         // /message/ call can wedge the whole IWS event loop for ~5 min — so
@@ -396,40 +329,13 @@ class IndigoAPI {
     }
 
     async getDevice(id) {
-        if (this._demo) {
-            await this._demoLoad();
-            return _INDIGO_STORE.devices.get(id) || null;
-        }
         return this._guest
             ? this._guestFetch("/guest/device/" + id)
             : this._fetch("/v2/api/indigo.devices/" + id);
     }
 
     // ── History (v2.4.0) — time-series from SQL Logger via the plugin ───
-    _demoSeries(deviceId, state, hours) {
-        // Synthetic but plausible: daily sine + noise, seeded by ids so the
-        // same device/state always draws the same shape in the demo.
-        const now = Math.floor(Date.now() / 1000);
-        const n = 200, step = (hours * 3600) / n, points = [];
-        let seed = (deviceId % 97) + state.length * 13;
-        for (let i = 0; i < n; i++) {
-            const t = now - (n - i) * step;
-            const day = Math.sin((t % 86400) / 86400 * 2 * Math.PI - 2 + seed % 5);
-            const base = 20 + (seed % 40) + day * (5 + seed % 10);
-            const noise = Math.sin(i * 1.7 + seed) * 1.5;
-            const v = Math.round((base + noise) * 10) / 10;
-            points.push({ t, avg: v, min: v - 0.8, max: v + 0.8, n: 5 });
-        }
-        return { ok: true, deviceId, state, hours, points };
-    }
     async getHistoryStates(deviceId) {
-        if (this._demo) {
-            return { ok: true, deviceId,
-                     states: ["temperature", "humidity", "batterysoc", "onoffstate"],
-                     types: { temperature: "float", humidity: "float",
-                              batterysoc: "float", onoffstate: "bool" },
-                     rows: 12345, firstTs: "", lastTs: "" };
-        }
         if (this._guest) {
             return this._guestFetch("/guest/history?action=states&deviceId=" + deviceId);
         }
@@ -440,7 +346,6 @@ class IndigoAPI {
         });
     }
     async getHistory(deviceId, state, hours, maxPoints) {
-        if (this._demo) return this._demoSeries(deviceId, state, hours || 24);
         if (this._guest) {
             return this._guestFetch("/guest/history?action=series&deviceId=" + deviceId +
                 "&state=" + encodeURIComponent(state) + "&hours=" + (hours || 24) +
@@ -454,10 +359,6 @@ class IndigoAPI {
         });
     }
     async getVariables() {
-        if (this._demo) {
-            const r = await fetch("demo-data/variables.json", { cache: "no-store" });
-            return r.json();
-        }
         return this._guest
             ? this._guestFetch("/guest/variables")
             : this._fetch("/v2/api/indigo.variables");

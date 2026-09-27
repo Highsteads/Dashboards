@@ -49,9 +49,9 @@ BOOTSTRAP_PORT = 8177
 # "content present" check.
 TOKEN_PAGES = {"setup", "guest"}
 
-# Skipped by default: guest/demo redirect to the Connect form without a
+# Skipped by default: guest redirects to the Connect form without a
 # pairing token, so a default run would only ever capture the bounce.
-DEFAULT_SKIP = {"guest", "demo"}
+DEFAULT_SKIP = {"guest"}
 
 # Pages that need a query string to render anything at all. Without these the
 # page loads, renders an empty shell, and looks exactly like a styling
