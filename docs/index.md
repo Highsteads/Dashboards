@@ -13,10 +13,10 @@ leaving the house.
 
 <img src="screenshots/index.png" width="860" alt="The hub — who is home, the heating, the battery, and a strip of live cameras">
 
-Pages live under Indigo's `/public/` namespace, so any browser on the LAN — or on the tailnet
-when you are away — opens them without typing credentials. The plugin handles all the camera-side
-and Indigo-side authentication on the server. It works in any modern browser: Chrome, Firefox,
-Safari, Edge and anything Chromium-based.
+Indigo's own web server hands out the pages, so any browser on your home network — or on
+[Tailscale](remote-access.md) when you are away — can open them once it has been paired, and the
+plugin looks after the camera logins on the Indigo Mac. It works in Chrome, Firefox, Safari, Edge and
+any other current browser.
 
 ## One house, not a template
 
@@ -32,24 +32,26 @@ Nobody typed the code. If that sounds out of reach, start at
 **[Start with nothing but Claude](no-coding-needed.md)** — it assumes you have Indigo, a Claude
 subscription and nothing else.
 
-## Start here
+## Where to go next
 
-| | |
+| If you want to... | Read |
 |---|---|
-| **[Start with nothing but Claude](no-coding-needed.md)** | For a complete beginner: install Claude Code, then have it install the plugin, an MCP server, the camera tools and Tailscale, and build your own pages. No coding, ever |
-| **[Getting started](getting-started.md)** | What you need, how to install it, and how a browser gets paired |
-| **[Configuration](configuration.md)** | The Settings page, the Configure dialog, cameras, rooms and every config key |
-| **[Using the dashboards](using.md)** | What moves, what you can tap, the live dot, PIN and guest access |
-| **[Every page](pages/index.md)** | One page of notes for each of the 21 pages — what is on it, where the numbers come from, what you can do |
-| **[Cameras](cameras.md)** | How H.264 becomes a picture in an `<img>` tag, and what it costs on a slow link |
-| **[Remote access](remote-access.md)** | Tailscale, the ports, guest devices, and why the reflector is treated as somebody else's money |
-| **[Claude Code and MCP tools](claude-code.md)** | What Claude Code adds, what an MCP server adds on top, and the tools the plugin offers to any Indigo MCP server |
-| **[How it is built](architecture.md)** | Page files, the data endpoints, the shared scripts and the test suite |
-| **[Troubleshooting](troubleshooting.md)** | The setup check, and the things that go wrong most often |
-| **[Version history](changelog.md)** | Every release, newest first |
+| Have Claude Code do all the setting up for you, with no coding | [Start with nothing but Claude](no-coding-needed.md) |
+| Install the plugin, pair a browser and see your first rooms | [Getting started](getting-started.md) |
+| Know what moves, what you can tap, and how alerts and the PIN work | [Using the dashboards](using.md) |
+| Know what every card and tile on each page means — one page of notes for each of the 21 pages | [Every page](pages/index.md) |
+| Understand what goes on behind the scenes, in plain words | [How it works](how-it-works.md) |
+| Know what every setting does | [Configuration](configuration.md) |
+| Know what each item in the Plugins menu does | [The plugin menu](plugin-menu.md) |
+| Set up the cameras, and know what they cost on a slow connection | [Cameras](cameras.md) |
+| Use the dashboards away from home, or give a guest a look | [Remote access](remote-access.md) |
+| Know what Claude Code and an Indigo MCP server can do with the plugin | [Claude Code and MCP tools](claude-code.md) |
+| Sort out a problem | [When something goes wrong](troubleshooting.md) |
+| See what changed in each version | [Version history](changelog.md) |
+| Read the file names, data sources and tests behind it all | [Technical notes](architecture.md) |
 
-Download the plugin from the [Releases page](https://github.com/Highsteads/Dashboards/releases);
-the source is on [GitHub](https://github.com/Highsteads/Dashboards).
+Download the plugin from the [Releases page](https://github.com/Highsteads/Dashboards/releases/latest).
+The source is on [GitHub](https://github.com/Highsteads/Dashboards).
 
 ## A look around
 
@@ -104,5 +106,5 @@ to an Indigo server and is what I use day-to-day to develop and maintain it. Tha
 welcome to use it with any Indigo MCP setup — it is not tied to ClaudeBridge in any way at runtime.
 If you do use Claude Code for plugin development, I would strongly recommend loading
 [Simon's Indigo skills](https://github.com/simons-plugins/indigo-claude-skill) at the start of your
-session; they bundle the full Indigo SDK reference, lifecycle docs and worked examples in a form
+session. They bundle the full Indigo SDK reference, lifecycle docs and worked examples in a form
 Claude can actually use.

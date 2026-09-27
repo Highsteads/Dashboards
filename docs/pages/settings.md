@@ -11,7 +11,7 @@ nav_order: 23
 Everything the plugin's pages read from configuration, editable in the browser. The banner at the
 top states where it writes: `dashboards_config.json` in the plugin's Preferences folder, which from
 the first Save is the single source of truth. The full description of every key is on the
-[Configuration](../configuration.md) page; this is the page itself.
+[Configuration](../configuration.md) page. This is the page itself.
 
 ## Down the page
 
@@ -28,7 +28,7 @@ strip. A swap-out host picker sits at the bottom. Camera changes need a plugin r
 says so.
 
 **Rooms.** Which Indigo device folders become rooms, and per-room overrides. Device sections —
-lights, motion, windows, radiators — are classified automatically from folders and names; this is
+lights, motion, windows, radiators — are classified automatically from folders and names, this is
 where you correct that. Each room shows what it currently resolves to ("1 doors · 0 appliances"),
 and typing in a field searches the device list.
 
@@ -50,7 +50,7 @@ not cover.
 
 ## Where the data comes from
 
-`getDashboardsConfig` returns the effective configuration plus a device index for the pickers;
+`getDashboardsConfig` returns the effective configuration plus a device index for the pickers,
 `saveDashboardsConfig` validates, writes the file and applies it live. The pickers also read
 `/v2/api` for device names.
 
@@ -60,7 +60,7 @@ None. It loads once, and you save deliberately.
 
 ## What you can do here
 
-Everything on the page is editable, and Save writes it. Camera changes need a plugin restart; the
+Everything on the page is editable, and Save writes it. Camera changes need a plugin restart, the
 rest apply live. Save checks the plugin is actually up first — this is the page most likely to be
 opened right after a restart.
 

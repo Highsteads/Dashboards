@@ -1,128 +1,81 @@
 ---
-title: Troubleshooting
-nav_order: 11
+title: When something goes wrong
+nav_order: 12
 ---
 
-# Troubleshooting
+# When something goes wrong
 
 ## Start with the setup check
 
-**Plugins → Dashboards → Test Dashboards Setup** runs every check in one go and logs a verdict per
-line: the Indigo API URL and key, the camera credentials and the camera list, the room folders, the
-SQL Logger history connection, whether the public pages folder is writable, whether the liveness
-stamp is beating, and whether SigenEnergyManager is present. Optional pieces that are absent report
-SKIP, not FAIL. The same sweep is available to Claude as `dashboards_run_setup_check`.
+**Plugins → Dashboards → Test Dashboards Setup** checks everything in one go and writes a line for
+each check into the Indigo event log, marked PASS, FAIL or SKIP. A missing optional piece, such as
+SigenEnergyManager or a companion script, shows as SKIP, not as a fault. [The plugin
+menu](plugin-menu.md#what-test-dashboards-setup-checks) lists what it looks at.
 
-**Plugins → Dashboards → Show Plugin Info** logs the environment — versions, architecture, Python —
-which is the first thing to paste into a support post.
+**Plugins → Dashboards → Show Plugin Info** writes the versions of everything involved into the log.
+Paste that, with the setup check, into any request for help.
 
-## The page asks me to connect, or shows nothing
+## Pages and pairing
 
-The pages are public files; the data behind them needs an API key. Pair the browser with a
-one-time setup link (**Plugins → Dashboards → Generate One-Time Setup Link (+QR)**), or enter the
-key in the Connect form — see [Getting started](getting-started.md#pairing-a-browser). A new install
-does not hand the key out by itself any more (3.46.0): *Auto-seed the API key to LAN browsers* is
-off until you tick it. If the key was rotated, every paired browser
-needs pairing again; the footer's *Reset connection* link forgets the old one.
+| What you see | What it means | What to do |
+|---|---|---|
+| A page asks you to connect, or shows nothing | This browser has not been paired, so it has no Indigo API key to read your devices with | Pair it with **Plugins → Dashboards → Generate One-Time Setup Link (+QR)**, or type the key into the Connect form. See [Pairing a browser](getting-started.md#pairing-a-browser). From 3.46.0 a new install no longer hands the key out by itself |
+| Every paired browser asks to connect again | The Indigo API key has changed | Pair each device again. The *Reset connection* link at the foot of every page makes a browser forget the old key |
+| "out of date" or "not updating for four minutes" in amber beside the Updated time | The page has had no fresh data for a while, usually because the plugin is restarting | Wait for the next good update, which clears it. If it stays amber, check the plugin is running and look in the event log |
+| Every page, and every other plugin's web page, goes quiet for about five minutes just after a plugin restart | A page left open for days, still running old code, asked the plugin a question in the middle of the restart and held up Indigo's web server | It clears by itself. Reload any dashboard that has been open for days so it picks up the newer pages, which wait for the restart to finish |
+| The Settings page will not save | The plugin is restarting, and Save waits until it is running again | Wait a few seconds and press Save again. A refused save says what is wrong |
+| A guest device will not pair | Guest pairing only works from your home network or over Tailscale | Connect the device to your Wi-Fi or to Tailscale and open the guest address again |
 
-## No rooms, or the wrong things in a room
+## Rooms
 
-With nothing configured the plugin uses one house's folder names and yours will produce no rooms.
-Tick your Indigo device folders on the Settings page's Rooms card. A device in the wrong section is
-the classifier guessing from folder and name — the Rooms card has a per-room override (`include`,
-`hideDeviceIds`, `sortOrder` and the tile types in [Configuration](configuration.md#room-extras)).
-Read the resolved counts under each room before assuming a page is broken.
+| What you see | What it means | What to do |
+|---|---|---|
+| No rooms on the menu | No room folders have been ticked, so the plugin is looking for another house's folder names | On the Settings page's Rooms card, tick the Indigo device folders that are your rooms, and save |
+| A device in the wrong section of a room | The plugin has guessed wrongly from what the device is and what it is called | Use that room's overrides on the Rooms card to move it, hide it or put it first. See [Room extras](configuration.md#room-extras). Each room on the card shows what it has found, such as "1 doors · 0 appliances", so check that first |
 
 ## Cameras
 
-- **No streams anywhere, and a warning in the log.** Both ffmpeg and go2rtc are needed. Install
-  them and restart the plugin. If go2rtc is somewhere unusual, set its path under Configure.
-- **One camera never connects.** Check the vendor (the RTSP URL template differs), the credentials
-  (one set, shared), and that the camera has RTSP enabled. `dashboards_list_cameras` and
-  `dashboards_read_log` show what the plugin sees.
-- **A tile flashes a 500 and then recovers.** ffmpeg exiting with code 69 on first contact; go2rtc
-  quirk, one retry clears it, the plugin already does that.
-- **Tiles say "2s" or "5s" at home.** The page thinks the link is slow. Tap "this device is" at the
-  bottom of the Cameras page to pin it to home. Check whether the browser was paired with the
-  reflector address rather than the LAN one.
-- **Only some tiles are live.** How many can be live is decided by measuring your connection, not by
-  where you are: the page times a few pictures from the plugin and allows as many live tiles as the
-  speed carries, up to `livePoolSize` (default six). The Cameras page footer shows the measured
-  Mbit/s. On a slow connection the tiles are stills, and over the reflector they are always stills.
-- **On an iPhone or iPad, the cameras only go live after you touch the page.** Turn on **Auto-Play
-  Video Previews** in Settings, Accessibility, Motion. With it off, iOS will not start any video on a
-  web page by itself, even a silent one, and the page says so under the cameras until you tap.
-- **Live tiles never start, or drop to stills.** Live video is WebRTC: it is set up on port 8177
-  and streams from go2rtc on 8555, and both have to be reachable. At home, check nothing on the Mac
-  blocks 8555; away, only Tailscale reaches them. Over the reflector you get stills, slowly, by
-  design.
+| What you see | What it means | What to do |
+|---|---|---|
+| No camera pictures anywhere, and a warning in the log | ffmpeg or go2rtc is missing | Install both, as [Getting started](getting-started.md) describes, and restart the plugin. If go2rtc lives somewhere unusual, put its location under Configure |
+| One camera never shows a picture | Its make, the shared camera login or its settings are wrong | Check it is set as Dahua or Hikvision correctly on the Settings page, that the Camera User and Password under Configure are right, and that the camera has RTSP — its video streaming — switched on. After adding or changing a camera, press Save under Configure and restart the plugin |
+| A tile shows an error for a moment and then a picture | The camera did not answer the first request in time | Nothing. The plugin tries again and the second attempt works |
+| Tiles say "2s" or "5s" at home | The page thinks the connection is slow | Tap "this device is" at the bottom of the Cameras page to tell it you are at home. Check the device was paired using the home address, not the reflector |
+| Only some tiles are live video | The page measures the connection and allows as many live tiles as it can carry, six at most unless you change it. The rest show still pictures | Nothing, unless the connection is fast and you want more. The Cameras page footer shows the measured speed |
+| On an iPhone or iPad, the cameras only go live after you touch the page | Auto-Play Video Previews is off, and iOS will not start any video on a web page without it | Turn on **Auto-Play Video Previews** in the iPhone's Settings, Accessibility, Motion |
+| Live tiles never start, or fall back to stills | The live video needs ports 8177 and 8555 on the Indigo Mac, and nothing else reaches them from outside the house | At home, check nothing on the Mac blocks port 8555. Away, use Tailscale. Over the Indigo reflector you get still pictures only, by design |
 
-## Energy or Cost are missing from the menu
+## Missing pages and cards
 
-They need the SigenEnergyManager plugin and are left out without it, along with the hub's Energy
-and Solar cards. A bookmark to either page opens the hub instead. Installing (or enabling) the
-plugin is noticed within thirty seconds.
+| What you see | What it means | What to do |
+|---|---|---|
+| Energy and Cost are missing from the menu | They need the SigenEnergyManager plugin | Install or enable it. Dashboards notices within thirty seconds |
+| The Heating page has no boost or force buttons | These are EvoHomeControl's own actions | Install and enable EvoHomeControl. Temperatures and setpoints work with any thermostat without it |
+| The Timeline, a chart or the Meter page's history is empty | They read the SQL Logger's history database | Check the SQL Logger plugin is running, and that the history setting under Configure matches where it writes — SQLite unless you changed it. Run **Test History Connection**. A state that has never been logged is not offered for a chart |
+| The Wi-Fi page is empty | It shows what the UniFiHealth plugin reports | Install UniFiHealth 0.2.0 or later |
+| The Nights view is missing from the Timeline | It needs the `Presence_Watch.py` companion script | Copy it from the download's `scripts` folder into Indigo's `Python Scripts` folder and edit it for your rooms |
 
-## The heating page has no boost or force buttons
+## Alerts
 
-They are EvoHomeControl's own actions and appear only when that plugin is installed *and enabled*.
-Zone temperatures and setpoints work with any thermostat device regardless.
+Start with **Send test** on the Alerts page, or **Plugins → Dashboards → Send Test Alert**. Each
+channel says whether it sent, and if not, why.
 
-## Graphs, Timeline or the Meter page's history are empty
+| What it says | What to do |
+|---|---|
+| Pushover: no user key | Put your Pushover user key in the Pushover User Key field under Configure, or in `IndigoSecrets.py` as `PUSHOVER_USER_TOKEN` |
+| Pushover: plugin not running | The message goes through the Pushover plugin, so install, enable or restart it. The log repeats this at most once every half hour while it is not running |
+| Email: no address | Set an address under Where alerts go on the Alerts page. If an address is set and the test still fails, check Indigo's own mail settings |
+| No browser notification | Browser notifications need one of the hub, a room page, the Energy page or the Alerts page open on that device, by a secure `https://` address. Pushover and email do not |
 
-They read the SQL Logger's history database. Check the plugin is running and, under Configure, that
-the backend matches where it writes (SQLite by default). For PostgreSQL the `psql` client must be
-installed; **Test History Connection** proves the settings. A state that exists on a device but has
-never been logged will not appear in the Graphs picker, and that is the correct answer.
+A rule fires when something changes, not while it stays that way, so "turns on" says nothing about a
+light that is already on. After a rule fires it waits thirty seconds before it can fire again. A rule
+stays quiet while "alerts active" is off, while the rule is paused, or while its device is disabled
+in Indigo, and one whose device has been deleted is marked "target gone".
 
-## The Wi-Fi page is empty
+## Nothing above fits
 
-It renders devices published by the UniFiHealth plugin (v0.2.0 or later). Nothing on the page talks
-to the controller itself.
-
-## "Not updating for four minutes"
-
-The page's poll has stopped returning data. Usually the plugin is restarting; the amber line clears
-on the next good poll. If it stays amber, check the plugin is running and read the event log. If
-*every* page and every other plugin's endpoint has gone quiet for about five minutes right after a
-plugin restart, a page running old JavaScript polled the plugin mid-restart and stalled the web
-server; it recovers on its own, and reloading long-open tabs stops it recurring.
-
-## The Settings page will not save
-
-Save checks the plugin is up first, and refuses while it is restarting. Wait a few seconds and try
-again. A refused save says what is wrong.
-
-## Guest pairing fails
-
-Guest pairing works on the home network and over Tailscale only; the proxy refuses any other source
-address. A device that was previously paired with the full key is demoted to a guest, not left
-holding both.
-
-## An alert rule did not tell me
-
-Start with **Send test** on the Alerts page, or **Plugins → Dashboards → Send Test Alert**: each
-channel says whether it was sent, and why not.
-
-- **Pushover: no user key** — put your user key in `IndigoSecrets.py` as `PUSHOVER_USER_TOKEN`, or in
-  the Pushover User Key field in Configure.
-- **Pushover: plugin not running** (or not installed, not enabled) — the message goes through the
-  Pushover plugin, so it has to be running. The log says so once every half hour while it is not.
-- **Email: no address** — set one under Where alerts go on the Alerts page. If an address is set and
-  the test still fails, the reason is Indigo's own: check its mail settings (Indigo → Preferences).
-- **Browser** notifications need one of the main pages open on that device and an `https://`
-  address; Pushover and email do not.
-- A rule fires on a change, not on a state: "turns on" says nothing about a light that is already
-  on. After it fires it waits thirty seconds before it can fire again. "alerts active" off, a
-  paused rule or a device that is disabled in Indigo all stay quiet, and a rule whose device was
-  deleted is marked "target gone".
-
-## Something is wrong and none of the above fits
-
-- The plugin's own log, via **Plugins → Dashboards → Show Plugin Info** for the environment and the
-  `dashboards_read_log` tool (or the log file itself) for the last lines.
-- The Indigo event log, for the plugin's warnings and errors.
-- The Activity page's Alerts card, which collapses the event log's errors by signature so one fault
-  reads as one row.
-- [Open an issue](https://github.com/Highsteads/Dashboards/issues) with the setup-check output and
-  the plugin-info banner.
+- Look in the Indigo event log for this plugin's warnings and errors.
+- The Alerts page's Indigo log errors card lists Indigo's errors, one row per fault however often it
+  has repeated, if the `Log_Error_Watch.py` companion script is installed.
+- [Open an issue](https://github.com/Highsteads/Dashboards/issues) on GitHub with the setup check and
+  the Show Plugin Info lines.

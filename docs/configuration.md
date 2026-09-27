@@ -1,6 +1,6 @@
 ---
 title: Configuration
-nav_order: 4
+nav_order: 7
 ---
 
 # Configuration
@@ -11,35 +11,37 @@ There are three places a setting can come from, and one of them wins.
    `dashboards_config.json` into the plugin's Preferences folder, and from then on that file is the
    single source of truth for favourites, custom links, cameras, room extras, hidden scenes,
    security and the other keys below. Camera changes need a plugin restart, because the streaming
-   pipeline is built at startup; everything else applies at once.
+   pipeline is built at startup. Everything else applies at once.
 2. **The Configure dialog** (**Plugins → Dashboards → Configure**). Credentials, the history
    backend, the weather key, the carbon region, logging and the reflector switch live here. These
    are things a web page should not be able to change.
-3. **`IndigoSecrets.py`**, optional. A single file of credentials shared across all the author's
-   plugins. If it exists, its values take precedence over the matching Configure fields — and on an
-   install that has never saved from the Settings page, its camera and room dictionaries are read
-   too. Nobody else needs it: every key has a Configure field.
+3. **`IndigoSecrets.py`**, optional. A single file of credentials that I share across all my
+   plugins. If it exists, its values win over the matching Configure fields. Nobody else needs it,
+   because every key has a Configure field — see [the end of this page](#credentials-in-indigosecretspy).
 
 ## The Configure dialog
 
+Open it with **Plugins → Dashboards → Configure…**. The fields, in the order the dialog shows them:
+
 | Field | What it does |
 |---|---|
-| Indigo API URL | The REST base URL, e.g. `http://192.168.1.10:8176`. Blank means the local server on port 8176. The "use this at home" link the pages offer over the reflector takes its scheme and port from here, with the Mac's LAN address |
-| Indigo API Key | The Bearer token the plugin uses for its own diagnostics and the guest passthrough. Never written into any public file |
-| Camera User / Password | One set of camera credentials, shared across every camera. Works for Dahua and Hikvision. Sent only to the camera addresses saved when this dialog was last closed with Save (3.46.0) — see [Cameras](cameras.md#the-camera-login-goes-only-to-approved-addresses) |
-| Pushover User Key | Your Pushover user key, for alert rules sent to your phone (3.47.0). The fallback for `PUSHOVER_USER_TOKEN` in `IndigoSecrets.py`. Sent through the Pushover plugin, which must be installed and running |
-| Cameras (JSON) | The camera list, for installs that have never saved from Settings — see below |
-| Swap-Out Host | A camera that can replace another in the hub's strip |
-| Hidden Scenes (JSON) | Action-group names or ids to keep off the Scenes page |
-| Carbon Region | Your UK grid region, for the grid-carbon half of the Energy page's When to run it card. Off stops the lookups. Needs SigenEnergyManager, like the Energy page |
-| Auto-seed the API key to LAN browsers | Off for a new install (3.46.0). On, a new browser on the home network or tailnet pairs itself on first visit, which hands the full API key to any device that asks, a visitor's included. Off, each device pairs once with a one-time setup link — see [Pairing a browser](getting-started.md#pairing-a-browser) |
-| OpenWeatherMap API key, latitude, longitude | The hub weather card's forecast and sun times |
-| System Health thresholds | How many hours quiet makes a battery device "quiet", and what counts as a low battery |
-| go2rtc binary path | Where to find go2rtc if it is not on the PATH |
-| SQL Logger backend | SQLite (the default) or PostgreSQL, with the connection fields for Postgres |
-| Refuse the reflector | Off by default. When on, the pages refuse to run over the Indigo reflector and show the LAN address instead, and the plugin's endpoints refuse requests that came that way. Indigo's web server still serves the static files there (the pages, `config.js`, `rooms.json`, stills to anyone who knows their folder) — only switching the reflector off in Indigo stops that; see [Remote access](remote-access.md#the-indigo-reflector) |
-| Log routine activity to the Indigo Event Log | Whether the plugin's own housekeeping lines go to the event log or only to its own log file |
-| Log Level | Debug puts the narration back |
+| Indigo API URL | The address of Indigo's web server, such as `http://192.168.1.10:8176`. Leave it blank for the Indigo Mac itself on the usual port 8176, and fill it in only if your web server uses another port. The "use this at home" link the pages offer over the reflector takes its start and port from here |
+| Indigo API Key | The Indigo API key — the long code Indigo gives other programs so they can read and control your devices. The plugin uses it for its own checks, for guest devices and for setup links. It is never written into any public file |
+| Camera User / Camera Password | One camera login, shared by every camera, for Dahua and Hikvision alike. Only needed if you have cameras. Pressing **Save** here approves the camera addresses saved on the Settings page at that moment, and the login is only ever sent to approved addresses — so after adding or changing a camera, come back here, press Save and restart the plugin. See [Cameras](cameras.md#the-camera-login-goes-only-to-approved-addresses) |
+| Pushover User Key | Your Pushover user key, for alert rules sent to your phone (3.47.0). The message goes through the Pushover plugin, which must be installed, enabled and running |
+| Carbon Region | Your part of Great Britain, for the grid-carbon half of the Energy page's When to run it card. **Off** hides it and stops the lookups. North East England unless you change it. Needs SigenEnergyManager, like the Energy page |
+| Auto-seed the API key to LAN browsers | Off for a new install (3.46.0). Ticked, any browser on your home network or Tailscale pairs itself on its first visit, which hands the full API key to any device that asks, a visitor's phone included, and makes guest links pointless. Unticked, you pair each device once with a setup link — see [Pairing a browser](getting-started.md#pairing-a-browser). Installs from before 3.46.0 keep the setting they had |
+| OpenWeatherMap API key, Site latitude, Site longitude | Add sunset, today's high and low, UV and conditions to the hub's Weather card. Without them the card still works from your Ecowitt weather station alone |
+| System Health: battery device quiet after (hours) | A battery device that has not changed for this many hours is listed as quiet on the System page. 48 unless you change it |
+| System Health: low-battery threshold (%) | Devices at or below this level are listed as low on battery. 20 unless you change it |
+| go2rtc binary path (optional) | Where go2rtc is, if it is not somewhere the plugin already looks. Leave it blank and the plugin tries the usual command path and then `~/bin/go2rtc` |
+| SQL Logger backend | Where Indigo's SQL Logger writes its history: SQLite, the default, or PostgreSQL. Choose PostgreSQL only if you have pointed the SQL Logger at a PostgreSQL server, and then fill in the Host, Port, Database, User and Password fields that appear. Run **Test History Connection** after changing it |
+| Refuse the reflector | Off unless you tick it. Ticked, the pages refuse to run over the Indigo reflector and show the home address instead, and the plugin's own replies refuse anything that came that way. Indigo's web server still hands out the page files themselves there — only switching the reflector off in Indigo stops that. See [Remote access](remote-access.md#the-indigo-reflector) |
+| Log routine activity to the Indigo Event Log | Unticked, the plugin's routine housekeeping lines go only to its own log file. Tick it while you are setting the plugin up to see them in the Event Log as well. Warnings and errors always reach the Event Log |
+| Log Level | The lowest level of message this plugin puts in the Event Log: Debug, Info, Warning or Error. Info unless you change it. Debug puts the routine lines into the Event Log too, so use it while chasing a problem and put it back afterwards |
+
+Cameras, the hub's camera strip, room extras and hidden scenes are not in this dialog. They are on the
+dashboards' own Settings page.
 
 ## The Settings page
 
@@ -49,7 +51,7 @@ where it writes.
 - **Favourites.** One-tap tiles for the hub, in the order given. A favourite is a control (toggle a
   device or run a scene), a reading (show a device state, not tappable), a door tile (shows the
   door's state and acts on it), a room shortcut or a group. Pickers take device ids with a live
-  lookup showing which device they resolve to; a favourite pointing at something that no longer
+  lookup showing which device they resolve to. A favourite pointing at something that no longer
   exists is named rather than silently dropped.
 - **Custom links.** Extra tiles for the menu's Tools group — anything with a URL.
 - **Cameras.** Host, name, vendor (Dahua or Hikvision), stream (`sub2`, the default, or `main`), the
@@ -79,9 +81,9 @@ after a restart, and a save landing on a restarting plugin used to stall the web
 ]
 ```
 
-- `vendor` — `dahua` or `hikvision`; it selects the RTSP URL template.
+- `vendor` — `dahua` or `hikvision`. It selects the RTSP URL template.
 - `stream` — `sub2` (the default, roughly a quarter of the mainstream's bitrate) or `main`.
-- `room` — a name or a list of names; which room pages show this camera. Omit it to keep the
+- `room` — a name or a list of names. Which room pages show this camera. Omit it to keep the
   camera off room pages.
 
 The same fields are on the Settings page's Cameras card, which is the easier way to enter them.
@@ -89,7 +91,7 @@ The same fields are on the Settings page's Cameras card, which is the easier way
 ## Room extras
 
 Optional, per room. A room with nothing here still shows its lights, motion sensors and contact
-sensors automatically; the extras unlock the other tile types. Keyed by room name (the Indigo device
+sensors automatically. The extras unlock the other tile types. Keyed by room name (the Indigo device
 folder). The Settings page's Rooms card edits all of this.
 
 - **`doors`** — a pulse-door tile. Each entry has a `label`, one or more `relayIds` to pulse
@@ -112,12 +114,12 @@ folder). The Settings page's Rooms card edits all of this.
 - **`hideDeviceIds`** — device ids to keep off that room page altogether.
 - **`include`** — a section name to a list of device ids to force into that section whatever the
   classifier thinks: `lights`, `motion`, `radiators`, `windows`, `sensors` or `extras`.
-- **`sortOrder`** — a section name to a list of device ids that go first, in that order; the rest
+- **`sortOrder`** — a section name to a list of device ids that go first, in that order, the rest
   follow alphabetically.
 
 ## Other config keys
 
-These live in `dashboards_config.json`. The Settings page writes them; anything the forms do not
+These live in `dashboards_config.json`. The Settings page writes them. Anything the forms do not
 model can be set in the raw-JSON box.
 
 | Key | Shape | What it does |
@@ -128,8 +130,8 @@ model can be set in the raw-JSON box.
 | `arrayKwp` | number | Your solar array's rating, for the weather page's roof-versus-sky cross-check |
 | `actionWatch` | object | Per-action-group confirmation rules for scene buttons: which device states confirm which action, so no page carries device numbers |
 | `stillsIdleMinutes` | number, default 5 | How often, in minutes, a camera that no page is showing still gets a picture taken, 0 to 60. Those pictures keep camera health and the hub's "camera offline" warning working with no page open. 0 takes none, so the warning only covers cameras on screen. Cameras a page is showing always get a picture every two seconds. Added in 3.48.0 |
-| `livePoolSize` | number, default 6 | How many cameras the Cameras page may show as live (WebRTC) video at once, 0 to 12; the rest refresh as stills. The page also holds it to what the connection's measured speed carries. Each live tile costs about 1 Mbit/s and some decoding work on the device, so lower it for an older tablet. Before 3.46.0 a saved value was ignored and six was always used |
-| `guestVariables` | list of variable names or ids, default none | The Indigo variables a guest-paired device may read (3.46.0). Anything not listed is withheld from guests; a value that is not a list shares nothing |
+| `livePoolSize` | number, default 6 | How many cameras the Cameras page may show as live (WebRTC) video at once, 0 to 12. The rest refresh as stills. The page also holds it to what the connection's measured speed carries. Each live tile costs about 1 Mbit/s and some decoding work on the device, so lower it for an older tablet. Before 3.46.0 a saved value was ignored and six was always used |
+| `guestVariables` | list of variable names or ids, default none | The Indigo variables a guest-paired device may read (3.46.0). Anything not listed is withheld from guests. A value that is not a list shares nothing |
 
 The alert rules live in the same file (3.47.0) but belong to the Alerts page, which saves them
 itself: `alertRules` (the rules), `alertsActive` (the "alerts active" tick), `alertEmail` (the
@@ -139,15 +141,23 @@ The recent alerts are kept in `alert_firings.json` beside it.
 
 ## Credentials in `IndigoSecrets.py`
 
-If you already use `IndigoSecrets.py` with the author's other plugins, these are the keys this one
-looks for. The repo ships `IndigoSecrets_example.py` with empty placeholders.
+You do not need this file. Every credential has a field under Configure, and most people should use
+those. `IndigoSecrets.py` is a single file of passwords and keys that I share between all my plugins,
+so each one is typed in once. If you would like to use it:
 
-Cameras, main cameras, room extras and hidden scenes live in `dashboards_config.json`, which the
-Settings page writes. The four `DASHBOARDS_*` keys below are read **once**: on the first start with
-no `dashboards_config.json` (3.27.0 and later), the plugin copies them, and the old Configure fields
-for cameras, the swap-out camera and hidden scenes, into that file and says so in the log. From then
-on the Settings page owns them and the keys are no longer read. A hand edit of
-`dashboards_config.json` takes effect at the next plugin restart.
+1. Download `IndigoSecrets_example.py` from the top level of the [GitHub repository](https://github.com/Highsteads/Dashboards).
+2. Copy it into `/Library/Application Support/Perceptive Automation/` on the Indigo Mac.
+3. Rename the copy `IndigoSecrets.py`.
+4. Open it in a text editor and fill in the keys below that you need, leaving the rest empty.
+5. Restart the plugin, or use **Plugins → Dashboards → Regenerate Config + Resync Pages**.
+
+A value in the file wins over the matching field under Configure. Keep the file private — it holds
+your passwords in plain text, as the Configure fields do in Indigo's own preferences file.
+
+Cameras, the hub's camera strip, room extras and hidden scenes are kept in the file the Settings page
+writes. The four `DASHBOARDS_*` keys marked "imported once" were read only on the first start of
+version 3.27.0 or later with no Settings page file, when the plugin copied them across and said so
+in the log. After that the Settings page owns them and the keys are not read again.
 
 | Key | Used for |
 |---|---|
@@ -160,7 +170,7 @@ on the Settings page owns them and the keys are no longer read. A hand edit of
 | `DASHBOARDS_HIDDEN_SCENES` | Action groups to keep off the Scenes page (imported once) |
 | `OWM_API_KEY` / `LATITUDE` / `LONGITUDE` | OpenWeatherMap and your site's coordinates |
 | `HISTORY_PG_HOST` / `_PORT` / `_USER` / `_PASSWORD` / `_DATABASE` | PostgreSQL, when the SQL Logger writes to Postgres |
-| `PUSHOVER_USER_TOKEN` | Your Pushover user key, for alert rules (3.47.0); the Configure field is the fallback |
+| `PUSHOVER_USER_TOKEN` | Your Pushover user key, for alert rules (3.47.0). The Configure field is the fallback |
 | `DASHBOARDS_ALERT_EMAIL` | Where alert email goes when a rule names no address and the Alerts page has no default (3.47.0). Read at every start, unlike the other `DASHBOARDS_*` keys |
 
 Never put a credential into anything under `/public/` — that namespace is served without

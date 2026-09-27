@@ -55,5 +55,5 @@ Tap any tile to open that page or room. Nothing else.
 
 - This is the only page that lists every page and every room.
 - A room icon comes from matching the room's name against a small set of patterns (bed, kitchen,
-  bathroom, garage, and so on); an unmatched name gets a plain house icon rather than an empty
+  bathroom, garage, and so on). An unmatched name gets a plain house icon rather than an empty
   square.

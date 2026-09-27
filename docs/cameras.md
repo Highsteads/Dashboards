@@ -1,6 +1,6 @@
 ---
 title: Cameras
-nav_order: 7
+nav_order: 9
 ---
 
 # Cameras
@@ -27,7 +27,7 @@ deletes those old files, and any folder left by an earlier secret, when it start
 
 ## Stills only while someone is watching
 
-Each still opens a fresh video connection to the camera and waits for a whole picture; go2rtc keeps
+Each still opens a fresh video connection to the camera and waits for a whole picture, go2rtc keeps
 nothing open between them. Until 3.48.0 the plugin took one of every camera every two seconds, day
 and night, whether or not any page was open: with ten cameras, five camera connections a second,
 about 4.4 Mbit/s coming in from the cameras and around 13 GB a day of pictures written to disk.
@@ -65,7 +65,7 @@ pages show nothing.
   PATH. The plugin looks in the path set under **Plugins → Dashboards → Configure** first, then on
   the PATH, then at `~/bin/go2rtc` as a last resort.
 - IP cameras reachable on the LAN with RTSP enabled. Dahua and Hikvision are supported out of the
-  box; `vendor` selects the RTSP URL template.
+  box, `vendor` selects the RTSP URL template.
 - A browser with WebRTC, which is every current one. Without it every tile is a still.
 
 Pillow (thumbnails) installs itself from `requirements.txt` the first time the plugin starts.
@@ -126,7 +126,7 @@ before going live: about 11 Mbit/s for the hub's four and 17 for six. The Camera
 kB/s figure in its header, counted from what this browser actually receives, so the
 number is visible before it becomes a phone bill. Over the Indigo reflector the pages poll at a
 tenth of the home rate, and the pages and the plugin can refuse the reflector (Indigo's web server
-still serves the static files there, stills included to anyone who knows their folder); see
+still serves the static files there, stills included to anyone who knows their folder), see
 [Remote access](remote-access.md). Live video only works remotely over Tailscale, because nothing
 else reaches ports 8177 and 8555.
 

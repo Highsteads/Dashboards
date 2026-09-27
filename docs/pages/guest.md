@@ -36,7 +36,7 @@ A guest device cannot switch anything: it holds no API key, so that is not a mat
 interface politely hiding buttons. It is not a private view, though. It reads every device's name
 and state through the plugin, which tells whoever holds it who is home, which doors and windows are
 open and when the house is empty, and it sees the camera pictures. Indigo variables are hidden from
-it unless you name them in `guestVariables` (Settings → Raw JSON; none by default, from 3.46.0). So
+it unless you name them in `guestVariables` (Settings → Raw JSON, none by default, from 3.46.0). So
 give a guest link to a device you would let watch the house, not to anyone passing through, and
 withdraw it with **Plugins → Dashboards → Rotate Guest Link and Camera-Stills Folder**, which cuts
 off every guest device at once.
@@ -48,6 +48,6 @@ the plugin for the full key instead.
 ## Worth knowing
 
 - Pairing is per-browser. Clearing site data un-pairs the device and it will need the URL again.
-- Rotating the guest link (the menu item above) un-pairs every guest device together; each needs
+- Rotating the guest link (the menu item above) un-pairs every guest device together, each needs
   the URL again, which is the same address, with a new token behind it.
 - A wall tablet is the intended case. A visitor's phone on your Wi-Fi is the other.

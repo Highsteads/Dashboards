@@ -9,9 +9,9 @@ nav_order: 3
 ![The Energy page](../screenshots/energy.png)
 
 Everything the solar and battery system knows, on one long page in labelled bands. The hub's energy
-card is the summary; this is the whole thing. **Needs the SigenEnergyManager plugin.** Without it
+card is the summary. This is the whole thing. **Needs the SigenEnergyManager plugin.** Without it
 the menu drops the tile, the hub leaves out its energy cards, and a bookmark to this page opens the
-hub instead; nothing else on the dashboards depends on the plugin.
+hub instead. Nothing else on the dashboards depends on the plugin.
 
 ## Down the page
 
@@ -20,7 +20,7 @@ full-width strip under the header says so, and the status pills carry a matching
 
 **Live power flow.** The same diagram as the hub, larger, with status pills top right: grid state,
 days of backup at the current draw, and the inverter's working mode. Solar, grid, home and battery
-each show instantaneous watts and today's running total; the battery also shows percentage and kWh
+each show instantaneous watts and today's running total. The battery also shows percentage and kWh
 stored. Dots travel along each line in the direction the power is going, faster and thicker
 the more there is, easing when it changes and slowing to a stop before a flow turns round. Four tiles under it: self-sufficiency today (which says "grid charged the battery" when a night's cheap-rate charge is why it reads low), solar today against forecast, benefit today,
 and battery state of charge with what it is doing.
@@ -47,13 +47,13 @@ a dashed forecast tick at the height it was promised — a stack topping or miss
 beat-or-miss verdict, drawn as geometry rather than colour so it survives colour-blindness — and a
 scoreboard line counting it. Future hours are pale forecast bars. Where a past hour has no history
 it stays a gap rather than becoming a fabricated zero. Below that a cumulative chart, solid for
-banked so far and dashed for the corrected forecast, with an ahead / behind / on-forecast chip;
-then tiles for now, tomorrow's surplus, yield per kWp, forecast accuracy and lifetime generation;
-then a per-array strip with each array's share of its own rating, live watts and kWh today.
+banked so far and dashed for the corrected forecast, with an ahead / behind / on-forecast chip.
+Then tiles for now, tomorrow's surplus, yield per kWp, forecast accuracy and lifetime generation.
+Then a per-array strip with each array's share of its own rating, live watts and kWh today.
 
 **Manager.** What the energy plugin is deciding and why: the current mode, whether dawn is viable,
-the projected dawn state of charge and the reasoning in the plugin's own words; the tariff, with
-tomorrow's rate and direction; and the system card — connection, VPP state, storm watch, export
+the projected dawn state of charge and the reasoning in the plugin's own words, the tariff, with
+tomorrow's rate and direction, and the system card — connection, VPP state, storm watch, export
 lockout, and a short log of recent grid events.
 
 **When to run it** (from 3.34.0, when the Carbon and Laundry pages merged into it). Two halves:
@@ -63,13 +63,13 @@ lockout, and a short log of recent grid events.
   it on the spot, a sun / battery / grid bar for the recommended run, and, folded away, every half
   hour to the deadline (said once when they all cost the same). The machine's own measured cycle is
   named underneath, "not the manual". Needs the `Appliance_Scheduler.py` companion script, which
-  finds every enabled ApplianceMonitor device and measures each machine from its own history; a
+  finds every enabled ApplianceMonitor device and measures each machine from its own history, a
   machine needs about five logged cycles first. Nothing here switches a machine on.
 - *Grid carbon.* The advice (run now, wait, any time) with its reason, grid carbon for your region
   with a plain-English band, the cleanest half hour in the next day, a 24-hour forecast chart, and,
   folded away, the live generation mix and how the advice is worked out: spare solar first, then a
   clean grid, then the cleanest window in the next 16 hours. Great Britain only, from the free UK
-  Carbon Intensity API; switch it off under Configure. Like the rest of this page it needs
+  Carbon Intensity API. Switch it off under Configure. Like the rest of this page it needs
   SigenEnergyManager, and without it the plugin makes no carbon lookups at all.
 
 Each half hides itself when it has nothing to say, and the card goes when both do. The old

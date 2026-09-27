@@ -18,7 +18,7 @@ are wired to that plugin's own actions. Two rows: *Timed boost* (+2 °C for one 
 hours, Cancel boost) and *Force heating* (force on for 24 hours, Cancel force, and a link that
 writes the current heating state into the Indigo event log). Each of them asks for the control
 PIN, once per session, when any heating zone on the page is on the PIN list (Settings → Security),
-as the zones' own buttons do; before 3.46.0 they skipped it.
+as the zones' own buttons do, before 3.46.0 they skipped it.
 
 **Summary strip.** Zones calling for heat, the house average, the coldest zone with its name, the
 warmest with its name, and the outside temperature. A coloured edge on the strip reflects whether
@@ -38,7 +38,7 @@ temperature is coloured — blue when cold, amber when warm — so the grid read
 | Room membership and titles | `rooms.json` |
 | Boost and force buttons | `evoHomeAction`, which passes the call through to the EvoHomeControl plugin |
 
-Zone temperatures and setpoints work with any Indigo thermostat device; only the boost and force
+Zone temperatures and setpoints work with any Indigo thermostat device. Only the boost and force
 buttons are plugin-specific.
 
 ## Refresh

@@ -8,7 +8,7 @@ nav_order: 14
 
 ![The Weather page](../screenshots/ecowitt.png)
 
-The local weather station rather than a forecast. The hub shows OpenWeatherMap; this page shows what
+The local weather station rather than a forecast. The hub shows OpenWeatherMap. This page shows what
 the kit in the garden is actually measuring, from any weather device that exposes states in Indigo —
 an Ecowitt station through the Ecowitt plugin is what it was built on.
 
@@ -36,7 +36,7 @@ Every card has an info button that opens the underlying Indigo device.
 
 Indigo devices published by the weather plugin, read through `/v2/api`. Solar output for the
 cross-check comes from the energy plugin. Units are read from the plugin's own unit states and
-converted from whichever it publishes; an unrecognised unit shows nothing rather than a wrong number.
+converted from whichever it publishes. An unrecognised unit shows nothing rather than a wrong number.
 
 ## Refresh
 

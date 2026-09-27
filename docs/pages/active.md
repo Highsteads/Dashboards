@@ -22,7 +22,7 @@ are on.
 
 **The list.** One row per device: the name, a status line ("On", "Off", or "On · 5 W" where the
 device measures its own draw), and the control on the right. A dimmable device gets a dimmer and an
-on/off; a plain relay gets one switch.
+on/off. A plain relay gets one switch.
 
 ## Where the data comes from
 

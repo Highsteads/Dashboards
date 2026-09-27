@@ -11,7 +11,7 @@ nav_order: 4
 The Energy page counts kWh. This one counts pounds, and it counts them the way the bill does:
 electricity and gas together, standing charges included, from the supplier's own ledger rather than
 a meter reading multiplied by a rate. **Needs the SigenEnergyManager plugin**, whose economics it
-reads; without it the menu drops the tile and a bookmark to this page opens the hub instead.
+reads. Without it the menu drops the tile and a bookmark to this page opens the hub instead.
 
 ## Down the page
 
@@ -70,7 +70,7 @@ Read it, switch the calendar year, and follow the link back to the Energy page. 
 
 ## Worth knowing
 
-- Provisional and settled are not cosmetic. A provisional day's gas is an estimate and will move; a
+- Provisional and settled are not cosmetic. A provisional day's gas is an estimate and will move, a
   settled day will not.
 - "Short — export missed the bill" means the day's export earnings did not cover the whole-house
   bill, which on a flat export rate is a statement about the weather rather than the tariff.

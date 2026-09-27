@@ -29,8 +29,8 @@ pill with the watts while a fire's heater runs (Broadlink RF 1.4.0 with a power 
 the energy plugin has one coming, a VPP or Saving Session pill.
 
 **Favourites.** One-tap tiles in the order set on the Settings page. A tile is a control (toggles a
-device or runs a scene; a device tile flips at once, then checks with the device a few seconds later
-and puts itself right, with a note, if the command went nowhere), a reading (shows a device state;
+device or runs a scene, a device tile flips at once, then checks with the device a few seconds later
+and puts itself right, with a note, if the command went nowhere), a reading (shows a device state,
 it is a display, not a button), a door tile (shows
 the door's state and acts on it), a room shortcut or a group.
 
@@ -88,7 +88,7 @@ key from this browser.
 
 - Device summary every 3 s, and only for devices the `changedSince` endpoint says have moved.
 - Energy every 30 s.
-- Insights and the log watch every 5 minutes; camera health every minute.
+- Insights and the log watch every 5 minutes. Camera health every minute.
 - Weather every 10 minutes.
 - The greeting re-renders every minute so the date rolls over on a page left open overnight.
 

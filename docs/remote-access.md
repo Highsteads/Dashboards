@@ -1,6 +1,6 @@
 ---
 title: Remote access
-nav_order: 8
+nav_order: 10
 ---
 
 # Remote access
@@ -78,7 +78,7 @@ server, the reflector included, so the camera stills sit in a folder named by a 
 makes for each install. Only a browser holding the API key is told that name. In earlier versions they were
 `cam-<host>.jpg` in the open folder, and anyone with the reflector address could watch them. If you
 think the name has got out, **Plugins → Dashboards → Rotate Guest Link and Camera-Stills Folder**
-picks a new one and deletes the old folder (it also un-pairs every guest device); reload any open
+picks a new one and deletes the old folder (it also un-pairs every guest device), reload any open
 dashboard page afterwards.
 
 **What the plugin does about it.** Live video never goes over the reflector, whatever the
@@ -94,7 +94,7 @@ installs have no other way in, and it should go on the day you have Tailscale.
 **What that switch cannot do.** The files under `/public/dashboards/` are served by Indigo's own web
 server, not by the plugin, and a plugin cannot stop Indigo serving them. Over the reflector, anyone
 who has the address can still fetch the pages themselves, `config.js` (the site name, your favourites,
-the camera names and addresses; never a credential), `rooms.json`, `scenes.json` and `weather.json`, the camera pictures
+the camera names and addresses, never a credential), `rooms.json`, `scenes.json` and `weather.json`, the camera pictures
 to anyone who knows the secret folder's name, and a one-time setup link during the ten minutes
 before it is used or expires. Indigo's own REST API also still answers there, to anyone holding the
 API key. The only way to close all of that is to switch the reflector off in Indigo itself, which
@@ -108,7 +108,7 @@ keep it for a device that is genuinely away, and close the page when you have fi
 ## Guest devices
 
 A wall tablet or a visitor's phone should be able to look and not touch. **Plugins → Dashboards →
-Show Guest Access Info** logs a pairing URL; open it on the device and `guest.html` takes a guest
+Show Guest Access Info** logs a pairing URL. Open it on the device and `guest.html` takes a guest
 token from the plugin's LAN-only proxy, stores it, and forwards to the hub. That proxy refuses any
 non-private source address, which makes guest access home-network and Tailscale only by
 construction. Clearing the browser's site data un-pairs it.
@@ -117,7 +117,7 @@ A guest device cannot switch anything: it holds no API key, so that is not a mat
 interface politely hiding buttons. It is not a private view, though. It reads every device's name
 and state through the plugin, which tells whoever holds it who is home, which doors and windows are
 open and when the house is empty, and it sees the camera pictures. Indigo variables are hidden from
-it unless you name them in `guestVariables` (Settings → Raw JSON; none by default, from 3.46.0). So
+it unless you name them in `guestVariables` (Settings → Raw JSON, none by default, from 3.46.0). So
 give a guest link to a device you would let watch the house, not to anyone passing through, and
 withdraw it with **Plugins → Dashboards → Rotate Guest Link and Camera-Stills Folder**, which cuts
 off every guest device at once.
@@ -142,7 +142,7 @@ iPad a notification also needs the dashboard opened from the home screen, and a 
 
 To get a secure address you need a certificate for the name you open the dashboards by. Tailscale
 can issue one for the Mac's tailnet name (its HTTPS certificates feature, with MagicDNS on), and
-Indigo's Web Server can be set to serve HTTPS with a certificate; both are set up outside this
+Indigo's Web Server can be set to serve HTTPS with a certificate. Both are set up outside this
 plugin, and Indigo's and Tailscale's own documentation cover them. The reflector address is HTTPS,
 but for the reasons above it is not the way to get this.
 
@@ -150,8 +150,8 @@ but for the reasons above it is not the way to get this.
 
 | Port | Purpose | Auth |
 |---|---|---|
-| 8176 | Indigo Web Server — the pages are served here | None for the pages; API key for every data call |
-| 8177 | Plugin server — WebRTC set-up, pairing | None (trusted LAN / Tailscale; refuses non-private sources) |
+| 8176 | Indigo Web Server — the pages are served here | None for the pages. API key for every data call |
+| 8177 | Plugin server — WebRTC set-up, pairing | None (trusted LAN / Tailscale, refuses non-private sources) |
 | 1984 | go2rtc HTTP API | Loopback only |
 | 8554 | go2rtc RTSP republish | Loopback only |
 | 8555 | go2rtc WebRTC media (TCP and UDP) | None |

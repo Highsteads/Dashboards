@@ -10,7 +10,7 @@ nav_order: 11
 
 One large tile and a grid of the rest, each either streaming live or polling a still, depending on
 how the page was reached and how fast the link is. The mechanics — go2rtc, ffmpeg, the proxy on
-port 8177 — are on the [Cameras](../cameras.md) page; this is what the page itself does.
+port 8177 — are on the [Cameras](../cameras.md) page. This is what the page itself does.
 
 ## Down the page
 
@@ -49,10 +49,10 @@ have stalled, red when unreachable. A tile that cannot get a still says so on th
 
 Live video comes from go2rtc over WebRTC, set up by one request to the plugin's own port 8177
 (`/webrtc/<host>`). Stills are `cam-<host>.jpg` and its smaller `-thumb.jpg`, which the plugin
-writes into a private folder on the web server; the page asks the plugin where that folder is, and
+writes into a private folder on the web server. The page asks the plugin where that folder is, and
 only a browser holding the API key gets an answer. If the page cannot find out, every still tile
-says "No picture" rather than guess. Camera hosts, vendors, stream names and room membership all come from the configuration;
-changing them needs a plugin restart. The state dots come from Indigo's `/v2/api`.
+says "No picture" rather than guess. Camera hosts, vendors, stream names and room membership all come from the configuration.
+Changing them needs a plugin restart. The state dots come from Indigo's `/v2/api`.
 
 ## Refresh
 
@@ -73,6 +73,6 @@ you tap.
 
 - The number of tiles that can be live at once is a browser limit (`livePoolSize`, default six),
   not a plugin one.
-- A sub-second stream failure with a 500 is usually ffmpeg's first attempt; one retry clears it.
+- A sub-second stream failure with a 500 is usually ffmpeg's first attempt. One retry clears it.
 - All the cameras at full rate can be tens of megabits a second, which is why the bandwidth figure
   is in the header rather than buried in a fold.

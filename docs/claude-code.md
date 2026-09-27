@@ -1,6 +1,6 @@
 ---
 title: Claude Code and MCP tools
-nav_order: 9
+nav_order: 11
 ---
 
 # Claude Code and MCP tools
@@ -19,7 +19,7 @@ accounts with pre-paid credits. It is not on the free plan. It shares the plan's
 | You have | What Claude can do for the dashboards |
 |---|---|
 | **Claude Code alone** | Download and install the plugin, install ffmpeg, go2rtc and Tailscale, read and edit the pages, read the plugin's log file, and build any page you can describe. It cannot see Indigo: a device is a number you have to look up and tell it |
-| **+ an Indigo MCP server** | See your devices, variables, action groups and folders by name, read their states and the event log, run actions, restart plugins. "The kitchen light" is enough; it finds the device. Diagnosis becomes a conversation: "why is the garden camera not streaming" and it goes and looks |
+| **+ an Indigo MCP server** | See your devices, variables, action groups and folders by name, read their states and the event log, run actions, restart plugins. "The kitchen light" is enough. It finds the device. Diagnosis becomes a conversation: "why is the garden camera not streaming" and it goes and looks |
 | **+ this plugin's own tools** (automatic, v3.12.0+) | Run the dashboards' setup check as data, list and change your rooms and cameras, read the plugin's log — through the same MCP server, with nothing configured |
 | **+ Tailscale** | Everything above from anywhere, and the dashboards themselves on your phone when you are out |
 
@@ -81,5 +81,5 @@ credential. Without an MCP server the manifest is inert data and nothing about t
 contract that mlamoure published with his server. The plugin answers a hidden `mcp_tool_invoke`
 action with a JSON-string envelope, imports its tool module lazily so a fault there cannot stop the
 plugin starting, and broadcasts `mcp_tools_updated` on startup so a server can rescan. The
-implementation is `Server Plugin/mcp_tools.py`; the tests are `tests/test_mcp_manifest.py` and
+implementation is `Server Plugin/mcp_tools.py`, the tests are `tests/test_mcp_manifest.py` and
 `tests/test_mcp_tools.py`.

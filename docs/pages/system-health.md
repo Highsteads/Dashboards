@@ -21,19 +21,19 @@ justifies.
 swap in use, one-minute load against the core count, and plugins running out of the total with a
 note on how many are disabled but still own devices.
 
-**Server.** Two cards. *The Mac* — disk used and free; memory with the composition spelled out (app
-plus wired plus compressed) and swap called out as the real pressure signal on a small Mac; the
-three load averages; up since; Indigo and API versions; macOS version and architecture; Python
-version. *Storage* — the SQL history database's size with a bar showing it against free space, and
-the advice that pruning old device history reclaims disk; then "Dashboard services": go2rtc (the camera
+**Server.** Two cards. *The Mac* — disk used and free, memory with the composition spelled out (app
+plus wired plus compressed) and swap called out as the real pressure signal on a small Mac, the
+three load averages, how long since it started, the Indigo and API versions, the macOS version and
+architecture, and the Python version. *Storage* — the SQL history database's size with a bar showing it against free space, and
+the advice that pruning old device history reclaims disk, then "Dashboard services": go2rtc (the camera
 video service), the plugin's camera proxy, and the number of cameras configured.
 
 **Devices.** A device-health census: total, enabled and off counts, then sections — *In error*
 (with an explicit "none" rather than an empty space), *Low battery* (at or below the threshold set
 under Configure, named, with the owning plugin and the percentage), *Quiet battery devices*
-(collapsible; devices that have not reported in longer than the threshold), and a *Per-plugin
-census* (collapsible; every plugin with its device count and whether it is disabled). A plugin that
-is enabled and has crashed shows red as **STOPPED**; one switched off on purpose shows amber as
+(collapsible, devices that have not reported in longer than the threshold), and a *Per-plugin
+census* (collapsible, every plugin with its device count and whether it is disabled). A plugin that
+is enabled and has crashed shows red as **STOPPED**. One switched off on purpose shows amber as
 **disabled** — because "enabled" alone stays true for a plugin that has crashed.
 
 **Automation** (from 3.33.0, when the Activity page retired). A count of schedules, triggers and how
@@ -51,7 +51,7 @@ the Mac vitals, the history database size, and the device census. The Automation
 
 ## Refresh
 
-Every 30 s; the Automation card every minute.
+Every 30 s. The Automation card every minute.
 
 ## What you can do here
 

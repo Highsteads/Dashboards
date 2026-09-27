@@ -55,7 +55,7 @@ device, with anything that looks like a credential shown as "(hidden)".
 
 ## Where the numbers come from
 
-`mainsMeter`: live tiles and identity from the Indigo device's own state; the charts and the week's
+`mainsMeter`: live tiles and identity from the Indigo device's own state. The charts and the week's
 offset from the SQL Logger history, PK-ranged so a heavy query cannot stall the server.
 
 ## Refresh

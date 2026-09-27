@@ -30,11 +30,11 @@ for the pages you actually want — including ones I never thought of.
 
 ## What you need
 
-- **A Mac running Indigo 2025.2.** The plugin lives on it; the pages are served by Indigo's own
+- **A Mac running Indigo 2025.2.** The plugin lives on it. The pages are served by Indigo's own
   web server.
 - **A Claude subscription.** Claude Code — the version of Claude that can actually do things
   on your Mac — is **not on the free plan**. It is included in every paid plan (Pro is the
-  cheapest, and it is what I would start with; what it costs is under "Things worth knowing"
+  cheapest, and it is what I would start with, what it costs is under "Things worth knowing"
   below) and it shares that plan's usage limits, so a long evening of building may hit the limit
   and ask you to wait a while. There is also a
   pay-as-you-go route through an Anthropic Console account with pre-paid credits.
@@ -49,7 +49,7 @@ your Mac, it can read and write files, run commands, download things, install so
 check what happened. It asks before doing anything that matters, it shows you what it is about
 to run, and it never needs your passwords — when something needs signing in, it opens the page
 and waits for you. It comes as a Mac app (the Code tab in the Claude desktop app) and as a
-terminal command; either is fine, and it does not matter which.
+terminal command, either is fine, and it does not matter which.
 
 ## Can I use Claude chat instead of Claude Code?
 
@@ -112,7 +112,7 @@ will tell you the plugin needs an Indigo API key, and where that comes from: the
 [Authorizations page of your Indigo account](https://www.indigodomo.com/account/authorizations).
 You make the key, you paste it into **Plugins → Dashboards → Configure**. Then pair each device
 you will use once: **Plugins → Dashboards → Generate One-Time Setup Link (+QR)** writes a link and a
-QR code into the Indigo log; open the link, or point the phone's camera at the QR, and that device
+QR code into the Indigo log, open the link, or point the phone's camera at the QR, and that device
 is paired with nothing to type. (A browser that is not paired shows a Connect form that says the
 same.) Open `http://<your-indigo-mac>:8176/public/dashboards/index.html` and there is your hub.
 
@@ -168,7 +168,7 @@ camera that only talks to its maker's cloud app will not do.
 > *"Install ffmpeg and go2rtc with Homebrew so the camera grid works, then add my front door
 > camera at 192.168.1.50 — it is a Dahua."*
 
-It installs both, and (with an MCP server) adds the camera; without one it tells you which
+It installs both, and (with an MCP server) adds the camera. Without one it tells you which
 fields to fill on the Settings page.
 
 ### 6. Reach it from anywhere — Tailscale
@@ -176,7 +176,7 @@ fields to fill on the Settings page.
 > *"Install Tailscale on this Mac and set it up so I can open the dashboards from my phone when
 > I am out. Then tell me how to set up the iPhone."*
 
-Ask the same for Android, Windows, Linux or a NAS; Tailscale runs on all of them. Claude
+Ask the same for Android, Windows, Linux or a NAS. Tailscale runs on all of them. Claude
 installs it on the Mac with Homebrew (`brew install --cask tailscale-app`), opens it for you to
 sign in, and explains the phone side: install the Tailscale app, sign in with the same account,
 leave it switched on. From then on your phone is "at home" wherever it is, and the cameras work
@@ -184,12 +184,12 @@ too — they only ever work remotely this way. I have checked on the house from 
 and at 36,000 feet over the Indian Ocean I could still watch the cameras, thanks to Tailscale.
 If you want to keep using the same
 address you use at home (mine is a `192.168.` address, yours will be different), ask Claude to
-make the Mac a Tailscale **subnet router** for your home network; that is one setting, and the
+make the Mac a Tailscale **subnet router** for your home network. That is one setting, and the
 [Remote access](remote-access.md) page explains the three ways of addressing the Mac.
 
 ### 7. Now make it yours
 
-This is the part that matters. Everything above is the plumbing; this is why you did it.
+This is the part that matters. Everything above is the plumbing. This is why you did it.
 
 > *"Add a page for the conservatory with its lights, the two window sensors and the
 > temperature."*
@@ -210,8 +210,8 @@ asked.
 
 ## What Claude will ask you to do yourself
 
-- Sign in to things — your Claude account, Tailscale, GitHub if it needs it. It opens the page;
-  you type the password. It never wants a password in the chat.
+- Sign in to things — your Claude account, Tailscale, GitHub if it needs it. It opens the page.
+  You type the password. It never wants a password in the chat.
 - Paste your Indigo API key into Configure. Claude can tell you where the box is, and it can
   put the key into a settings file if you would rather, but it does not go and fetch it.
 - Double-click the plugin bundle. Indigo installs plugins that way and only that way.
@@ -238,7 +238,7 @@ asked.
   so the Claude desktop app drives the Indigo app itself to make them, and everything after
   that — changing them, switching them on and off, testing them, writing the scripts they run —
   goes through the MCP server.
-- **Usage limits are real on the Pro plan.** A long building session can run into them; the app
+- **Usage limits are real on the Pro plan.** A long building session can run into them, the app
   tells you when, and the work is still there when the limit resets.
 - **The dashboards themselves never need Claude.** Once a page exists, it is a plain web page
   served by Indigo. Claude is how you build and change things, not how you use them.

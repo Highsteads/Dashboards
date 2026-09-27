@@ -19,7 +19,7 @@ only part with anything to install by hand.
   so a browser has to hold one. Make a key on the
   [Authorizations page of your Indigo account](https://www.indigodomo.com/account/authorizations),
   or create a local secret in the install folder's `Preferences/secrets.json` (Indigo's Web Server
-  documentation covers both). The plugin never writes the key into anything under `/public/`; a
+  documentation covers both). The plugin never writes the key into anything under `/public/`, a
   browser is given it once and keeps it locally.
 - **Device folders that mean rooms.** The room pages are built from Indigo device folders. With
   nothing configured the plugin uses one house's folder names and yours will produce no rooms — so
@@ -30,7 +30,7 @@ showing an empty chart:
 
 | Optional piece | What it unlocks |
 |---|---|
-| **ffmpeg** and **go2rtc** (Homebrew) | The camera grid, the hub's camera strip and the cameras on room pages. Both are required; without either the plugin logs a warning and shows no streams. See [Cameras](cameras.md) |
+| **ffmpeg** and **go2rtc** (Homebrew) | The camera grid, the hub's camera strip and the cameras on room pages. Both are required. Without either the plugin logs a warning and shows no streams. See [Cameras](cameras.md) |
 | **SQL Logger** plugin (ships with Indigo) | The Timeline (all four views), the hub's Home Insights check, the Mains page's trust figures and the Meter page's history |
 | **PostgreSQL** behind the SQL Logger | Supported as an alternative backend to SQLite. Reads go through the `psql` client, so Postgres.app or the `postgresql` client package must be installed. Use **Plugins → Dashboards → Test History Connection** before relying on it |
 | **SigenEnergyManager** plugin | The Energy page (with its When to run it card), the Cost page and the hub's Energy · Now card. Without it the menu drops both tiles, the hub leaves out its Energy and Solar cards, and a bookmark to either page opens the hub. The Mains page still lists every meter, without the trust figures that are measured against the inverter |
@@ -39,14 +39,13 @@ showing an empty chart:
 | **OpenWeatherMap** key | The hub's weather card forecast and sun times |
 | **Pushover** plugin and a user key | Alert rules sent to your phone (3.47.0). Without it a rule can still email you, through Indigo's own mail settings, or raise a browser notification. See [Alerts](using.md#alerts) |
 | **Pillow** and **qrcode** | Camera thumbnails and setup-link QR codes. These install themselves from `requirements.txt` the first time the plugin starts |
-| **The companion scripts** in `scripts/` | The Timeline's Nights view, the hourly error watch behind the Alerts page and the hub's needs-a-look check, and the laundry half of the Energy page's When to run it card. Copy the ones you want into Indigo's `Python Scripts` folder; the plugin picks them up on its next tick and logs which are missing at startup. See [How it is built](architecture.md#companion-scripts) |
+| **The companion scripts** in `scripts/` | The Timeline's Nights view, the hourly error watch behind the Alerts page and the hub's needs-a-look check, and the laundry half of the Energy page's When to run it card. Copy the ones you want into Indigo's `Python Scripts` folder. The plugin picks them up on its next tick and logs which are missing at startup. See [How it works](how-it-works.md#companion-scripts) |
 
 ## Install
 
-1. Go to the [Releases page](https://github.com/Highsteads/Dashboards/releases) and download
-   `Dashboards.indigoPlugin.zip`.
-2. Unzip it — you get `Dashboards.indigoPlugin`.
-3. Double-click `Dashboards.indigoPlugin`. Indigo installs it and asks whether to enable it.
+1. Go to the [Releases page](https://github.com/Highsteads/Dashboards/releases/latest) and download `Dashboards.indigoPlugin.zip`
+2. Unzip the downloaded file — you will get `Dashboards.indigoPlugin`
+3. Double-click `Dashboards.indigoPlugin` — Indigo will install it automatically, and asks whether to enable it
 4. **Cameras only:** `brew install ffmpeg` and `brew install go2rtc` (or download the go2rtc binary
    and set its path under Configure). The rest of the plugin works without them.
 5. Enter credentials under **Plugins → Dashboards → Configure** — at minimum the Indigo API key,
@@ -92,7 +91,7 @@ The footer of every page carries a *Reset connection* link that forgets the stor
    Hikvision), and tick the ones for the hub's strip. Then, on the Indigo Mac, open **Plugins →
    Dashboards → Configure** and press **Save**: that approves the new addresses for the shared camera
    login (see [Cameras](cameras.md#the-camera-login-goes-only-to-approved-addresses)). Camera changes
-   need a plugin restart; the card says so.
+   need a plugin restart. The card says so.
 3. **Check it.** **Plugins → Dashboards → Test Dashboards Setup** runs every check in one go —
    API URL and key, camera credentials and list, room folders, the SQL Logger history, the public
    pages folder, the liveness stamp, and whether SigenEnergyManager is present — and logs a verdict
@@ -100,18 +99,18 @@ The footer of every page carries a *Reset connection* link that forgets the stor
 4. **Pin it.** On an iPhone or iPad, open the hub in Safari, tap Share, then **Add to Home
    Screen**. On a Mac, Safari's **File → Add to Dock…**. The dashboard then opens full-screen like
    an app, and links stay inside it. Chrome's and Edge's install icon only appears on a secure
-   (`https://`) address, which the usual `http://…:8176` one is not; see
+   (`https://`) address, which the usual `http://…:8176` one is not, see
    [Notifications and install need HTTPS](remote-access.md#notifications-and-install-need-https).
 
 ## Demo mode
 
 Open `demo.html` and every page runs from sanitised sample data with a gentle state simulator —
 solar wobbles, the battery drifts, motion flickers, and controls change the local fixture so toggles
-feel real. No devices are touched. An orange banner along the bottom says so; tap it to leave.
+feel real. No devices are touched. An orange banner along the bottom says so. Tap it to leave.
 
 ## Upgrading
 
-Download the new zip and double-click the bundle as before; Indigo replaces the old one. The plugin
+Download the new zip and double-click the bundle as before. Indigo replaces the old one. The plugin
 mirrors its pages into Indigo's public folder every time it starts, so there is nothing else to
 copy. **After upgrading past v2.70, reload any dashboard tab that has been open for days** — a wall
 tablet running old JavaScript can poll a restarting plugin in a way that stalls the web server for

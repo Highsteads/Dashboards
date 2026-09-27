@@ -1,9 +1,11 @@
 ---
-title: How it is built
-nav_order: 10
+title: Technical notes
+nav_order: 14
 ---
 
-# How it is built
+# Technical notes
+
+The file names, data sources and tests behind the dashboards, for anyone changing the plugin. [How it works](how-it-works.md) explains the same things in plain words.
 
 ## Page files
 
@@ -27,13 +29,13 @@ The shared scripts, in the order a page loads them:
 |---|---|
 | `config.js` | Written by the plugin at startup and whenever a feature flag changes: the API base URL, the site name, the camera list, the room list, the colour presets, and flags such as `heatingControls` and `sigenAvailable`. Never a credential |
 | `dashboards-auth.js` | Merges the browser's stored API key in, refuses the reflector when asked to, and publishes `DashFeatures` — the one place that knows which optional plugins are present |
-| `dashboards-gate.js` | Checks the plugin's liveness stamp before any call to it; a page never polls a plugin that is stopping |
+| `dashboards-gate.js` | Checks the plugin's liveness stamp before any call to it. A page never polls a plugin that is stopping |
 | `dashboard.js` | The device cache: one fetch of everything, then only the devices the `changedSince` endpoint says have moved |
 | `capabilities.js` | Which control each device gets, from a capability catalogue |
 | `dashboards-action.js` | Control buttons: run the action, take the button over, watch the device states until the thing has really happened. Its rule evaluator is a pure function driven by `tests/test_action_watch.mjs` |
 | `dashboards-controls.js`, `dashboards-controls.css` | The device tiles the room, Active, Heating and weather pages share: the one on/off rule, the toggle and brightness handlers and the hub's favourite device press (each confirmed from the device, and put right if the command went nowhere), the heating zone tile with its read-back setpoint buttons, and their styles. Needs `dashboards-action.js` loaded first. Driven by `tests/test_dash_tile.mjs` |
 | `dashboards-ui.js` | Link classification, the idle guard, the camera cross-fade (`swapImage`), the tap guard, and the other pieces several pages share |
-| `dashboards-alerts.js` | Browser notifications for the alert rules, loaded by the hub, the room pages, Energy and Alerts. The plugin judges the rules (3.47.0); this asks it for new firings and raises a notification for each whose rule includes Browser. One tab polls at a time, and a firing is claimed in `localStorage` so two open tabs never announce it twice. It also keeps the page-side statement of what a rule means, which the plugin's Python is held to case for case (`tests/lib/alert_rule_cases.json`). Driven by `tests/test_alerts_shared.mjs` |
+| `dashboards-alerts.js` | Browser notifications for the alert rules, loaded by the hub, the room pages, Energy and Alerts. The plugin judges the rules (3.47.0). This asks it for new firings and raises a notification for each whose rule includes Browser. One tab polls at a time, and a firing is claimed in `localStorage` so two open tabs never announce it twice. It also keeps the page-side statement of what a rule means, which the plugin's Python is held to case for case (`tests/lib/alert_rule_cases.json`). Driven by `tests/test_alerts_shared.mjs` |
 | `when-to-run.js` | The Energy page's When to run it card: the laundry plan and grid carbon |
 | `energy-calc.js` | The arithmetic shared by the Energy and Cost pages — unit formatting, the daily energy allocation behind the Sankey, the half-hourly balance, the rolling money sums. DOM-free, so `tests/test_energy_cost.mjs` can drive it |
 | `a11y.js`, `dashboards-icons.js`, `standalone-nav.js`, `sw.js` | Accessibility polish, the icon set, keeping links inside the home-screen app, and the service worker that raises notifications |
@@ -75,7 +77,7 @@ The shared scripts, in the order a page loads them:
   signalling. LAN and Tailscale only.
 - **The SQL Logger's history database**, read by primary-key range after a binary search for the
   row boundary — never by timestamp, because the `ts` column has no index and a timestamp filter
-  would scan the whole table. Long sweeps run on a background thread with a cached reply; a request
+  would scan the whole table. Long sweeps run on a background thread with a cached reply, a request
   thread never does one. Timestamps are stored in UTC on SQLite and in the session's local time on
   PostgreSQL, and the reader converts per engine.
 
@@ -94,19 +96,19 @@ The plugin ticks a handful of Python scripts from its own thread, so they need n
 Indigo: the presence watch that writes the Timeline's Nights data, the hourly event-log watch behind
 the Alerts page and the hub's needs-a-look check, the drive-lights and night-sweep helpers, the FP300 presence
 sensor configuration watch, the appliance scheduler behind the When to run it card, and the reflector
-bandwidth watch. They live in `scripts/` in the repo with their own tests and a README; copy the ones you want
+bandwidth watch. They live in `scripts/` in the repo with their own tests and a README. Copy the ones you want
 into Indigo's `Python Scripts` folder and the plugin picks them up on its next tick — no restart. At
-startup it logs one line naming whichever are missing. Each is optional; a page whose script is
+startup it logs one line naming whichever are missing. Each is optional. A page whose script is
 absent says so, and two of them are lighting automations for one house that you may not want at all.
 If the Script Ticker plugin is running on the same server, Dashboards leaves the scripts to it and
-takes them back within half a minute of it stopping; a laundry deadline change then asks Script
+takes them back within half a minute of it stopping. A laundry deadline change then asks Script
 Ticker to replan, so the scheduler never runs in two places at once.
 
 ## Logging
 
 Every log line is prefixed with a millisecond timestamp `[HH:MM:SS.mmm]`. Toggle the prefix from
 **Plugins → Dashboards → Toggle Timestamps in Log**. Routine housekeeping goes to the plugin's own
-log file, not the Indigo event log, unless *Log routine activity to the Indigo Event Log* is ticked;
+log file, not the Indigo event log, unless *Log routine activity to the Indigo Event Log* is ticked,
 the `dashboards_read_log` MCP tool reads the same file.
 
 ## Tests
@@ -115,7 +117,7 @@ A no-hardware contract-test layer pins the plugin's trickiest logic so a change 
 regress it. `tests/run.sh` is the gate: `pytest` over `tests/` and over the companion scripts, every
 `tests/*.mjs` node suite, `compileall` and `ruff`. CI runs exactly the same on every push. The Python
 side mock-imports `plugin.py` with `indigo` stubbed, so the plugin's helpers run outside the Indigo
-host; the node side extracts functions from the pages by name and drives them in a `vm` context.
+host. The node side extracts functions from the pages by name and drives them in a `vm` context.
 `tests/README.md` lists every file and what it locks.
 
 ## The repository
@@ -149,7 +151,7 @@ lives in modules beside it, which `Plugin` inherits, so every method is still `s
 | `publish_mixin.py` | Copying the pages into `Web Assets/public/dashboards` and writing `config.js`, with its flags for optional plugins |
 | `health_mixin.py` | The System Health page: Mac vitals, storage, services and the device census |
 | `scripts_mixin.py` | The companion-script runner, its schedule and the hand-over to Script Ticker |
-| `history_mixin.py` | Everything that reads the SQL Logger history: Graphs, Timeline, the per-string solar hours, and the primary-key helpers that keep those queries off a full scan |
+| `history_mixin.py` | Everything that reads the SQL Logger history: the Timeline and its Chart view, the per-string solar hours, and the primary-key helpers that keep those queries off a full scan |
 | `mains_mixin.py` | The Mains and Meter pages: every 240 V meter and how far each can be trusted |
 | `insights_mixin.py` | Home Insights, the hub's "out of the ordinary" card |
 | `carbon_mixin.py` | The grid-carbon advice in the Energy page's When to run it card (answers at once, with no lookup, without SigenEnergyManager) |

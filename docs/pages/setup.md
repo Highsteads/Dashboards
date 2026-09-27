@@ -20,7 +20,7 @@ hub for entering the key by hand instead.
 
 The token is in the query string. The page fetches the token's file, takes the API key out of it,
 stores the key, then calls `burnSetupToken` to delete the file so the link cannot be used again. The
-burn authenticates with the key it has just received. It checks the plugin's liveness gate first; if
+burn authenticates with the key it has just received. It checks the plugin's liveness gate first, if
 the plugin is restarting it skips the burn and waits, since an unredeemed link is swept by its own
 time-to-live within ten minutes anyway.
 
