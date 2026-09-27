@@ -661,6 +661,15 @@ h1 .dsh-icon {width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;
     <h2 data-help-title="Daily totals" data-help="Per-day totals for the last 30 days: solar, export, import, home. Spot cloudy stretches at a glance.">Daily totals <span class="h2sub">&#8212; last 30 days</span></h2>
     <div class="chart-wrap"><canvas id="chart-daily"></canvas></div>
   </section>
+  <section class="card" id="patterns-card" style="display:none">
+    <h2 data-help-title="Through the day" data-help="How much electricity the house uses in each hour of a typical day, for each kind of day. The bars are what the battery manager plans with: each kind of day's own pattern, measured from the inverter over the last 18 weeks. The dashed line is the everyday pattern, an average over the whole week, set to the same daily total, so the gap between them is what the day's own pattern changed. Tuesday to Friday are too alike to tell apart, so they share one pattern. A kind of day with fewer than six whole days recorded is planned from the everyday pattern until it has enough.">Through the day <span class="h2sub">&#8212; how each kind of day uses electricity</span></h2>
+    <div class="chart-tabs" id="pat-tabs" role="group" aria-label="Kind of day"></div>
+    <p class="note" id="pat-caption" aria-live="polite" style="margin-top:6px"></p>
+    <div class="chart-wrap"><canvas id="chart-patterns" role="img" aria-label="Electricity used in each hour of the chosen kind of day, against the everyday pattern"></canvas></div>
+    <details class="note" style="margin-top:8px"><summary>Show as a table</summary>
+      <div class="table-scroll"><table class="period-table" id="pat-table"></table></div>
+    </details>
+  </section>
   <section class="card" id="wow-card" style="display:none">
     <h2 data-help-title="Week on week" data-help="The last 7 recorded days against the 7 before, and against the same week last year (364-day offset so weekdays line up). Self-sufficiency is the share of home use not imported. The year column unlocks once a full year of history has been collected.">Week on week <span class="h2sub">&#8212; and the same week last year</span></h2>
     <div class="table-scroll">
@@ -1881,6 +1890,83 @@ async function refreshDailyChart() {
   } catch (e) { /* silent */ }
 }
 
+/* ── through the day (v3.51.0) ──
+   SigenEnergyManager 5.122.0 publishes each kind of day's half-hourly use at
+   /api/day-patterns. The arithmetic and the wording live in energy-calc.js
+   (DashCalc.dayPattern / dayPatternCaption), where they are tested; this only
+   draws. The patterns change once a day, so the page asks every 30 minutes.
+   Colours: the bars are the house-use token the rest of the page uses for the
+   home; the everyday line is --text-secondary, deliberately neutral because it
+   is a reference, not a second series. It passes 3:1 against the card in both
+   themes; its colour-blind separation from the bars is in the 6-8 band, which
+   is carried by the second cues — bars against a dashed line, the legend and
+   the table view (validated 27-09-2026). */
+let patternsChart = null, _patPayload = null, _patKey = null;
+function _patHourLabel(h) { return DashCalc.hourWords(h); }
+function renderPatterns() {
+  const d = _patPayload;
+  const card = document.getElementById('patterns-card');
+  if (!d || !d.available || !(d.groups || []).length) { card.style.display = 'none'; return; }
+  card.style.display = '';
+  const groups = d.groups;
+  if (!_patKey || !groups.some(g => g.key === _patKey)) {
+    const today = groups.find(g => (g.weekdays || []).includes(d.today_weekday));
+    _patKey = (today || groups[0]).key;
+  }
+  const tabs = document.getElementById('pat-tabs');
+  tabs.innerHTML = groups.map(g =>
+    `<button class="chart-tab${g.key === _patKey ? ' active' : ''}" data-key="${esc(g.key)}"` +
+    ` aria-pressed="${g.key === _patKey}">${esc(g.label)}</button>`).join('');
+  tabs.querySelectorAll('.chart-tab').forEach(btn => btn.addEventListener('click', () => {
+    _patKey = btn.dataset.key; renderPatterns();
+  }));
+  const g = groups.find(x => x.key === _patKey);
+  const p = DashCalc.dayPattern(g);
+  if (!p) { card.style.display = 'none'; return; }
+  setText('pat-caption', DashCalc.dayPatternCaption(g, d));
+  const labels = p.hours.map((_, h) => _patHourLabel(h));
+  const C = chartColours();
+  const ref = cssVar('--text-secondary', '#86868b');
+  patternsChart = DashUI.chartRender(document.getElementById('chart-patterns'), {
+    type: 'bar',
+    data: { labels, datasets: [
+      { type: 'bar', label: g.own_pattern ? g.label + ', measured' : g.label + ', everyday pattern',
+        data: p.hours, backgroundColor: C.home, borderRadius: 4, borderSkipped: 'start', order: 2 },
+      { type: 'line', label: 'Everyday pattern', data: p.everyday, borderColor: ref,
+        backgroundColor: ref, borderWidth: 2, borderDash: [6, 4], pointRadius: 0,
+        pointHoverRadius: 4, tension: 0.3, order: 1, hidden: !g.own_pattern },
+    ] },
+    options: { ...CHART_BASE,
+      plugins: { ...CHART_BASE.plugins,
+        legend: { ...CHART_BASE.plugins.legend, display: !!g.own_pattern },
+        tooltip: { ...CHART_BASE.plugins.tooltip, callbacks: {
+          title: items => items.length ? _patHourLabel(items[0].dataIndex) + ' to ' +
+                                         _patHourLabel(items[0].dataIndex + 1) : '',
+          label: item => ' ' + item.dataset.label + ': ' + DashCalc.fmtKwh(item.parsed.y, 2),
+        } } },
+      scales: { ...CHART_BASE.scales,
+        y: { ...CHART_BASE.scales.y, beginAtZero: true,
+             title: { display: true, text: 'kWh in the hour', color: cssVar('--text-secondary', '#586574') } },
+      } }
+  });
+  let rows = '<tr><th scope="col">Hour</th><th scope="col">' + esc(g.label) + '</th>' +
+             (g.own_pattern ? '<th scope="col">Everyday pattern</th>' : '') + '</tr>';
+  p.hours.forEach((v, h) => {
+    rows += `<tr><td>${_patHourLabel(h)} to ${_patHourLabel(h + 1)}</td><td>${DashCalc.fmtKwh(v, 2)}</td>` +
+            (g.own_pattern ? `<td>${DashCalc.fmtKwh(p.everyday[h], 2)}</td>` : '') + '</tr>';
+  });
+  document.getElementById('pat-table').innerHTML = rows;
+}
+async function refreshPatterns() {
+  if (document.hidden) return;
+  try {
+    const r = await sigenFetch('day-patterns');
+    if (!r.ok) return;              // an older SigenEnergyManager has no such path: card stays hidden
+    _patPayload = await r.json();
+    renderPatterns();
+  } catch (e) { /* card reappears next refresh */ }
+}
+
 /* ── week-on-week compare (v2.43.0) ──
    Last 7 recorded days vs the 7 before, plus the same week last year
    (364-day offset keeps weekdays aligned). Computed page-side from the
@@ -2141,11 +2227,13 @@ if (window.DashFeatures && DashFeatures.sigenAbsent('Energy')) {
   setInterval(refreshDevices, 20 * 1000);
   refreshCharts();
   refreshDailyChart();
+  refreshPatterns();
   refreshWeekCompare();
   refreshExportSync();
   setInterval(refreshCharts, 5 * 60 * 1000);
   setInterval(refreshStringHours, 5 * 60 * 1000);
   setInterval(refreshDailyChart, 30 * 60 * 1000);
+  setInterval(refreshPatterns, 30 * 60 * 1000);
   setInterval(refreshWeekCompare, 60 * 60 * 1000);
   setInterval(refreshExportSync, 60 * 60 * 1000);
   // v3.34.0: the Carbon and Laundry pages are one card here now.

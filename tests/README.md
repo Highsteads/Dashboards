@@ -72,6 +72,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_dash_message.mjs` | Contract test for DashUI.message (v3.28.0) — the one way a page |
 | `test_dash_poll.mjs` | Contract test for DashUI.poll (v3.28.0): one polling loop for |
 | `test_dash_tile.mjs` | One tile system (v3.37.0). Runs the shipped dashboards-controls.js |
+| `test_day_patterns.mjs` | Node contract test for DashCalc.dayPattern / dayPatternCaption / |
 | `test_demo_fixture_is_sanitised.py` | The demo fixture (demo-data/devices.json) is a snapshot of a |
 | `test_demo_site.py` | The online demo (docs/demo/, published on the docs site from |
 | `test_diagnostic_banner.py` | Every diagnostic menu dumps the SAME banner, extras included |
@@ -171,6 +172,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_shutdown_budget.py` | shutdown() must not wait on the snapshot pool. Until 2.95.1 |
 | `test_shutdown_setup_links.py` | A one-time setup link is a /public file holding the API key. |
 | `test_sigen_available.py` | The server half of "the Sigenergy pages hide themselves when |
+| `test_sigen_paths.py` | Every SigenEnergyManager path a page asks the sigenApi proxy for |
 | `test_sigen_visibility.mjs` | The browser half of "the Sigenergy pages hide themselves when |
 | `test_snapshot_conditional.mjs` | Contract test for the camera still-refresh mechanism — the |
 | `test_snapshot_failure_wording.py` | A snapshot warning must say what went wrong in words a person |

@@ -49,6 +49,8 @@ CAPTURE = {
     "sigenApi-calendar": ("sigenApi", {"path": "calendar", "query": {}}),
     "sigenApi-vpp":      ("sigenApi", {"path": "vpp", "query": {}}),
     "sigenApi-years":    ("sigenApi", {"path": "years", "query": {}}),
+    # 3.51.0. The file name drops the hyphen, as DashUI's demo lookup does.
+    "sigenApi-daypatterns": ("sigenApi", {"path": "day-patterns", "query": {}}),
     "solarStringHours":  ("solarStringHours", {}),
     "carbonAdvisor":     ("carbonAdvisor", {}),
     "laundryPlan":       ("laundryPlan", {}),

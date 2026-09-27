@@ -7,9 +7,11 @@
  *              can drive it directly.
  * Author:      CliveS & Claude Opus 5 (v1.0); Claude Fable 5 (v1.1-1.2)
  * Date:        13-08-2026
- * Version:     1.5 (savingSessions — ONE Octopus Saving Session decision for
- *              the Energy page's alert bar and the hub's energy card)
- *              prior 1.4 (packBalanceText + gridFrequencyState), 1.3, 1.2, 1.1
+ * Version:     1.6 (dayPattern + dayPatternCaption — the Energy page's
+ *              "through the day" card, from SigenEnergyManager 5.122.0)
+ *              prior 1.5 (savingSessions — ONE Octopus Saving Session decision
+ *              for the Energy page's alert bar and the hub's energy card),
+ *              1.4 (packBalanceText + gridFrequencyState), 1.3, 1.2, 1.1
  */
 
 (function (root) {
@@ -670,6 +672,102 @@
     return (r === Math.round(r) ? r.toFixed(0) : r.toFixed(1)) + ' kWh';
   }
 
+  /* ── how the house uses electricity through each kind of day (v1.6) ──
+     SigenEnergyManager 5.122.0 publishes, per group of days, 48 half-hourly
+     kWh the plan uses (`kwh`) and the everyday pattern at the same total
+     (`everyday_kwh`). The page shows hours, and says in words where the day
+     differs, so the numbers arrive with what they mean. */
+
+  /* A difference smaller than this, in an hour, is not worth a sentence. */
+  var PATTERN_HOUR_NOTICE_KWH = 0.1;
+  /* ...and a whole stretch smaller than this is not either. */
+  var PATTERN_BLOCK_NOTICE_KWH = 0.3;
+
+  function _hourly(slots) {
+    var out = [];
+    for (var h = 0; h < 24; h++) {
+      var a = num(slots && slots[2 * h]), b = num(slots && slots[2 * h + 1]);
+      out.push(a == null || b == null ? null : Math.round((a + b) * 100) / 100);
+    }
+    return out;
+  }
+
+  /* The biggest run of consecutive hours where `diff` has `sign`, by total. */
+  function _biggestBlock(diff, sign) {
+    var best = null, start = null, sum = 0;
+    for (var h = 0; h <= 24; h++) {
+      var d = h < 24 && diff[h] != null ? diff[h] * sign : null;
+      if (d != null && d >= PATTERN_HOUR_NOTICE_KWH) {
+        if (start == null) { start = h; sum = 0; }
+        sum += d;
+      } else if (start != null) {
+        if (sum >= PATTERN_BLOCK_NOTICE_KWH && (!best || sum > best.kwh)) {
+          best = { from: start, to: h, kwh: Math.round(sum * 100) / 100 };
+        }
+        start = null;
+      }
+    }
+    return best;
+  }
+
+  /* {hours, everyday, total, more, less} for one group from the payload, or
+     null when the group is not usable. `more`/`less` are {from, to, kwh}
+     (hours, `to` exclusive) or null. */
+  function dayPattern(group) {
+    if (!group || !group.kwh || group.kwh.length !== 48) return null;
+    var hours = _hourly(group.kwh);
+    var everyday = _hourly(group.everyday_kwh || []);
+    var diff = hours.map(function (v, h) {
+      return v == null || everyday[h] == null ? null : v - everyday[h];
+    });
+    return {
+      hours: hours, everyday: everyday, total: num(group.total_kwh),
+      more: group.own_pattern ? _biggestBlock(diff, 1) : null,
+      less: group.own_pattern ? _biggestBlock(diff, -1) : null,
+    };
+  }
+
+  /* "2pm", "midday", "midnight" — an hour as a person says it. */
+  function hourWords(h) {
+    h = ((Number(h) % 24) + 24) % 24;
+    if (h === 0) return 'midnight';
+    if (h === 12) return 'midday';
+    return (h % 12) + (h < 12 ? 'am' : 'pm');
+  }
+
+  /* The sentence under the chart. */
+  function dayPatternCaption(group, payload) {
+    var p = dayPattern(group);
+    if (!p) return '';
+    if (payload && payload.away) {
+      return 'The house is marked as empty, so every day is planned from the ' +
+             'empty-house pattern.';
+    }
+    var many = (group.weekdays || []).length > 1;
+    var noun = many ? 'of those days' : group.label;
+    var total = kwhWords(p.total);
+    if (!group.own_pattern) {
+      return group.label + ' use about ' + total + ' a day, planned from the everyday ' +
+             'pattern for now: ' + (group.days_used || 0) + ' whole ' + noun +
+             ' recorded, ' + (group.min_days || 6) + ' needed for their own.';
+    }
+    var weeks = Math.round((num(payload && payload.window_days) || 126) / 7);
+    var text = group.label + ' use about ' + total + ' a day.';
+    var span = function (b) { return 'between ' + hourWords(b.from) + ' and ' + hourWords(b.to); };
+    if (p.more && p.less) {
+      text += ' Compared with the everyday pattern, more of it goes ' + span(p.more) +
+              ', and less ' + span(p.less) + '.';
+    } else if (p.more) {
+      text += ' Compared with the everyday pattern, more of it goes ' + span(p.more) + '.';
+    } else if (p.less) {
+      text += ' Compared with the everyday pattern, less of it goes ' + span(p.less) + '.';
+    } else {
+      text += ' It runs much like the everyday pattern.';
+    }
+    return text + ' Measured from ' + group.days_used + ' ' + noun +
+           ' over the last ' + weeks + ' weeks.';
+  }
+
   /* Octopus reports a Power Down's usage as NET import: negative is export. */
   function netKwhWords(v) {
     var n = num(v);
@@ -837,6 +935,7 @@
     penceWords: penceWords, kwhWords: kwhWords, netKwhWords: netKwhWords,
     sessionHistoryRows: sessionHistoryRows, octopusSummary: octopusSummary,
     freeHourCreditLines: freeHourCreditLines,
+    dayPattern: dayPattern, dayPatternCaption: dayPatternCaption, hourWords: hourWords,
     sessionEndTime: sessionEndTime,
     OCTOPOINTS_PER_PENNY: OCTOPOINTS_PER_PENNY,
   };

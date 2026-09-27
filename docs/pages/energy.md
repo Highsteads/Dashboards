@@ -82,6 +82,17 @@ below — with 24 h / 48 h / 7 d buttons. To replay a day minute by minute, use 
 [Timeline](timeline.md) page. Then daily totals for the last 30 days, then week on week against the previous week and the
 same week last year (the year-on-year column stays empty until a full year exists, and says so).
 
+**Through the day** (from 3.51.0). How much electricity the house uses in each hour of a typical
+day, for each kind of day: Monday, Tuesday to Friday, Saturday and Sunday, with a button for each.
+It opens on today. The bars are the pattern SigenEnergyManager plans the battery with, which it
+measures from the inverter over the last 18 weeks. The dashed line is the everyday pattern, an
+average over the whole week, set to the same daily total, so the gap between the two is what that
+day does differently. A sentence above the chart says where the day uses more and where less, and a
+table view is folded underneath. Tuesday to Friday share one pattern because they are too alike to
+tell apart. A kind of day with fewer than six whole days recorded shows the everyday pattern and
+says how many it has. Needs SigenEnergyManager 5.122.0 or later. With an older one the card stays
+hidden.
+
 **Records.** Export sync — the plugin's own reading against the supplier's, day by day, with the
 difference and an in-sync verdict.
 
@@ -104,6 +115,7 @@ no samples so the page falls back rather than inventing zeros.
 - Charts and summaries every 20 s.
 - Half-hourly history every 5 minutes.
 - Daily totals every 30 minutes.
+- Through the day every 30 minutes (the patterns change once a day).
 - The lifetime and records blocks hourly.
 - When to run it every minute, and on demand when a deadline chip is tapped.
 
