@@ -132,7 +132,7 @@
 		</List>
 	</Field>
 	<Field id="hlpHist" type="label" fontSize="mini" alignWithControl="true">
-		<Label>Where Indigo's SQL Logger writes its history. Leave this on SQLite unless you have deliberately pointed the SQL Logger at a PostgreSQL server. The Graphs, Timeline and Home Insights cards all read from here. Use "Test History Connection" in the Plugins menu after changing it.</Label>
+		<Label>Where Indigo's SQL Logger writes its history. Leave this on SQLite unless you have deliberately pointed the SQL Logger at a PostgreSQL server. The Timeline page, the hub's Home Insights check and the history on the Mains and Meter pages all read from here. Use "Test History Connection" in the Plugins menu after changing it.</Label>
 	</Field>
 
 	<Field id="hlpPgSecrets" type="label" fontSize="mini" visibleBindingId="historyBackend" visibleBindingValue="postgres">

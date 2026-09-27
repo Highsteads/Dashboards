@@ -202,8 +202,8 @@ class PublishMixin:
             return False
 
     def _sigen_available(self):
-        """Is SigenEnergyManager here? The Energy, Cost and Laundry pages, the
-        hub's Energy card, the sigenApi proxy and the laundry scheduler all
+        """Is SigenEnergyManager here? The Energy and Cost pages (with
+        the When to run it card), the hub's Energy card, the sigenApi proxy and the laundry scheduler all
         ask this ONE question (v3.13.0)."""
         return self._plugin_present(self._SIGEN_PLUGIN_ID)
 

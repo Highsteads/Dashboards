@@ -33,7 +33,7 @@ It starts with the same lines as **Show Plugin Info**, then checks, in this orde
 - how many cameras are set up and, if there are any, that the streaming program (go2rtc) is running, that the camera user name and password are set, and that ffmpeg is installed,
 - that at least one of the folders you ticked as rooms exists in Indigo,
 - whether SigenEnergyManager is installed, which decides whether the Energy and Cost pages appear,
-- whether the SQL Logger's history database is there, for the Timeline and the hub's Home Insights,
+- whether the SQL Logger's history database is there, for the Timeline, the hub's Home Insights and the history on the Mains and Meter pages,
 - whether the Script Ticker plugin is running, which decides whether it or Dashboards runs the companion scripts,
 - which of the seven optional companion scripts are in Indigo's `Python Scripts` folder.
 

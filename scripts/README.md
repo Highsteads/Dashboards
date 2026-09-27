@@ -24,7 +24,7 @@ the plugin's own gate and by CI.
 
 ## Appliance_Scheduler.py (+ appliance_planner.py)
 
-Powers the Laundry page. Works out when to run each metered appliance so it
+Powers the laundry half of the Energy page's When to run it card. Works out when to run each metered appliance so it
 costs the least grid import, from the solar forecast, the house's own measured load
 profile, the battery and the live half-hourly prices, and says it in a sentence.
 The plugin runs it every 15 minutes and serves the result over the Bearer-authed

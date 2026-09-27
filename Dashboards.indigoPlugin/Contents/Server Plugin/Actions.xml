@@ -256,7 +256,7 @@
          Body: {"action": "states"|"series", "deviceId": N, "state": "...",
                 "hours": N, "maxPoints": N}
          Read-only time-series queries over SQL Logger's history DB (v2.4.0)
-         — powers the Graphs page. Bearer-authenticated by IWS. -->
+         — powers the Timeline page's Chart view. Bearer-authenticated by IWS. -->
     <Action id="historyQuery" uiPath="hidden">
         <Name>History Query</Name>
         <CallbackMethod>handleHistoryQuery</CallbackMethod>

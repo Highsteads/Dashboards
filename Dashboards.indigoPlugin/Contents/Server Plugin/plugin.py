@@ -17,9 +17,9 @@
 #              browser for live tiles, and a small HTTP server on port 8177
 #              for the WebRTC signalling and the bootstrap routes. Tiles that
 #              are not live poll the snapshots.
-# Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.49.1); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
-# Date:        26-09-2026
-# Version:     3.49.1
+# Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.50.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
+# Date:        27-09-2026
+# Version:     3.50.0
 #
 # Version history: docs/changelog.md (what each release does, for users) and
 # `git log` (why, for developers). The per-version engineering notes that sat
@@ -103,7 +103,7 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION = "3.49.1"
+PLUGIN_VERSION = "3.50.0"
 
 import logging
 from dash_common import (  # noqa: E402
@@ -1673,7 +1673,9 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
             optional=True)
         db = self._history_db_path()
         chk("SQL Logger history", os.path.isfile(db),
-            db if os.path.isfile(db) else "not found — Graphs, Timeline and Insights need the SQL Logger plugin",
+            db if os.path.isfile(db)
+            else ("not found — the Timeline page, the hub's Home Insights check and the "
+                  "Mains and Meter history need the SQL Logger plugin"),
             optional=True)
         ticker = self._ticker_running()
         chk("Script Ticker", ticker,
@@ -2833,7 +2835,7 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         if not self._sigen_available():
             return self._evo_reply(
                 {"ok": False, "reason": "sem_absent",
-                 "error": "the Laundry page needs the SigenEnergyManager plugin, which is "
+                 "error": "the laundry plan needs the SigenEnergyManager plugin, which is "
                           "not installed on this server"}, status=200)
         plan = self._read_laundry_plan()
         if plan is None:

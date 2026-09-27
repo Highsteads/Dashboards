@@ -198,8 +198,8 @@ class ScriptsMixin:
     # the first success afterwards logs a recovery.
     COMPANION_SCRIPTS = {
         "presence":    ("Presence_Watch.py",     "[Presence]",   {"PRESENCE_WATCH_QUIET": True},
-                        "the Presence tile needs Presence_Watch.py from the repo's scripts/ "
-                        "folder (copied into Python Scripts/ and edited for your rooms)"),
+                        "the Timeline page's Nights view needs Presence_Watch.py from the repo's "
+                        "scripts/ folder (copied into Python Scripts/ and edited for your rooms)"),
         "logwatch":    ("Log_Error_Watch.py",    "[LogWatch]",   {"LOG_ERROR_WATCH_QUIET": True},
                         "the hourly log-error watch needs Log_Error_Watch.py from the repo's "
                         "scripts/ folder (copied into Python Scripts/)"),
@@ -210,8 +210,9 @@ class ScriptsMixin:
                         "the overnight lights sweep needs Night_Lights_Sweep.py in "
                         "Python Scripts/ (repo scripts/ folder, edited for your rooms)"),
         "laundry":     ("Appliance_Scheduler.py", "[Laundry]",   {"APPLIANCE_SCHEDULER_QUIET": True},
-                        "the laundry page needs Appliance_Scheduler.py and appliance_planner.py "
-                        "in Python Scripts/ (repo scripts/ folder)"),
+                        "the laundry half of the Energy page's When to run it card needs "
+                        "Appliance_Scheduler.py and appliance_planner.py in Python Scripts/ "
+                        "(repo scripts/ folder)"),
         "fp300watch":  ("FP300_Config_Watch.py", "[FP300Watch]", {"FP300_CONFIG_WATCH_QUIET": True},
                         "the hourly presence-sensor config watch needs FP300_Config_Watch.py "
                         "from the repo's scripts/ folder (copied into Python Scripts/)"),
