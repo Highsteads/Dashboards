@@ -22,7 +22,7 @@ This plugin gives [Indigo](https://www.indigodomo.com) a set of web pages for yo
 - **A hub page** says at a glance whether anything needs a look, who is home, how the heating is doing, and shows your favourite controls and a strip of camera pictures.
 - **A page for every room**, built from your Indigo device folders, with lights, sockets, blinds, sensors, doors and cameras, and buttons that check the device really did what you asked.
 - **Live camera video** from Dahua and Hikvision cameras, which drops to still pictures on a slow connection so it does not run up a bill.
-- **The solar and battery picture, and what the house costs to run**, if you use my SigenEnergyManager plugin.
+- **The solar and battery picture, and what the house costs to run**, for anyone with a Sigenergy solar and battery system, through my free SigenEnergyManager plugin.
 - **Any day replayed** — presence, lights, doors and heating hour by hour, and a chart of anything Indigo has recorded, from the SQL Logger that comes with Indigo.
 - **Alerts** when a device or variable changes, sent to your phone by Pushover or by email with no page open, or shown as a browser notification.
 - **Heating, weather, Wi-Fi, every mains meter and the Indigo server's own health**, each on a page of its own.
@@ -40,7 +40,7 @@ It needs Indigo 2025.2 and nothing else. Each of these adds to it, and a page th
 |---|---|
 | **ffmpeg** and **go2rtc**, two free programs installed with Homebrew | The cameras. Both are needed |
 | The **SQL Logger** plugin, which comes with Indigo | The Timeline, charts, and the history on the meter pages |
-| My **SigenEnergyManager** plugin | The Energy and Cost pages, and the hub's energy cards |
+| My free **SigenEnergyManager** plugin, for any Sigenergy solar and battery system | The Energy and Cost pages, and the hub's energy cards |
 | **EvoHomeControl** | The boost and force buttons on the Heating page. Temperatures and setpoints work with any thermostat |
 | **UniFiHealth** 0.2.0 or later | The Wi-Fi pages |
 | The **Pushover** plugin and a Pushover user key | Alerts on your phone. Without it an alert can still go by email |
