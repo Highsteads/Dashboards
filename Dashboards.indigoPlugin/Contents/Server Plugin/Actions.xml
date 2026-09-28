@@ -210,6 +210,15 @@
         <CallbackMethod>handleApplyColour</CallbackMethod>
     </Action>
 
+    <!-- POST /message/com.clives.indigoplugin.dashboards/chargerMode/
+         Body: {"deviceId": N, "mode": "fast"|"eco"|"ecoPlus"|"stopped"}
+         The Energy page's car charger mode buttons (3.57.0): checked here,
+         carried out by the Zappi plugin's own Set Mode action. -->
+    <Action id="chargerMode" uiPath="hidden">
+        <Name>Set Car Charger Mode</Name>
+        <CallbackMethod>handleChargerMode</CallbackMethod>
+    </Action>
+
     <!-- POST /message/com.clives.indigoplugin.dashboards/verifyPin/
          Body: {"pin": "<entered>"} → {"ok": true, "valid": bool}
          Server-side PIN check for the per-tile PIN speed bump (v2.1.0). -->

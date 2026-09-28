@@ -94,7 +94,7 @@ def test_the_other_state_changing_handlers_refuse_a_form_too():
     form = {"Content-Type": "application/x-www-form-urlencoded"}
     for name in ("handleEvoHomeAction", "handleLaundryDeadline", "handleVerifyPin",
                  "handleApplyColour", "handleBurnSetupToken", "handleSaveAlertRules",
-                 "handleSendTestAlert", "handleWatchCameras"):
+                 "handleSendTestAlert", "handleWatchCameras", "handleChargerMode"):
         reply = getattr(p, name)(Action("{}", form))
         assert reply["status"] == 415, name
 
@@ -109,7 +109,8 @@ def test_exactly_the_state_changing_handlers_are_guarded():
             guarded.add(m.group(1))
     assert guarded == {"handleSaveDashboardsConfig", "handleEvoHomeAction", "handleLaundryDeadline",
                        "handleVerifyPin", "handleApplyColour", "handleBurnSetupToken",
-                       "handleSaveAlertRules", "handleSendTestAlert", "handleWatchCameras"}, guarded
+                       "handleSaveAlertRules", "handleSendTestAlert", "handleWatchCameras",
+                       "handleChargerMode"}, guarded
 
 
 def test_every_page_post_to_the_plugin_says_json():

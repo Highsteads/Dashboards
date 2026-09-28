@@ -1,13 +1,13 @@
 // Filename:    test_car_charger.mjs
 // Description: Node contract test for DashCalc.chargerDevices / chargerView,
 //              the Energy page's car charger card (v3.55.0) and the hub's
-//              car charger strip (v3.56.0). The fixture is
+//              car charger strip (v3.56.0), and the mode buttons (v3.57.0). The fixture is
 //              the Zappi device exactly as /v2/api/indigo.devices returned it
 //              on 28-09-2026 (states only, address left out), so it tests
 //              what the Zappi plugin really writes.
 // Author:      CliveS & Claude Opus 5.5
 // Date:        28-09-2026
-// Version:     1.1
+// Version:     1.2
 //
 // Run: node tests/test_car_charger.mjs   (exit 0 = pass)
 
@@ -106,6 +106,25 @@ const html = fs.readFileSync(path.join(PAGES, "energy.html"), "utf8");
 check("card is on the page, hidden to start", /<section class="card" id="ev-card" style="display:none">/.test(html));
 check("the title is the charger's own name, not a second \"Car charger\"", /<span id="ev-title">/.test(html) && /chargers\[0\]\.name/.test(html));
 check("the device poll draws it", /renderBattHealth\(\);[\s\S]{0,120}renderCharger\(\)/.test(html));
+
+// ── mode buttons (v3.57.0) ──
+let live = C.chargerView(zappi(), NOW);
+let mb = C.chargerModeButtons(live, null, NOW);
+check("four buttons in order", mb.buttons.map((b) => b.mode).join() === "fast,eco,ecoPlus,stopped");
+check("the current mode is marked and not pressable", mb.buttons[2].current && mb.buttons[2].disabled);
+check("the others are pressable", !mb.buttons[0].disabled && !mb.buttons[3].disabled && mb.note === "");
+mb = C.chargerModeButtons(live, { mode: "fast", sentAt: NOW - 3000 }, NOW);
+check("while sending, the asked-for button is busy", mb.waiting && mb.buttons[0].busy && /Asking the charger for Fast/.test(mb.note));
+check("while sending, nothing else can be pressed", mb.buttons.every((b) => b.disabled));
+check("the old mode stays marked until the charger says otherwise", mb.buttons[2].current && !mb.buttons[0].current);
+let done1 = C.chargerModeButtons(C.chargerView(zappi({ mode: "fast" }), NOW), { mode: "fast", sentAt: NOW - 8000 }, NOW);
+check("confirmed by the device: no note, Fast is current", !done1.waiting && done1.note === "" && done1.buttons[0].current);
+mb = C.chargerModeButtons(live, { mode: "fast", sentAt: NOW - C.CHARGER_CONFIRM_MS - 1 }, NOW);
+check("not confirmed in time: says so and allows another try", !mb.waiting && /not confirmed Fast/.test(mb.note) && !mb.buttons[0].disabled);
+mb = C.chargerModeButtons(C.chargerView(zappi({ online: false }), NOW), null, NOW);
+check("readings withheld -> every button off", mb.buttons.every((b) => b.disabled));
+check("the page sends chargerMode through DashUI.message", /DashUI\.message\('chargerMode', \{ deviceId: id, mode \}\)/.test(html));
+check("the page looks again after the plugin's check", /setTimeout\(refreshDevices, 7000\)/.test(html));
 
 // ── the hub strip (v3.56.0), run from index.html itself ──
 const hub = fs.readFileSync(path.join(PAGES, "index.html"), "utf8");

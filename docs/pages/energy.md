@@ -45,6 +45,9 @@ house battery is selling to the grid, the card says so and names the mode it goe
 myenergi cannot reach the charger, or it has not reported for ten minutes, the card says which
 and shows no readings, because an old "charging at 7 kW" is worse than none. With two chargers,
 each gets its own block under its name.
+Under the tiles are Fast, Eco, Eco+ and Stopped buttons (from 3.57.0), with the current mode lit.
+A press waits, marked, until the charger itself reports the new mode, and after 45 seconds without
+that the card says it was not confirmed. The buttons are off while the readings are held back.
 
 **Money.** Saved today from solar and battery against what a grid-only day would have cost, with
 import paid, export earned and net grid, and a link across to the [Cost](cost.md) page for the full
@@ -113,7 +116,8 @@ home as well as on the LAN — the browser never needs to reach the energy plugi
 allow-listed and the upstream host is fixed.
 
 The car charger card reads the Zappi device straight from Indigo, on the same 20-second device
-poll as the battery tiles.
+poll as the battery tiles. Its mode buttons call `chargerMode`, which checks the device really is a
+charger and the mode is one of the four, then hands it to the Zappi plugin's own Set Mode action.
 
 The When to run it card reads `laundryPlan` (and `laundryDeadline` for a chip) and `carbonAdvisor`,
 which caches the carbon data for ten minutes server-side. The stacked hourly chart is the other
@@ -133,8 +137,9 @@ no samples so the page falls back rather than inventing zeros.
 
 ## What you can do here
 
-Nearly nothing: control of the battery lives in the energy plugin itself. The interactions are the
-chart range buttons, the laundry deadline chips and the link to the Cost page.
+Control of the battery lives in the energy plugin itself. The interactions are the chart range
+buttons, the laundry deadline chips, the link to the Cost page and, with a Zappi, the car charger's
+mode buttons.
 
 ## Worth knowing
 

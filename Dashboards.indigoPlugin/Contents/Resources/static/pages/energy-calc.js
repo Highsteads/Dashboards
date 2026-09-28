@@ -7,7 +7,9 @@
  *              can drive it directly.
  * Author:      CliveS & Claude Opus 5 (v1.0); Claude Fable 5 (v1.1-1.2)
  * Date:        13-08-2026
- * Version:     1.7 (chargerDevices + chargerView — the Energy page's car
+ * Version:     1.8 (chargerModeButtons — the car charger card's mode
+ *              buttons, Dashboards 3.57.0)
+ *              prior 1.7 (chargerDevices + chargerView — the Energy page's car
  *              charger card, from the Zappi plugin, Dashboards 3.55.0)
  *              prior 1.6 (dayPattern + dayPatternCaption — the Energy page's
  *              "through the day" card, from SigenEnergyManager 5.122.0)
@@ -956,7 +958,8 @@
   function chargerView(dev, nowMs) {
     var st = (dev && dev.states) || {};
     var view = { id: dev && dev.id, name: (dev && dev.name) || 'Car charger',
-                 headline: String(st.status || '—'), tone: '', note: '', tiles: [], live: false };
+                 headline: String(st.status || '—'), tone: '', note: '', tiles: [], live: false,
+                 mode: st.mode };
     var err = String((dev && dev.errorState) || '');
     var reported = localStamp(st.lastReport);
     var age = reported === null ? null : (nowMs - reported);
@@ -1017,6 +1020,32 @@
     return view;
   }
 
+  /* Mode buttons (v1.8, Dashboards 3.57.0). `pending` is what the page last
+     asked for, {mode, sentAt}; the charger's own mode state is the only proof
+     it happened, so a press stays "sending" until the device reports that
+     mode or CHARGER_CONFIRM_MS passes, and then says it was not confirmed
+     rather than pretending. Buttons are off while the readings are withheld:
+     a mode cannot be judged, or safely changed, blind. */
+  var CHARGER_MODES = [['fast', 'Fast'], ['eco', 'Eco'], ['ecoPlus', 'Eco+'], ['stopped', 'Stopped']];
+  var CHARGER_CONFIRM_MS = 45 * 1000;
+
+  function chargerModeButtons(view, pending, nowMs) {
+    var waiting = !!(pending && pending.mode && view.mode !== pending.mode
+                     && nowMs - pending.sentAt < CHARGER_CONFIRM_MS);
+    var lapsed = !!(pending && pending.mode && view.mode !== pending.mode && !waiting);
+    var label = function (m) { for (var i = 0; i < CHARGER_MODES.length; i++) if (CHARGER_MODES[i][0] === m) return CHARGER_MODES[i][1]; return m; };
+    var buttons = CHARGER_MODES.map(function (m) {
+      return { mode: m[0], label: m[1],
+               current: view.mode === m[0],
+               busy: waiting && pending.mode === m[0],
+               disabled: !view.live || waiting || view.mode === m[0] };
+    });
+    var note = '';
+    if (waiting) note = 'Asking the charger for ' + label(pending.mode) + '…';
+    else if (lapsed && view.live) note = 'The charger has not confirmed ' + label(pending.mode) + '. It may not have heard; try again.';
+    return { buttons: buttons, note: note, waiting: waiting };
+  }
+
   var API = {
     DEFAULT_CAPACITY_KWH: DEFAULT_CAPACITY_KWH,
     BACKUP_RESERVE_PCT: BACKUP_RESERVE_PCT,
@@ -1046,6 +1075,8 @@
     sessionEndTime: sessionEndTime,
     OCTOPOINTS_PER_PENNY: OCTOPOINTS_PER_PENNY,
     chargerDevices: chargerDevices, chargerView: chargerView,
+    chargerModeButtons: chargerModeButtons, CHARGER_MODES: CHARGER_MODES,
+    CHARGER_CONFIRM_MS: CHARGER_CONFIRM_MS,
     CHARGER_STALE_MS: CHARGER_STALE_MS,
   };
 

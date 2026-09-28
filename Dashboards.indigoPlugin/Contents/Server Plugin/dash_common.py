@@ -551,6 +551,14 @@ CAMERA_THUMB_QUALITY = 72              # JPEG quality for the shrunk copy
 GO2RTC_WEBRTC_PORT   = 8555
 GO2RTC_RTSP_PORT     = 8554            # exposed for completeness; not used by the page
 
+# Car charger (3.57.0): the Zappi plugin owns its devices and its Set Mode
+# action; the chargerMode handler only checks and forwards. These tokens are
+# that plugin's own (its Actions.xml setMode menu) and energy-calc.js's
+# CHARGER_MODES — tests/test_charger_mode.py pins all three together.
+CHARGER_PLUGIN_ID    = "com.clives.indigoplugin.zappi"
+CHARGER_DEVICE_TYPE  = "zappi"
+CHARGER_MODES        = ("fast", "eco", "ecoPlus", "stopped")
+
 
 # ============================================================
 # Helpers

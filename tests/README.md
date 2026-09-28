@@ -62,6 +62,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_carbon_hhmm.py` | _carbon_hhmm — a UTC forecast slot as local HH:MM, with |
 | `test_change_stamp.py` | Contract tests for the v2.70.0 liveness stamp — the tiny |
 | `test_changed_since.py` | The changedSince ledger policy — ONE implementation (v2.95.1) |
+| `test_charger_mode.py` | Contract test for Plugin.handleChargerMode — the Energy page's |
 | `test_classify_device.py` | Truth-table contract test for Plugin._classify_device — the |
 | `test_closed_prefs.py` | The credential resolution every NON-IndigoSecrets user relies |
 | `test_colour_one_call.mjs` | Contract test for the browser half of the v2.94.0 colour move — |

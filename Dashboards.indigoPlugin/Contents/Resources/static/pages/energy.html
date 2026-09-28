@@ -384,6 +384,10 @@ h1 .dsh-icon {width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;
 .ev-headline{font-size:20px;font-weight:700;margin:2px 0 12px}
 .ev-headline.good{color:var(--on-color)}
 .ev-headline.warn{color:var(--warn)}
+.ev-modes{margin-top:12px;flex-wrap:wrap}
+.ev-modes .chart-tab:disabled{cursor:default}
+.ev-modes .chart-tab:disabled:not(.active){opacity:.45}
+.ev-modes .chart-tab.ev-busy{opacity:1;outline:2px dashed var(--accent,#0a84ff);outline-offset:-2px}
 /* v3.34.0: Today is one column: the solar card, then the day's energy flow. */
 .energy-today{display:flex;flex-direction:column;gap:12px}
 </style>
@@ -2216,6 +2220,36 @@ function renderBattHealth() {
   el.innerHTML = h;
 }
 
+/* v3.57.0: what each charger was last asked for ({mode, sentAt}) and any
+   error to show, keyed by device id. They live outside the card because the
+   20 s poll redraws it. */
+const _evPending = {};
+const _evSaid = {};
+let _evWired = false;
+function _wireChargerButtons(body) {
+  if (_evWired) return;
+  _evWired = true;
+  body.addEventListener('click', async (ev) => {
+    const btn = ev.target.closest('button[data-ev-mode]');
+    if (!btn || btn.disabled) return;
+    const id = Number(btn.dataset.evDev), mode = btn.dataset.evMode;
+    _evPending[id] = { mode, sentAt: Date.now() };
+    delete _evSaid[id];
+    renderCharger();
+    try {
+      await DashUI.message('chargerMode', { deviceId: id, mode });
+      // The Zappi plugin checks the charger about five seconds after a
+      // command; look again then, and once more in case it was slow.
+      setTimeout(refreshDevices, 7000);
+      setTimeout(refreshDevices, 16000);
+    } catch (e) {
+      delete _evPending[id];
+      _evSaid[id] = 'Could not send that: ' + (e && e.message ? e.message : e);
+      renderCharger();
+    }
+  });
+}
+
 /* ════════ car charger (v3.55.0) ════════
    DashCalc.chargerView does the deciding; this only draws it. The card and
    its heading stay hidden unless a Zappi device exists, so a house without
@@ -2235,6 +2269,7 @@ function renderCharger() {
   const title = document.getElementById('ev-title');
   if (title) title.textContent = chargers.length === 1 ? (chargers[0].name || 'Charger') : 'Chargers';
   const now = Date.now();
+  _wireChargerButtons(body);
   body.innerHTML = chargers.map(dev => {
     const v = DashCalc.chargerView(dev, now);
     let h = '<div class="ev-charger">';
@@ -2243,6 +2278,16 @@ function renderCharger() {
     if (v.tiles.length) {
       h += '<div class="mtiles">' + v.tiles.map(x => _bhTile(esc(x.lab), esc(x.val), esc(x.sub), x.cls)).join('') + '</div>';
     }
+    // v3.57.0 mode buttons. The same segmented style as the chart ranges.
+    const mb = DashCalc.chargerModeButtons(v, _evPending[v.id], now);
+    h += '<div class="chart-tabs ev-modes" role="group" aria-label="Charging mode">'
+       + mb.buttons.map(b => '<button type="button" class="chart-tab' + (b.current ? ' active' : '')
+           + (b.busy ? ' ev-busy' : '') + '" data-ev-dev="' + esc(v.id) + '" data-ev-mode="' + esc(b.mode) + '"'
+           + ' aria-pressed="' + (b.current ? 'true' : 'false') + '"' + (b.disabled ? ' disabled' : '') + '>'
+           + esc(b.label) + '</button>').join('')
+       + '</div>';
+    const said = _evSaid[v.id] || mb.note;
+    if (said) h += '<div class="note ev-mode-note" role="status">' + esc(said) + '</div>';
     if (v.note) h += '<div class="note">' + esc(v.note) + '</div>';
     return h + '</div>';
   }).join('');

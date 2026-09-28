@@ -17,9 +17,9 @@
 #              browser for live tiles, and a small HTTP server on port 8177
 #              for the WebRTC signalling and the bootstrap routes. Tiles that
 #              are not live poll the snapshots.
-# Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.56.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
+# Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.57.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
 # Date:        28-09-2026
-# Version:     3.56.0
+# Version:     3.57.0
 #
 # Version history: docs/changelog.md (what each release does, for users) and
 # `git log` (why, for developers). The per-version engineering notes that sat
@@ -103,12 +103,15 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION = "3.56.0"
+PLUGIN_VERSION = "3.57.0"
 
 import logging
 from dash_common import (  # noqa: E402
     as_bool,
     CAMERA_POLL_SECONDS,
+    CHARGER_DEVICE_TYPE,
+    CHARGER_MODES,
+    CHARGER_PLUGIN_ID,
     COLOUR_PRESETS,
     GO2RTC_BIN,
     INDEX_PATH,
@@ -3042,6 +3045,49 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
             except Exception:
                 pass
         return None, None
+
+    def handleChargerMode(self, action, dev=None, callerWaitingForResult=True):
+        """POST /message/com.clives.indigoplugin.dashboards/chargerMode/
+
+        Body: {"deviceId": N, "mode": "fast"|"eco"|"ecoPlus"|"stopped"}
+
+        The Energy page's mode buttons for a car charger (3.57.0). The Indigo
+        HTTP API has no command for another plugin's action, so this checks the
+        request and hands it to the Zappi plugin's own Set Mode action, which
+        stays the one place that talks to the charger and tells its export
+        guard a person chose the mode. waitUntilDone=False: that action only
+        queues the command, and this handler runs on the web server's single
+        dispatch thread, so it must never wait on another plugin."""
+        payload, _reply = self._request_body(action, changes_state=True)
+        if _reply:
+            return _reply
+        try:
+            dev_id = int(payload.get("deviceId"))
+        except (TypeError, ValueError, OverflowError):
+            return self._evo_reply({"ok": False, "error": "deviceId must be a number"}, status=400)
+        mode = str(payload.get("mode") or "").strip()
+        if mode not in CHARGER_MODES:
+            return self._evo_reply({"ok": False, "error": f"unknown mode {mode!r}"}, status=400)
+        if dev_id not in indigo.devices:
+            return self._evo_reply({"ok": False, "error": f"no device {dev_id}"}, status=404)
+        dev = indigo.devices[dev_id]
+        # Only a charger: this must not become a way to fire any plugin's
+        # "setMode" at any device.
+        if dev.pluginId != CHARGER_PLUGIN_ID or dev.deviceTypeId != CHARGER_DEVICE_TYPE:
+            return self._evo_reply({"ok": False, "error": f"{dev.name} is not a car charger"}, status=400)
+        blocked, status = self._device_command_blocked(dev)
+        if blocked:
+            self.logger.warning(f"[Charger] {dev.name}: refused — {blocked}")
+            return self._evo_reply({"ok": False, "device": dev.name, "error": blocked}, status=status)
+        try:
+            indigo.server.getPlugin(CHARGER_PLUGIN_ID).executeAction(
+                "setMode", deviceId=dev.id, props={"mode": mode}, waitUntilDone=False)
+        except Exception as exc:            # noqa: BLE001 — report, never swallow
+            self.logger.warning(f"[Charger] {dev.name}: could not pass on the mode ({exc})")
+            return self._evo_reply({"ok": False, "device": dev.name, "error": str(exc)}, status=502)
+        # 202: accepted and passed on. The charger's own reply comes back as the
+        # device's mode state, which the page watches for.
+        return self._evo_reply({"ok": True, "device": dev.name, "mode": mode}, status=202)
 
     def handleApplyColour(self, action, dev=None, callerWaitingForResult=True):
         """POST /message/com.clives.indigoplugin.dashboards/applyColour/
