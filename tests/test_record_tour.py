@@ -102,8 +102,9 @@ def test_the_hub_energy_card_is_read_as_numbers():
 
 def test_energy_words_say_only_what_the_readings_show():
     w = rt.energy_words(rt.read_energy(HUB))["energy_now"]
-    assert "5.1 kilowatts" in w and "500 watts" in w and "charging the battery" in w
-    assert "55 percent" in w
+    assert "far more than the house needs" in w and "charging the battery" in w
+    assert "55 percent" in w, "54.5% is said as a person rounds it"
+    assert "kilowatt" not in w and "watts" not in w, "figures that move are left to the screen"
     sunset = rt.energy_words({"solar": 0, "home": 0.6, "grid": 0, "grid_mode": "idle",
                               "battery": 0.6, "battery_pct": 70})["energy_now"]
     assert "battery is running the house" in sunset
@@ -111,13 +112,6 @@ def test_energy_words_say_only_what_the_readings_show():
                               "battery": 0.0, "battery_pct": 100})["energy_now"]
     assert "sold to the grid" in export and "charging" not in export
     assert "flowing" in rt.energy_words({})["energy_now"], "unreadable -> no figures at all"
-
-
-def test_power_is_said_as_a_person_says_it():
-    assert rt.say_power(0.488) == "500 watts"
-    assert rt.say_power(1.0) == "1 kilowatt"
-    assert rt.say_power(5.12) == "5.1 kilowatts"
-    assert rt.say_power(3.0) == "3 kilowatts"
 
 
 def test_a_zoom_eases_in_holds_and_eases_out_on_the_page():

@@ -297,14 +297,6 @@ def _kw(num, unit):
     return v / 1000.0 if unit == "W" else v
 
 
-def say_power(kw):
-    """A reading as a person says it: '500 watts', '5.6 kilowatts'."""
-    if kw < 0.95:
-        return f"{int(round(kw * 1000 / 50.0) * 50)} watts"
-    s = f"{round(kw, 1):.1f}".rstrip("0").rstrip(".")
-    return f"{s} kilowatt" + ("" if s == "1" else "s")
-
-
 def read_energy(text):
     """The hub's Energy card, as the page shows it, into numbers."""
     t = " ".join(text.split())
@@ -374,22 +366,26 @@ def energy_words(e):
     exporting = e["grid_mode"].startswith("export") and g > 0.1
     importing = e["grid_mode"].startswith("import") and g > 0.1
     net = s - h + (g if importing else 0) - (g if exporting else 0)
+    # Relations, not kilowatts: a cloud moved the solar from 7.6 to 5.2 kW
+    # while one sentence was being said, and the screen shows the live
+    # figures anyway. The battery's percentage moves slowly enough to name.
+    much = "far more than" if s >= 2 * h else "more than"
     if s >= 0.3 and net > 0.15 and b > 0.1:
         if exporting:
-            now = (f"Right now the roof is making about {say_power(s)}. The house is using {say_power(h)}, "
-                   f"the battery is taking {say_power(b)}, and the rest is being sold to the grid.")
+            now = (f"Right now the sun is making {much} the house needs, so the spare is charging "
+                   f"the battery, at {pct} percent, and the rest is being sold to the grid.")
         else:
-            now = (f"Right now the roof is making about {say_power(s)}. The house needs only {say_power(h)}, "
-                   f"so the rest is charging the battery, which is {pct} percent full.")
+            now = (f"Right now the sun is making {much} the house needs, so the spare is charging "
+                   f"the battery, which is {pct} percent full.")
     elif s >= 0.3 and exporting:
-        now = (f"Right now the roof is making about {say_power(s)}. The battery is at {pct} percent, "
-               f"so the spare {say_power(g)} is being sold to the grid.")
+        now = (f"Right now the sun is making {much} the house needs, and with the battery at "
+               f"{pct} percent, the spare is being sold to the grid.")
     elif s >= 0.3 and net > -0.15:
-        now = (f"Right now the roof is making about {say_power(s)}, which is running the house "
-               f"on its own, with the battery at {pct} percent.")
+        now = (f"Right now the sun is running the house on its own, "
+               f"with the battery at {pct} percent.")
     elif s >= 0.3:
-        now = (f"Right now the roof is making about {say_power(s)} and the house is using {say_power(h)}, "
-               f"so the battery is making up the difference from {pct} percent.")
+        now = (f"Right now the sun is not quite covering what the house needs, so the battery "
+               f"is making up the difference, from {pct} percent.")
     elif b > 0.1 and not importing:
         now = (f"The sun has gone for the day, so the battery is running the house on its own, "
                f"from {pct} percent.")
@@ -764,8 +760,9 @@ class Director:
         await self.cdp.js(f"__tour.moveTo({x}, {y}, {ms})")
         self.pointer = (x, y)
 
-    async def click(self, x, y):
-        await self.cdp.js(f"__tour.ripple({x}, {y})")
+    async def click(self, x, y, ripple=True):
+        if ripple:
+            await self.cdp.js(f"__tour.ripple({x}, {y})")
         for kind in ("mouseMoved", "mousePressed", "mouseReleased"):
             await self.cdp.send("Input.dispatchMouseEvent", type=kind, x=x, y=y,
                                 button="left" if kind != "mouseMoved" else "none",
@@ -789,10 +786,15 @@ class Director:
             await self.move(x, y, opts.get("ms", 650))
             if kind == "press":
                 await asyncio.sleep(0.12)
-                await self.click(x, y)
                 if opts.get("nav"):
-                    seg["cut"] = time.time() - t0 + 0.35
+                    # Freeze BEFORE the click: a frame taken after it may
+                    # already show the next page half drawn.
+                    await self.cdp.js(f"__tour.ripple({x}, {y})")
+                    await asyncio.sleep(0.3)
+                    seg["cut"] = time.time() - t0
+                    await self.click(x, y, ripple=False)
                     return True
+                await self.click(x, y)
         elif kind == "drag":
             spec, pct = rest[0], float(rest[1])
             r = await self.rect(spec, where)
