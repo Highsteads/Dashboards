@@ -24,33 +24,118 @@ spec.loader.exec_module(rt)
 PAGES = ROOT / "Dashboards.indigoPlugin/Contents/Resources/static/pages"
 
 
-def test_every_tour_page_exists_and_every_beat_speaks():
+def test_every_tour_page_exists_and_every_line_is_speakable():
     tour = json.loads((ROOT / "tools/tour.json").read_text(encoding="utf-8"))
     assert tour["segments"]
     for seg in tour["segments"]:
-        page = seg["page"].split("?")[0]
-        assert (PAGES / page).is_file(), f"tour.json names a page that does not exist: {page}"
+        assert ("page" in seg) != ("card" in seg), "a segment is a page or a card"
+        if "page" in seg:
+            page = seg["page"].split("?")[0]
+            assert (PAGES / page).is_file(), f"tour.json names a page that does not exist: {page}"
         assert seg["beats"]
         for beat in seg["beats"]:
-            assert beat["say"].strip()
-            assert beat["say"].isascii(), "the narration is spoken and captioned: keep it ASCII"
-            assert isinstance(beat.get("to", ""), (str, int))
+            said = beat.get("say", "")
+            assert said or beat.get("hold"), "a silent beat needs a hold, or it takes no time"
+            assert said.isascii(), "the narration is spoken and captioned: keep it ASCII"
+            for action in beat.get("do", []):
+                assert action[0] in {"scroll", "point", "press", "drag", "zoom", "unzoom",
+                                     "wait", "label", "hide", "expect"}, action
+
+
+def test_the_live_allow_list_names_only_what_the_tour_presses():
+    tour = json.loads((ROOT / "tools/tour.json").read_text(encoding="utf-8"))
+    assert all(isinstance(i, int) for i in tour["allow"])
+    assert tour.get("allow_messages", []) == [], "no plugin message is a tour action"
 
 
 def test_plan_lays_every_beat_on_one_clock(monkeypatch, tmp_path):
     lengths = iter([2.0, 3.0, 1.5])
     monkeypatch.setattr(rt, "speak", lambda text, path, voice, rate: next(lengths))
     tour = {"segments": [
-        {"page": "index.html", "beats": [{"say": "a"}, {"say": "b", "to": "Energy"}]},
-        {"page": "menu.html", "beats": [{"say": "c"}]},
+        {"page": "index.html", "beats": [{"say": "a"}, {"say": "b {x}", "hold": 5}]},
+        {"page": "menu.html", "beats": [{"say": "", "hold": 2}, {"say": "c"}]},
     ]}
-    segs, total = rt.plan(tour, str(tmp_path), "Daniel", 178)
+    segs, total = rt.plan(tour, str(tmp_path), "Daniel", 178, {"x": "y"})
     a, b = segs[0]["beats"]
+    assert b["say"] == "b y", "live words are filled in before speaking"
     assert a["start"] == rt.LEAD_IN
     assert b["start"] == rt.LEAD_IN + 2.0 + rt.BEAT_GAP
-    assert segs[0]["length"] == b["start"] + 3.0 + rt.TAIL
+    assert b["span"] == 5, "a hold longer than the sentence sets the beat"
+    assert segs[0]["length"] == b["start"] + 5 + rt.TAIL
+    silent, c = segs[1]["beats"]
+    assert silent["audio"] is None and silent["span"] == 2
+    assert c["start"] == rt.LEAD_IN + 2, "no gap is left after a silent beat"
     assert segs[1]["offset"] == segs[0]["length"]
     assert total == segs[0]["length"] + segs[1]["length"]
+
+
+def test_the_guard_refuses_every_command_in_a_rehearsal():
+    g = rt.Guard(live=False, allow_ids=[5])
+    body = json.dumps({"message": "indigo.device.turnOn", "objectId": 5}).encode()
+    assert g.check("/v2/api/command", body)[:2] == (True, False)
+    assert g.check("/message/com.x.dashboards/applyColour/", b"{}")[:2] == (True, False)
+    assert g.check("/message/com.x.dashboards/changedSince/", b"{}") == (False, True, "")
+    assert g.check("/v2/api/indigo.devices", b"") == (False, True, "")
+
+
+def test_a_live_take_lets_through_only_the_listed_ids():
+    g = rt.Guard(live=True, allow_ids=[5])
+    ok = json.dumps({"message": "indigo.device.turnOn", "objectId": 5}).encode()
+    other = json.dumps({"message": "indigo.device.unlock", "objectId": 6}).encode()
+    assert g.check("/v2/api/command", ok)[:2] == (True, True)
+    assert g.check("/v2/api/command", other)[:2] == (True, False)
+    assert g.check("/v2/api/command", b"not json")[:2] == (True, False)
+    assert g.check("/message/com.x.dashboards/unknownWrite/", b"{}")[:2] == (True, False), \
+        "an unknown plugin message counts as a command, and is refused"
+
+
+HUB = ("ENERGY \u00b7 NOW INVERTER SOLAR 5.12 kW today 11.3 kWh GRID 13 W Idle HOME 488 W today "
+       "9.1 kWh BATTERY 4.65 kW 54.5% \u00b7 19.1 kWh Now Self-consumption Self-sufficient 61%")
+
+
+def test_the_hub_energy_card_is_read_as_numbers():
+    e = rt.read_energy(HUB)
+    assert e["solar"] == 5.12 and e["home"] == 0.488 and e["grid"] == 0.013
+    assert e["grid_mode"] == "idle" and e["battery"] == 4.65 and e["battery_pct"] == 54.5
+    assert e["self_sufficiency"] == 61
+
+
+def test_energy_words_say_only_what_the_readings_show():
+    w = rt.energy_words(rt.read_energy(HUB))["energy_now"]
+    assert "5.1 kilowatts" in w and "500 watts" in w and "charging the battery" in w
+    assert "55 percent" in w
+    sunset = rt.energy_words({"solar": 0, "home": 0.6, "grid": 0, "grid_mode": "idle",
+                              "battery": 0.6, "battery_pct": 70})["energy_now"]
+    assert "battery is running the house" in sunset
+    export = rt.energy_words({"solar": 6, "home": 0.5, "grid": 5.4, "grid_mode": "exporting",
+                              "battery": 0.0, "battery_pct": 100})["energy_now"]
+    assert "sold to the grid" in export and "charging" not in export
+    assert "flowing" in rt.energy_words({})["energy_now"], "unreadable -> no figures at all"
+
+
+def test_power_is_said_as_a_person_says_it():
+    assert rt.say_power(0.488) == "500 watts"
+    assert rt.say_power(1.0) == "1 kilowatt"
+    assert rt.say_power(5.12) == "5.1 kilowatts"
+    assert rt.say_power(3.0) == "3 kilowatts"
+
+
+def test_a_zoom_eases_in_holds_and_eases_out_on_the_page():
+    z = [{"t0": 1.0, "t1": 4.0, "cx": 200, "cy": 150, "s": 1.5}]
+    assert rt.zoom_at(z, 0.5, 1280, 720) == (1.0, 640, 360)
+    s, cx, cy = rt.zoom_at(z, 3.0, 1280, 720)
+    assert s == 1.5 and (cx, cy) == (200, 150)
+    assert 1.0 < rt.zoom_at(z, 1.3, 1280, 720)[0] < 1.5
+    assert rt.zoom_at(z, 4.0 + rt.ZOOM_RAMP + 0.01, 1280, 720)[0] == 1.0
+    x0, y0, x1, y1 = rt.crop_box(1.5, 200, 150, 1280, 720)
+    assert (x0, y0) == (0, 0), "a zoom near the corner stays on the page"
+    assert round(x1 - x0, 6) == round(1280 / 1.5, 6)
+
+
+def test_every_cut_dips_at_both_ends():
+    assert rt.fade_at(0, 10) == 1.0
+    assert rt.fade_at(5, 10) == 0.0
+    assert rt.fade_at(10, 10) == 1.0
 
 
 class _FakeCDP:
@@ -132,3 +217,20 @@ def test_the_relay_carries_the_camera_handshake_and_nothing_else():
     finally:
         relay.shutdown()
         up.shutdown()
+
+
+def test_live_lines_are_rewritten_inside_their_slots(monkeypatch, tmp_path):
+    rates = []
+
+    def fake_speak(text, path, voice, rate):
+        rates.append(rate)
+        return 9.0 if rate == 178 else 7.5         # too long at the normal pace
+    monkeypatch.setattr(rt, "speak", fake_speak)
+    seg = {"beats": [{"template": "Now {energy_now}", "say": "Now old", "span": 8.0, "dur": 6.0},
+                     {"template": "plain", "say": "plain", "span": 3.0, "dur": 3.0}]}
+    notes = rt.respeak(seg, {"energy_now": "new"}, "Daniel", 178, str(tmp_path))
+    live, plain = seg["beats"]
+    assert live["say"] == "Now new" and live["dur"] == 7.5 and live["span"] == 8.0
+    assert rates[0] == 178 and rates[1] > 178, "a line that no longer fits is said faster"
+    assert plain["dur"] == 3.0 and len(rates) == 2, "a line with nothing live is left alone"
+    assert notes == []

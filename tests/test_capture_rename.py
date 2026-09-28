@@ -65,3 +65,25 @@ def test_macs_are_rewritten_and_checked():
     assert b"12:30:45" in out, "a time is not a MAC"
     assert s.mac_residue(out) == []
     assert s.mac_residue(b"aa:bb:cc:dd:ee:ff") == ["aa:bb:cc:dd:ee:ff"]
+
+
+def test_the_houses_public_address_is_rewritten_too():
+    # The Wi-Fi page shows the internet address; v1.4 left public addresses
+    # alone and wifi.png published it.
+    s = cap.Sanitiser()
+    out = s.scrub(b'{"wan": "81.2.69.160", "lan": "192.168.1.5", "me": "127.0.0.1"}')
+    assert b"81.2.69.160" not in out and b"192.168.1.5" not in out
+    assert b"127.0.0.1" in out, "loopback stays, or the page cannot reach its proxy"
+    assert s.residue(out) == []
+    assert s.residue(b"81.2.69.160") == ["81.2.69.160"], "a public address that survives is a leak"
+    assert s.scrub(b"192.0.2.9") == b"192.0.2.9", "a documentation address is left as it is"
+
+
+def test_every_real_address_gets_its_own_fake_one():
+    # Four subnets onto three documentation nets: counting hosts per real
+    # subnet gave the fourth subnet's first host the first subnet's address.
+    s = cap.Sanitiser()
+    reals = ["192.168.1.1", "192.168.2.1", "10.0.0.1", "81.2.69.160", "192.168.1.2"]
+    fakes = [s.scrub(r.encode()).decode() for r in reals]
+    assert len(set(fakes)) == len(reals), fakes
+    assert all(s.reverse[f] == r for f, r in zip(fakes, reals))

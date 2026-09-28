@@ -7,7 +7,9 @@
 #              network config.
 # Author:      CliveS & Claude Sonnet 5
 # Date:        10-09-2026
-# Version:     1.4 (a name joined to the next word by "_" is renamed too)
+# Version:     1.5 (public addresses are rewritten too: the Wi-Fi page shows
+#              the house's own internet address)
+#              1.4 (a name joined to the next word by "_" is renamed too)
 #              1.3 (--rename OLD=NEW for people's names; MACs rewritten; header
 #              lookup made case-insensitive — API replies were never being scrubbed)
 #
@@ -127,9 +129,15 @@ class Sanitiser:
     """Maps each real private address to a stable documentation address.
 
     One documentation net per real /24, so a capture that shows cameras on one
-    subnet and IoT kit on another still reads that way. Public addresses are
-    left alone: they are not the estate's to leak, and rewriting them would
-    make an unrelated screenshot wrong.
+    subnet and IoT kit on another still reads that way.
+
+    Public addresses are rewritten too (v1.5). They used to be left alone on
+    the grounds that they were not the estate's to leak, but the Wi-Fi page
+    shows the house's own internet address, and it reached the published
+    wifi.png. Anything that looks like an address and is private or global is
+    rewritten; loopback is kept so the page can reach its own proxy. The cost
+    is that a four-part version number such as 7.0.23.1 would be rewritten as
+    well, which is a wrong picture rather than a leak.
     """
 
     def __init__(self, renames=None):
@@ -153,9 +161,13 @@ class Sanitiser:
         net = real.rsplit(".", 1)[0]
         if net not in self._nets:
             self._nets[net] = DOC_NETS[len(self._nets) % len(DOC_NETS)]
-            self._hosts[net] = 0
-        self._hosts[net] += 1
-        fake = f"{self._nets[net]}{self._hosts[net]}"
+        # Hosts are counted per DOCUMENTATION net, not per real one (v1.5).
+        # A fourth real subnet shares a documentation net with the first, and
+        # counting per real subnet handed both the same fake address — the
+        # house's internet address and the Indigo server both became .1.
+        doc = self._nets[net]
+        self._hosts[doc] = self._hosts.get(doc, 0) + 1
+        fake = f"{doc}{self._hosts[doc]}"
         self.map[real] = fake
         self.reverse[fake] = real
         return fake
@@ -167,8 +179,10 @@ class Sanitiser:
         except ValueError:
             return m.group(0)
         # Leave loopback alone or the page cannot talk to its own proxy.
-        if addr.is_loopback or not addr.is_private:
+        if addr.is_loopback or not (addr.is_private or addr.is_global):
             return m.group(0)
+        if any(raw.startswith(n) for n in DOC_NETS):
+            return m.group(0)                      # already one of ours
         return self._fake_for(raw).encode()
 
     def _mac(self, m):
@@ -216,7 +230,7 @@ class Sanitiser:
                 addr = ipaddress.ip_address(raw)
             except ValueError:
                 continue
-            if addr.is_loopback or not addr.is_private:
+            if addr.is_loopback or not (addr.is_private or addr.is_global):
                 continue
             if any(raw.startswith(n) for n in DOC_NETS):
                 continue                           # one of ours

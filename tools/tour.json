@@ -1,57 +1,193 @@
 {
-  "about": "The narrated tour recorded by tools/record_tour.py. Each segment is one page; each beat is what is said while the page scrolls to 'to' (the first words of a heading a viewer can read). Record in daylight, when the solar and battery flows are moving.",
-  "poster_at": 2.5,
+  "about": "The narrated tour recorded by tools/record_tour.py. Each segment is a page or a title card; each beat is a sentence and what is done while it is spoken. {energy_now} and {self_sufficiency} are written from the live readings when the take starts. Record in daylight, when the solar and battery flows are moving. 'allow' lists the only device and action-group ids a --live take may command; 'preflight' is the state the house must be in before a --live take.",
+  "poster_at": 3.0,
+  "allow": [1463818396, 780532115, 372666822, 515728864, 614164061],
+  "allow_messages": [],
+  "preflight": {
+    "garage door": {"page": "index.html", "spec": {"sel": "button.fav-tile", "has": "Garage"}, "text": "closed"},
+    "colour lamp": {"page": "room.html?room=Living%20Room", "spec": {"within": {"sel": ".light-card", "has": "Colour Lamp"}, "sel": "label.toggle"}, "checked": false},
+    "display lights": {"page": "room.html?room=Living%20Room", "spec": {"within": {"sel": ".light-card", "has": "Display Lights"}, "sel": "label.toggle"}, "checked": false}
+  },
   "segments": [
     {
+      "card": {
+        "kicker": "A tour of a real house",
+        "title": "Dashboards for Indigo",
+        "subtitle": "Energy, cameras, heating and every room, in any browser. No app to install, no cloud account.",
+        "chips": ["Energy", "Cameras", "Heating", "Every room", "Alerts"]
+      },
+      "beats": [
+        {"say": "Dashboards for Indigo. Here is a look round a real house. Everything you see is live, and every press is real."}
+      ]
+    },
+    {
       "page": "index.html",
+      "label": "The hub",
+      "start": "top",
       "beats": [
         {"say": "This is the hub, the page that lives on the wall tablet. It answers one question first: is the house all right?"},
-        {"say": "The pills under the greeting say who is home, how many radiators are calling for heat, and whether anything needs a look."},
-        {"to": "Favourites", "say": "Favourites are one-tap tiles: a light, a scene, a door, or simply a reading, such as the car's battery."},
-        {"to": "Energy · Now", "say": "Below the cameras is the power flow. Dots run along each line in the direction the power is going, and faster when there is more of it."},
-        {"to": "Today", "say": "Then today's totals, what the solar has saved in pounds, and the weather station."}
+        {"say": "The pills say who is home, how many radiators are calling for heat, and whether anything needs a look.",
+         "do": [["point", {"sel": "#attention-chip"}, {"ms": 900}]]},
+        {"say": "Favourites are one-tap tiles. Press the garage door,",
+         "do": [["scroll", {"sel": "button.fav-tile", "has": "Garage"}, 150],
+                ["press", {"sel": "button.fav-tile", "has": "Garage"}],
+                ["zoom", {"sel": "button.fav-tile", "has": "Garage"}, 1.5]]},
+        {"say": "and the tile turns blue and counts the seconds while the door moves.", "hold": 6},
+        {"say": "It turns red once the door is fully open, and the live camera strip shows it happening.",
+         "do": [["unzoom"], ["point", {"sel": "a.home-cam", "title": "Garage"}, {"ms": 900}]], "hold": 7},
+        {"say": "", "hold": 0.4, "do": [["expect", {"sel": "button.fav-tile", "has": "Garage"}, "open"]]}
       ]
     },
     {
-      "page": "energy.html",
+      "page": "room.html?room=Garage",
+      "label": "Garage",
+      "start": "top",
       "beats": [
-        {"say": "The Energy page tells the whole story. Live power at the top, with self-sufficiency, solar and the battery underneath."},
-        {"to": "Generation & forecast", "say": "Each hour's solar is split by roof, and measured against a dashed mark for what the forecast promised."},
-        {"to": "Today's energy flow", "say": "This shows where every kilowatt hour since midnight came from, and where it went."},
-        {"to": "When to run it", "say": "And When to run it plans the washing around the sun and the battery, and shows when the grid is at its cleanest."}
+        {"say": "Every room has its own page. The garage has its cameras, and the door, which is open now.",
+         "do": [["point", {"sel": ".camera-card", "nth": 2}, {"ms": 900}]]},
+        {"say": "Press to close, and the tile follows the door all the way down.",
+         "do": [["press", {"sel": "button.door-btn"}]]},
+        {"say": "It goes quiet again once the sensors say the door is shut.", "hold": 10},
+        {"say": "", "hold": 1.8,
+         "do": [["expect", {"sel": "button.door-btn"}, "open"],
+                ["press", {"sel": "a.nav-btn", "has": "Home"}, {"nav": true}]]}
       ]
     },
     {
-      "page": "heating.html",
+      "page": "index.html",
+      "start": {"sel": "a.home-cam", "title": "Garage"},
+      "start_offset": 320,
+      "lead_in": 0.4,
+      "tail": 0.3,
       "beats": [
-        {"say": "Heating shows every radiator in the house at once, with a boost for the whole house at the top."},
-        {"to": "Hall Kitchen Radiator", "say": "Each zone has its temperature and a setpoint you can step up or down. A cold room turns blue, a warm one amber."}
+        {"say": "Tap any camera on the hub,", "hold": 1.8,
+         "do": [["press", {"sel": "a.home-cam", "title": "Garage"}, {"nav": true}]]}
+      ]
+    },
+    {
+      "page": "cameras.html",
+      "label": "Cameras",
+      "start": "top",
+      "beats": [
+        {"say": "and the Cameras page opens with every camera playing live."},
+        {"say": "The big picture follows whichever one you tap. Tap the front door, and it swaps to the top.",
+         "do": [["scroll", {"sel": "div.cam", "has": "Front Door"}, 330],
+                ["press", {"sel": "div.cam", "has": "Front Door"}],
+                ["wait", 0.9],
+                ["scroll", "top"]], "hold": 6},
+        {"say": "", "hold": 1.8, "do": [["press", {"sel": "a.nav-btn", "has": "Home"}, {"nav": true}]]}
+      ]
+    },
+    {
+      "page": "index.html",
+      "start": "top",
+      "lead_in": 0.4,
+      "beats": [
+        {"say": "Further down the hub are the power flow, today's solar and the weather station. More on the energy in a moment.",
+         "to": {"sel": "#energy-detail"}, "offset": 80},
+        {"say": "Rooms lists every room in the house.", "hold": 3.4,
+         "do": [["scroll", "bottom"], ["press", {"sel": "a.card-room"}, {"nav": true}]]}
+      ]
+    },
+    {
+      "page": "menu.html?g=rooms",
+      "lead_in": 0.3,
+      "tail": 0.3,
+      "beats": [
+        {"say": "", "hold": 2.2, "do": [["press", {"sel": "a[href*='room=Living']"}, {"nav": true}]]}
       ]
     },
     {
       "page": "room.html?room=Living%20Room",
+      "label": "Living room",
+      "start": "top",
       "beats": [
-        {"say": "Every room has its own page, built from its folder in Indigo. Lights with dimmers and colour scenes, then the television and speakers."},
-        {"to": "Motion", "say": "Below them, the motion sensors, the room's radiators, and its windows and doors."}
+        {"say": "In the living room, switch the colour lamp on,", "hold": 3,
+         "do": [["zoom", {"sel": ".light-card", "has": "Colour Lamp"}, 1.5],
+                ["press", {"within": {"sel": ".light-card", "has": "Colour Lamp"}, "sel": "label.toggle"}]]},
+        {"say": "and slide it down to half brightness.", "hold": 3,
+         "do": [["wait", 0.5], ["drag", {"sel": "input.brightness", "title": "Colour Lamp brightness"}, 50]]},
+        {"say": "All On switches on every light in the group, and that includes the fire.", "hold": 4,
+         "do": [["unzoom"], ["wait", 0.8], ["press", {"sel": "button[onclick='toggleLights()']"}]]},
+        {"say": "The main light is left out of the group on purpose, so it keeps its own switch.",
+         "do": [["point", {"sel": ".light-card", "has": "Main Light"}, {"ms": 800}]]},
+        {"say": "And All Off puts them all out again.", "hold": 3,
+         "do": [["press", {"sel": "button[onclick='toggleLights()']"}]]}
       ]
     },
     {
-      "page": "menu.html",
+      "page": "heating.html",
+      "label": "Heating",
+      "start": "top",
       "beats": [
-        {"say": "The menu holds the rest: cameras, scenes, a timeline that replays any day, the cost of it all, alerts and Wi-Fi."}
+        {"say": "Heating shows every radiator with its temperature and its setpoint, and a boost for the whole house at the top.",
+         "do": [["point", {"sel": "button", "has": "+2"}, {"ms": 900}]]},
+        {"say": "We are still in summer mode here, so every radiator is held at eight degrees. The boost comes into its own once the heating is needed again.",
+         "do": [["hide"], ["zoom", "Bathroom Radiator", 1.4]]}
       ]
     },
     {
-      "page": "system-health.html",
+      "page": "energy.html",
+      "label": "Energy",
+      "live_words": true,
+      "start": "Live power flow",
+      "start_offset": 84,
       "beats": [
-        {"say": "And System answers the other question: is the server itself all right? Disk, memory, load and plugins."},
-        {"to": "Devices", "say": "A device in error, or a battery running low, is named, so you know exactly what to go and fix."}
+        {"say": "{energy_now}", "hold": 10},
+        {"say": "The dots show which way the power is going, and they speed up as more of it flows.",
+         "do": [["point", {"sel": "section.card.hero"}, {"fx": 0.5, "fy": 0.4, "ms": 900}]]},
+        {"say": "Underneath are {self_sufficiency}, the solar against today's forecast, what it has saved in pounds, and the battery's charge.", "hold": 11,
+         "do": [["hide"], ["scroll", {"sel": ".hero-stats"}, 330], ["zoom", {"sel": ".hs-tile"}, 1.5]]},
+        {"say": "Each hour's solar is split by roof, and set against a dashed mark for what the forecast promised. The pale bars are the hours still to come.",
+         "do": [["unzoom"], ["wait", 0.7], ["scroll", "Generation & forecast", 84]]},
+        {"say": "The battery section shows what it is doing now, its last day as a line, and its health, down to the temperature and balance of the cells.",
+         "do": [["scroll", "State & health", 110]]},
+        {"say": "And When to run it plans the washing around the sun and the battery.",
+         "do": [["scroll", "When to run it", 84]]}
       ]
     },
     {
-      "page": "index.html",
+      "page": "scenes.html",
+      "label": "Scenes",
+      "start": "top",
       "beats": [
-        {"say": "It all runs from Indigo's own web server, in any browser. No app to install, no cloud account, and nothing leaving the house."}
+        {"say": "Scenes puts every Indigo action group on a button, grouped by folder.", "to": 240}
+      ]
+    },
+    {
+      "page": "alerts.html",
+      "label": "Alerts",
+      "start": "top",
+      "beats": [
+        {"say": "Alerts gathers the errors in Indigo's log, and lets you add your own rules, sent by Pushover or email.", "to": 200}
+      ]
+    },
+    {
+      "page": "wifi.html",
+      "label": "WiFi",
+      "start": "top",
+      "beats": [
+        {"say": "WiFi shows every access point and every client, and flags a crowded channel or an old device slowing the rest down.", "to": 260}
+      ]
+    },
+    {
+      "page": "mains.html",
+      "label": "Mains",
+      "start": "top",
+      "beats": [
+        {"say": "And Mains lists every meter in the house, with how far they disagree with each other and with the inverter.", "to": 240}
+      ]
+    },
+    {
+      "card": {
+        "kicker": "Free and open source",
+        "title": "Dashboards for Indigo",
+        "subtitle": "Take the parts that suit your house, and leave the rest.",
+        "foot": "<b>highsteads.github.io/Dashboards</b>"
+      },
+      "tail": 1.8,
+      "beats": [
+        {"say": "Dashboards is free and open source. Take the parts that suit your house, and leave the rest."}
       ]
     }
   ]
