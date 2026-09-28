@@ -37,6 +37,15 @@ insulation resistance shown with no verdict because the manufacturer's threshold
 the inverter's own alarm state, cell voltage, and today's charge and discharge. A tile that cannot
 know does not appear. The dawn reserve is on the Manager card.
 
+**Car charger** (from 3.55.0, only when Indigo has a myenergi Zappi from the Zappi plugin). The
+charger's own status line, then tiles for the car (unplugged, plugged in, charging, charge
+complete or a fault), the mode (Fast, Eco, Eco+ or Stopped), the power going into the car, what
+this session has added, and the export guard. When the guard has stopped the charger because the
+house battery is selling to the grid, the card says so and names the mode it goes back to. If
+myenergi cannot reach the charger, or it has not reported for ten minutes, the card says which
+and shows no readings, because an old "charging at 7 kW" is worse than none. With two chargers,
+each gets its own block under its name.
+
 **Money.** Saved today from solar and battery against what a grid-only day would have cost, with
 import paid, export earned and net grid, and a link across to the [Cost](cost.md) page for the full
 breakdown. Energy only: standing charges and gas live on the Cost page.
@@ -103,6 +112,9 @@ SigenEnergyManager's data API. It is a proxy rather than a direct call so the pa
 home as well as on the LAN — the browser never needs to reach the energy plugin itself. The path is
 allow-listed and the upstream host is fixed.
 
+The car charger card reads the Zappi device straight from Indigo, on the same 20-second device
+poll as the battery tiles.
+
 The When to run it card reads `laundryPlan` (and `laundryDeadline` for a chip) and `carbonAdvisor`,
 which caches the carbon data for ten minutes server-side. The stacked hourly chart is the other
 exception: it reads `solarStringHours`, which integrates per-hour
@@ -112,7 +124,7 @@ no samples so the page falls back rather than inventing zeros.
 ## Refresh
 
 - Live flow and status every 5 s.
-- Charts and summaries every 20 s.
+- Charts and summaries every 20 s, and the car charger card with them.
 - Half-hourly history every 5 minutes.
 - Daily totals every 30 minutes.
 - Through the day every 30 minutes (the patterns change once a day).

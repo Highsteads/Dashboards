@@ -378,6 +378,12 @@ h1 .dsh-icon {width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;
 #when-card .mixrow .mf{height:100%;border-radius:5px}
 #when-card .mixrow .mv{width:44px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
 #when-card .note{font-size:11.5px;color:var(--text-muted);margin-top:8px;line-height:1.5}
+/* v3.55.0 car charger card */
+.ev-charger + .ev-charger{margin-top:16px;padding-top:14px;border-top:1px solid var(--separator,rgba(128,128,128,.2))}
+.ev-name{font-size:13px;font-weight:600;margin:0 0 4px;color:var(--text-secondary)}
+.ev-headline{font-size:20px;font-weight:700;margin:2px 0 12px}
+.ev-headline.good{color:var(--on-color)}
+.ev-headline.warn{color:var(--warn)}
 /* v3.34.0: Today is one column: the solar card, then the day's energy flow. */
 .energy-today{display:flex;flex-direction:column;gap:12px}
 </style>
@@ -534,6 +540,13 @@ h1 .dsh-icon {width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;
     </section>
 
   </div>
+
+  <!-- ═══ CAR CHARGER (v3.55.0) — only when the Zappi plugin has a device ═══ -->
+  <div class="sec-label" id="ev-label" style="display:none">Car charger</div>
+  <section class="card" id="ev-card" style="display:none">
+    <h2 data-help-title="Car charger" data-help="The myenergi Zappi, as the Zappi plugin reports it: whether a car is plugged in, the charging mode, the power going into the car and what this session has added. The export guard stops the charger in Eco and Eco+ while the house battery is selling to the grid, so the car never soaks up energy the tariff is paying for, and puts it back when the export ends. Readings are held back when the charger has not reported for ten minutes."><span id="ev-title">Charger</span></h2>
+    <div id="ev-body"></div>
+  </section>
 
   <!-- ═══ MONEY ═══ -->
   <div class="sec-label">Money</div>
@@ -2117,6 +2130,8 @@ async function refreshDevices() {
     const data = await window._energyIndigo.getDevices();
     window.__DEVICES = Array.isArray(data) ? data : (data.devices || []);
     renderBattHealth();
+    // Its own try: a fault drawing one card must not blank the other.
+    try { renderCharger(); } catch (e) { console.warn('car charger card:', e); }
     if (_lastStatus) {
       const inv = _findInverter();
       if (inv) {
@@ -2199,6 +2214,34 @@ function renderBattHealth() {
   h += _bhTile('Charged today', chg == null ? '—' : chg.toFixed(1) + ' kWh', 'into battery');
   h += _bhTile('Discharged today', dis == null ? '—' : dis.toFixed(1) + ' kWh', 'from battery');
   el.innerHTML = h;
+}
+
+/* ════════ car charger (v3.55.0) ════════
+   DashCalc.chargerView does the deciding; this only draws it. The card and
+   its heading stay hidden unless a Zappi device exists, so a house without
+   the plugin never sees an empty card. */
+function renderCharger() {
+  const card = document.getElementById('ev-card'), label = document.getElementById('ev-label');
+  const body = document.getElementById('ev-body');
+  if (!card || !body) return;
+  const chargers = DashCalc.chargerDevices(window.__DEVICES);
+  card.style.display = label.style.display = chargers.length ? '' : 'none';
+  if (!chargers.length) return;
+  // One charger: its own name is the card's title. Several: each block is named.
+  const title = document.getElementById('ev-title');
+  if (title) title.textContent = chargers.length === 1 ? (chargers[0].name || 'Charger') : 'Chargers';
+  const now = Date.now();
+  body.innerHTML = chargers.map(dev => {
+    const v = DashCalc.chargerView(dev, now);
+    let h = '<div class="ev-charger">';
+    if (chargers.length > 1) h += '<h3 class="ev-name">' + esc(v.name) + '</h3>';
+    h += '<div class="ev-headline' + (v.tone ? ' ' + v.tone : '') + '">' + esc(v.headline) + '</div>';
+    if (v.tiles.length) {
+      h += '<div class="mtiles">' + v.tiles.map(x => _bhTile(esc(x.lab), esc(x.val), esc(x.sub), x.cls)).join('') + '</div>';
+    }
+    if (v.note) h += '<div class="note">' + esc(v.note) + '</div>';
+    return h + '</div>';
+  }).join('');
 }
 
 /* ════════ boot ════════ */

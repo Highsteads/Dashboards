@@ -7,7 +7,9 @@
  *              can drive it directly.
  * Author:      CliveS & Claude Opus 5 (v1.0); Claude Fable 5 (v1.1-1.2)
  * Date:        13-08-2026
- * Version:     1.6 (dayPattern + dayPatternCaption — the Energy page's
+ * Version:     1.7 (chargerDevices + chargerView — the Energy page's car
+ *              charger card, from the Zappi plugin, Dashboards 3.55.0)
+ *              prior 1.6 (dayPattern + dayPatternCaption — the Energy page's
  *              "through the day" card, from SigenEnergyManager 5.122.0)
  *              prior 1.5 (savingSessions — ONE Octopus Saving Session decision
  *              for the Energy page's alert bar and the hub's energy card),
@@ -910,6 +912,111 @@
     return out;
   }
 
+  /* ── car charger (v1.7, Dashboards 3.55.0) ──
+     The Zappi plugin (com.clives.indigoplugin.zappi) writes one device per
+     charger. These turn that device into what the Energy page shows. The
+     device's own `status` line is the headline: the plugin owns that wording,
+     so the page never words the same fact a second way. Everything else is
+     withheld when the charger is not reachable or its last report is old —
+     a device state is a last known value, and a stale "Charging 7 kW" is
+     worse than a dash. */
+
+  var CHARGER_PLUGIN = 'com.clives.indigoplugin.zappi';
+  var CHARGER_STALE_MS = 10 * 60 * 1000;   // the plugin checks at least once a minute
+  var PLUG_WORDS = { unplugged: 'Unplugged', connected: 'Plugged in', waiting: 'Waiting for the car',
+                     ready: 'Ready to charge', charging: 'Charging', fault: 'Fault' };
+  var CHARGE_WORDS = { paused: 'paused', charging: 'charging', boosting: 'boosting', complete: 'charge complete' };
+  var MODE_WORDS = { fast: 'Fast', eco: 'Eco', ecoPlus: 'Eco+', stopped: 'Stopped' };
+  var MODE_SUBS = { fast: 'full power', eco: 'surplus, topped up', ecoPlus: 'surplus only', stopped: 'not charging' };
+
+  function chargerDevices(devices) {
+    return (devices || []).filter(function (d) {
+      return d && d.pluginId === CHARGER_PLUGIN && d.deviceTypeId === 'zappi' && d.enabled !== false;
+    }).sort(function (a, b) { return String(a.name).localeCompare(String(b.name)); });
+  }
+
+  /* The v2 API can hand a custom bool back as the STRING "False", which is
+     truthy — compare as text. */
+  function stateTrue(v) {
+    return v === true || String(v).toLowerCase() === 'true';
+  }
+
+  /* 'YYYY-MM-DD HH:MM:SS' in the Indigo server's local time -> ms, or null. */
+  function localStamp(text) {
+    var m = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/.exec(String(text || '').trim());
+    if (!m) return null;
+    return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]).getTime();
+  }
+
+  function words(map, key) {
+    if (key === undefined || key === null || key === '') return '—';
+    return map[key] || ('"' + key + '"');     // a value added later shows, never vanishes
+  }
+
+  function chargerView(dev, nowMs) {
+    var st = (dev && dev.states) || {};
+    var view = { id: dev && dev.id, name: (dev && dev.name) || 'Car charger',
+                 headline: String(st.status || '—'), tone: '', note: '', tiles: [], live: false };
+    var err = String((dev && dev.errorState) || '');
+    var reported = localStamp(st.lastReport);
+    var age = reported === null ? null : (nowMs - reported);
+
+    if (err || !stateTrue(st.online)) {
+      view.tone = 'warn';
+      view.headline = err === 'login refused' ? 'myenergi refused the login'
+                                              : 'Not reachable through myenergi';
+      view.note = 'The readings are held back until the charger answers again.';
+      return view;
+    }
+    if (age === null || age > CHARGER_STALE_MS) {
+      view.tone = 'warn';
+      view.headline = 'No recent report from the charger';
+      view.note = age === null ? 'It has not reported a time yet.'
+                               : 'The last report was ' + Math.round(age / 60000) + ' minutes ago, so the readings are held back.';
+      return view;
+    }
+
+    view.live = true;
+    var plug = st.plugState, mode = st.mode, guard = st.guardState;
+    var charging = st.chargeState === 'charging' || st.chargeState === 'boosting';
+    var watts = num(st.chargePowerW);
+    var session = num(st.sessionKwh);
+
+    view.tiles.push({ lab: 'Car', val: words(PLUG_WORDS, plug),
+                      sub: plug === 'unplugged' ? 'nothing connected' : words(CHARGE_WORDS, st.chargeState),
+                      cls: plug === 'fault' ? 'warn' : (charging ? 'good' : '') });
+    view.tiles.push({ lab: 'Mode', val: words(MODE_WORDS, mode),
+                      sub: guard === 'paused' ? 'held by the export guard' : (MODE_SUBS[mode] || ''), cls: '' });
+    view.tiles.push({ lab: 'Into the car', val: (charging && watts) ? fmtKw(watts) : 'Not charging',
+                      sub: 'charging power', cls: (charging && watts) ? 'good' : '' });
+    view.tiles.push({ lab: 'This session', val: session === null ? '—' : fmtKwh(session),
+                      sub: 'charge added', cls: '' });
+
+    var g = { lab: 'Export guard', val: '—', sub: '', cls: '' };
+    if (guard === 'paused') {
+      g.val = 'Paused'; g.cls = 'warn';
+      g.sub = st.guardPausedFrom ? 'back to ' + words(MODE_WORDS, st.guardPausedFrom) + ' after the export' : 'until the export ends';
+    } else if (guard === 'arming') {
+      g.val = 'About to pause'; g.sub = 'the battery is exporting';
+    } else if (guard === 'exporting') {
+      g.val = 'Battery exporting'; g.sub = 'nothing to pause';
+    } else if (guard === 'watching') {
+      g.val = 'Watching'; g.sub = 'battery not exporting'; g.cls = 'good';
+    } else if (guard === 'unknown') {
+      g.val = 'No reading'; g.sub = 'cannot read the battery'; g.cls = 'warn';
+    } else if (guard === 'off') {
+      g.val = 'Off'; g.sub = 'not switched on';
+    } else {
+      g.val = words({}, guard);
+    }
+    view.tiles.push(g);
+
+    if (plug === 'fault') { view.tone = 'warn'; view.note = 'The charger is reporting a fault. The myenergi app has the detail.'; }
+    else if (guard === 'paused') { view.tone = 'warn'; view.note = 'The house battery is selling to the grid, so the charger is stopped until that ends.'; }
+    else if (charging) { view.tone = 'good'; }
+    return view;
+  }
+
   var API = {
     DEFAULT_CAPACITY_KWH: DEFAULT_CAPACITY_KWH,
     BACKUP_RESERVE_PCT: BACKUP_RESERVE_PCT,
@@ -938,6 +1045,8 @@
     dayPattern: dayPattern, dayPatternCaption: dayPatternCaption, hourWords: hourWords,
     sessionEndTime: sessionEndTime,
     OCTOPOINTS_PER_PENNY: OCTOPOINTS_PER_PENNY,
+    chargerDevices: chargerDevices, chargerView: chargerView,
+    CHARGER_STALE_MS: CHARGER_STALE_MS,
   };
 
   root.DashCalc = API;

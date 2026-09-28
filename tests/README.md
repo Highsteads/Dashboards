@@ -57,6 +57,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_camera_watch.py` | Stills only while a page is showing them (3.48.0). The poller |
 | `test_camera_webrtc.mjs` | Contract test for the away-from-home WebRTC focused tile |
 | `test_capture_rename.py` | capture_screenshots.py --rename (v1.3): people's names are |
+| `test_car_charger.mjs` | Node contract test for DashCalc.chargerDevices / chargerView, |
 | `test_carbon_advice.py` | Decision-table test for Plugin._carbon_advice — the run-a-load |
 | `test_carbon_hhmm.py` | _carbon_hhmm — a UTC forecast slot as local HH:MM, with |
 | `test_change_stamp.py` | Contract tests for the v2.70.0 liveness stamp — the tiny |
