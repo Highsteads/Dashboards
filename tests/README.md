@@ -76,6 +76,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_diagnostic_banner.py` | Every diagnostic menu dumps the SAME banner, extras included |
 | `test_docs_site.py` | The documentation site (docs/, GitHub Pages) and the README |
 | `test_door_tile.mjs` | Contract test for the hub's state-driven door favourite — |
+| `test_door_tile_compact_colour.py` | A door tile beside a room's cameras shows its state colour. |
 | `test_energy_alert_bar.mjs` | Node contract test for energy.html's alert bar. Extracts the |
 | `test_energy_cost.mjs` | Node contract test for energy-calc.js — the shared arithmetic |
 | `test_energy_palette.py` | The five semantic energy colours (3.42.0). They were re-stepped |

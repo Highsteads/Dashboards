@@ -2,11 +2,11 @@
 
 **Your house on a screen — energy, cameras, heating, every room, and the whole day replayed.**
 
-**Version:** 3.54.0 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
+**Version:** 3.54.1 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
 
 **[Read the full guide](https://highsteads.github.io/Dashboards/)** — setting up, a page of notes for every one of the 20 pages, and what to do when something goes wrong.
 
-<img src="https://img.shields.io/badge/version-3.54.0-5856d6" alt="Version 3.54.0">
+<img src="https://img.shields.io/badge/version-3.54.1-5856d6" alt="Version 3.54.1">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-20-0a84ff" alt="20 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
@@ -92,11 +92,11 @@ The [Getting started](https://highsteads.github.io/Dashboards/getting-started.ht
 The three most recent releases, word for word. Every release before these is in
 **[the version history](https://highsteads.github.io/Dashboards/changelog.html)**.
 
+**3.54.1** (28-Sep-2026) - **The Garage door tile shows its colour.** On a room page that has cameras, the door tile sits beside them, and its picture area kept a white background over the red of an open door, the blue of a moving one and the amber of a stuck one. The state words are white, so "Open", "Closing" and "Stuck" could not be read. The colour now shows through and the words with it. The hub favourite was never affected.
+
 **3.54.0** (27-Sep-2026) - **Ten camera makes the plugin knows.** Amcrest, Lorex, Annke, Reolink, TP-Link Tapo, Axis, Foscam and Uniview join Dahua and Hikvision in the make list on the Settings page, so for those you choose the make and the plugin works out the address. The box under the make now shows that address in grey, and typing an address into it replaces the usual one for any make, for a model that differs. Only Dahua and Hikvision have been tried on real cameras here: the rest come from each maker's own support pages, and the guide's [Camera makes](https://highsteads.github.io/Dashboards/cameras.html#camera-makes) section lists what catches people out with each one, such as Reolink shipping with its stream switched off and Tapo needing a separate camera account. The Claude tool that adds cameras offers the same makes.
 
 **3.53.0** (27-Sep-2026) - **Demo mode has gone.** The `demo.html` page and the made-up house behind it are no longer part of the plugin, and the online copy has left the guide site too. When the plugin next starts it clears the old demo files out of Indigo's public folder by itself. Every other page works as before.
-
-**3.52.0** (27-Sep-2026) - **Any IP camera, not just Dahua and Hikvision.** A camera can now be set to **other** on the Settings page, with its own RTSP address typed in beside it, such as `rtsp://192.168.1.50:554/h264Preview_01_sub` for a Reolink. The address must point at the camera's own address and carry no user name or password, and the Settings page says which rule an address breaks. A camera whose login is not the one your cameras share can now have its own, under **Camera Logins** in Configure (or `CAMERA_LOGINS` in IndigoSecrets.py), and that login goes only to the address it is written against. The cameras now start with no shared login set, as long as one of them can be reached without it. The Claude tool that adds cameras takes the new make and address as well. The guide's [Cameras](https://highsteads.github.io/Dashboards/cameras.html#any-other-make-of-camera) page lists the address for several makes.
 
 ## Authors & licence
 
