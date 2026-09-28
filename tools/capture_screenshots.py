@@ -7,7 +7,9 @@
 #              network config.
 # Author:      CliveS & Claude Sonnet 5
 # Date:        10-09-2026
-# Version:     1.5 (public addresses are rewritten too: the Wi-Fi page shows
+# Version:     1.6 (an address must stand on its own, and public ones are
+#              rewritten in data only: 1.5 rewrote "1.6.8.8" inside an SVG path)
+#              1.5 (public addresses are rewritten too: the Wi-Fi page shows
 #              the house's own internet address)
 #              1.4 (a name joined to the next word by "_" is renamed too)
 #              1.3 (--rename OLD=NEW for people's names; MACs rewritten; header
@@ -99,7 +101,12 @@ CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 # published material without pointing at anything real.
 DOC_NETS = ["192.0.2.", "198.51.100.", "203.0.113."]
 
-IP_RE = re.compile(rb"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+# An address stands on its own (v1.6): not straight after a digit, a dot or a
+# minus sign, and not followed by more dotted digits. SVG path data is full of
+# runs like "0-1.6.8.8 0" (an arc's numbers written without spaces), and once
+# public addresses were rewritten too, the door icon's path became
+# "0-203.0.113.1 0" and drew a half circle across the Rooms page.
+IP_RE = re.compile(rb"(?<![\d.\-])(?:\d{1,3}\.){3}\d{1,3}(?!\d|\.\d)")
 
 # Endless responses. See _relay for why they have to be refused rather than
 # relayed.
@@ -143,6 +150,7 @@ class Sanitiser:
     def __init__(self, renames=None):
         self.map = {}
         self.reverse = {}
+        self._public = True
         self._nets = {}
         self._hosts = {}
         # --rename OLD=NEW (v1.3): people's names, whole words only, so a
@@ -181,6 +189,11 @@ class Sanitiser:
         # Leave loopback alone or the page cannot talk to its own proxy.
         if addr.is_loopback or not (addr.is_private or addr.is_global):
             return m.group(0)
+        # Public addresses only in DATA, never in a script or stylesheet,
+        # where a run of dotted numbers is far more likely to be geometry or
+        # a version than anybody's internet address.
+        if addr.is_global and not self._public:
+            return m.group(0)
         if any(raw.startswith(n) for n in DOC_NETS):
             return m.group(0)                      # already one of ours
         return self._fake_for(raw).encode()
@@ -194,7 +207,10 @@ class Sanitiser:
             self._macs[real] = FAKE_MAC_PREFIX + b"%02x:%02x" % (n // 256, n % 256)
         return self._macs[real]
 
-    def scrub(self, body):
+    def scrub(self, body, public=True):
+        """Rewrite a response body. public=False leaves internet addresses
+        alone — for scripts and stylesheets, see _sub."""
+        self._public = public
         body = IP_RE.sub(self._sub, body)
         body = MAC_RE.sub(self._mac, body)
         for rx, new in self.renames:
@@ -211,7 +227,7 @@ class Sanitiser:
         as residue(), for people rather than addresses)."""
         return sorted({rx.pattern.decode() for rx, _ in self.renames if rx.search(body)})
 
-    def residue(self, body):
+    def residue(self, body, public=True):
         """Private addresses still present AFTER scrubbing.
 
         The point of a self-check: a rewrite that silently misses something
@@ -231,6 +247,8 @@ class Sanitiser:
             except ValueError:
                 continue
             if addr.is_loopback or not (addr.is_private or addr.is_global):
+                continue
+            if addr.is_global and not public:
                 continue
             if any(raw.startswith(n) for n in DOC_NETS):
                 continue                           # one of ours
@@ -404,10 +422,11 @@ def make_handler(upstream, sanitiser, seen_lock, api_key=None, seen_paths=None,
             # and an address cannot be read off a PNG anyway.
             if sanitise and any(t in ctype
                                 for t in ("json", "text", "javascript", "xml")):
+                data = not any(t in ctype for t in ("javascript", "css"))
                 with seen_lock:
-                    body = sanitiser.scrub(body)
+                    body = sanitiser.scrub(body, public=data)
                     if leaks is not None:
-                        leaks.extend(sanitiser.residue(body))
+                        leaks.extend(sanitiser.residue(body, public=data))
                         leaks.extend(sanitiser.name_residue(body))
                         leaks.extend(sanitiser.mac_residue(body))
             # CSS and HTML carry the media queries; the shim goes in the head.

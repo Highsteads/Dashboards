@@ -87,3 +87,21 @@ def test_every_real_address_gets_its_own_fake_one():
     fakes = [s.scrub(r.encode()).decode() for r in reals]
     assert len(set(fakes)) == len(reals), fakes
     assert all(s.reverse[f] == r for f, r in zip(fakes, reals))
+
+
+def test_numbers_in_a_drawing_are_not_addresses():
+    # The door icon's arc, "0-1.6.8.8 0", became "0-203.0.113.1 0" under 1.5.
+    s = cap.Sanitiser()
+    path = b'M15 12.8a.8.8 0 1 0 0-1.6.8.8 0 0 0 0 1.6z'
+    assert s.scrub(path) == path
+    assert s.scrub(b"v1.2.3.4.5") == b"v1.2.3.4.5", "more dotted digits: not an address"
+    assert s.scrub(b"no route to 192.168.1.20.") != b"no route to 192.168.1.20.", \
+        "an address at the end of a sentence is still an address"
+
+
+def test_public_addresses_are_left_alone_in_scripts():
+    s = cap.Sanitiser()
+    js = b'const v = "8.8.4.4";'
+    assert s.scrub(js, public=False) == js
+    assert s.residue(js, public=False) == []
+    assert b"8.8.4.4" not in s.scrub(js), "in data, a public address is rewritten"
