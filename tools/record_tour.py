@@ -429,6 +429,10 @@ async def scout(args, pages, origin, work):
                                url=f"{origin}/public/dashboards/{page}")
                 await asyncio.sleep(args.settle)
                 await cdp.js(TOUR_JS)
+                if args.eval:
+                    print(f"\n== {page}")
+                    print(json.dumps(await cdp.js(args.eval), indent=1)[:6000])
+                    continue
                 info = await cdp.js("__tour.headings()")
                 print(f"\n== {page}  (page height {info['height']}px)")
                 for y, s in info["headings"]:
@@ -518,6 +522,8 @@ def main():
     ap.add_argument("--scout", nargs="*", metavar="PAGE",
                     help="print each page's headings and their positions, to "
                          "choose scroll targets; records nothing")
+    ap.add_argument("--eval", metavar="JS",
+                    help="with --scout, print this expression's value on each page instead")
     ap.add_argument("--scout-shots", metavar="DIR",
                     help="with --scout, also save a whole-page picture of each")
     ap.add_argument("--tour", default=os.path.join(here, "tour.json"))
@@ -534,7 +540,9 @@ def main():
     ap.add_argument("--settle", type=float, default=7.0,
                     help="real seconds a page gets to load its data before "
                          "recording starts")
-    ap.add_argument("--voice", default="Daniel")
+    ap.add_argument("--voice", default="Daniel (Enhanced)",
+                    help="a `say -v '?'` voice; falls back to plain Daniel when "
+                         "the Enhanced download is not on this Mac")
     ap.add_argument("--rate", type=int, default=178, help="words per minute")
     ap.add_argument("--scheme", choices=("light", "dark"), default="light")
     ap.add_argument("--rename", action="append", default=[], metavar="OLD=NEW")
@@ -543,6 +551,10 @@ def main():
     args = ap.parse_args()
     if connect is None:
         sys.exit("needs the 'websockets' package (pip install websockets)")
+    voices = subprocess.run(["say", "-v", "?"], capture_output=True, text=True).stdout
+    if not any(line.startswith(args.voice + " ") for line in voices.splitlines()):
+        print(f"voice {args.voice!r} is not installed; using Daniel")
+        args.voice = "Daniel"
 
     renames = []
     for spec in args.rename:

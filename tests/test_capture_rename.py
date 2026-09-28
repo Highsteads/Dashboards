@@ -27,9 +27,19 @@ def test_names_are_replaced_as_whole_words():
     assert s.name_residue(out) == []
 
 
+def test_a_name_joined_by_an_underscore_is_replaced():
+    # Action groups are named like Jane_Lamp_On. \b treats "_" as a letter,
+    # so this reached the published Scenes capture unrenamed.
+    s = cap.Sanitiser([("Jane", "Sam")])
+    out = s.scrub(b'{"name": "Jane_Lamp_On", "b": "Lamp_Jane", "c": "Janet_On"}')
+    assert b"Sam_Lamp_On" in out and b"Lamp_Sam" in out
+    assert b"Janet_On" in out
+    assert s.name_residue(out) == []
+
+
 def test_a_surviving_name_is_reported():
     s = cap.Sanitiser([("Clive", "Alex")])
-    assert s.name_residue(b"Clive Lamp") == [r"\bClive\b"]
+    assert s.name_residue(b"Clive Lamp") == [rb"(?<![A-Za-z0-9])Clive(?![A-Za-z0-9])".decode()]
 
 
 def test_no_renames_changes_nothing_but_addresses():

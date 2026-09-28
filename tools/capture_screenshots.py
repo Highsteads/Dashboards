@@ -7,7 +7,8 @@
 #              network config.
 # Author:      CliveS & Claude Sonnet 5
 # Date:        10-09-2026
-# Version:     1.3 (--rename OLD=NEW for people's names; MACs rewritten; header
+# Version:     1.4 (a name joined to the next word by "_" is renamed too)
+#              1.3 (--rename OLD=NEW for people's names; MACs rewritten; header
 #              lookup made case-insensitive — API replies were never being scrubbed)
 #
 # WHY THIS EXISTS
@@ -139,7 +140,11 @@ class Sanitiser:
         # --rename OLD=NEW (v1.3): people's names, whole words only, so a
         # published capture shows "Alex · Home" rather than a real person.
         self._macs = {}
-        self.renames = [(re.compile(rb"\b" + re.escape(o.encode()) + rb"\b"), n.encode())
+        # Letters and digits bound a name, NOT \b (v1.4): \b counts "_" as part
+        # of the word, so action-group names such as NAME_Lamp_On went through
+        # untouched and reached the published Scenes and Settings captures.
+        self.renames = [(re.compile(rb"(?<![A-Za-z0-9])" + re.escape(o.encode())
+                                    + rb"(?![A-Za-z0-9])"), n.encode())
                         for o, n in (renames or [])]
 
     def _fake_for(self, real):
