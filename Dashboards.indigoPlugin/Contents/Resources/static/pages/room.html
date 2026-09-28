@@ -327,16 +327,16 @@
         .door-card-compact .door-label  { font-size: 14px; color: var(--text-secondary); }
         .door-card-compact .door-status { font-size: 28px; }
         .door-card-compact .door-btn    { border-radius: 0; margin: 0; }
-        /* 3.54.1: the frame's own white background sat over the card's state
-           colour, so an open, moving or stuck door drew white words on white —
-           the Garage tile, beside its cameras, never showed "Open" or
-           "Closing…". Clear the frame in those states so the colour shows,
-           and lift the label to match. */
-        .door-card-compact.door-state-open    .door-status-frame,
+        /* 3.54.1: two white layers hid the state colour here — the card's own
+           background (it comes after .door-state-* above, so it wins) and the
+           frame's on top of it — so an open, moving or stuck door drew white
+           words on white. The Garage tile, beside its cameras, never showed
+           "Open" or "Closing…". The colour goes on the frame itself. */
+        .door-card-compact.door-state-open    .door-status-frame { background: var(--bad); }
         .door-card-compact.door-state-opening .door-status-frame,
         .door-card-compact.door-state-closing .door-status-frame,
-        .door-card-compact.door-state-moving  .door-status-frame,
-        .door-card-compact.door-state-stuck   .door-status-frame { background: transparent; }
+        .door-card-compact.door-state-moving  .door-status-frame { background: var(--accent); }
+        .door-card-compact.door-state-stuck   .door-status-frame { background: var(--warn); }
         .door-card-compact.door-state-open    .door-label,
         .door-card-compact.door-state-opening .door-label,
         .door-card-compact.door-state-closing .door-label,

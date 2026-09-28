@@ -234,3 +234,32 @@ def test_live_lines_are_rewritten_inside_their_slots(monkeypatch, tmp_path):
     assert rates[0] == 178 and rates[1] > 178, "a line that no longer fits is said faster"
     assert plain["dur"] == 3.0 and len(rates) == 2, "a line with nothing live is left alone"
     assert notes == []
+
+
+def test_a_house_using_nothing_is_a_page_caught_mid_update():
+    w = rt.energy_words({"solar": 2.0, "home": 0.0, "grid": 0, "grid_mode": "idle",
+                         "battery": 2.0, "battery_pct": 67})["energy_now"]
+    assert "watts" not in w and "kilowatt" not in w
+
+
+def test_the_energy_figures_are_read_until_they_hold_still():
+    import asyncio
+
+    pages = iter([HUB.replace("5.12 kW", "1.97 kW"), HUB, HUB.replace("5.12", "5.20")])
+
+    class FakeCDP:
+        async def js(self, expr, timeout=30):
+            return next(pages)
+
+    got = asyncio.run(rt.steady_energy(FakeCDP(), tries=5, gap=0))
+    assert got["solar"] == 5.2, "the first, stale reading is not trusted on its own"
+
+    class Jumpy:
+        n = 0
+
+        async def js(self, expr, timeout=30):
+            Jumpy.n += 1
+            return HUB.replace("5.12 kW", f"{3 ** Jumpy.n}.0 kW")
+
+    assert asyncio.run(rt.steady_energy(Jumpy(), tries=4, gap=0)) == {}, \
+        "figures that never settle give no figures at all"

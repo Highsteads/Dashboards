@@ -12,7 +12,6 @@ from pathlib import Path
 
 ROOM = (Path(__file__).resolve().parents[1]
         / "Dashboards.indigoPlugin/Contents/Resources/static/pages/room.html").read_text(encoding="utf-8")
-COLOURED = ("open", "opening", "closing", "moving", "stuck")
 
 
 def _rules():
@@ -22,16 +21,24 @@ def _rules():
         yield [x.strip() for x in sel.split(",")], body
 
 
-def test_every_coloured_state_clears_the_compact_frame():
-    cleared = set()
+WANT = {"open": "--bad", "opening": "--accent", "closing": "--accent",
+        "moving": "--accent", "stuck": "--warn"}
+
+
+def test_every_coloured_state_paints_the_compact_frame():
+    # The colour must be on the FRAME: the card's own later background rule
+    # beats .door-state-* on the card, and the frame sits on top of it anyway,
+    # so a colour anywhere else is covered twice.
+    painted = {}
     for sels, body in _rules():
-        if re.search(r"background\s*:\s*transparent", body):
-            for sel in sels:
-                m = re.fullmatch(r"\.door-card-compact\.door-state-(\w+)\s+\.door-status-frame", sel)
-                if m:
-                    cleared.add(m.group(1))
-    missing = [s for s in COLOURED if s not in cleared]
-    assert not missing, f"the compact door frame stays white over these states: {missing}"
+        m = re.search(r"background\s*:\s*var\((--[\w-]+)\)", body)
+        if not m:
+            continue
+        for sel in sels:
+            k = re.fullmatch(r"\.door-card-compact\.door-state-(\w+)\s+\.door-status-frame", sel)
+            if k:
+                painted[k.group(1)] = m.group(1)
+    assert painted == WANT, painted
 
 
 def test_the_closed_state_keeps_its_white_frame():

@@ -330,6 +330,33 @@ def read_energy(text):
     return out
 
 
+def _agree(a, b):
+    """Two readings close enough to call the page steady."""
+    keys = ("solar", "home", "battery", "battery_pct")
+    if not all(k in a and k in b for k in keys):
+        return False
+    return all(abs(a[k] - b[k]) <= max(0.25 * max(abs(a[k]), abs(b[k])), 0.15) for k in keys)
+
+
+async def steady_energy(cdp, tries=10, gap=1.5):
+    """Read the energy figures until two readings in a row agree.
+
+    A page that has just loaded shows cached figures, then fresh ones a few
+    seconds later: one take read 2 kW and a house using 0 W, and the page
+    showed 5.3 kW moments after. Returns {} when it never settles, which
+    energy_words turns into a sentence with no figures in it.
+    """
+    last = None
+    for _ in range(tries):
+        text = await cdp.js("document.body.innerText.slice(0, 6000)") or ""
+        now = read_energy(text)
+        if last is not None and _agree(last, now) and now.get("home", 0) >= 0.05:
+            return now
+        last = now
+        await asyncio.sleep(gap)
+    return {}
+
+
 def energy_words(e):
     """Sentences for what the energy system is doing right now.
 
@@ -338,7 +365,9 @@ def energy_words(e):
     because the hub shows the battery's power without a sign.
     """
     need = ("solar", "home", "grid", "grid_mode", "battery", "battery_pct")
-    if not all(k in e for k in need):
+    # A house never uses nothing: 0 W for home is a page caught mid-update
+    # (a take once said "the house needs only 0 watts"), so say no figures.
+    if not all(k in e for k in need) or e["home"] < 0.05:
         return {"energy_now": "The dots show which way the power is flowing right now, and how much."}
     # Half up, as a person rounds: Python's round() makes 54.5% "54".
     s, h, g, b, pct = e["solar"], e["home"], e["grid"], e["battery"], int(e["battery_pct"] + 0.5)
@@ -859,6 +888,18 @@ async def settle_on(cdp, origin, seg, args, navigated):
         await asyncio.sleep(0.5)
     else:
         print("(still loading) ", end="", flush=True)
+    # And the page's own sign of life, where the tour names one: the hub's
+    # energy card was once still empty when a take began, a page that had
+    # stopped saying "Connecting" but had not drawn its data yet.
+    if seg.get("ready"):
+        await cdp.js(TOUR_JS)
+        for _ in range(50):
+            if await cdp.js(f"!!__tour.el({json.dumps(seg['ready'])})"):
+                break
+            await asyncio.sleep(0.5)
+        else:
+            print("(never ready) ", end="", flush=True)
+        await asyncio.sleep(seg.get("after_ready", 1.0))
 
 
 async def record(args, segments, origin, work):
@@ -892,8 +933,9 @@ async def record(args, segments, origin, work):
                         await cdp.js(f"__tour.go({json.dumps(seg['start'])}, 1, "
                                      f"{json.dumps(seg.get('start_offset'))})")
                 if seg.get("live_words"):
-                    text = await cdp.js("document.body.innerText.slice(0, 6000)") or ""
-                    fresh = read_energy(text)
+                    fresh = await steady_energy(cdp)
+                    if not fresh:
+                        problems.append(f"{name}: the energy figures never settled; said none")
                     problems.extend(respeak(seg, energy_words(fresh), args.voice, args.rate, work))
                     print("(re-read) ", end="", flush=True)
                 await asyncio.sleep(0.5)
@@ -946,8 +988,7 @@ async def survey(args, origin, work):
             await cdp.send("Page.navigate", url=page_url(origin, "index.html"))
             await asyncio.sleep(args.settle)
             await cdp.js(TOUR_JS)
-            found["energy_text"] = await cdp.js(
-                "(document.getElementById('energy-detail') || {}).innerText || ''") or ""
+            found["energy"] = await steady_energy(cdp)
             for key, spec in (args.preflight or {}).items():
                 page, what = spec["page"], spec["spec"]
                 await cdp.send("Page.navigate", url=page_url(origin, page))
@@ -980,6 +1021,13 @@ async def scout(args, pages, origin, work):
                 if args.eval:
                     print(f"\n== {page}")
                     print(json.dumps(await cdp.js(args.eval), indent=1)[:6000])
+                    if args.scout_shots:
+                        await asyncio.sleep(0.5)
+                        shot = await cdp.send("Page.captureScreenshot", format="png")
+                        os.makedirs(args.scout_shots, exist_ok=True)
+                        name = page.split(".html")[0] + "-eval.png"
+                        with open(os.path.join(args.scout_shots, name), "wb") as fh:
+                            fh.write(base64.b64decode(shot["data"]))
                     continue
                 info = await cdp.js("__tour.headings()")
                 print(f"\n== {page}  (page height {info['height']}px)")
@@ -1195,7 +1243,7 @@ def main():
 
         print("reading the house ...")
         state = asyncio.run(survey(args, origin, work))
-        energy = read_energy(state.get("energy_text", ""))
+        energy = state.get("energy") or {}
         words = energy_words(energy)
         print(f"  energy: {energy}")
         print(f"  says:   {words['energy_now']}")
