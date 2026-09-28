@@ -854,6 +854,28 @@ class Director:
         return False
 
 
+def prepare(host, iws_port, api_key, commands, allow_ids):
+    """Put the house in the tour's starting state before a live take.
+
+    Only ids on the tour's allow list, and only in a --live take. Live case: a
+    retake started with the colour lamp remembering the 50% the first take
+    left it at, so "slide it down to half brightness" moved nothing.
+    """
+    done = []
+    for cmd in commands:
+        if _as_int(cmd.get("objectId")) not in allow_ids:
+            raise SystemExit(f"prepare: {cmd.get('objectId')} is not on the tour's allow list")
+        req = urllib.request.Request(
+            f"http://{host}:{iws_port}/v2/api/command", data=json.dumps(cmd).encode(),
+            method="POST", headers={"Authorization": f"Bearer {api_key}",
+                                    "Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=15) as res:
+            res.read()
+        done.append(f"{cmd.get('message')} {cmd.get('objectId')}")
+        time.sleep(float(cmd.get("pause", 1.5)))
+    return done
+
+
 def page_url(origin, page):
     return f"{origin}/public/dashboards/{page}"
 
@@ -1243,6 +1265,10 @@ def main():
             asyncio.run(scout(args, args.scout, origin, work))
             return
 
+        if args.live and tour.get("prepare"):
+            print("setting the starting state ...")
+            for line in prepare(args.host, args.iws_port, api_key, tour["prepare"], guard.allow_ids):
+                print(f"  {line}")
         print("reading the house ...")
         state = asyncio.run(survey(args, origin, work))
         energy = state.get("energy") or {}

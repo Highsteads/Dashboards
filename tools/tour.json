@@ -1,5 +1,5 @@
 {
-  "about": "The narrated tour recorded by tools/record_tour.py. Each segment is a page or a title card; each beat is a sentence and what is done while it is spoken. {energy_now} and {self_sufficiency} are written from the live readings when the take starts. Record in daylight, when the solar and battery flows are moving. 'allow' lists the only device and action-group ids a --live take may command; 'preflight' is the state the house must be in before a --live take.",
+  "about": "The narrated tour recorded by tools/record_tour.py. Each segment is a page or a title card; each beat is a sentence and what is done while it is spoken. {energy_now} and {self_sufficiency} are written from the live readings when the take starts. Record in daylight, when the solar and battery flows are moving. 'allow' lists the only device and action-group ids a --live take may command; 'preflight' is the state the house must be in before a --live take. 'prepare' runs before a --live take (allow-listed ids only), so the take starts from the same place every time.",
   "poster_at": 3.0,
   "allow": [
     1463818396,
@@ -645,6 +645,21 @@
           "say": "Dashboards is free and open source. Take the parts that suit your house, and leave the rest."
         }
       ]
+    }
+  ],
+  "prepare": [
+    {
+      "message": "indigo.dimmer.setBrightness",
+      "objectId": 372666822,
+      "parameters": {
+        "value": 100
+      },
+      "pause": 3
+    },
+    {
+      "message": "indigo.device.turnOff",
+      "objectId": 372666822,
+      "pause": 2
     }
   ]
 }

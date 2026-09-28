@@ -257,3 +257,14 @@ def test_the_energy_figures_are_read_until_they_hold_still():
 
     assert asyncio.run(rt.steady_energy(Jumpy(), tries=4, gap=0)) == {}, \
         "figures that never settle give no figures at all"
+
+
+def test_prepare_refuses_an_id_that_is_not_allowed():
+    import pytest
+    with pytest.raises(SystemExit):
+        rt.prepare("192.0.2.1", 8176, "k", [{"message": "indigo.device.unlock", "objectId": 9}], {5})
+
+
+def test_the_tour_prepares_only_allowed_ids():
+    tour = json.loads((ROOT / "tools/tour.json").read_text(encoding="utf-8"))
+    assert all(c["objectId"] in tour["allow"] for c in tour.get("prepare", []))
