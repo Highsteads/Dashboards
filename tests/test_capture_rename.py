@@ -105,3 +105,14 @@ def test_public_addresses_are_left_alone_in_scripts():
     assert s.scrub(js, public=False) == js
     assert s.residue(js, public=False) == []
     assert b"8.8.4.4" not in s.scrub(js), "in data, a public address is rewritten"
+
+
+def test_an_address_after_a_word_and_a_hyphen_is_still_an_address():
+    # cam-<host>.jpg: 1.6's first cut skipped any address after "-", so the
+    # stills 404'd and a real address there would not have been rewritten.
+    s = cap.Sanitiser()
+    out = s.scrub(b'"still": "cam-192.168.1.61.jpg"')
+    assert b"192.168.1.61" not in out
+    fake = s.map["192.168.1.61"]
+    assert s.unscrub_path(f"/public/dashboards/cam-{fake}.jpg") == "/public/dashboards/cam-192.168.1.61.jpg"
+    assert s.residue(b"cam-192.168.1.61.jpg") == ["192.168.1.61"]

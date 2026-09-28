@@ -101,12 +101,15 @@ CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 # published material without pointing at anything real.
 DOC_NETS = ["192.0.2.", "198.51.100.", "203.0.113."]
 
-# An address stands on its own (v1.6): not straight after a digit, a dot or a
-# minus sign, and not followed by more dotted digits. SVG path data is full of
+# An address stands on its own (v1.6): not straight after a digit or a dot, not
+# after a minus sign that follows a digit, and not followed by more dotted
+# digits. A hyphen after a LETTER still counts as a separator: the camera stills
+# are named cam-<address>.jpg, and excluding every "-" hid those addresses from
+# both the rewrite and the path un-rewrite, so every still 404'd. SVG path data is full of
 # runs like "0-1.6.8.8 0" (an arc's numbers written without spaces), and once
 # public addresses were rewritten too, the door icon's path became
 # "0-203.0.113.1 0" and drew a half circle across the Rooms page.
-IP_RE = re.compile(rb"(?<![\d.\-])(?:\d{1,3}\.){3}\d{1,3}(?!\d|\.\d)")
+IP_RE = re.compile(rb"(?<![\d.])(?<!\d-)(?:\d{1,3}\.){3}\d{1,3}(?!\d|\.\d)")
 
 # Endless responses. See _relay for why they have to be refused rather than
 # relayed.
