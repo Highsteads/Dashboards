@@ -1,12 +1,13 @@
 // Filename:    test_car_charger.mjs
 // Description: Node contract test for DashCalc.chargerDevices / chargerView,
-//              the Energy page's car charger card (v3.55.0). The fixture is
+//              the Energy page's car charger card (v3.55.0) and the hub's
+//              car charger strip (v3.56.0). The fixture is
 //              the Zappi device exactly as /v2/api/indigo.devices returned it
 //              on 28-09-2026 (states only, address left out), so it tests
 //              what the Zappi plugin really writes.
 // Author:      CliveS & Claude Opus 5.5
 // Date:        28-09-2026
-// Version:     1.0
+// Version:     1.1
 //
 // Run: node tests/test_car_charger.mjs   (exit 0 = pass)
 
@@ -105,5 +106,43 @@ const html = fs.readFileSync(path.join(PAGES, "energy.html"), "utf8");
 check("card is on the page, hidden to start", /<section class="card" id="ev-card" style="display:none">/.test(html));
 check("the title is the charger's own name, not a second \"Car charger\"", /<span id="ev-title">/.test(html) && /chargers\[0\]\.name/.test(html));
 check("the device poll draws it", /renderBattHealth\(\);[\s\S]{0,120}renderCharger\(\)/.test(html));
+
+// ── the hub strip (v3.56.0), run from index.html itself ──
+const hub = fs.readFileSync(path.join(PAGES, "index.html"), "utf8");
+function extractFn(src, name) {
+    const i = src.indexOf("function " + name + "(");
+    if (i < 0) throw new Error("not found in index.html: " + name);
+    let d = 0, j = src.indexOf("{", i);
+    do { if (src[j] === "{") d++; else if (src[j] === "}") d--; j++; } while (d > 0);
+    return src.slice(i, j);
+}
+const els = {};
+const el = (id) => (els[id] = els[id] || { id, style: {}, innerHTML: "" });
+// The hub reads Date.now(); pin it to the fixture's clock, or the test's
+// report times age with the wall clock and go stale after ten minutes.
+class FixedDate extends Date { static now() { return NOW; } }
+const hubCtx = { window: ctx.window, DashCalc: C, Date: FixedDate,
+                 document: { getElementById: (id) => (["charger-row", "charger-card"].includes(id) ? el(id) : null) } };
+vm.createContext(hubCtx);
+vm.runInContext(extractFn(hub, "escapeAttr") + "\n" + extractFn(hub, "renderChargerCard")
+                + "\nthis.renderChargerCard = renderChargerCard;", hubCtx);
+
+hubCtx.renderChargerCard([other]);
+check("hub: no Zappi -> strip hidden", els["charger-row"].style.display === "none");
+hubCtx.renderChargerCard([other, zappi({ lastReport: stamp(5000) })]);
+const card = els["charger-card"].innerHTML;
+check("hub: strip shown with a Zappi", els["charger-row"].style.display === "");
+check("hub: headline is the plugin's status", card.includes("Unplugged, Eco+"));
+check("hub: car and mode are not repeated as rows", !card.includes('class="key">Car<') && !card.includes('class="key">Mode<'));
+check("hub: guard row keeps its explanation", card.includes("Battery exporting · nothing to pause"));
+check("hub: other rows carry no tile caption", card.includes(">Not charging<") && !card.includes("charging power"));
+hubCtx.renderChargerCard([zappi({ online: false })]);
+check("hub: offline shows the reason and no rows",
+      els["charger-card"].innerHTML.includes("Not reachable through myenergi") && !els["charger-card"].innerHTML.includes('class="row"'));
+hubCtx.renderChargerCard([zappi({ status: "<b>x</b>" })]);
+check("hub: the status text is escaped", els["charger-card"].innerHTML.includes("&lt;b&gt;x&lt;/b&gt;"));
+check("hub: drawn on the device poll", /renderChargerCard\(devices\)/.test(hub));
+check("hub: links to the Energy page's card", /id="charger-card" class="dash-card" href="energy\.html#ev-card"/.test(hub));
+check("energy: scrolls to the card when linked to it", /location\.hash === '#ev-card'/.test(html));
 
 done();

@@ -2225,8 +2225,12 @@ function renderCharger() {
   const body = document.getElementById('ev-body');
   if (!card || !body) return;
   const chargers = DashCalc.chargerDevices(window.__DEVICES);
+  const wasHidden = card.style.display === 'none';
   card.style.display = label.style.display = chargers.length ? '' : 'none';
   if (!chargers.length) return;
+  // The hub links here as energy.html#ev-card, but the card is hidden until
+  // this first poll, so the browser's own jump to it found nothing.
+  if (wasHidden && location.hash === '#ev-card') setTimeout(() => card.scrollIntoView({ block: 'start' }), 0);
   // One charger: its own name is the card's title. Several: each block is named.
   const title = document.getElementById('ev-title');
   if (title) title.textContent = chargers.length === 1 ? (chargers[0].name || 'Charger') : 'Chargers';

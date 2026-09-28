@@ -64,6 +64,12 @@ and maximum, rain today, pressure, UV index and the indoor reading. Conditions, 
 the sun times are in the greeting card, so this card does not repeat them, and without a station
 of its own it steps aside.
 
+**Car charger** (from 3.56.0, only when Indigo has a myenergi Zappi from the Zappi plugin). One strip
+under the three cards above: the charger's own status line, the power going into the car, the charge
+added and what the export guard is doing. It opens the Car charger card on the [Energy](energy.md)
+page. When the charger cannot be reached, or has not reported for ten minutes, it says which and
+shows no figures.
+
 **Menu / Rooms.** Two cards: one opens the [Menu](menu.md), the other its list of rooms.
 
 **Doors & windows.** Everything currently open, most recent first, with how long it has been that
@@ -76,7 +82,7 @@ key from this browser.
 
 | Part | Source |
 |---|---|
-| Devices, rooms, favourites, doors | Indigo REST `/v2/api`, through the shared delta cache |
+| Devices, rooms, favourites, doors, car charger | Indigo REST `/v2/api`, through the shared delta cache |
 | Room list and membership | `rooms.json`, written by the plugin |
 | Weather | `weather.json`, written by the plugin from OpenWeatherMap |
 | Energy, solar, money, VPP | `sigenApi` — the plugin's proxy to SigenEnergyManager (not asked without it) |

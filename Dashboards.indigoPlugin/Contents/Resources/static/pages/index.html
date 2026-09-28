@@ -476,6 +476,14 @@
             <a id="solar-now"     class="dash-card" href="energy.html" style="display:none"></a>
             <a id="weather-now"   class="dash-card" href="ecowitt.html"></a>
         </div>
+        <!-- Car charger (v3.56.0): one full-width strip under the glance row,
+             ONLY when Indigo has a Zappi device. A fourth card inside the
+             glance row would break its two-column layout (Energy spans both
+             rows on the left). The decision is DashCalc.chargerView, shared
+             with the Energy page's Car charger card, which this links to. -->
+        <div class="dash-row" id="charger-row" style="grid-template-columns:1fr;display:none">
+            <a id="charger-card" class="dash-card" href="energy.html#ev-card"></a>
+        </div>
         <!-- v2.97.0: House, Rooms and Tools sit ABOVE Doors & Windows. They
              are how you leave this page, so they belong within reach rather
              than under two status cards. -->
@@ -1912,6 +1920,37 @@
             ${isFinite(inT) ? `<div class="row"><span class="key">Indoor</span><span class="val">${inT.toFixed(1)}${inUnit}${isFinite(inHum) ? " · " + inHum.toFixed(0) + "%" : ""}</span></div>` : ""}`;
     }
 
+    /* Car charger strip (v3.56.0). Headline = the Zappi plugin's own status
+       line; the rows are the figures the headline does not already say. The
+       readings are withheld by chargerView when the charger is unreachable or
+       has not reported for ten minutes, and then only the reason shows. */
+    function renderChargerCard(devices) {
+        const row = document.getElementById("charger-row");
+        const el = document.getElementById("charger-card");
+        if (!row || !el || !window.DashCalc || !DashCalc.chargerDevices) return;
+        const chargers = DashCalc.chargerDevices(devices);
+        row.style.display = chargers.length ? "" : "none";
+        if (!chargers.length) return;
+        const now = Date.now();
+        const toneCls = { good: "ok", warn: "warn" };
+        const html = chargers.map(dev => {
+            const v = DashCalc.chargerView(dev, now);
+            let h = `<h3>${escapeAttr(chargers.length > 1 ? v.name : "Car charger")}</h3>`;
+            h += `<div class="big ${toneCls[v.tone] || ""}">${escapeAttr(v.headline)}</div>`;
+            for (const t of v.tiles) {
+                if (t.lab === "Car" || t.lab === "Mode") continue;     // the headline says these
+                // A tile's caption repeats the row's label ("charging power"),
+                // except the guard's, which says what it is doing about it.
+                const val = (t.lab === "Export guard" && t.sub) ? `${t.val} · ${t.sub}` : t.val;
+                h += `<div class="row"><span class="key">${escapeAttr(t.lab)}</span>`
+                   + `<span class="val ${toneCls[t.cls] || ""}">${escapeAttr(val)}</span></div>`;
+            }
+            if (v.note) h += `<div class="muted">${escapeAttr(v.note)}</div>`;
+            return h;
+        }).join("");
+        if (el.innerHTML !== html) el.innerHTML = html;
+    }
+
     function renderAlertsCard(devices) {
         const el = document.getElementById("alerts-strip");
         if (!el) return;
@@ -2489,6 +2528,7 @@
             try { renderBanner();             } catch (e) { console.warn("banner", e); }
             try { maybeRetryRooms();          } catch (e) { console.warn("rooms retry", e); }
             try { renderAlertsCard(devices);  } catch (e) { console.warn("alerts card", e); }
+            try { renderChargerCard(devices); } catch (e) { console.warn("charger card", e); }
         } catch (e) {
             // Errors surface via stale topbar timestamp + auth-failure handler above.
         } finally {
