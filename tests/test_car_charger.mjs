@@ -1,13 +1,14 @@
 // Filename:    test_car_charger.mjs
 // Description: Node contract test for DashCalc.chargerDevices / chargerView,
 //              the Energy page's car charger card (v3.55.0) and the hub's
-//              car charger strip (v3.56.0), and the mode buttons (v3.57.0). The fixture is
+//              car charger strip (v3.56.0), the mode buttons (v3.57.0) and
+//              the boost buttons (v3.58.0). The fixture is
 //              the Zappi device exactly as /v2/api/indigo.devices returned it
 //              on 28-09-2026 (states only, address left out), so it tests
 //              what the Zappi plugin really writes.
 // Author:      CliveS & Claude Opus 5.5
 // Date:        28-09-2026
-// Version:     1.2
+// Version:     1.3
 //
 // Run: node tests/test_car_charger.mjs   (exit 0 = pass)
 
@@ -125,6 +126,40 @@ mb = C.chargerModeButtons(C.chargerView(zappi({ online: false }), NOW), null, NO
 check("readings withheld -> every button off", mb.buttons.every((b) => b.disabled));
 check("the page sends chargerMode through DashUI.message", /DashUI\.message\('chargerMode', \{ deviceId: id, mode \}\)/.test(html));
 check("the page looks again after the plugin's check", /setTimeout\(refreshDevices, 7000\)/.test(html));
+
+// ── boost (v3.58.0) ──
+let bv = C.chargerBoostView(C.chargerView(zappi({ boostActive: false, boostKwh: 0 }), NOW), null, NOW);
+check("boost: three amounts in Eco+", bv.chips.map((c) => c.kwh).join() === "5,10,20" && bv.chips.every((c) => !c.disabled));
+check("boost: no stop button when none is set", !bv.stop.show && bv.note === "");
+bv = C.chargerBoostView(C.chargerView(zappi({ mode: "fast", boostActive: false }), NOW), null, NOW);
+check("boost: off in Fast, and says why", bv.chips.every((c) => c.disabled) && bv.note === "A boost works in Eco or Eco+.");
+let set = C.chargerView(zappi({ boostActive: true, boostKwh: 10, chargeState: "boosting" }), NOW);
+bv = C.chargerBoostView(set, null, NOW);
+check("boost set: stop shown, amounts off", bv.stop.show && !bv.stop.disabled && bv.chips.every((c) => c.disabled));
+check("boost set: a Boost tile on the card", set.tiles.some((x) => x.lab === "Boost" && x.val === "10 kWh"));
+// Measured: a boost with no car reads Boosting. That is not charging.
+let noCar = C.chargerView(zappi({ plugState: "unplugged", chargeState: "boosting", boostActive: true, boostKwh: 1 }), NOW);
+check("boost with no car: not shown as charging", noCar.tone === "" && tile(noCar, "Car").cls === "" && tile(noCar, "Into the car").val === "Not charging");
+check("boost with no car: says so", C.chargerBoostView(noCar, null, NOW).note === "A 1 kWh boost is set. No car is plugged in.");
+let withCar = C.chargerView(zappi({ plugState: "charging", chargeState: "boosting", chargePowerW: 7200, boostActive: true, boostKwh: 10 }), NOW);
+check("boost with a car: charging and boosting", withCar.tone === "good" && /Boosting 10 kWh at full power/.test(C.chargerBoostView(withCar, null, NOW).note));
+bv = C.chargerBoostView(C.chargerView(zappi({ boostActive: false }), NOW), { action: "start", kwh: 10, sentAt: NOW - 3000 }, NOW);
+check("boost sending: the chip is busy", bv.waiting && bv.chips[1].busy && /10 kWh boost/.test(bv.note));
+bv = C.chargerBoostView(set, { action: "start", kwh: 10, sentAt: NOW - 8000 }, NOW);
+check("boost confirmed by boostActive + boostKwh", !bv.waiting && bv.active && /10 kWh boost is set/.test(bv.note));
+bv = C.chargerBoostView(C.chargerView(zappi({ boostActive: true, boostKwh: 5 }), NOW), { action: "start", kwh: 10, sentAt: NOW - 8000 }, NOW);
+check("a different amount is not the one asked for", bv.waiting);
+bv = C.chargerBoostView(set, { action: "stop", sentAt: NOW - 2000 }, NOW);
+check("stopping: the stop button is busy", bv.waiting && bv.stop.busy && bv.stop.show);
+bv = C.chargerBoostView(C.chargerView(zappi({ boostActive: false }), NOW), { action: "stop", sentAt: NOW - 8000 }, NOW);
+check("stop confirmed when the boost clears", !bv.waiting && !bv.stop.show && bv.note === "");
+bv = C.chargerBoostView(C.chargerView(zappi({ boostActive: false }), NOW), { action: "start", kwh: 5, sentAt: NOW - C.CHARGER_CONFIRM_MS - 1 }, NOW);
+check("boost not confirmed in time says so", !bv.waiting && /not confirmed the boost/.test(bv.note));
+bv = C.chargerBoostView(C.chargerView(zappi(), NOW), { action: "start", kwh: 5, sentAt: NOW - 2000 }, NOW);
+check("old Zappi plugin: shown as sent, never as confirmed", !bv.waiting && /cannot report a boost/.test(bv.note));
+bv = C.chargerBoostView(C.chargerView(zappi({ online: false, boostActive: true }), NOW), null, NOW);
+check("boost buttons off while the readings are held back", bv.chips.every((c) => c.disabled) && bv.stop.disabled);
+check("the page sends chargerBoost", /DashUI\.message\('chargerBoost'/.test(html));
 
 // ── the hub strip (v3.56.0), run from index.html itself ──
 const hub = fs.readFileSync(path.join(PAGES, "index.html"), "utf8");

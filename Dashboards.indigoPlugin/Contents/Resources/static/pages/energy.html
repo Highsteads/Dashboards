@@ -388,6 +388,10 @@ h1 .dsh-icon {width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;
 .ev-modes .chart-tab:disabled{cursor:default}
 .ev-modes .chart-tab:disabled:not(.active){opacity:.45}
 .ev-modes .chart-tab.ev-busy{opacity:1;outline:2px dashed var(--accent,#0a84ff);outline-offset:-2px}
+.ev-boost{margin-top:4px;align-items:center}
+.ev-boost-lab{font-size:12px;color:var(--text-secondary);margin-right:4px}
+.ev-boost .chart-tab:disabled{cursor:default;opacity:.45}
+.ev-boost .chart-tab.ev-busy{opacity:1;outline:2px dashed var(--accent,#0a84ff);outline-offset:-2px}
 /* v3.34.0: Today is one column: the solar card, then the day's energy flow. */
 .energy-today{display:flex;flex-direction:column;gap:12px}
 </style>
@@ -2225,11 +2229,32 @@ function renderBattHealth() {
    20 s poll redraws it. */
 const _evPending = {};
 const _evSaid = {};
+const _evBoostPending = {};   // v3.58.0: {action, kwh, sentAt}
+const _evBoostSaid = {};
 let _evWired = false;
 function _wireChargerButtons(body) {
   if (_evWired) return;
   _evWired = true;
   body.addEventListener('click', async (ev) => {
+    const bb = ev.target.closest('button[data-ev-boost]');
+    if (bb && !bb.disabled) {
+      const id = Number(bb.dataset.evDev), what = bb.dataset.evBoost;
+      const kwh = what === 'start' ? Number(bb.dataset.evKwh) : null;
+      _evBoostPending[id] = { action: what, kwh, sentAt: Date.now() };
+      delete _evBoostSaid[id];
+      renderCharger();
+      try {
+        await DashUI.message('chargerBoost', what === 'start' ? { deviceId: id, action: what, kwh }
+                                                              : { deviceId: id, action: what });
+        setTimeout(refreshDevices, 7000);
+        setTimeout(refreshDevices, 16000);
+      } catch (e) {
+        delete _evBoostPending[id];
+        _evBoostSaid[id] = 'Could not send that: ' + (e && e.message ? e.message : e);
+        renderCharger();
+      }
+      return;
+    }
     const btn = ev.target.closest('button[data-ev-mode]');
     if (!btn || btn.disabled) return;
     const id = Number(btn.dataset.evDev), mode = btn.dataset.evMode;
@@ -2288,6 +2313,20 @@ function renderCharger() {
        + '</div>';
     const said = _evSaid[v.id] || mb.note;
     if (said) h += '<div class="note ev-mode-note" role="status">' + esc(said) + '</div>';
+    // v3.58.0 boost: amounts while none is set, Stop while one is.
+    const bv = DashCalc.chargerBoostView(v, _evBoostPending[v.id], now);
+    h += '<div class="chart-tabs ev-boost" role="group" aria-label="Boost"><span class="ev-boost-lab">Boost</span>';
+    if (bv.stop.show) {
+      h += '<button type="button" class="chart-tab' + (bv.stop.busy ? ' ev-busy' : '') + '" data-ev-dev="' + esc(v.id)
+         + '" data-ev-boost="stop"' + (bv.stop.disabled ? ' disabled' : '') + '>Stop boost</button>';
+    } else {
+      h += bv.chips.map(c => '<button type="button" class="chart-tab' + (c.busy ? ' ev-busy' : '') + '" data-ev-dev="'
+         + esc(v.id) + '" data-ev-boost="start" data-ev-kwh="' + c.kwh + '"' + (c.disabled ? ' disabled' : '') + '>'
+         + esc(c.label) + '</button>').join('');
+    }
+    h += '</div>';
+    const bsaid = _evBoostSaid[v.id] || bv.note;
+    if (bsaid) h += '<div class="note ev-mode-note" role="status">' + esc(bsaid) + '</div>';
     if (v.note) h += '<div class="note">' + esc(v.note) + '</div>';
     return h + '</div>';
   }).join('');

@@ -558,6 +558,10 @@ GO2RTC_RTSP_PORT     = 8554            # exposed for completeness; not used by t
 CHARGER_PLUGIN_ID    = "com.clives.indigoplugin.zappi"
 CHARGER_DEVICE_TYPE  = "zappi"
 CHARGER_MODES        = ("fast", "eco", "ecoPlus", "stopped")
+# A boost only runs in Eco or Eco+ (the Zappi plugin refuses it otherwise), and
+# the Zappi plugin takes 1-99 kWh (zappi_api._kwh). 3.58.0.
+CHARGER_BOOST_MODES  = ("eco", "ecoPlus")
+CHARGER_BOOST_MAX_KWH = 99
 
 
 # ============================================================

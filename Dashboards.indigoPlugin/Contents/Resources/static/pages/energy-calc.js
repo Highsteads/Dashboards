@@ -7,7 +7,9 @@
  *              can drive it directly.
  * Author:      CliveS & Claude Opus 5 (v1.0); Claude Fable 5 (v1.1-1.2)
  * Date:        13-08-2026
- * Version:     1.8 (chargerModeButtons — the car charger card's mode
+ * Version:     1.9 (chargerBoostView + boost in chargerView — the car
+ *              charger card's boost buttons, Dashboards 3.58.0)
+ *              prior 1.8 (chargerModeButtons — the car charger card's mode
  *              buttons, Dashboards 3.57.0)
  *              prior 1.7 (chargerDevices + chargerView — the Energy page's car
  *              charger card, from the Zappi plugin, Dashboards 3.55.0)
@@ -959,7 +961,10 @@
     var st = (dev && dev.states) || {};
     var view = { id: dev && dev.id, name: (dev && dev.name) || 'Car charger',
                  headline: String(st.status || '—'), tone: '', note: '', tiles: [], live: false,
-                 mode: st.mode };
+                 mode: st.mode,
+                 // Zappi plugin 1.1+ reports a boost; before that the states are absent.
+                 boost: { known: st.boostActive !== undefined, active: stateTrue(st.boostActive),
+                          kwh: num(st.boostKwh) } };
     var err = String((dev && dev.errorState) || '');
     var reported = localStamp(st.lastReport);
     var age = reported === null ? null : (nowMs - reported);
@@ -981,7 +986,11 @@
 
     view.live = true;
     var plug = st.plugState, mode = st.mode, guard = st.guardState;
-    var charging = st.chargeState === 'charging' || st.chargeState === 'boosting';
+    view.plugged = plug !== undefined && plug !== 'unplugged' && plug !== 'unknown';
+    // MEASURED 28-09-2026: a boost set with no car reads Boosting, so charging
+    // also needs a car on the end of the lead.
+    var plugged = plug !== undefined && plug !== 'unplugged' && plug !== 'unknown';
+    var charging = plugged && (st.chargeState === 'charging' || st.chargeState === 'boosting');
     var watts = num(st.chargePowerW);
     var session = num(st.sessionKwh);
 
@@ -1013,6 +1022,10 @@
       g.val = words({}, guard);
     }
     view.tiles.push(g);
+    if (view.boost.active) {
+      view.tiles.push({ lab: 'Boost', val: view.boost.kwh ? view.boost.kwh + ' kWh' : 'Set',
+                        sub: 'at full power', cls: 'good' });
+    }
 
     if (plug === 'fault') { view.tone = 'warn'; view.note = 'The charger is reporting a fault. The myenergi app has the detail.'; }
     else if (guard === 'paused') { view.tone = 'warn'; view.note = 'The house battery is selling to the grid, so the charger is stopped until that ends.'; }
@@ -1046,6 +1059,39 @@
     return { buttons: buttons, note: note, waiting: waiting };
   }
 
+  /* Boost buttons (v1.9, Dashboards 3.58.0). A boost only runs in Eco or
+     Eco+. `pending` = {action: 'start'|'stop', kwh, sentAt}; the Zappi plugin's
+     boostActive / boostKwh states are the proof (measured: they move within
+     about 6 s of the command). With a Zappi plugin too old to report a boost,
+     the press is shown as sent, never as confirmed. */
+  var CHARGER_BOOST_KWH = [5, 10, 20];
+
+  function chargerBoostView(view, pending, nowMs) {
+    var b = view.boost || { known: false, active: false, kwh: null };
+    var inEco = view.mode === 'eco' || view.mode === 'ecoPlus';
+    var confirmed = pending && pending.action && b.known &&
+      (pending.action === 'stop' ? !b.active : (b.active && b.kwh === pending.kwh));
+    var fresh = !!(pending && pending.action && nowMs - pending.sentAt < CHARGER_CONFIRM_MS);
+    var waiting = fresh && b.known && !confirmed;
+    var out = { active: b.active, kwh: b.kwh, waiting: waiting, note: '',
+                chips: [], stop: { show: b.active || (waiting && pending.action === 'stop'), disabled: !view.live || waiting,
+                                   busy: waiting && pending.action === 'stop' } };
+    CHARGER_BOOST_KWH.forEach(function (k) {
+      out.chips.push({ kwh: k, label: k + ' kWh',
+                       busy: waiting && pending.action === 'start' && pending.kwh === k,
+                       disabled: !view.live || !inEco || waiting || b.active });
+    });
+    if (!view.live) return out;
+    if (waiting) out.note = pending.action === 'stop' ? 'Stopping the boost…' : 'Asking for a ' + pending.kwh + ' kWh boost…';
+    else if (fresh && !b.known) out.note = 'Sent. This Zappi plugin cannot report a boost, so check the charger.';
+    else if (pending && pending.action && !confirmed && b.known)
+      out.note = 'The charger has not confirmed the ' + (pending.action === 'stop' ? 'stop' : 'boost') + '. Try again.';
+    else if (b.active && view.plugged) out.note = 'Boosting ' + (b.kwh ? b.kwh + ' kWh ' : '') + 'at full power, whatever the sun is doing.';
+    else if (b.active) out.note = 'A ' + (b.kwh ? b.kwh + ' kWh ' : '') + 'boost is set. No car is plugged in.';
+    else if (!inEco) out.note = 'A boost works in Eco or Eco+.';
+    return out;
+  }
+
   var API = {
     DEFAULT_CAPACITY_KWH: DEFAULT_CAPACITY_KWH,
     BACKUP_RESERVE_PCT: BACKUP_RESERVE_PCT,
@@ -1077,6 +1123,7 @@
     chargerDevices: chargerDevices, chargerView: chargerView,
     chargerModeButtons: chargerModeButtons, CHARGER_MODES: CHARGER_MODES,
     CHARGER_CONFIRM_MS: CHARGER_CONFIRM_MS,
+    chargerBoostView: chargerBoostView, CHARGER_BOOST_KWH: CHARGER_BOOST_KWH,
     CHARGER_STALE_MS: CHARGER_STALE_MS,
   };
 

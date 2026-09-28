@@ -17,9 +17,9 @@
 #              browser for live tiles, and a small HTTP server on port 8177
 #              for the WebRTC signalling and the bootstrap routes. Tiles that
 #              are not live poll the snapshots.
-# Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.57.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
+# Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.58.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
 # Date:        28-09-2026
-# Version:     3.57.0
+# Version:     3.58.0
 #
 # Version history: docs/changelog.md (what each release does, for users) and
 # `git log` (why, for developers). The per-version engineering notes that sat
@@ -103,12 +103,14 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION = "3.57.0"
+PLUGIN_VERSION = "3.58.0"
 
 import logging
 from dash_common import (  # noqa: E402
     as_bool,
     CAMERA_POLL_SECONDS,
+    CHARGER_BOOST_MAX_KWH,
+    CHARGER_BOOST_MODES,
     CHARGER_DEVICE_TYPE,
     CHARGER_MODES,
     CHARGER_PLUGIN_ID,
@@ -3061,33 +3063,91 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         payload, _reply = self._request_body(action, changes_state=True)
         if _reply:
             return _reply
-        try:
-            dev_id = int(payload.get("deviceId"))
-        except (TypeError, ValueError, OverflowError):
-            return self._evo_reply({"ok": False, "error": "deviceId must be a number"}, status=400)
         mode = str(payload.get("mode") or "").strip()
         if mode not in CHARGER_MODES:
             return self._evo_reply({"ok": False, "error": f"unknown mode {mode!r}"}, status=400)
-        if dev_id not in indigo.devices:
-            return self._evo_reply({"ok": False, "error": f"no device {dev_id}"}, status=404)
-        dev = indigo.devices[dev_id]
         # Only a charger: this must not become a way to fire any plugin's
         # "setMode" at any device.
-        if dev.pluginId != CHARGER_PLUGIN_ID or dev.deviceTypeId != CHARGER_DEVICE_TYPE:
-            return self._evo_reply({"ok": False, "error": f"{dev.name} is not a car charger"}, status=400)
-        blocked, status = self._device_command_blocked(dev)
-        if blocked:
-            self.logger.warning(f"[Charger] {dev.name}: refused — {blocked}")
-            return self._evo_reply({"ok": False, "device": dev.name, "error": blocked}, status=status)
-        try:
-            indigo.server.getPlugin(CHARGER_PLUGIN_ID).executeAction(
-                "setMode", deviceId=dev.id, props={"mode": mode}, waitUntilDone=False)
-        except Exception as exc:            # noqa: BLE001 — report, never swallow
-            self.logger.warning(f"[Charger] {dev.name}: could not pass on the mode ({exc})")
-            return self._evo_reply({"ok": False, "device": dev.name, "error": str(exc)}, status=502)
+        dev, reply = self._charger_target(payload)
+        if reply:
+            return reply
+        reply = self._charger_send(dev, "setMode", {"mode": mode})
+        if reply:
+            return reply
         # 202: accepted and passed on. The charger's own reply comes back as the
         # device's mode state, which the page watches for.
         return self._evo_reply({"ok": True, "device": dev.name, "mode": mode}, status=202)
+
+    def _charger_target(self, payload):
+        """(dev, None) for a request naming a usable car charger, or
+        (None, reply). Shared by chargerMode and chargerBoost so the two can
+        never disagree about what counts as a charger."""
+        try:
+            dev_id = int(payload.get("deviceId"))
+        except (TypeError, ValueError, OverflowError):
+            return None, self._evo_reply({"ok": False, "error": "deviceId must be a number"}, status=400)
+        if dev_id not in indigo.devices:
+            return None, self._evo_reply({"ok": False, "error": f"no device {dev_id}"}, status=404)
+        dev = indigo.devices[dev_id]
+        if dev.pluginId != CHARGER_PLUGIN_ID or dev.deviceTypeId != CHARGER_DEVICE_TYPE:
+            return None, self._evo_reply({"ok": False, "error": f"{dev.name} is not a car charger"}, status=400)
+        blocked, status = self._device_command_blocked(dev)
+        if blocked:
+            self.logger.warning(f"[Charger] {dev.name}: refused — {blocked}")
+            return None, self._evo_reply({"ok": False, "device": dev.name, "error": blocked}, status=status)
+        return dev, None
+
+    def _charger_send(self, dev, action_id, props):
+        """Hand a command to the Zappi plugin's own action, never waiting (this
+        is the web server's single dispatch thread). A reply for the page."""
+        try:
+            indigo.server.getPlugin(CHARGER_PLUGIN_ID).executeAction(
+                action_id, deviceId=dev.id, props=props, waitUntilDone=False)
+        except Exception as exc:            # noqa: BLE001 — report, never swallow
+            self.logger.warning(f"[Charger] {dev.name}: could not pass on {action_id} ({exc})")
+            return self._evo_reply({"ok": False, "device": dev.name, "error": str(exc)}, status=502)
+        return None
+
+    def handleChargerBoost(self, action, dev=None, callerWaitingForResult=True):
+        """POST /message/com.clives.indigoplugin.dashboards/chargerBoost/
+
+        Body: {"deviceId": N, "action": "start", "kwh": 1-99}
+           or {"deviceId": N, "action": "stop"}
+
+        The Energy page's boost buttons (3.58.0), carried out by the Zappi
+        plugin's own Boost / Stop Boost actions. A start outside Eco or Eco+ is
+        refused HERE with the reason: the Zappi plugin would only log a warning,
+        and the page would be left waiting for a boost that was never sent."""
+        payload, _reply = self._request_body(action, changes_state=True)
+        if _reply:
+            return _reply
+        what = str(payload.get("action") or "").strip()
+        if what not in ("start", "stop"):
+            return self._evo_reply({"ok": False, "error": "action must be start or stop"}, status=400)
+        kwh = None
+        if what == "start":
+            try:
+                kwh = int(payload.get("kwh"))
+            except (TypeError, ValueError, OverflowError):
+                return self._evo_reply({"ok": False, "error": "kwh must be a whole number"}, status=400)
+            if not 1 <= kwh <= CHARGER_BOOST_MAX_KWH:
+                return self._evo_reply({"ok": False, "error": f"kwh must be 1 to {CHARGER_BOOST_MAX_KWH}"}, status=400)
+        dev, reply = self._charger_target(payload)
+        if reply:
+            return reply
+        if what == "start":
+            mode = str(dev.states.get("mode", "") or "")
+            if mode not in CHARGER_BOOST_MODES:
+                shown = {"fast": "Fast", "stopped": "Stopped"}.get(mode, mode or "an unknown mode")
+                return self._evo_reply({"ok": False, "device": dev.name,
+                                        "error": f"a boost only works in Eco or Eco+, and the charger is in {shown}"},
+                                       status=409)
+            reply = self._charger_send(dev, "boost", {"kwh": str(kwh)})
+        else:
+            reply = self._charger_send(dev, "stopBoost", {})
+        if reply:
+            return reply
+        return self._evo_reply({"ok": True, "device": dev.name, "action": what, "kwh": kwh}, status=202)
 
     def handleApplyColour(self, action, dev=None, callerWaitingForResult=True):
         """POST /message/com.clives.indigoplugin.dashboards/applyColour/

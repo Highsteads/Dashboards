@@ -219,6 +219,15 @@
         <CallbackMethod>handleChargerMode</CallbackMethod>
     </Action>
 
+    <!-- POST /message/com.clives.indigoplugin.dashboards/chargerBoost/
+         Body: {"deviceId": N, "action": "start", "kwh": 1-99} | {"deviceId": N, "action": "stop"}
+         The Energy page's car charger boost buttons (3.58.0), carried out by
+         the Zappi plugin's own Boost / Stop Boost actions. -->
+    <Action id="chargerBoost" uiPath="hidden">
+        <Name>Boost Car Charger</Name>
+        <CallbackMethod>handleChargerBoost</CallbackMethod>
+    </Action>
+
     <!-- POST /message/com.clives.indigoplugin.dashboards/verifyPin/
          Body: {"pin": "<entered>"} → {"ok": true, "valid": bool}
          Server-side PIN check for the per-tile PIN speed bump (v2.1.0). -->

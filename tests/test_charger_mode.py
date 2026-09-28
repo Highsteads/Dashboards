@@ -14,9 +14,11 @@
 #              3. A command that would be swallowed (device disabled, Zappi
 #                 plugin stopped) is refused, not reported as sent.
 #              4. The mode tokens agree in the three places they are written.
+#              5. Boost (3.58.0): only in Eco or Eco+, 1-99 kWh, refused with the
+#                 reason rather than left for the Zappi plugin to drop quietly.
 # Author:      CliveS & Claude Opus 5.5
 # Date:        28-09-2026
-# Version:     1.0
+# Version:     1.1
 
 import json
 import os
@@ -48,9 +50,10 @@ class _Devices:
         return self._d[key]
 
 
-def _dev(dev_id, name, plugin_id=ZAPPI, type_id="zappi", enabled=True):
+def _dev(dev_id, name, plugin_id=ZAPPI, type_id="zappi", enabled=True, mode="ecoPlus"):
     d = MagicMock()
     d.id, d.name, d.pluginId, d.deviceTypeId, d.enabled = dev_id, name, plugin_id, type_id, enabled
+    d.states = {"mode": mode}
     return d
 
 
@@ -73,9 +76,13 @@ def rig(monkeypatch):
     return p, owner, server
 
 
-def call(p, body, **kw):
-    reply = p.handleChargerMode(FakeAction(json.dumps(body) if not isinstance(body, str) else body, **kw))
+def call(p, body, handler="handleChargerMode", **kw):
+    reply = getattr(p, handler)(FakeAction(json.dumps(body) if not isinstance(body, str) else body, **kw))
     return reply["status"], json.loads(reply["content"])
+
+
+def boost(p, body, **kw):
+    return call(p, body, handler="handleChargerBoost", **kw)
 
 
 def test_passes_the_mode_to_the_zappi_plugin_without_waiting(rig):
@@ -126,6 +133,67 @@ def test_a_form_post_is_refused(rig):
     p, owner, _ = rig
     assert call(p, {"deviceId": 58134337, "mode": "fast"}, content_type="text/plain")[0] == 415
     owner.executeAction.assert_not_called()
+
+
+# ── boost (3.58.0) ──
+
+def test_boost_is_passed_on_without_waiting(rig):
+    p, owner, _ = rig
+    status, body = boost(p, {"deviceId": 58134337, "action": "start", "kwh": 10})
+    assert status == 202 and body["kwh"] == 10
+    owner.executeAction.assert_called_once_with("boost", deviceId=58134337,
+                                                props={"kwh": "10"}, waitUntilDone=False)
+
+
+def test_stop_boost_is_passed_on(rig):
+    p, owner, _ = rig
+    assert boost(p, {"deviceId": 58134337, "action": "stop"})[0] == 202
+    owner.executeAction.assert_called_once_with("stopBoost", deviceId=58134337, props={}, waitUntilDone=False)
+
+
+@pytest.mark.parametrize("mode, word", [("fast", "Fast"), ("stopped", "Stopped")])
+def test_boost_refused_outside_eco_with_the_reason(rig, monkeypatch, mode, word):
+    p, owner, _ = rig
+    p_mod = load_plugin_module()
+    p_mod.indigo.devices[58134337].states["mode"] = mode
+    status, body = boost(p, {"deviceId": 58134337, "action": "start", "kwh": 5})
+    assert status == 409 and word in body["error"] and "Eco or Eco+" in body["error"]
+    owner.executeAction.assert_not_called()
+
+
+def test_stop_is_allowed_in_any_mode(rig):
+    p, owner, _ = rig
+    load_plugin_module().indigo.devices[58134337].states["mode"] = "fast"
+    assert boost(p, {"deviceId": 58134337, "action": "stop"})[0] == 202
+
+
+@pytest.mark.parametrize("body, status", [
+    ({"deviceId": 58134337, "action": "go"}, 400),
+    ({"deviceId": 58134337, "action": "start"}, 400),
+    ({"deviceId": 58134337, "action": "start", "kwh": 0}, 400),
+    ({"deviceId": 58134337, "action": "start", "kwh": 100}, 400),
+    ({"deviceId": 58134337, "action": "start", "kwh": "lots"}, 400),
+    ({"deviceId": 372666822, "action": "start", "kwh": 5}, 400),   # not a charger
+    ({"deviceId": 9, "action": "stop"}, 409),                       # disabled
+])
+def test_boost_refuses_and_sends_nothing(rig, body, status):
+    p, owner, _ = rig
+    assert boost(p, body)[0] == status
+    owner.executeAction.assert_not_called()
+
+
+def test_boost_form_post_refused(rig):
+    p, owner, _ = rig
+    assert boost(p, {"deviceId": 58134337, "action": "stop"}, content_type="text/plain")[0] == 415
+
+
+def test_boost_limits_match_the_zappi_plugin():
+    plugin = load_plugin_module()
+    assert plugin.CHARGER_BOOST_MAX_KWH == 99 and tuple(plugin.CHARGER_BOOST_MODES) == ("eco", "ecoPlus")
+    api = os.path.expanduser("~/GitHub/Zappi/Zappi.indigoPlugin/Contents/Server Plugin/zappi_api.py")
+    if not os.path.isfile(api):
+        pytest.skip("Zappi repo not present; checked on the development Mac")
+    assert "if not 1 <= value <= 99:" in open(api, encoding="utf-8").read()
 
 
 def test_mode_tokens_agree_everywhere():
