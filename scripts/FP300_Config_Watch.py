@@ -15,10 +15,14 @@
 #              one, so the re-assert only fires while the sensor reports
 #              presence — i.e. the next time somebody is in the room. It also
 #              watches powerOutageCount, the early sign a sensor has been reset.
-# Author:      CliveS & Claude Fable 5.1
-# Date:        02-09-2026 + UK Time Now
-# Version:     1.2
+# Author:      CliveS & Claude Fable 5.1, Claude Opus 5.5
+# Date:        29-09-2026 14:10
+# Version:     1.3
 #
+# v1.3 (29-09-2026): also holds the TEMPERATURE AND HUMIDITY reporting settings, on six
+#   sensors (lounge x3, Bathroom Basin, Bedroom 1 x2) that now serve as room thermometers
+#   for the heating. The presence settings stay on the two bedroom sensors only - each
+#   sensor gets its own list (desired_for). A battery change resets both to defaults.
 # v1.2 (02-09-2026, Dashboards deep review): (1) a sensor that is disabled in
 #   Indigo, or has not talked for two hours, is not "awake" whatever its frozen
 #   presence flag says — the watch was republishing to it every 30 minutes for
@@ -77,6 +81,19 @@ SENSOR_IDS = [
     623198824,    # Bedroom 1 Headboard Presence Sensor (ieee ...6944ec)
 ]
 
+# The sensors used as ROOM THERMOMETERS for the heating (29-09-2026). They get the
+# temperature and humidity settings in TEMP_DESIRED; only SENSOR_IDS above get the
+# presence settings in DESIRED, so the lounge and bathroom sensors keep detecting
+# people exactly as before.
+TEMP_SENSOR_IDS = [
+    1496890672,   # Living Room Centre Presence Sensor
+    1909477979,   # Living Room Left Presence Sensor
+    1899487413,   # Living Room Right Presence Sensor
+    1070583195,   # Bathroom Basin Presence Sensor
+    623198824,    # Bedroom 1 Headboard Presence Sensor
+    1881897017,   # Bedroom 1 Wall Presence Sensor
+]
+
 # The z2m model this watch understands. Used ONLY to work out the denominator:
 # how many devices of this kind exist against how many are being watched.
 #
@@ -117,6 +134,29 @@ DESIRED = [
     # All 24 range gates enabled.
     {"indigo_state": "detectionRange",          "z2m_key": "detection_range",
      "want": 16777215,   "z2m_value": 16777215},
+]
+
+# Temperature and humidity reporting fast enough to steer a radiator (29-09-2026):
+# measure every minute, report every 10 minutes, and at once on a change of 0.3 degC
+# or 3% humidity. The factory setting reports hourly or on a 1 degC change. Aqara warns
+# faster sampling costs battery; every one read 100% when this was set.
+TEMP_DESIRED = [
+    {"indigo_state": "tempAndHumiditySampling",       "z2m_key": "temp_and_humidity_sampling",
+     "want": "custom",   "z2m_value": "custom"},
+    {"indigo_state": "tempAndHumiditySamplingPeriod", "z2m_key": "temp_and_humidity_sampling_period",
+     "want": 60,         "z2m_value": 60},
+    {"indigo_state": "tempReportingInterval",         "z2m_key": "temp_reporting_interval",
+     "want": 600,        "z2m_value": 600},
+    {"indigo_state": "tempReportingThreshold",        "z2m_key": "temp_reporting_threshold",
+     "want": 0.3,        "z2m_value": 0.3},
+    {"indigo_state": "tempReportingMode",             "z2m_key": "temp_reporting_mode",
+     "want": "threshold and interval", "z2m_value": "threshold and interval"},
+    {"indigo_state": "humidityReportingInterval",     "z2m_key": "humidity_reporting_interval",
+     "want": 600,        "z2m_value": 600},
+    {"indigo_state": "humidityReportingThreshold",    "z2m_key": "humidity_reporting_threshold",
+     "want": 3,          "z2m_value": 3},
+    {"indigo_state": "humidityReportMode",            "z2m_key": "humidity_report_mode",
+     "want": "threshold and interval", "z2m_value": "threshold and interval"},
 ]
 
 # Do not republish to the same sensor more often than this. A sleepy device can
@@ -227,7 +267,33 @@ def matches(actual, want):
             return int(actual) == want
         except (TypeError, ValueError):
             return False
+    if isinstance(want, float):
+        try:
+            return abs(float(actual) - want) < 1e-6
+        except (TypeError, ValueError):
+            return False
     return str(actual).strip().lower() == str(want).strip().lower()
+
+
+def desired_for(dev_id, presence_ids, temp_ids, desired, temp_desired):
+    """The settings one sensor should hold: the presence list for the bedroom sensors,
+    the temperature list for the room thermometers, both for a sensor that is both."""
+    out = []
+    if dev_id in presence_ids:
+        out.extend(desired)
+    if dev_id in temp_ids:
+        out.extend(temp_desired)
+    return out
+
+
+def watched_ids(presence_ids, temp_ids):
+    """Every sensor the watch covers, each once, in the order first listed."""
+    seen, out = set(), []
+    for dev_id in list(presence_ids) + list(temp_ids):
+        if dev_id not in seen:
+            seen.add(dev_id)
+            out.append(dev_id)
+    return out
 
 
 _MISSING = object()
@@ -472,7 +538,10 @@ def main(dry_run=False, quiet=False):
 
     pending, drifted, healthy = {}, [], []
 
-    watched = list(_cfg("SENSOR_IDS", []))
+    presence_ids = list(_cfg("SENSOR_IDS", []))
+    temp_ids     = list(_cfg("TEMP_SENSOR_IDS", []))
+    temp_desired = _cfg("TEMP_DESIRED", [])
+    watched = watched_ids(presence_ids, temp_ids)
     try:
         coverage_report(state, watched, quiet=quiet)
     except Exception as exc:
@@ -497,7 +566,8 @@ def main(dry_run=False, quiet=False):
         key    = str(dev_id)
         record = sensors.get(key, {})
         states = dict(dev.states)
-        drift  = find_drift(states, desired)
+        drift  = find_drift(states, desired_for(dev_id, presence_ids, temp_ids,
+                                                desired, temp_desired))
 
         # A rise in powerOutageCount is the early warning that the sensor was
         # reset — which is what silently undid the 24-Jun-2026 settings.

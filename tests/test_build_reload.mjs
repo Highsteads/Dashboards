@@ -20,7 +20,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SRC = fs.readFileSync(path.join(HERE, "..", "Dashboards.indigoPlugin", "Contents",
                             "Resources", "static", "pages", "dashboards-gate.js"), "utf8");
 
-function page({ mine = "3.45.7", hidden = false, store = new Map() } = {}) {
+function page({ mine = "3.45.7", hidden = false, hideDuringFetch = false, store = new Map() } = {}) {
     const calls = { reload: 0, replace: [] }, listeners = {};
     let now = 1_000_000;
     const win = { DASHBOARDS_BUILD: mine };
@@ -35,7 +35,7 @@ function page({ mine = "3.45.7", hidden = false, store = new Map() } = {}) {
         sessionStorage: { getItem: k => (store.has(k) ? store.get(k) : null),
                           setItem: (k, v) => store.set(k, String(v)) },
         Date: { now: () => now },
-        fetch: async () => ({ status: 200, ok: true, json: async () => stamp }),
+        fetch: async () => { if (hideDuringFetch) doc.hidden = true; return { status: 200, ok: true, json: async () => stamp }; },
         AbortController: class { constructor() { this.signal = {}; } abort() {} },
         setTimeout: () => 0, clearTimeout: () => {}, console,
     };
@@ -72,7 +72,9 @@ p = page({ store: shared });
 await p.tick("3.45.8");
 check("…and after two goes it stops (no reload loop)", p.calls.reload === 0 && !p.calls.replace.length);
 
-p = page({ hidden: true });
+// Since gate 1.1 a hidden page sends no stamp request at all, so the only way to
+// learn of a new build while hidden is a fetch already in flight when the page went away.
+p = page({ hideDuringFetch: true });
 await p.tick("3.45.8");
 check("a hidden page waits", p.calls.reload === 0);
 p.doc.hidden = false;

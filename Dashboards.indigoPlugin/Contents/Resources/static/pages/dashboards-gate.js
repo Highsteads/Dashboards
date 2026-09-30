@@ -8,7 +8,7 @@
 //              pollers whether it is safe to call /message/ right now.
 // Author:      CliveS & Claude Fable 5
 // Date:        31-07-2026
-// Version:     1.0
+// Version:     1.1
 //
 // Load order: config.js → dashboards-auth.js → dashboards-gate.js → the rest.
 //
@@ -138,8 +138,26 @@
         }
     }
 
+    // No stamp fetch is STARTED for a page nobody can see, or one that is
+    // leaving. A request the client abandons before reading a byte makes IWS
+    // log "internal server error for request .../changed.stamp" — harmless, but
+    // it was the estate's most frequent event-log error. `skipped` remembers
+    // that we went quiet, so the first look afterwards is treated as a first
+    // sight (an old stamp reads down at once; a frozen young one within
+    // STALE_MS) instead of judging a long silence as a missed heartbeat.
+    let _leaving = false, _skipped = false;
+    function quiet() {
+        return _leaving || (typeof document !== "undefined" && document.hidden === true);
+    }
+    if (typeof window.addEventListener === "function") {
+        window.addEventListener("pagehide", () => { _leaving = true; });
+        window.addEventListener("pageshow", () => { _leaving = false; });
+    }
+
     async function check() {
         const now = Date.now();
+        if (quiet()) { _skipped = true; return st.lastVerdict; }
+        if (_skipped) { _skipped = false; st.lastTs = 0; st.lastAdvance = 0; st.lastFetchAt = 0; }
         // While backing off, answer instantly from the last verdict — no fetch.
         if (st.lastVerdict === "down" && now < st.backoffUntil) return "down";
         // Memoise: many pollers on one page share one stamp fetch per window.

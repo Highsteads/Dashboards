@@ -31,10 +31,15 @@ function mkResp(status, obj) {
     return { status, ok: status >= 200 && status < 300, json: async () => obj };
 }
 
+let DOC = { hidden: false };
+let WINDOW_EVENTS = {};
+
 function loadGate() {
-    const win = {};
+    const win = { addEventListener: (n, f) => { WINDOW_EVENTS[n] = f; } };
+    WINDOW_EVENTS = {};
     const ctx = {
         window: win,
+        document: DOC,
         Date: { now: () => NOW },
         fetch: async (...a) => { FETCHES++; return RESPONDER(...a); },
         AbortController: class { constructor() { this.signal = {}; } abort() {} },
@@ -50,6 +55,7 @@ function loadGate() {
 // Fresh gate per test — module state is deliberately sticky in production.
 function fresh() {
     FETCHES = 0;
+    DOC.hidden = false;
     RESPONDER = async () => { throw new Error("no responder set"); };
     return loadGate();
 }
@@ -171,6 +177,51 @@ const tests = {
         await g.check();
         assert.equal(g.bootChanged(), true, "restart must be reported");
         assert.equal(g.bootChanged(), false, "and reported exactly once");
+    },
+    async "a hidden page starts no stamp fetch"() {
+        const g = fresh();
+        RESPONDER = async () => mkResp(200, { v: 1, boot: 10, ts: 500, state: "run" });
+        assert.equal(await g.check(), "ok");
+        DOC.hidden = true;
+        NOW += C.FETCH_MS * 5;
+        assert.equal(await g.check(), "ok", "answers from the last verdict");
+        assert.equal(FETCHES, 1, "no request is sent for a page nobody can see");
+    },
+
+    async "a page that is leaving starts no stamp fetch, and pageshow restores it"() {
+        const g = fresh();
+        RESPONDER = async () => mkResp(200, { v: 1, boot: 10, ts: 500, state: "run" });
+        WINDOW_EVENTS.pagehide();
+        NOW += C.FETCH_MS + 1;
+        await g.check();
+        assert.equal(FETCHES, 0);
+        WINDOW_EVENTS.pageshow();
+        await g.check();
+        assert.equal(FETCHES, 1, "back from the bfcache it fetches again");
+    },
+
+    async "coming back from hidden is a first sight, not a missed heartbeat"() {
+        const g = fresh();
+        let ts = 500;
+        RESPONDER = async () => mkResp(200, { v: 1, boot: 10, ts: ++ts, state: "run" });
+        await g.check();
+        DOC.hidden = true;
+        NOW += 600000;                       // ten quiet minutes
+        await g.check();
+        DOC.hidden = false;
+        assert.equal(await g.check(), "ok", "a long silence must not read as down");
+        assert.equal(FETCHES, 2);
+    },
+
+    async "coming back from hidden still spots a plugin that died while away"() {
+        const g = fresh();
+        g._state.lastVerdict = "ok";
+        DOC.hidden = true;
+        await g.check();
+        DOC.hidden = false;
+        NOW = (1e9 + 1000) * 1000;           // a real-looking epoch clock
+        RESPONDER = async () => mkResp(200, { v: 1, boot: 10, ts: 1e9 + 1000 - 600, state: "run" });
+        assert.equal(await g.check(), "down");
     },
 };
 
