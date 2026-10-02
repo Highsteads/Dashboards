@@ -442,6 +442,68 @@ def media_duration(path):
     return float(out.stdout.strip())
 
 
+def clip_anchors(beats, length, old_len):
+    """New-film time -> old-clip time, as (new, old) points, for a spliced clip.
+
+    Each beat with an "anchor" says where, in the old footage, its action
+    happens; the line is spoken at the beat's new start, and the footage is
+    played faster or slower between the anchors so the two meet. Before the
+    first anchor the footage waits on its first frame (an introduction is
+    spoken over it) or, if the new line comes first, starts part-way in.
+    """
+    pts = [(b["start"], float(b["anchor"])) for b in beats if "anchor" in b]
+    if not pts:
+        return [(0.0, 0.0), (length, old_len)]
+    new0, old0 = pts[0]
+    lead = new0 - old0
+    out = [(0.0, 0.0), (lead, 0.0)] if lead > 0 else [(0.0, -lead)]
+    for n, o in pts:
+        if n > out[-1][0] and o >= out[-1][1]:
+            out.append((n, o))
+    if length > out[-1][0]:
+        out.append((length, max(old_len, out[-1][1])))
+    return out
+
+
+def old_time(anchors, t):
+    """The old-clip time shown at new time t (piecewise linear, clamped)."""
+    if t <= anchors[0][0]:
+        return anchors[0][1]
+    for (n0, o0), (n1, o1) in zip(anchors, anchors[1:]):
+        if t <= n1:
+            return o0 + (o1 - o0) * (t - n0) / (n1 - n0)
+    return anchors[-1][1]
+
+
+def prepare_clip(seg, work, n):
+    """Cut a spliced segment's footage out of an existing recording and set
+    its frames, one per output frame, played through the anchors.
+
+    The old recording carries its own fade into and out of every section, so
+    the first and last FADE seconds are left off; compose() fades the new
+    segment itself. A beat's "anchor" is a time in that TRIMMED footage.
+    """
+    c = seg["clip"]
+    path = os.path.expanduser(c["file"])
+    if not os.path.exists(path):
+        raise SystemExit(f"clip source missing: {path}")
+    start, end = float(c["from"]) + FADE, float(c["to"]) - FADE
+    old_len = end - start
+    folder = os.path.join(work, f"clip{n:02d}")
+    os.makedirs(folder, exist_ok=True)
+    subprocess.run(["ffmpeg", "-y", "-v", "error", "-ss", f"{start:.3f}", "-t", f"{old_len:.3f}",
+                    "-i", path, "-vf", f"fps={FPS}", "-q:v", "2",
+                    os.path.join(folder, "%05d.jpg")], check=True)
+    count = len([f for f in os.listdir(folder) if f.endswith(".jpg")])
+    anchors = clip_anchors(seg["beats"], seg["length"], old_len)
+    frames = []
+    for i in range(int(round(seg["length"] * FPS))):
+        idx = min(count, max(1, int(round(old_time(anchors, i / FPS) * FPS)) + 1))
+        frames.append((i / FPS, os.path.join(folder, f"{idx:05d}.jpg")))
+    frames.append((seg["length"], None))
+    seg["frames"] = frames
+
+
 def plan(tour, work, voice, rate, words=None):
     """Speak every beat and lay the whole film out on one clock.
 
@@ -982,8 +1044,12 @@ async def record(args, segments, origin, work):
                            maxHeight=int(args.height * args.scale))
             navigated = False
             for n, seg in enumerate(segments):
-                name = seg.get("page") or seg["card"].get("title", "card")
+                name = seg.get("page") or (seg.get("card") or {}).get("title", "spliced clip")
                 print(f"  {name[:34]:<34} {seg['length']:5.1f}s ", end="", flush=True)
+                if "clip" in seg:
+                    navigated = False
+                    print("(spliced footage)")
+                    continue
                 await settle_on(cdp, origin, seg, args, navigated)
                 navigated = False
                 if "page" in seg:
@@ -1332,6 +1398,9 @@ def main():
         print(f"speaking the script ({args.voice}) ...")
         segments, total = plan(tour, work, args.voice, args.rate, words)
         print(f"  {sum(1 for s in segments for b in s['beats'] if b['say'])} lines, {total:.1f}s")
+        for n, seg in enumerate(segments):
+            if "clip" in seg:
+                prepare_clip(seg, work, n)
         print("recording" + (" LIVE" if args.live else " a rehearsal (nothing reaches the house)") + " ...")
         problems = asyncio.run(record(args, segments, origin, work))
 

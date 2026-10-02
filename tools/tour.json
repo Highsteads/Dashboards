@@ -1,5 +1,5 @@
 {
-  "about": "The narrated tour recorded by tools/record_tour.py. Each segment is a page or a title card; each beat is a sentence and what is done while it is spoken. {energy_now} and {self_sufficiency} are written from the live readings when the take starts. Record in daylight, when the solar and battery flows are moving. 'allow' lists the only device and action-group ids a --live take may command; 'preflight' is the state the house must be in before a --live take. 'prepare' runs before a --live take (allow-listed ids only), so the take starts from the same place every time.",
+  "about": "The narrated tour recorded by tools/record_tour.py. Each segment is a page or a title card; each beat is a sentence and what is done while it is spoken. {energy_now} and {self_sufficiency} are written from the live readings when the take starts. Record in daylight, when the solar and battery flows are moving. 'allow' lists the only device and action-group ids a --live take may command; 'preflight' is the state the house must be in before a --live take. 'prepare' runs before a --live take (allow-listed ids only), so the take starts from the same place every time. A segment with 'clip' splices footage cut from an earlier recording (file, from, to in seconds); each beat's 'anchor' is the time in the trimmed footage where its action happens, and the footage is played faster or slower between anchors so the new voice lines meet them.",
   "poster_at": 3.0,
   "allow": [
     1463818396,
@@ -510,6 +510,47 @@
               }
             ]
           ]
+        }
+      ]
+    },
+    {
+      "clip": {
+        "file": "~/.local/share/dashboards-tour/living-room-take3.mp4",
+        "from": 102.259,
+        "to": 123.188
+      },
+      "label": "Living room (filmed earlier)",
+      "lead_in": 0.4,
+      "tail": 0.9,
+      "beats": [
+        {
+          "say": "The living room works the same way. This part was filmed before the decorating started.",
+          "hold": 0
+        },
+        {
+          "say": "In the living room, switch the colour lamp on,",
+          "anchor": 0.45,
+          "hold": 3.0
+        },
+        {
+          "say": "and slide it down to half brightness.",
+          "anchor": 3.9,
+          "hold": 3.0
+        },
+        {
+          "say": "All On switches on every light in the group, and that includes the fire.",
+          "anchor": 7.35,
+          "hold": 4.0
+        },
+        {
+          "say": "The main light is left out of the group on purpose, so it keeps its own switch.",
+          "anchor": 11.8,
+          "hold": 4.4
+        },
+        {
+          "say": "And All Off puts them all out again.",
+          "anchor": 16.68,
+          "hold": 3.0
         }
       ]
     },

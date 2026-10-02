@@ -28,7 +28,7 @@ def test_every_tour_page_exists_and_every_line_is_speakable():
     tour = json.loads((ROOT / "tools/tour.json").read_text(encoding="utf-8"))
     assert tour["segments"]
     for seg in tour["segments"]:
-        assert ("page" in seg) != ("card" in seg), "a segment is a page or a card"
+        assert sum(k in seg for k in ("page", "card", "clip")) == 1, "a segment is a page, a card or a clip"
         if "page" in seg:
             page = seg["page"].split("?")[0]
             assert (PAGES / page).is_file(), f"tour.json names a page that does not exist: {page}"
@@ -328,3 +328,26 @@ def test_the_camera_watch_goes_upstream_with_the_real_addresses():
     finally:
         proxy.shutdown()
         up.shutdown()
+
+
+def test_a_spliced_clip_meets_its_lines_and_waits_on_its_first_frame():
+    beats = [{"start": 5.0, "anchor": 0.5}, {"start": 9.0, "anchor": 4.0}]
+    a = rt.clip_anchors(beats, 14.0, 12.0)
+    assert a[0] == (0.0, 0.0) and a[1] == (4.5, 0.0), "the footage holds until the first line's action is due"
+    assert rt.old_time(a, 4.0) == 0.0
+    assert rt.old_time(a, 5.0) == 0.5 and rt.old_time(a, 9.0) == 4.0
+    assert 0.5 < rt.old_time(a, 7.0) < 4.0
+    assert rt.old_time(a, 14.0) == 12.0 and rt.old_time(a, 99) == 12.0, "clamped at the end"
+    early = rt.clip_anchors([{"start": 1.0, "anchor": 3.0}], 8.0, 6.0)
+    assert early[0] == (0.0, 2.0), "a line that comes first starts the footage part-way in"
+    assert rt.clip_anchors([{"start": 1.0}], 8.0, 6.0) == [(0.0, 0.0), (8.0, 6.0)]
+
+
+def test_the_tour_clip_anchors_lie_inside_its_footage():
+    tour = json.loads((ROOT / "tools/tour.json").read_text(encoding="utf-8"))
+    for seg in tour["segments"]:
+        if "clip" in seg:
+            c = seg["clip"]
+            old_len = c["to"] - c["from"] - 2 * rt.FADE
+            anchors = [b["anchor"] for b in seg["beats"] if "anchor" in b]
+            assert anchors == sorted(anchors) and anchors[0] >= 0 and anchors[-1] < old_len
