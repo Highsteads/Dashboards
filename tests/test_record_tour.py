@@ -268,3 +268,20 @@ def test_prepare_refuses_an_id_that_is_not_allowed():
 def test_the_tour_prepares_only_allowed_ids():
     tour = json.loads((ROOT / "tools/tour.json").read_text(encoding="utf-8"))
     assert all(c["objectId"] in tour["allow"] for c in tour.get("prepare", []))
+
+
+def test_kokoro_speed_follows_the_say_rate_within_a_sane_range():
+    assert rt.kokoro_speed(178) == 1.0
+    assert rt.kokoro_speed(1000) == 1.4 and rt.kokoro_speed(10) == 0.7
+    assert 1.0 < rt.kokoro_speed(200) < 1.2, "respeak's faster retry really is faster"
+
+
+def test_the_voice_prefix_picks_the_engine(monkeypatch):
+    calls = []
+    monkeypatch.setattr(rt.subprocess, "run", lambda cmd, **kw: calls.append(cmd))
+    monkeypatch.setattr(rt, "media_duration", lambda p: 1.0)
+    rt.speak("hi", "/tmp/x.wav", "kokoro:bm_george", 178)
+    rt.speak("hi", "/tmp/y.aiff", "Daniel", 178)
+    assert calls[0][-4:] == ["bm_george", "1.0", "/tmp/x.wav", "hi"]
+    assert calls[0][0].endswith("python")
+    assert calls[1][:3] == ["say", "-v", "Daniel"]

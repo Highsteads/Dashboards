@@ -3,9 +3,10 @@
 # Filename:    record_tour.py
 # Description: Record a narrated video tour of the live dashboards for the docs
 #              site, through the same sanitising proxy as capture_screenshots.py.
-# Author:      CliveS & Claude Opus 5.5
-# Date:        28-09-2026 12:10 BST
-# Version:     2.0 (presses, drags, a drawn pointer, zooms, section labels,
+# Author:      CliveS & Claude Opus 5.5; Claude Sonnet 5.5 (2.1)
+# Date:        02-10-2026
+# Version:     2.1 (Kokoro neural voice; set --voice kokoro:bm_george)
+#              2.0 (presses, drags, a drawn pointer, zooms, section labels,
 #              title and end cards, energy narration from live readings, and a
 #              rehearsal mode that sends nothing to the house)
 #              1.0 (27-09-2026: narrated scroll-through)
@@ -404,9 +405,29 @@ def energy_words(e):
 
 # --------------------------------------------------------------------- speech
 
+KOKORO_DIR = os.path.expanduser("~/.local/share/kokoro-tts")
+KOKORO_PY = os.path.join(KOKORO_DIR, "venv", "bin", "python")
+NORMAL_RATE = 178                                  # words a minute `say` speaks at: speed 1.0
+
+
+def kokoro_installed():
+    return os.path.exists(KOKORO_PY) and os.path.exists(os.path.join(KOKORO_DIR, "speak.py"))
+
+
+def kokoro_speed(rate):
+    """Kokoro's speed for a `say`-style words-a-minute rate, kept to its sane range."""
+    return round(max(0.7, min(1.4, rate / NORMAL_RATE)), 3)
+
+
 def speak(text, path, voice, rate):
-    subprocess.run(["say", "-v", voice, "-r", str(rate), "-o", path, text],
-                   check=True)
+    """Speak one line to `path`: with Kokoro for "kokoro:<voice>", else macOS say."""
+    if voice.startswith("kokoro:"):
+        subprocess.run([KOKORO_PY, os.path.join(KOKORO_DIR, "speak.py"),
+                        voice.split(":", 1)[1], str(kokoro_speed(rate)), path, text],
+                       check=True)
+    else:
+        subprocess.run(["say", "-v", voice, "-r", str(rate), "-o", path, text],
+                       check=True)
     return media_duration(path)
 
 
@@ -469,7 +490,7 @@ def respeak(seg, words, voice, rate, work):
         wav = os.path.join(work, f"live-{id(seg)}-{bi}.aiff")
         dur = speak(text, wav, voice, rate)
         if dur > beat["span"]:
-            dur = speak(text, wav, voice, min(230, int(rate * dur / beat["span"] * 1.04) + 1))
+            dur = speak(text, wav, voice, min(260, int(rate * dur / beat["span"] * 1.04) + 1))
         if dur > beat["span"] + 0.3:
             changed.append(f"a live line runs {dur - beat['span']:.1f}s over its slot")
         beat.update(say=text, audio=wav, dur=dur)
@@ -1212,9 +1233,9 @@ def main():
     ap.add_argument("--settle", type=float, default=7.0,
                     help="real seconds a page gets to load its data before "
                          "recording starts")
-    ap.add_argument("--voice", default="Daniel (Enhanced)",
-                    help="a `say -v '?'` voice; falls back to plain Daniel when "
-                         "the Enhanced download is not on this Mac")
+    ap.add_argument("--voice", default="kokoro:bm_george",
+                    help="'kokoro:<voice>' (local neural voice, ~/.local/share/kokoro-tts) "
+                         "or a `say -v '?'` voice. Falls back to Daniel when not installed.")
     ap.add_argument("--rate", type=int, default=178, help="words per minute")
     ap.add_argument("--scheme", choices=("light", "dark"), default="light")
     ap.add_argument("--rename", action="append", default=[], metavar="OLD=NEW")
@@ -1224,7 +1245,11 @@ def main():
     if connect is None:
         sys.exit("needs the 'websockets' package (pip install websockets)")
     voices = subprocess.run(["say", "-v", "?"], capture_output=True, text=True).stdout
-    if not any(line.startswith(args.voice + " ") for line in voices.splitlines()):
+    if args.voice.startswith("kokoro:"):
+        if not kokoro_installed():
+            print(f"voice {args.voice!r} is not installed; using Daniel")
+            args.voice = "Daniel"
+    elif not any(line.startswith(args.voice + " ") for line in voices.splitlines()):
         print(f"voice {args.voice!r} is not installed; using Daniel")
         args.voice = "Daniel"
 
