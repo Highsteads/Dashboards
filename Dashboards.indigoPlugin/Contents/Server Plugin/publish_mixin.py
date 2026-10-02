@@ -75,9 +75,20 @@ class PublishMixin:
     def _public_dashboards_dir(self):
         """Absolute path to Web Assets/public/dashboards/ for the current Indigo
         version. Derived from indigo.server.getInstallFolderPath() so it survives
-        Indigo version upgrades without source changes."""
+        Indigo version upgrades without source changes.
+
+        Resolved once and kept (review 02-10-2026): by the time shutdown()
+        runs, Indigo has often closed this host's server connection, so a
+        fresh getInstallFolderPath() raised ServerCommunicationError and the
+        shutdown sweep of setup links (each holding the API key) never ran.
+        The folder cannot move while the plugin is running."""
+        cached = self.__dict__.get("_public_dir_cache")
+        if cached:
+            return cached
         base = indigo.server.getInstallFolderPath()
-        return os.path.join(base, "Web Assets", "public", PUBLIC_SUBDIR)
+        path = os.path.join(base, "Web Assets", "public", PUBLIC_SUBDIR)
+        self._public_dir_cache = path
+        return path
 
     def _config_js_path(self):
         return os.path.join(self._public_dashboards_dir(), "config.js")

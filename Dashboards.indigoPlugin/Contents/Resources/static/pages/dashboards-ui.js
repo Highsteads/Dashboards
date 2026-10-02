@@ -1165,8 +1165,9 @@
 
      message(name, body, opts) POSTs /message/<plugin>/<name>/ and resolves to
      the parsed JSON reply. It:
-       - refuses while the plugin is restarting (DashGate says "down");
-       - gives up after opts.timeoutMs (12 s);
+       - refuses while the plugin is restarting (DashGate says "down"),
+         asking again before every retry;
+       - gives up after opts.timeoutMs (12 s), body included;
        - on 503 + {pending: true} waits opts.everyMs (400 ms) and asks again,
          for up to opts.pendingMs (30 s), calling opts.onWait(body) once;
        - rejects with an Error whose message is the server's own `error`
@@ -1185,31 +1186,60 @@
     var cfg = root.INDIGO_CONFIG || {};
     var key = cfg.apiKey || '';
     if (!key) throw msgError('this device has no API key', 0, null);
-    if (root.DashGate && typeof root.DashGate.check === 'function'
-        && await root.DashGate.check() === 'down') {
-      throw msgError('the Dashboards plugin is restarting', 0, null);
-    }
     var deadline = Date.now() + (o.pendingMs || 30000);
     var onWait = o.onWait;
     for (;;) {
-      var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
-      var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, o.timeoutMs || 12000) : null;
-      var r;
-      try {
-        r = await root.fetch(MSG_BASE + name + '/', {
-          method: 'POST',
-          headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
-          body: JSON.stringify(body || {}),
-          signal: ctrl ? ctrl.signal : undefined
-        });
-      } catch (e) {
-        throw msgError(e && e.name === 'AbortError' ? 'no answer from the plugin (timed out)'
-                                                     : 'network error: ' + ((e && e.message) || e), 0, null);
-      } finally {
-        if (timer) clearTimeout(timer);
+      // The gate is asked before EVERY post, retries included (review
+      // 02-10-2026): a plugin that starts stopping while a pending reply is
+      // being waited out must not be sent another /message/ call. DashGate
+      // memoises its stamp fetch, so this costs nothing on a healthy plugin.
+      if (root.DashGate && typeof root.DashGate.check === 'function'
+          && await root.DashGate.check() === 'down') {
+        throw msgError('the Dashboards plugin is restarting', 0, null);
       }
-      var data = null;
-      try { data = await r.json(); } catch (e) { data = null; }
+      // ONE deadline covers the headers AND the body (review 02-10-2026): the
+      // timer used to stop when the headers arrived, so a reply that stalled
+      // part-way through its body left the call, and any poll waiting on it,
+      // hanging for good. Racing each await against `expired` holds even where
+      // aborting the request does not interrupt a body already being read.
+      var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+      var timedOut = false, expire = null;
+      var expired = new Promise(function (res, rej) { expire = rej; });
+      expired.catch(function () { /* raced below */ });
+      var timer = setTimeout(function () {
+        timedOut = true;
+        if (ctrl) ctrl.abort();
+        expire(new Error('timed out'));
+      }, o.timeoutMs || 12000);
+      var r, data = null;
+      try {
+        try {
+          var req = root.fetch(MSG_BASE + name + '/', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+            body: JSON.stringify(body || {}),
+            signal: ctrl ? ctrl.signal : undefined
+          });
+          Promise.resolve(req).catch(function () { /* raced below */ });
+          r = await Promise.race([req, expired]);
+        } catch (e) {
+          throw msgError(timedOut || (e && e.name === 'AbortError')
+                         ? 'no answer from the plugin (timed out)'
+                         : 'network error: ' + ((e && e.message) || e), 0, null);
+        }
+        try {
+          var parse = r.json();
+          Promise.resolve(parse).catch(function () { /* raced below */ });
+          data = await Promise.race([parse, expired]);
+        } catch (e) {
+          if (timedOut || (e && e.name === 'AbortError')) {
+            throw msgError('the plugin\'s answer stopped part-way (timed out)', 0, null);
+          }
+          data = null;                     // not JSON: judged on the status below
+        }
+      } finally {
+        clearTimeout(timer);
+      }
       if (r.status === 503 && data && data.pending) {
         if (Date.now() >= deadline) throw msgError(data.error || 'still not ready', 503, data);
         if (typeof onWait === 'function') { try { onWait(data); } catch (e) { /* page's problem */ } onWait = null; }

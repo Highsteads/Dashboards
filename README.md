@@ -2,11 +2,11 @@
 
 **Your house on a screen — energy, cameras, heating, every room, and the whole day replayed.**
 
-**Version:** 3.58.1 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
+**Version:** 3.58.2 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
 
 **[Read the full guide](https://highsteads.github.io/Dashboards/)** — setting up, a page of notes for every one of the 20 pages, and what to do when something goes wrong.
 
-<img src="https://img.shields.io/badge/version-3.58.1-5856d6" alt="Version 3.58.1">
+<img src="https://img.shields.io/badge/version-3.58.2-5856d6" alt="Version 3.58.2">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-20-0a84ff" alt="20 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
@@ -92,11 +92,11 @@ The [Getting started](https://highsteads.github.io/Dashboards/getting-started.ht
 The three most recent releases, word for word. Every release before these is in
 **[the version history](https://highsteads.github.io/Dashboards/changelog.html)**.
 
+**3.58.2** (02-Oct-2026) - **Six fixes from an independent review.** One-time setup links, which hold the API key, are now removed when the plugin stops: Indigo had usually closed the plugin's connection by then, so the clean-up failed every time and the files waited for the next start. A page waiting on a slow answer now checks before every retry that the plugin is not restarting, so it can no longer ask a stopping plugin and hold up Indigo's web server. A reply that stops part-way through now times out instead of leaving the page waiting for good. The car charger's mode and boost buttons now ask for the control PIN when the charger is on the PIN list in Settings. Changing a laundry deadline now says so when the new plan could not be made, rather than showing the old plan as the new one. And a meter you have disabled in Indigo now shows as unavailable on the Mains page and is left out of the metered total.
+
 **3.58.1** (30-Sep-2026) - **Fewer "internal server error" lines in the Indigo event log.** A dashboard that closes or reloads while it is asking for the small heartbeat file `changed.stamp` makes Indigo's web server log an error for a reply nobody waited for. Nothing is wrong with the file and nothing is lost, but it was the most common error in the log. A page now stops asking for the heartbeat while it is hidden or being left, and on coming back it looks once afresh, so a long absence never counts as a dead plugin. A page that closes in the middle of a request can still log one, so expect far fewer lines, not none.
 
 **3.58.0** (28-Sep-2026) - **Boost the car from the Energy page.** The Car charger card now has a Boost row: 5, 10 or 20 kWh at full power, and a Stop boost button while one is set. The charger reports a boost within a few seconds, even before a car draws anything, so the button waits for that and the card then shows the boost and its size. If the charger has not confirmed it after 45 seconds the card says so. A boost only runs in Eco or Eco+, so in Fast or Stopped the amounts are switched off and the card says why. Needs the Zappi plugin 1.1, which reports the boost. With 1.0 a press is shown as sent but cannot be confirmed. A boost set with no car plugged in no longer turns the card green as if the car were charging: the Zappi reports Boosting then, but nothing is flowing.
-
-**3.57.0** (28-Sep-2026) - **Change the car charger's mode from the Energy page.** The Car charger card now has Fast, Eco, Eco+ and Stopped buttons, with the current mode lit. A press is passed to the Zappi plugin, which sends it to the charger, and the button shows it is waiting until the charger reports the new mode, usually within ten seconds. If the charger has not confirmed it after 45 seconds the card says so, so a press that went nowhere never looks as if it worked. A mode chosen during a battery export is left alone by the export guard until that export ends. The buttons are switched off while the charger cannot be reached. Needs the Zappi plugin's Set Mode action, in 1.0 and later.
 
 ## Authors & licence
 

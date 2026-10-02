@@ -23,7 +23,7 @@ function page({ gate = "up", key = "k123", replies = [] } = {}) {
     const calls = [];
     const win = { setTimeout, clearTimeout, setInterval, clearInterval, Date, Math, JSON, Promise,
                   AbortController, INDIGO_CONFIG: { apiKey: key },
-                  DashGate: { check: async () => gate } };
+                  DashGate: { check: async () => (Array.isArray(gate) ? (gate.shift() || "ok") : gate) } };
     win.window = win;
     win.fetch = async (url, opts) => {
         calls.push({ url, opts });
@@ -32,6 +32,10 @@ function page({ gate = "up", key = "k123", replies = [] } = {}) {
         if (r === "hang") {
             return new Promise((res, rej) => opts.signal.addEventListener("abort",
                 () => { const e = new Error("aborted"); e.name = "AbortError"; rej(e); }));
+        }
+        if (r === "stall-body") {
+            // Headers arrive; the body never finishes and ignores the abort.
+            return { ok: true, status: 200, json: () => new Promise(() => {}) };
         }
         return { ok: r.status >= 200 && r.status < 300, status: r.status, json: async () => r.body };
     };
@@ -99,5 +103,23 @@ function page({ gate = "up", key = "k123", replies = [] } = {}) {
     const { M } = page({ replies: [new TypeError("Failed to fetch")] });
     let err = null; try { await M("x"); } catch (e) { err = e; }
     check("a network failure says so", err && /network error/.test(err.message));
+}
+{
+    // Review 02-10-2026: the gate was asked once, then pending retries went on
+    // posting while the plugin stopped.
+    const { M, calls } = page({ gate: ["ok", "down"],
+                                replies: [{ status: 503, body: { pending: true } }, { status: 200, body: {} }] });
+    let err = null;
+    try { await M("x", {}, { everyMs: 5 }); } catch (e) { err = e; }
+    check("asks the gate again before a retry, and stops when it says down",
+          err && /restarting/.test(err.message) && calls.length === 1);
+}
+{
+    // A body that stalls after the headers must still time out.
+    const { M } = page({ replies: ["stall-body"] });
+    let err = null; const t0 = Date.now();
+    try { await M("x", {}, { timeoutMs: 50 }); } catch (e) { err = e; }
+    check("a reply that stalls part-way through its body times out",
+          err && /stopped part-way/.test(err.message) && Date.now() - t0 < 1000);
 }
 done();

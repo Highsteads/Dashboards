@@ -104,7 +104,7 @@ class MainsMixin:
 
     @staticmethod
     def _mains_liveness(age_seconds, owner_running, continuous=True,
-                        error_state="", online=None, stale_after=None):
+                        error_state="", online=None, stale_after=None, enabled=True):
         """('live'|'stale'|'dead', reason). A value is not a measurement.
 
         The Kitchen Extractor reported 291.0 V on 08-09-2026 — impossible, and
@@ -122,6 +122,13 @@ class MainsMixin:
         report-on-change device, and its freshness is judged by errorState and
         the owning plugin's own online flag instead.
         """
+        # A DISABLED device is one Indigo has stopped talking to, so its last
+        # reading is history whatever kind of meter it is. Without this a
+        # report-on-change meter (no voltage) was judged live for ever, and a
+        # disabled one's frozen watts were added to the metered total
+        # (review 02-10-2026).
+        if enabled is False:
+            return ("dead", "the device is disabled in Indigo")
         if owner_running is False:
             return ("dead", "its plugin is not running")
         if online is False:
@@ -513,7 +520,8 @@ class MainsMixin:
         state, why = self._mains_liveness(
             age, owner_running, continuous=(volts is not None),
             error_state=(getattr(dev, "errorState", "") or ""),
-            online=self._mains_online(states))
+            online=self._mains_online(states),
+            enabled=bool(getattr(dev, "enabled", True)))
 
         implausible = (volts is not None
                        and not (self.MAINS_VOLTS_PLAUSIBLE[0] <= volts

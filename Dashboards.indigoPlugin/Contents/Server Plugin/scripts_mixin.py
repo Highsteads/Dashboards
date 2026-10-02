@@ -160,6 +160,8 @@ class ScriptsMixin:
     def _run_appliance_scheduler(self):
         """Refresh the laundry plan. Appliance_Scheduler.py writes it to
         Python Scripts/appliance_plan.json; handleLaundryPlan serves it.
+        Returns True on a clean run, False on a failed one, and None when
+        there is nothing to plan from (no SigenEnergyManager).
 
         Deliberately NOT copied into public/dashboards/. A laundry plan is behavioural —
         it says when this household washes and what the battery is holding — and
@@ -172,8 +174,11 @@ class ScriptsMixin:
             # Nothing to plan from without SigenEnergyManager's forecast, site
             # config and rates (v3.13.0); the script would only say so in its
             # own log every fifteen minutes.
-            return
-        self._tick_script("laundry")
+            return None
+        # True on a clean run, False when the script failed or is missing —
+        # a replan must be able to tell, or it hands back the OLD plan as the
+        # answer to a NEW deadline (review 02-10-2026).
+        return self._tick_script("laundry")
 
     def _read_laundry_plan(self):
         """The plan as the script last wrote it, or None. Absent is not an error — the

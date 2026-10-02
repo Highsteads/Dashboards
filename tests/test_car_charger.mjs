@@ -199,4 +199,39 @@ check("hub: drawn on the device poll", /renderChargerCard\(devices\)/.test(hub))
 check("hub: links to the Energy page's card", /id="charger-card" class="dash-card" href="energy\.html#ev-card"/.test(hub));
 check("energy: scrolls to the card when linked to it", /location\.hash === '#ev-card'/.test(html));
 
+// ── the control PIN (review 02-10-2026) ──
+// The charger buttons called the plugin directly, so a charger on the PIN
+// list asked for nothing. Drive the page's own click handler.
+async function pressCharger({ pinOk, boost }) {
+    const sent = [], gated = [];
+    const env = {
+        DashUI: { message: async (name, body) => { sent.push(name); return {}; } },
+        renderCharger: () => {}, refreshDevices: () => {}, setTimeout: () => {},
+        Number, String, Date,
+        IndigoAPI: class { async gateAny(ids) { gated.push(ids); if (!pinOk) throw new Error("PIN entry cancelled"); } },
+    };
+    env.window = env;
+    vm.createContext(env);
+    vm.runInContext("let _evWired = false; const _evPending = {}, _evSaid = {}, _evBoostPending = {}, _evBoostSaid = {};\n"
+                    + "async " + extractFn(html, "_chargerGate") + "\n" + extractFn(html, "_wireChargerButtons")
+                    + "\nthis._wire = _wireChargerButtons; this._said = () => [_evSaid, _evBoostSaid];", env);
+    let handler = null;
+    env._wire({ addEventListener: (t, fn) => { handler = fn; } });
+    const btn = boost ? { disabled: false, dataset: { evDev: "123", evBoost: "start", evKwh: "10" } }
+                      : { disabled: false, dataset: { evDev: "123", evMode: "fast" } };
+    const want = boost ? "button[data-ev-boost]" : "button[data-ev-mode]";
+    await handler({ target: { closest: (sel) => (sel === want ? btn : null) } });
+    return { sent, gated, said: env._said() };
+}
+for (const boost of [false, true]) {
+    const what = boost ? "boost" : "mode";
+    let r = await pressCharger({ pinOk: false, boost });
+    check(`PIN: ${what} asks the gate for that charger`, r.gated.length === 1 && r.gated[0][0] === 123);
+    check(`PIN: ${what} sends nothing when the PIN is refused`, r.sent.length === 0);
+    check(`PIN: ${what} says why`, /PIN is needed/.test((boost ? r.said[1] : r.said[0])[123] || ""));
+    r = await pressCharger({ pinOk: true, boost });
+    check(`PIN: ${what} goes through once the gate allows it`,
+          r.sent.length === 1 && r.sent[0] === (boost ? "chargerBoost" : "chargerMode"));
+}
+
 done();

@@ -2232,6 +2232,24 @@ const _evSaid = {};
 const _evBoostPending = {};   // v3.58.0: {action, kwh, sentAt}
 const _evBoostSaid = {};
 let _evWired = false;
+/* The control PIN and guest block every other control goes through (review
+   02-10-2026): the charger buttons called the plugin directly, so putting a
+   charger on the PIN list in Settings did nothing here. True = go ahead. */
+async function _chargerGate(id, said) {
+  try {
+    if (!window._energyIndigo) window._energyIndigo = new IndigoAPI();
+    await window._energyIndigo.gateAny([id]);
+    return true;
+  } catch (e) {
+    const m = e && e.message ? e.message : String(e);
+    said[id] = /cancelled/i.test(m) ? 'Not sent: the control PIN is needed'
+             : /Incorrect PIN/.test(m) ? 'Incorrect PIN, nothing was sent'
+             : /read-only/.test(m) ? 'This device has read-only guest access'
+             : 'Not sent: ' + m;
+    renderCharger();
+    return false;
+  }
+}
 function _wireChargerButtons(body) {
   if (_evWired) return;
   _evWired = true;
@@ -2240,6 +2258,7 @@ function _wireChargerButtons(body) {
     if (bb && !bb.disabled) {
       const id = Number(bb.dataset.evDev), what = bb.dataset.evBoost;
       const kwh = what === 'start' ? Number(bb.dataset.evKwh) : null;
+      if (!await _chargerGate(id, _evBoostSaid)) return;
       _evBoostPending[id] = { action: what, kwh, sentAt: Date.now() };
       delete _evBoostSaid[id];
       renderCharger();
@@ -2258,6 +2277,7 @@ function _wireChargerButtons(body) {
     const btn = ev.target.closest('button[data-ev-mode]');
     if (!btn || btn.disabled) return;
     const id = Number(btn.dataset.evDev), mode = btn.dataset.evMode;
+    if (!await _chargerGate(id, _evSaid)) return;
     _evPending[id] = { mode, sentAt: Date.now() };
     delete _evSaid[id];
     renderCharger();
