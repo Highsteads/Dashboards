@@ -387,6 +387,9 @@ def energy_words(e):
     elif s >= 0.3:
         now = (f"Right now the sun is not quite covering what the house needs, so the battery "
                f"is making up the difference, from {pct} percent.")
+    elif b > 0.1 and exporting:
+        now = (f"The sun has gone for the day, so the battery is powering the house, "
+               f"from {pct} percent, and selling the spare to the grid.")
     elif b > 0.1 and not importing:
         now = (f"The sun has gone for the day, so the battery is running the house on its own, "
                f"from {pct} percent.")

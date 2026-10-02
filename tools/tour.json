@@ -4,9 +4,8 @@
   "allow": [
     1463818396,
     780532115,
-    372666822,
-    515728864,
-    614164061
+    367205956,
+    24644862
   ],
   "allow_messages": [],
   "preflight": {
@@ -18,23 +17,23 @@
       },
       "text": "closed"
     },
-    "colour lamp": {
-      "page": "room.html?room=Living%20Room",
+    "spot lights": {
+      "page": "room.html?room=Kitchen",
       "spec": {
         "within": {
           "sel": ".light-card",
-          "has": "Colour Lamp"
+          "has": "Spot Lights"
         },
         "sel": "label.toggle"
       },
       "checked": false
     },
-    "display lights": {
-      "page": "room.html?room=Living%20Room",
+    "cupboard lights": {
+      "page": "room.html?room=Kitchen",
       "spec": {
         "within": {
           "sel": ".light-card",
-          "has": "Display Lights"
+          "has": "Cupboard Lights"
         },
         "sel": "label.toggle"
       },
@@ -355,7 +354,7 @@
             [
               "press",
               {
-                "sel": "a[href*='room=Living']"
+                "sel": "a[href*='room=Kitchen']"
               },
               {
                 "nav": true
@@ -366,19 +365,19 @@
       ]
     },
     {
-      "page": "room.html?room=Living%20Room",
-      "label": "Living room",
+      "page": "room.html?room=Kitchen",
+      "label": "Kitchen",
       "start": "top",
       "beats": [
         {
-          "say": "In the living room, switch the colour lamp on,",
+          "say": "In the kitchen, switch the spot lights on,",
           "hold": 3,
           "do": [
             [
               "zoom",
               {
                 "sel": ".light-card",
-                "has": "Colour Lamp"
+                "has": "Spot Lights"
               },
               1.5
             ],
@@ -387,7 +386,7 @@
               {
                 "within": {
                   "sel": ".light-card",
-                  "has": "Colour Lamp"
+                  "has": "Spot Lights"
                 },
                 "sel": "label.toggle"
               }
@@ -395,7 +394,7 @@
           ]
         },
         {
-          "say": "and slide it down to half brightness.",
+          "say": "and slide them down to half brightness.",
           "hold": 3,
           "do": [
             [
@@ -405,15 +404,18 @@
             [
               "drag",
               {
-                "sel": "input.brightness",
-                "title": "Colour Lamp brightness"
+                "within": {
+                  "sel": ".light-card",
+                  "has": "Spot Lights"
+                },
+                "sel": "input.brightness"
               },
               50
             ]
           ]
         },
         {
-          "say": "All On switches on every light in the group, and that includes the fire.",
+          "say": "All On switches on every light in the room.",
           "hold": 4,
           "do": [
             [
@@ -432,13 +434,13 @@
           ]
         },
         {
-          "say": "The main light is left out of the group on purpose, so it keeps its own switch.",
+          "say": "A room can leave a light out of that group, such as a main light that keeps its own switch.",
           "do": [
             [
               "point",
               {
                 "sel": ".light-card",
-                "has": "Main Light"
+                "has": "Cupboard Lights"
               },
               {
                 "ms": 800
@@ -650,7 +652,7 @@
   "prepare": [
     {
       "message": "indigo.dimmer.setBrightness",
-      "objectId": 372666822,
+      "objectId": 367205956,
       "parameters": {
         "value": 100
       },
@@ -658,8 +660,13 @@
     },
     {
       "message": "indigo.device.turnOff",
-      "objectId": 372666822,
+      "objectId": 367205956,
       "pause": 2
+    },
+    {
+      "message": "indigo.device.turnOff",
+      "objectId": 24644862,
+      "pause": 1.5
     }
   ]
 }
