@@ -318,17 +318,26 @@
           "offset": 80
         },
         {
-          "say": "Rooms lists every room in the house.",
-          "hold": 3.4,
+          "say": "Below them, today's totals, what the solar has saved in pounds, and the weather from the station on the roof.",
+          "to": "Weather station",
+          "offset": 120
+        },
+        {
+          "say": "At the bottom, a list of any open doors and windows, then tiles for the menu and the rooms. The menu first.",
+          "hold": 2.5,
           "do": [
             [
               "scroll",
               "bottom"
             ],
             [
+              "wait",
+              1.2
+            ],
+            [
               "press",
               {
-                "sel": "a.card-room"
+                "sel": "a.card-energy"
               },
               {
                 "nav": true
@@ -343,13 +352,55 @@
       }
     },
     {
+      "page": "menu.html",
+      "label": "Menu",
+      "start": "top",
+      "lead_in": 0.4,
+      "beats": [
+        {
+          "say": "The menu groups every page by the question it answers: what is on right now, and then the energy and the cost."
+        },
+        {
+          "say": "Then what happened, with a timeline that replays any day, and whether anything is wrong, from alerts to the server itself.",
+          "to": "What happened",
+          "offset": 110
+        },
+        {
+          "say": "Setup holds the settings. Rooms has a page for every room in the house.",
+          "hold": 3.2,
+          "do": [
+            [
+              "scroll",
+              "top"
+            ],
+            [
+              "wait",
+              0.8
+            ],
+            [
+              "press",
+              {
+                "sel": "a.nav-btn",
+                "has": "Rooms"
+              },
+              {
+                "nav": true
+              }
+            ]
+          ]
+        }
+      ]
+    },
+    {
       "page": "menu.html?g=rooms",
-      "lead_in": 0.3,
+      "label": "Rooms",
+      "start": "top",
+      "lead_in": 0.4,
       "tail": 0.3,
       "beats": [
         {
-          "say": "",
-          "hold": 2.2,
+          "say": "Every room gets its own page, with lights, sensors, radiators and doors. Pick the kitchen.",
+          "hold": 3.5,
           "do": [
             [
               "press",
