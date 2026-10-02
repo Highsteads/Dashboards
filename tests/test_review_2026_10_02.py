@@ -4,8 +4,8 @@
 # Description: Three faults from the independent review of 3.58.1, each one a
 #              transition the earlier tests stubbed past:
 #              - shutdown() lost its server connection before sweeping the
-#                setup links (live: "server connection not open" at every
-#                recent shutdown), so the files holding the API key stayed;
+#                setup links (live: "server connection not open" on 30-09 and
+#                02-10, both whole-server stops), so the API-key files stayed;
 #              - a failed LOCAL laundry replan returned the old plan as the
 #                answer to the new deadline;
 #              - a disabled meter's frozen watts stayed "live" and counted.
