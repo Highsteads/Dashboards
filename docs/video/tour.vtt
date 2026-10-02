@@ -1,0 +1,129 @@
+WEBVTT
+
+1
+00:00:00.800 --> 00:00:08.139
+Dashboards for Indigo. Here is a look round a real house. Everything you see is live, and every press is real.
+
+2
+00:00:09.839 --> 00:00:17.263
+This is the hub, the page that lives on the wall tablet. It answers one question first: is the house all right?
+
+3
+00:00:17.713 --> 00:00:24.027
+The pills say who is home, how many radiators are calling for heat, and whether anything needs a look.
+
+4
+00:00:24.477 --> 00:00:28.019
+Favourites are one-tap tiles. Press the garage door,
+
+5
+00:00:28.469 --> 00:00:32.714
+and the tile turns blue and counts the seconds while the door moves.
+
+6
+00:00:34.919 --> 00:00:40.529
+It turns red once the door is fully open, and the live camera strip shows it happening.
+
+7
+00:00:44.469 --> 00:00:50.591
+Every room has its own page. The garage has its cameras, and the door, which is open now.
+
+8
+00:00:51.041 --> 00:00:55.137
+Press to close, and the tile follows the door all the way down.
+
+9
+00:00:55.587 --> 00:00:59.470
+It goes quiet again once the sensors say the door is shut.
+
+10
+00:01:14.137 --> 00:01:16.271
+Tap any camera on the hub,
+
+11
+00:01:17.371 --> 00:01:21.317
+and the Cameras page opens with every camera playing live.
+
+12
+00:01:21.767 --> 00:01:27.463
+The big picture follows whichever one you tap. Tap the front door, and it swaps to the top.
+
+13
+00:01:31.317 --> 00:01:38.379
+Further down the hub are the power flow, today's solar and the weather station. More on the energy in a moment.
+
+14
+00:01:38.829 --> 00:01:41.303
+Rooms lists every room in the house.
+
+15
+00:01:46.729 --> 00:01:49.310
+In the kitchen, switch the spot lights on,
+
+16
+00:01:50.179 --> 00:01:52.803
+and slide them down to half brightness.
+
+17
+00:01:53.629 --> 00:01:56.487
+All On switches on every light in the room.
+
+18
+00:01:58.079 --> 00:02:03.668
+A room can leave a light out of that group, such as a main light that keeps its own switch.
+
+19
+00:02:04.118 --> 00:02:06.529
+And All Off puts them all out again.
+
+20
+00:02:08.818 --> 00:02:15.901
+Heating shows every radiator with its temperature and its setpoint, and a boost for the whole house at the top.
+
+21
+00:02:16.351 --> 00:02:25.119
+We are still in summer mode here, so every radiator is held at eight degrees. The boost comes into its own once the heating is needed again.
+
+22
+00:02:26.819 --> 00:02:34.349
+The sun has gone for the day, so the battery is powering the house, from 43 percent, and selling the spare to the grid.
+
+23
+00:02:37.269 --> 00:02:42.261
+The dots show which way the power is going, and they speed up as more of it flows.
+
+24
+00:02:42.711 --> 00:02:53.655
+Underneath are how self-sufficient the house has been today, 72 percent so far, the solar against today's forecast, what it has saved in pounds, and the battery's charge.
+
+25
+00:02:54.161 --> 00:03:03.142
+Each hour's solar is split by roof, and set against a dashed mark for what the forecast promised. The pale bars are the hours still to come.
+
+26
+00:03:03.592 --> 00:03:12.168
+The battery section shows what it is doing now, its last day as a line, and its health, down to the temperature and balance of the cells.
+
+27
+00:03:12.618 --> 00:03:16.778
+And When to run it plans the washing around the sun and the battery.
+
+28
+00:03:18.478 --> 00:03:23.043
+Scenes puts every Indigo action group on a button, grouped by folder.
+
+29
+00:03:24.743 --> 00:03:31.762
+Alerts gathers the errors in Indigo's log, and lets you add your own rules, sent by Pushover or email.
+
+30
+00:03:33.462 --> 00:03:41.697
+WiFi shows every access point and every client, and flags a crowded channel or an old device slowing the rest down.
+
+31
+00:03:43.397 --> 00:03:50.031
+And Mains lists every meter in the house, with how far they disagree with each other and with the inverter.
+
+32
+00:03:51.731 --> 00:03:57.577
+Dashboards is free and open source. Take the parts that suit your house, and leave the rest.

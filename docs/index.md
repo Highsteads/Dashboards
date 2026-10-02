@@ -13,6 +13,17 @@ leaving the house.
 
 <img src="screenshots/index.png" width="860" alt="The hub — who is home, the heating, the battery, and a strip of live cameras">
 
+## Watch a four-minute tour
+
+<video controls preload="metadata" width="860" poster="video/tour-poster.jpg" style="max-width:100%;height:auto">
+  <source src="video/tour.mp4" type="video/mp4">
+  <track kind="captions" src="video/tour.vtt" srclang="en" label="English" default>
+</video>
+
+A real house, filmed live with every press real: the garage door opening and closing with its
+tile changing colour, the cameras, the kitchen lights, the heating, the energy page and the rest
+of the menu. Turn the sound on for the commentary, or use the captions.
+
 Indigo's own web server hands out the pages, so any browser on your home network — or on
 [Tailscale](remote-access.md) when you are away — can open them once it has been paired, and the
 plugin looks after the camera logins on the Indigo Mac. It works in Chrome, Firefox, Safari, Edge and
