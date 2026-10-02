@@ -285,3 +285,46 @@ def test_the_voice_prefix_picks_the_engine(monkeypatch):
     assert calls[0][-4:] == ["bm_george", "1.0", "/tmp/x.wav", "hi"]
     assert calls[0][0].endswith("python")
     assert calls[1][:3] == ["say", "-v", "Daniel"]
+
+
+def test_the_camera_watch_goes_upstream_with_the_real_addresses():
+    # The plugin keeps fresh stills only for cameras it is told are on screen,
+    # and it knows them by their real address; the page only ever held the
+    # made-up one. Without this the Garage page's pictures froze in a take.
+    seen = {}
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *a):
+            pass
+
+        def do_POST(self):
+            seen["path"] = self.path
+            seen["body"] = self.rfile.read(int(self.headers["Content-Length"]))
+            seen["len"] = int(self.headers["Content-Length"])
+            reply = b'{"ok": true}'
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(reply)))
+            self.end_headers()
+            self.wfile.write(reply)
+
+    up = http.server.HTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=up.serve_forever, daemon=True).start()
+    san = rt.cs.Sanitiser()
+    fake = san.scrub(b"192.168.1.61").decode()
+    guard = rt.Guard(live=False)
+    proxy = rt.serve_guarded(0, f"http://127.0.0.1:{up.server_address[1]}", san, threading.Lock(),
+                             "k", [], None, guard)
+    try:
+        body = json.dumps({"hosts": [fake]}).encode()
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{proxy.server_address[1]}/message/com.x.dashboards/watchCameras/",
+            data=body, method="POST", headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=5) as res:
+            assert res.status == 200
+        assert json.loads(seen["body"]) == {"hosts": ["192.168.1.61"]}
+        assert seen["len"] == len(seen["body"]), "Content-Length follows the longer real address"
+        assert not guard.log, "watching is a read, not a command"
+    finally:
+        proxy.shutdown()
+        up.shutdown()

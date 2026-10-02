@@ -556,6 +556,17 @@ def serve_guarded(port, upstream, sanitiser, lock, api_key, leaks, scheme, guard
                 self.end_headers()
                 self.wfile.write(reply)
                 return
+            if MESSAGE_RE.match(self.path.split("?")[0] or "") and \
+                    MESSAGE_RE.match(self.path.split("?")[0]).group(1) == "watchCameras":
+                # The page names a camera by the address in its still's
+                # filename, and the proxy has made that address up. The plugin
+                # only keeps fresh stills for cameras it knows, so a made-up
+                # one is ignored and the pictures go stale (a take showed a
+                # garage camera four minutes old while the door moved). The
+                # real address goes UPSTREAM only; nothing here reaches a frame.
+                body = sanitiser.unscrub_path(body.decode("utf-8", "replace")).encode()
+                del self.headers["Content-Length"]
+                self.headers["Content-Length"] = str(len(body))
             self.rfile = io.BytesIO(body)
             self._relay("POST")
 
