@@ -174,7 +174,8 @@
           ]
         },
         {
-          "say": "Press to close, and the tile follows the door all the way down.",
+          "say": "Press to close, and the tile follows the door down.",
+          "hold": 2.0,
           "do": [
             [
               "press",
@@ -185,20 +186,9 @@
           ]
         },
         {
-          "say": "It goes quiet again once the sensors say the door is shut.",
-          "hold": 15
-        },
-        {
-          "say": "",
-          "hold": 1.8,
+          "say": "Back to the hub.",
+          "hold": 0.4,
           "do": [
-            [
-              "expect",
-              {
-                "sel": "button.door-btn"
-              },
-              "open"
-            ],
             [
               "press",
               {
@@ -211,18 +201,64 @@
             ]
           ]
         }
-      ]
+      ],
+      "garagefix": true
     },
     {
       "page": "index.html",
-      "start": {
-        "sel": "a.home-cam",
-        "title": "Garage"
-      },
-      "start_offset": 320,
+      "label": "Still closing",
+      "start": "top",
       "lead_in": 0.4,
-      "tail": 0.3,
+      "garagefix": true,
       "beats": [
+        {
+          "say": "The favourite tile is still counting the door down, and the live camera strip shows it closing.",
+          "hold": 6.5,
+          "do": [
+            [
+              "zoom",
+              {
+                "sel": "button.fav-tile",
+                "has": "Garage"
+              },
+              1.4
+            ],
+            [
+              "wait",
+              3.2
+            ],
+            [
+              "unzoom"
+            ],
+            [
+              "point",
+              {
+                "sel": "a.home-cam",
+                "title": "Inside Garage"
+              },
+              {
+                "ms": 900
+              }
+            ]
+          ]
+        },
+        {
+          "say": "Then the tile goes quiet and reads closed.",
+          "hold": 3.5,
+          "do": [
+            [
+              "hide"
+            ],
+            [
+              "expect",
+              {
+                "sel": "button.fav-tile",
+                "has": "Garage"
+              },
+              "closed"
+            ]
+          ]
+        },
         {
           "say": "Tap any camera on the hub,",
           "hold": 1.8,
@@ -240,6 +276,7 @@
           ]
         }
       ],
+      "tail": 0.3,
       "ready": {
         "sel": "#energy-detail",
         "has": "solar"
@@ -845,5 +882,26 @@
       "objectId": 24644862,
       "pause": 1.5
     }
-  ]
+  ],
+  "only": {
+    "garagefix": {
+      "prepare": [
+        {
+          "message": "indigo.actionGroup.execute",
+          "objectId": 1463818396,
+          "pause": 17
+        }
+      ],
+      "preflight": {
+        "garage door": {
+          "page": "index.html",
+          "spec": {
+            "sel": "button.fav-tile",
+            "has": "Garage"
+          },
+          "text": "open"
+        }
+      }
+    }
+  }
 }

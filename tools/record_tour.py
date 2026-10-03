@@ -955,6 +955,10 @@ class Director:
             await asyncio.sleep(float(rest[0]))
         elif kind == "label":
             await self.cdp.js(f"__tour.label({json.dumps(rest[0])}, {int(rest[1]) if len(rest) > 1 else 3200})")
+        elif kind == "log":
+            # A debugging aid: print what a page expression says, with the film's clock.
+            val = await self.cdp.js(rest[0])
+            print(f"    [log +{time.time() - t0:5.1f}s] {val}")
         elif kind == "hide":
             await self.cdp.js("document.getElementById('__tp').style.opacity='0'")
             self.pointer_shown = False
@@ -1063,6 +1067,21 @@ setInterval(()=>{{const t=order[k%N];k++;const c=pick();shown[t]=c;show(tiles[t]
 </script>"""
 
 
+def settle_seconds(seg, args, arrived_by_press):
+    """How long a page gets to load its data before filming starts.
+
+    A page reached by pressing a link in the one before is already loading and
+    has been waited on until it says it is complete, so it needs a moment, not
+    seven seconds. The long wait cost real time that the film cuts out: after a
+    Close press on the Garage page the hub's footage began about 17 seconds
+    later in real time, by which point the door had closed, though the film
+    looked as if it followed on at once.
+    """
+    if "settle" in seg:
+        return seg["settle"]
+    return args.post_nav_settle if arrived_by_press else args.settle
+
+
 async def capture_slides(cdp, origin, pages, args):
     """One JPEG data URI per page: the top of each, once it has settled."""
     out = []
@@ -1124,7 +1143,7 @@ async def settle_on(cdp, origin, seg, args, navigated, work=None):
                 break
     if here != f"{want}|complete":
         await cdp.send("Page.navigate", url=page_url(origin, want))
-    await asyncio.sleep(seg.get("settle", args.settle))
+    await asyncio.sleep(settle_seconds(seg, args, here == f"{want}|complete" and navigated))
     # A fixed wait is not enough on its own: a room page that met a slow
     # first poll was still saying "Connecting..." when a take began.
     for _ in range(40):
@@ -1215,7 +1234,14 @@ async def record(args, segments, origin, work):
                             break
                     if navigated:
                         break
-                await asyncio.sleep(max(0.0, t0 + seg["length"] - time.time()))
+                # After a press that changes the page, the film holds the last
+                # frame while the speech finishes, but REAL time must not wait
+                # for it: the next page is filmed at once, so what it shows
+                # (a door still closing) is as recent as the film makes it look.
+                # Waiting out the planned length put the hub's footage 17 s
+                # after the Close press, with the door already shut.
+                if not navigated:
+                    await asyncio.sleep(max(0.0, t0 + seg["length"] - time.time()))
                 await asyncio.sleep(1.2)           # frames still on their way
                 for z in seg["zooms"]:
                     if z["t1"] is None:
@@ -1448,6 +1474,8 @@ def main():
     ap.add_argument("--only", metavar="KEY",
                     help="record just the segments carrying KEY (e.g. montage), to "
                          "preview that part on its own; sends nothing to the house")
+    ap.add_argument("--post-nav-settle", type=float, default=0.8,
+                    help="real seconds a page reached by a press gets before filming")
     ap.add_argument("--slide-settle", type=float, default=3.5,
                     help="real seconds each montage page gets before its picture is taken")
     ap.add_argument("--voice", default="kokoro:bm_george",
@@ -1490,6 +1518,11 @@ def main():
             sys.exit(f"no segment in the tour has {args.only!r}")
         if not args.live:
             tour["preflight"], tour["prepare"] = {}, []
+        elif tour.get("only", {}).get(args.only):
+            # A section that starts from its own state (a door that is already
+            # open) names its own preparation and check.
+            own = tour["only"][args.only]
+            tour["preflight"], tour["prepare"] = own.get("preflight", {}), own.get("prepare", [])
     args.preflight = tour.get("preflight", {})
 
     sanitiser = cs.Sanitiser(renames)

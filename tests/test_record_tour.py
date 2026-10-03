@@ -388,3 +388,13 @@ def test_the_kitchen_section_starts_early_in_the_minute():
     tour = json.loads((ROOT / "tools/tour.json").read_text(encoding="utf-8"))
     kitchen = [s for s in tour["segments"] if s.get("page") == "room.html?room=Kitchen"][0]
     assert 0 <= kitchen["align_second"] <= 10
+
+
+def test_a_page_reached_by_a_press_is_not_given_the_long_settle():
+    # The long wait is real time the film cuts out, so a hub reached from the
+    # Garage page began 17 s after the Close press, when the door had closed.
+    class A:
+        settle, post_nav_settle = 7.0, 0.8
+    assert rt.settle_seconds({}, A, True) == 0.8
+    assert rt.settle_seconds({}, A, False) == 7.0
+    assert rt.settle_seconds({"settle": 2}, A, True) == 2
