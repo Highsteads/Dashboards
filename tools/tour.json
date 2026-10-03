@@ -787,25 +787,6 @@
         "subtitle": "Your thoughts, and Claude.",
         "foot": "<b>highsteads.github.io/Dashboards</b>"
       },
-      "montage": [
-        "energy.html",
-        "room.html?room=Garage",
-        "cameras.html",
-        "heating.html",
-        "index.html",
-        "wifi.html",
-        "settings.html",
-        "timeline.html",
-        "system-health.html",
-        "mains.html",
-        "active.html",
-        "ecowitt.html",
-        "room.html?room=Kitchen",
-        "menu.html",
-        "alerts.html",
-        "cost.html",
-        "scenes.html"
-      ],
       "tail": 2.2,
       "beats": [
         {
@@ -817,6 +798,27 @@
         {
           "say": "Your house is different, so ask for your own pages. The only limit is your imagination."
         }
+      ],
+      "wall": [
+        "energy.png",
+        "garage.png",
+        "cameras.png",
+        "heating.png",
+        "index.png",
+        "settings.png",
+        "alerts.png",
+        "menu.png",
+        "cost.png",
+        "system-health.png",
+        "scenes.png",
+        "wifi.png",
+        "timeline.png",
+        "active.png",
+        "meter-detail.png",
+        "living-room.png",
+        "wifi-ap-detail.png",
+        "ecowitt.png",
+        "mains.png"
       ]
     }
   ],

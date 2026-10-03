@@ -253,7 +253,7 @@ def _icon_uri():
 ICON_URI = _icon_uri()
 
 
-def card_html(card, icon_url, slides=None, step=1.5, banner_at=0.0):
+def card_html(card, icon_url, slides=None, step=1.5, banner_at=0.0, bg=None):
     """A title or end card, drawn in the dashboards' own colours and type.
 
     With `slides` (JPEG data URIs of real pages) the card sits as a frosted
@@ -265,7 +265,10 @@ def card_html(card, icon_url, slides=None, step=1.5, banner_at=0.0):
     chips = "".join(f'<span class="chip" style="animation-delay:{0.5 + i * 0.12:.2f}s">'
                     f'{esc(c)}</span>' for i, c in enumerate(card.get("chips", [])))
     show = ""
-    if slides:
+    staged = bool(slides or bg)
+    if bg:
+        show = bg
+    elif slides:
         imgs = "".join(f'<img src="{u}" style="animation-delay:{i * step:.2f}s;z-index:{i}" alt="">'
                        for i, u in enumerate(slides))
         show = f'<div class="bg">{imgs}</div><div class="scrim"></div>'
@@ -276,7 +279,7 @@ html,body{{margin:0;height:100%}}
   animation:slide .5s ease forwards}}
 .scrim{{z-index:1000;background:rgba(18,20,30,.12)}}
 @keyframes slide{{from{{opacity:0;transform:scale(1.025)}}to{{opacity:1;transform:none}}}}
-{".wrap{background:rgba(255,255,255,.90);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border-radius:30px;padding:34px 54px 36px;box-shadow:0 20px 60px rgba(0,0,0,.34);position:relative;z-index:1001;max-width:820px;opacity:0;animation:zoomout 1.5s cubic-bezier(.16,.84,.24,1) both;animation-delay:" + f"{banner_at:.2f}" + "s}@keyframes zoomout{from{opacity:0;transform:scale(2.7)}to{opacity:1;transform:none}}.wrap h1{font-size:54px}" if slides else ""}
+{".wrap{background:rgba(255,255,255,.90);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border-radius:30px;padding:34px 54px 36px;box-shadow:0 20px 60px rgba(0,0,0,.34);position:relative;z-index:1001;max-width:820px;opacity:0;animation:zoomout 1.5s cubic-bezier(.16,.84,.24,1) both;animation-delay:" + f"{banner_at:.2f}" + "s}@keyframes zoomout{from{opacity:0;transform:scale(2.7)}to{opacity:1;transform:none}}.wrap h1{font-size:54px}" if staged else ""}
 body{{display:flex;align-items:center;justify-content:center;color:#1d2129;
   font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;
   background:radial-gradient(1100px 620px at 28% 18%,#e9e8ff 0%,rgba(233,232,255,0) 60%),
@@ -993,6 +996,71 @@ def page_url(origin, page):
     return f"{origin}/public/dashboards/{page}"
 
 
+WALL_COLS, WALL_ROWS, WALL_GAP = 6, 3, 8
+WALL_SWAP_S = 0.3                      # one tile swaps this often: each tile every ~3.6 s
+
+
+def wall_images(names, folder):
+    """Each picture, scaled to twice the tile width, as a JPEG data URI plus
+    its size at tile width (so a tall page can be panned down inside a tile)."""
+    from PIL import Image
+    tile_w = (1280 - WALL_GAP * (WALL_COLS + 1)) // WALL_COLS
+    out = []
+    for name in names:
+        im = Image.open(os.path.join(folder, name)).convert("RGB")
+        w2 = tile_w * 2
+        im = im.resize((w2, max(1, round(im.height * w2 / im.width))), Image.LANCZOS)
+        buf = io.BytesIO()
+        im.save(buf, "JPEG", quality=82)
+        out.append({"uri": "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode(),
+                    "h": round(im.height / 2)})
+    return out, tile_w
+
+
+def wall_background(imgs, tile_w, banner_at):
+    """A wall of whole pages, WALL_COLS across and WALL_ROWS down.
+
+    One tile swaps to a page not already showing every WALL_SWAP_S, in a fixed
+    order, cross-fading; a page taller than its tile pans slowly down inside it
+    while it is on show. The wall dims as the banner arrives."""
+    tile_h = (720 - WALL_GAP * (WALL_ROWS + 1)) // WALL_ROWS
+    n = WALL_COLS * WALL_ROWS
+    data = json.dumps([{"u": i["uri"], "h": i["h"]} for i in imgs])
+    dwell = WALL_SWAP_S * n
+    return f"""<div id="wall" style="position:fixed;inset:0;background:#e6e8ee;display:grid;
+  grid-template-columns:repeat({WALL_COLS},{tile_w}px);grid-template-rows:repeat({WALL_ROWS},{tile_h}px);
+  gap:{WALL_GAP}px;padding:{WALL_GAP}px;justify-content:center"></div>
+<div id="dim" style="position:fixed;inset:0;background:rgba(15,17,25,.45);opacity:0;z-index:900;
+  animation:dimin 1.2s ease {banner_at:.2f}s forwards"></div>
+<style>
+.tile{{position:relative;overflow:hidden;border-radius:10px;background:#f3f4f6;box-shadow:0 2px 8px rgba(0,0,0,.18)}}
+.tile img{{position:absolute;left:0;top:0;width:{tile_w}px;height:auto;margin:0;border-radius:0;box-shadow:none;animation:tilein .4s ease both}}
+.tile img.out{{animation:tileout .4s ease both}}
+@keyframes tilein{{from{{opacity:0}}to{{opacity:1}}}}
+@keyframes tileout{{from{{opacity:1}}to{{opacity:0}}}}
+@keyframes dimin{{to{{opacity:1}}}}
+</style>
+<script>
+const IMGS={data}, N={n}, TH={tile_h}, DWELL={dwell:.2f};
+const wall=document.getElementById('wall');
+const tiles=[...Array(N)].map(()=>{{const t=document.createElement('div');t.className='tile';wall.appendChild(t);return t;}});
+function show(tile,i){{
+  const d=IMGS[i], img=document.createElement('img');
+  img.src=d.u;
+  const over=Math.max(0,d.h-TH);
+  if(over>0){{img.animate([{{transform:'translateY(0)'}},{{transform:'translateY(-'+over+'px)'}}],{{duration:DWELL*1000,easing:'linear',fill:'forwards'}});}}
+  tile.appendChild(img);
+  [...tile.querySelectorAll('img')].filter(x=>x!==img).forEach(o=>{{o.classList.add('out');setTimeout(()=>o.remove(),450);}});
+}}
+let next=0; const shown=new Array(N).fill(-1);
+function pick(){{ for(let k=0;k<IMGS.length;k++){{const c=(next+k)%IMGS.length; if(!shown.includes(c)){{next=(c+1)%IMGS.length;return c;}}}} return next; }}
+const order=[0,7,14,3,10,17,5,12,2,9,16,6,13,1,8,15,4,11];
+for(let t=0;t<N;t++){{const c=pick();shown[order[t]]=c;show(tiles[order[t]],c);}}
+let k=0;
+setInterval(()=>{{const t=order[k%N];k++;const c=pick();shown[t]=c;show(tiles[t],c);}},{WALL_SWAP_S*1000:.0f});
+</script>"""
+
+
 async def capture_slides(cdp, origin, pages, args):
     """One JPEG data URI per page: the top of each, once it has settled."""
     out = []
@@ -1013,6 +1081,18 @@ async def settle_on(cdp, origin, seg, args, navigated, work=None):
     """Arrive at the segment's page — by the press that led here, or directly."""
     if "card" in seg:
         slides, step, banner_at = None, 1.5, 0.0
+        if seg.get("wall"):
+            folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "docs", "screenshots")
+            imgs, tile_w = wall_images(seg["wall"], folder)
+            banner_at = max(2.0, seg["length"] - 4.6)
+            html = card_html(seg["card"], ICON_URI, None, 1.5, banner_at,
+                             bg=wall_background(imgs, tile_w, banner_at))
+            path = os.path.join(work or tempfile.gettempdir(), "wall.html")
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(html)
+            await cdp.send("Page.navigate", url="file://" + path)
+            await asyncio.sleep(0.6)
+            return
         if seg.get("montage"):
             slides = await capture_slides(cdp, origin, seg["montage"], args)
             banner_at = max(2.0, seg["length"] - 4.6)

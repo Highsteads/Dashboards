@@ -362,12 +362,21 @@ def test_a_card_with_slides_stacks_them_in_order_over_a_frosted_panel():
     assert "class=\"bg\"" not in plain and "backdrop-filter" not in plain
 
 
-def test_the_montage_lists_real_pages_with_the_best_first_and_no_repeats():
+def test_the_wall_lists_real_screenshots_with_the_best_first_and_no_repeats():
     tour = json.loads((ROOT / "tools/tour.json").read_text(encoding="utf-8"))
-    seg = [s for s in tour["segments"] if s.get("montage")][0]
-    pages = seg["montage"]
-    assert len(pages) == len(set(pages)), "each page appears once"
-    assert pages[:5] == ["energy.html", "room.html?room=Garage", "cameras.html", "heating.html", "index.html"]
-    for page in pages:
-        assert (PAGES / page.split("?")[0]).is_file(), page
+    seg = [s for s in tour["segments"] if s.get("wall")][0]
+    names = seg["wall"]
+    assert len(names) == len(set(names)) and len(names) >= rt.WALL_COLS * rt.WALL_ROWS
+    assert names[:5] == ["energy.png", "garage.png", "cameras.png", "heating.png", "index.png"]
+    for name in names:
+        assert (ROOT / "docs/screenshots" / name).is_file(), name
     assert seg["beats"][-1]["say"].endswith("The only limit is your imagination.")
+
+
+def test_wall_pictures_are_scaled_to_twice_the_tile_and_keep_their_proportions():
+    imgs, tile_w = rt.wall_images(["timeline.png", "energy.png"], str(ROOT / "docs/screenshots"))
+    assert tile_w == (1280 - rt.WALL_GAP * (rt.WALL_COLS + 1)) // rt.WALL_COLS
+    assert imgs[0]["uri"].startswith("data:image/jpeg;base64,")
+    assert imgs[1]["h"] > imgs[0]["h"] * 5, "energy is far taller than timeline"
+    html = rt.wall_background(imgs, tile_w, 17.0)
+    assert 'id="wall"' in html and f"{rt.WALL_COLS}" in html and "setInterval" in html
