@@ -7,7 +7,7 @@ nav_order: 4
 
 ## The hub, and the menu
 
-The hub (`index.html`) is the page on the wall tablet. It answers "is the house all right" from the
+The hub (`index.html`) is the page to keep open on your phone, laptop or tablet. It answers "is the house all right" from the
 top of the screen — who is home, the heating, the battery, a strip of live cameras — and then
 offers a way into everything else through two cards: Menu and Rooms. Those open
 the menu (`menu.html`), which is the only page that lists every page and every room, so a room added

@@ -8,7 +8,7 @@ nav_order: 1
 
 ![The hub](../screenshots/index.png)
 
-The page every other page hangs off, and the one that lives on the wall tablet. It answers "is the
+The page every other page hangs off, and the one to keep open on a phone, laptop or tablet. It answers "is the
 house all right" from the top of the screen, then offers a way into everything else. It is
 deliberately short: the House, Rooms and Tools tile walls it used to carry moved to the
 [Menu](menu.md), because they were navigation, not status.
