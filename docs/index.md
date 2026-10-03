@@ -24,6 +24,8 @@ A real house, filmed live with every press real: the garage door opening and clo
 tile changing colour, the cameras, the kitchen and living room lights, the heating, the energy page
 and the rest of the menu, ending on a wall of every page. Turn the sound on for the commentary, or use the captions.
 
+**Download:** [the video (MP4, 18 MB)](video/tour.mp4) · [captions (VTT)](video/tour.vtt) · [the poster picture](video/tour-poster.jpg) · [every page as a still picture (ZIP, 19 PNGs, 6 MB)](video/dashboards-screenshots.zip)
+
 Indigo's own web server hands out the pages, so any browser on your home network — or on
 [Tailscale](remote-access.md) when you are away — can open them once it has been paired, and the
 plugin looks after the camera logins on the Indigo Mac. It works in Chrome, Firefox, Safari, Edge and
