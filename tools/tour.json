@@ -781,64 +781,41 @@
       ]
     },
     {
-      "page": "active.html",
-      "label": "Active",
-      "start": "top",
-      "beats": [
-        {
-          "say": "There is more. Active lists everything that is switched on right now, so you can see at a glance what is using power.",
-          "to": 600,
-          "hold": 7
-        }
-      ]
-    },
-    {
-      "page": "ecowitt.html",
-      "label": "Weather",
-      "start": "top",
-      "beats": [
-        {
-          "say": "Weather shows the readings from the station on the roof, outside and in.",
-          "to": "Inside",
-          "offset": 150,
-          "hold": 5
-        }
-      ]
-    },
-    {
-      "page": "settings.html",
-      "label": "Settings",
-      "start": "top",
-      "beats": [
-        {
-          "say": "And Settings is where you choose your favourites, with no files to edit.",
-          "hold": 3.5
-        },
-        {
-          "say": "Custom links add any web page as a tile, and this is where the cameras and rooms are set up.",
-          "to": "Custom links",
-          "offset": 120,
-          "hold": 4
-        },
-        {
-          "say": "",
-          "to": "Cameras",
-          "offset": 120,
-          "hold": 3
-        }
-      ]
-    },
-    {
       "card": {
-        "kicker": "Free and open source",
-        "title": "Dashboards for Indigo",
-        "subtitle": "Take the parts that suit your house, and leave the rest.",
+        "kicker": "Describe it",
+        "title": "Describe it. Claude builds it.",
+        "subtitle": "Your thoughts, and Claude.",
         "foot": "<b>highsteads.github.io/Dashboards</b>"
       },
-      "tail": 1.8,
+      "montage": [
+        "energy.html",
+        "room.html?room=Garage",
+        "cameras.html",
+        "heating.html",
+        "index.html",
+        "wifi.html",
+        "settings.html",
+        "timeline.html",
+        "system-health.html",
+        "mains.html",
+        "active.html",
+        "ecowitt.html",
+        "room.html?room=Kitchen",
+        "menu.html",
+        "alerts.html",
+        "cost.html",
+        "scenes.html"
+      ],
+      "tail": 2.2,
       "beats": [
         {
-          "say": "Dashboards is free and open source. Take the parts that suit your house, and leave the rest."
+          "say": "Every page you have seen began as a sentence."
+        },
+        {
+          "say": "Say what you want on a page, in plain English, and Claude builds it. Lights, doors, heating, cameras, anything Indigo can switch or show."
+        },
+        {
+          "say": "Your house is different, so ask for your own pages. The only limit is your imagination."
         }
       ]
     }

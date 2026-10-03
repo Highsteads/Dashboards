@@ -351,3 +351,23 @@ def test_the_tour_clip_anchors_lie_inside_its_footage():
             old_len = c["to"] - c["from"] - 2 * rt.FADE
             anchors = [b["anchor"] for b in seg["beats"] if "anchor" in b]
             assert anchors == sorted(anchors) and anchors[0] >= 0 and anchors[-1] < old_len
+
+
+def test_a_card_with_slides_stacks_them_in_order_over_a_frosted_panel():
+    html = rt.card_html({"title": "T"}, "", ["data:image/jpeg;base64,AA", "data:image/jpeg;base64,BB"], 1.5)
+    assert html.count("<img src=\"data:image/jpeg") == 2
+    assert "animation-delay:0.00s;z-index:0" in html and "animation-delay:1.50s;z-index:1" in html
+    assert "backdrop-filter" in html
+    plain = rt.card_html({"title": "T"}, "")
+    assert "class=\"bg\"" not in plain and "backdrop-filter" not in plain
+
+
+def test_the_montage_lists_real_pages_with_the_best_first_and_no_repeats():
+    tour = json.loads((ROOT / "tools/tour.json").read_text(encoding="utf-8"))
+    seg = [s for s in tour["segments"] if s.get("montage")][0]
+    pages = seg["montage"]
+    assert len(pages) == len(set(pages)), "each page appears once"
+    assert pages[:5] == ["energy.html", "room.html?room=Garage", "cameras.html", "heating.html", "index.html"]
+    for page in pages:
+        assert (PAGES / page.split("?")[0]).is_file(), page
+    assert seg["beats"][-1]["say"].endswith("The only limit is your imagination.")
