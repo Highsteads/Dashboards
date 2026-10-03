@@ -33,24 +33,40 @@ const hour = (id, startZ, joined) => ({
 const oct = { upcoming: [hour(1, "10:00", true), hour(2, "11:00", true),
                          hour(3, "12:00", false), hour(4, "13:00", false)] };
 
-// 11:40 BST the day before: hour 1 is 23h20m away, hour 2 is 24h20m away.
-let r = C.savingSessions(oct, Date.parse("2026-10-03T11:40:00+01:00"));
+// Booked free hours are shown 48 hours ahead; everything else 24.
+// 11:40 BST two days before: hour 1 is 47h20m away, hour 2 is 48h20m away.
+const TWO_DAYS = "2026-10-02T11:40:00+01:00";
+let r = C.savingSessions(oct, Date.parse(TWO_DAYS));
 check(r.length === 1, "the two booked hours are one row", JSON.stringify(r));
 check(r[0] && r[0].hours === 2, "and it says two hours", r[0] && r[0].hours);
 check(r[0] && r[0].endMs === Date.parse("2026-10-04T12:00:00Z"), "ending at 13:00 BST");
 
 // Before the first hour is inside the lookahead, nothing shows at all.
-r = C.savingSessions(oct, Date.parse("2026-10-03T09:00:00+01:00"));
+r = C.savingSessions(oct, Date.parse("2026-10-02T09:00:00+01:00"));
 check(r.length === 0, "nothing shows while the first hour is past the lookahead");
+
+// A day later both are inside the window anyway.
+r = C.savingSessions(oct, Date.parse("2026-10-03T11:40:00+01:00"));
+check(r.length === 1 && r[0].hours === 2, "the day before, still one two-hour row");
 
 // An unbooked hour never rides in on the exemption.
 r = C.savingSessions({ upcoming: [hour(1, "10:00", true), hour(3, "12:00", false)] },
-                     Date.parse("2026-10-03T11:40:00+01:00"));
+                     Date.parse(TWO_DAYS));
 check(r.length === 1 && r[0].hours === 1, "an unbooked hour is still left out");
 
-// A gap breaks the chain: a later booked hour past the lookahead stays hidden.
+// A gap breaks the chain: a later booked hour past the lookahead stays hidden...
+r = C.savingSessions({ upcoming: [hour(1, "10:00", true), hour(5, "13:00", true)] },
+                     Date.parse(TWO_DAYS));
+check(r.length === 1 && r[0].hours === 1, "a booked hour with a gap before it stays cut");
+// ...and shows, as its own row, once it is inside the window.
 r = C.savingSessions({ upcoming: [hour(1, "10:00", true), hour(5, "13:00", true)] },
                      Date.parse("2026-10-03T11:40:00+01:00"));
-check(r.length === 1 && r[0].hours === 1, "a booked hour with a gap before it stays cut");
+check(r.length === 2, "11:00-12:00 and 14:00-15:00 are two rows the day before", r.length);
+
+// Anything that is not a free hour keeps the 24-hour window.
+const td = { id: 9, direction: "TURN_DOWN", joined: true, points: 72,
+             start: "2026-10-04T17:00:00+00:00", end: "2026-10-04T18:00:00+00:00" };
+check(C.savingSessions({ upcoming: [td] }, Date.parse("2026-10-03T11:40:00+01:00")).length === 0,
+      "a turn-down 30 hours out is still not shown");
 
 done();

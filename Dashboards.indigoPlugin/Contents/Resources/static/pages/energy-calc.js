@@ -566,6 +566,9 @@
   var SS_HAPPY_HOUR = 'WEEKEND_HAPPY_HOUR';
   /* A session six days out is real but it is not news. Live always shows. */
   var SS_LOOKAHEAD_MS = 24 * 3600 * 1000;
+  /* A booked free hour is worth knowing about a day earlier than the rest: it is
+     electricity to plan the house around, not an alert (CliveS, 03-Oct-2026). */
+  var SS_HAPPY_LOOKAHEAD_MS = 48 * 3600 * 1000;
 
   /* "18:00-19:00", with a weekday in front when it is not today. Shared so the
      hub and the Energy page render the identical string — the one part of this
@@ -606,7 +609,9 @@
       var live = start <= nowMs;
       /* Beyond the lookahead is decided after the sort, so a booked free hour
          that runs on from one inside it is not cut off mid-stretch. */
-      var beyond = !live && start - nowMs > ahead;
+      var reach = (r.direction === SS_HAPPY_HOUR && !lookaheadMs)
+                  ? SS_HAPPY_LOOKAHEAD_MS : ahead;
+      var beyond = !live && start - nowMs > reach;
       /* An unbooked free hour is left out (CliveS, 26-Sep-2026): only the hours
          that are booked are worth a line. Octopus offers several a Sunday and the
          plugin books the ones the battery can use, so "not booked" beside each of

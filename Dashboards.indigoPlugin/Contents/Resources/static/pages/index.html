@@ -1478,7 +1478,19 @@
             /* Only booked free hours arrive — DashCalc.savingSessions leaves the
                unbooked ones out. */
             cls = "ok";
-            txt = (r.hours > 1 ? "Free hours · " : "Free hour · ") + range + " · booked";
+            /* Every booked free-hour stretch, not only the soonest: 11:00-12:00
+               and 14:00-15:00 are two rows, and the later one is the one a person
+               needs to know is coming. A later stretch on the same day drops the
+               weekday, since the first range already says it. */
+            const stretches = list.filter(x => x.isHappyHour);
+            const ranges = stretches.map((x, i) => {
+                const rg = DashCalc.sessionRange(x.startMs, x.endMs, nowMs);
+                const same = i > 0 && new Date(x.startMs).toDateString()
+                                      === new Date(stretches[0].startMs).toDateString();
+                return same ? rg.replace(/^[A-Za-z]{3} /, "") : rg;
+            });
+            const many = stretches.length > 1 || r.hours > 1;
+            txt = (many ? "Free hours · " : "Free hour · ") + ranges.join(", ") + " · booked";
         } else if (r.isTurnDown) {
             const rate = r.pence > 0
                 ? " · " + (r.pence >= 1 ? r.pence.toFixed(0) : r.pence.toFixed(1)) + "p/kWh" : "";

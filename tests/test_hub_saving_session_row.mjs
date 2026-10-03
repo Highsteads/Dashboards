@@ -117,4 +117,16 @@ check(/<script src="energy-calc\.js"><\/script>/.test(raw),
       "index.html loads energy-calc.js");
 check(/DashCalc\.savingSessions/.test(code), "and the row goes through DashCalc");
 
+// ── every booked free-hour stretch is listed, not only the soonest ──
+// 03-Oct-2026: 11:00-12:00 and 14:00-15:00 are two rows; the hub showed only
+// the first, so the later hour was invisible until the first had finished.
+const HHB = (id, h) => ev(Object.assign({ id, direction: "WEEKEND_HAPPY_HOUR", joined: true }, at(h)));
+h = row({ upcoming: [HHB(1, 3), HHB(2, 6)] }, NOW);
+check((h.match(/class="row"/g) || []).length === 1, "still one row for two free-hour stretches");
+check(/Free hours/.test(h) && h.includes(DashCalc.sessionRange(NOW + 3 * 3600e3, NOW + 4 * 3600e3, NOW))
+      && h.includes(DashCalc.sessionRange(NOW + 6 * 3600e3, NOW + 7 * 3600e3, NOW)),
+      "and it names both ranges", h.slice(-110));
+h = row({ upcoming: [HHB(1, 3)] }, NOW);
+check(/Free hour ·/.test(h) && !/Free hours/.test(h), "a single stretch stays singular", h.slice(-80));
+
 done();
