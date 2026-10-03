@@ -253,7 +253,7 @@ def _icon_uri():
 ICON_URI = _icon_uri()
 
 
-def card_html(card, icon_url, slides=None, step=1.5):
+def card_html(card, icon_url, slides=None, step=1.5, banner_at=0.0):
     """A title or end card, drawn in the dashboards' own colours and type.
 
     With `slides` (JPEG data URIs of real pages) the card sits as a frosted
@@ -276,7 +276,7 @@ html,body{{margin:0;height:100%}}
   animation:slide .5s ease forwards}}
 .scrim{{z-index:1000;background:rgba(18,20,30,.12)}}
 @keyframes slide{{from{{opacity:0;transform:scale(1.025)}}to{{opacity:1;transform:none}}}}
-{".wrap{background:rgba(255,255,255,.88);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-radius:26px;padding:22px 46px 24px;box-shadow:0 14px 44px rgba(0,0,0,.30);position:relative;z-index:1001;max-width:760px;margin-bottom:46px}html body{align-items:flex-end}.wrap img{width:56px;height:56px;border-radius:14px;margin-bottom:10px}.wrap h1{font-size:42px;margin:0 0 8px}.wrap p{font-size:20px}.wrap .kicker{font-size:12px;margin-bottom:8px}.wrap .foot{margin-top:12px;font-size:15px}" if slides else ""}
+{".wrap{background:rgba(255,255,255,.90);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border-radius:30px;padding:34px 54px 36px;box-shadow:0 20px 60px rgba(0,0,0,.34);position:relative;z-index:1001;max-width:820px;opacity:0;animation:zoomout 1.5s cubic-bezier(.16,.84,.24,1) both;animation-delay:" + f"{banner_at:.2f}" + "s}@keyframes zoomout{from{opacity:0;transform:scale(2.7)}to{opacity:1;transform:none}}.wrap h1{font-size:54px}" if slides else ""}
 body{{display:flex;align-items:center;justify-content:center;color:#1d2129;
   font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;
   background:radial-gradient(1100px 620px at 28% 18%,#e9e8ff 0%,rgba(233,232,255,0) 60%),
@@ -1012,11 +1012,12 @@ async def capture_slides(cdp, origin, pages, args):
 async def settle_on(cdp, origin, seg, args, navigated, work=None):
     """Arrive at the segment's page — by the press that led here, or directly."""
     if "card" in seg:
-        slides, step = None, 1.5
+        slides, step, banner_at = None, 1.5, 0.0
         if seg.get("montage"):
             slides = await capture_slides(cdp, origin, seg["montage"], args)
-            step = max(0.8, min(2.5, (seg["length"] - 1.4) / len(slides)))
-        html = card_html(seg["card"], ICON_URI, slides, step)
+            banner_at = max(2.0, seg["length"] - 4.6)
+            step = max(0.7, min(2.5, (banner_at - 0.4) / len(slides)))
+        html = card_html(seg["card"], ICON_URI, slides, step, banner_at if slides else 0.0)
         if slides:
             path = os.path.join(work or tempfile.gettempdir(), "montage.html")
             with open(path, "w", encoding="utf-8") as fh:
@@ -1355,6 +1356,9 @@ def main():
     ap.add_argument("--settle", type=float, default=7.0,
                     help="real seconds a page gets to load its data before "
                          "recording starts")
+    ap.add_argument("--only", metavar="KEY",
+                    help="record just the segments carrying KEY (e.g. montage), to "
+                         "preview that part on its own; sends nothing to the house")
     ap.add_argument("--slide-settle", type=float, default=3.5,
                     help="real seconds each montage page gets before its picture is taken")
     ap.add_argument("--voice", default="kokoro:bm_george",
@@ -1387,6 +1391,13 @@ def main():
     if args.scout is None:
         with open(args.tour, encoding="utf-8") as fh:
             tour = json.load(fh)
+    if args.only:
+        # A preview of one part: only the segments carrying this key (e.g.
+        # "montage"), with no survey, no starting-state check and no commands.
+        tour["segments"] = [x for x in tour["segments"] if x.get(args.only)]
+        if not tour["segments"]:
+            sys.exit(f"no segment in the tour has {args.only!r}")
+        tour["preflight"], tour["prepare"] = {}, []
     args.preflight = tour.get("preflight", {})
 
     sanitiser = cs.Sanitiser(renames)
@@ -1419,7 +1430,7 @@ def main():
             for line in prepare(args.host, args.iws_port, api_key, tour["prepare"], guard.allow_ids):
                 print(f"  {line}")
         print("reading the house ...")
-        state = asyncio.run(survey(args, origin, work))
+        state = asyncio.run(survey(args, origin, work)) if not args.only else {}
         energy = state.get("energy") or {}
         words = energy_words(energy)
         print(f"  energy: {energy}")
