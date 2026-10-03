@@ -366,9 +366,33 @@
           "offset": 110
         },
         {
-          "say": "Setup holds the settings. Rooms has a page for every room in the house.",
-          "hold": 3.2,
+          "say": "Setup holds the settings, and any web page can be added as a tile, such as the UniFi controller, so one menu leads to everything.",
+          "hold": 3.5,
           "do": [
+            [
+              "scroll",
+              "Setup",
+              330
+            ],
+            [
+              "point",
+              {
+                "sel": "a",
+                "has": "Unifi Dashboard"
+              },
+              {
+                "ms": 900
+              }
+            ]
+          ]
+        },
+        {
+          "say": "Rooms has a page for every room in the house.",
+          "hold": 2.5,
+          "do": [
+            [
+              "hide"
+            ],
             [
               "scroll",
               "top"
@@ -510,6 +534,19 @@
               }
             ]
           ]
+        },
+        {
+          "say": "Below the lights are the room's motion sensors, its temperature and humidity, and the window.",
+          "hold": 4,
+          "do": [
+            [
+              "unzoom"
+            ],
+            [
+              "scroll",
+              "bottom"
+            ]
+          ]
         }
       ]
     },
@@ -560,7 +597,7 @@
       "start": "top",
       "beats": [
         {
-          "say": "Heating shows every radiator with its temperature and its setpoint, and a boost for the whole house at the top.",
+          "say": "The Heating page draws its data from the Evohome heating plugin: every radiator with its temperature and setpoint, and a boost for the whole house at the top.",
           "do": [
             [
               "point",
@@ -584,6 +621,23 @@
               "zoom",
               "Bathroom Radiator",
               1.4
+            ]
+          ]
+        },
+        {
+          "say": "Scrolling down shows the rest of the radiators, with the coldest and warmest rooms picked out in blue and amber.",
+          "hold": 6,
+          "do": [
+            [
+              "unzoom"
+            ],
+            [
+              "wait",
+              0.6
+            ],
+            [
+              "scroll",
+              "bottom"
             ]
           ]
         }
@@ -723,6 +777,54 @@
         {
           "say": "And Mains lists every meter in the house, with how far they disagree with each other and with the inverter.",
           "to": 240
+        }
+      ]
+    },
+    {
+      "page": "active.html",
+      "label": "Active",
+      "start": "top",
+      "beats": [
+        {
+          "say": "There is more. Active lists everything that is switched on right now, so you can see at a glance what is using power.",
+          "to": 600,
+          "hold": 7
+        }
+      ]
+    },
+    {
+      "page": "ecowitt.html",
+      "label": "Weather",
+      "start": "top",
+      "beats": [
+        {
+          "say": "Weather shows the readings from the station on the roof, outside and in.",
+          "to": "Inside",
+          "offset": 150,
+          "hold": 5
+        }
+      ]
+    },
+    {
+      "page": "settings.html",
+      "label": "Settings",
+      "start": "top",
+      "beats": [
+        {
+          "say": "And Settings is where you choose your favourites, with no files to edit.",
+          "hold": 3.5
+        },
+        {
+          "say": "Custom links add any web page as a tile, and this is where the cameras and rooms are set up.",
+          "to": "Custom links",
+          "offset": 120,
+          "hold": 4
+        },
+        {
+          "say": "",
+          "to": "Cameras",
+          "offset": 120,
+          "hold": 3
         }
       ]
     },
