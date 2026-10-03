@@ -1452,6 +1452,20 @@
         return `<div class="row"><span class="key">VPP earned</span>`
              + `<span class="val ok">${main}${note}${tail}</span></div>`;
     }
+    /* Every booked free-hour stretch, not only the soonest: 11:00-12:00 and
+       14:00-15:00 are two rows, and the later one is the one a person needs to
+       know is coming. A later stretch on the same day drops the weekday, since
+       the first range already says it. Shared by the row and the chip. */
+    function freeHourRanges(list, nowMs) {
+        const stretches = list.filter(x => x.isHappyHour);
+        return stretches.map((x, i) => {
+            const rg = DashCalc.sessionRange(x.startMs, x.endMs, nowMs);
+            const same = i > 0 && new Date(x.startMs).toDateString()
+                                  === new Date(stretches[0].startMs).toDateString();
+            return same ? rg.replace(/^[A-Za-z]{3} /, "") : rg;
+        });
+    }
+
     /* ── Octopus Saving Session row ──────────────────────────────────────
        The DECISION is DashCalc.savingSessions, shared with the Energy page's
        alert bar, so the two can never disagree about whether you are in a
@@ -1478,18 +1492,8 @@
             /* Only booked free hours arrive — DashCalc.savingSessions leaves the
                unbooked ones out. */
             cls = "ok";
-            /* Every booked free-hour stretch, not only the soonest: 11:00-12:00
-               and 14:00-15:00 are two rows, and the later one is the one a person
-               needs to know is coming. A later stretch on the same day drops the
-               weekday, since the first range already says it. */
-            const stretches = list.filter(x => x.isHappyHour);
-            const ranges = stretches.map((x, i) => {
-                const rg = DashCalc.sessionRange(x.startMs, x.endMs, nowMs);
-                const same = i > 0 && new Date(x.startMs).toDateString()
-                                      === new Date(stretches[0].startMs).toDateString();
-                return same ? rg.replace(/^[A-Za-z]{3} /, "") : rg;
-            });
-            const many = stretches.length > 1 || r.hours > 1;
+            const ranges = freeHourRanges(list, nowMs);
+            const many = ranges.length > 1 || r.hours > 1;
             txt = (many ? "Free hours · " : "Free hour · ") + ranges.join(", ") + " · booked";
         } else if (r.isTurnDown) {
             const rate = r.pence > 0
@@ -1534,8 +1538,9 @@
             return r.live
                 ? { cls: "good", text: (r.hours > 1 ? "Free hours" : "Free hour")
                                           + " running · until " + DashCalc.sessionEndTime(r.endMs) }
-                : { cls: "good", text: (r.hours > 1 ? "Free hours" : "Free hour") + when
-                                          + " · " + range + " · booked" };
+                : { cls: "good", text: (r.hours > 1 || list.filter(x => x.isHappyHour).length > 1
+                                          ? "Free hours" : "Free hour") + when
+                                          + " · " + freeHourRanges(list, nowMs).join(", ") + " · booked" };
         }
         if (r.isTurnDown) {
             if (!r.joined) return { cls: "warn", text: "Saving Session" + (r.live ? " running" : when)

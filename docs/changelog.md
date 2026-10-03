@@ -9,6 +9,8 @@ Every release, newest first. The three most recent also appear under **What's ne
 [README](https://github.com/Highsteads/Dashboards#whats-new). This page is the whole record.
 Dates are day-month-year.
 
+**3.59.1** (03-Oct-2026) - **The main page's Saving Session chip names every booked free hour too.** The chip at the top of the main page showed only the soonest stretch, so with free hours at 11:00-12:00 and 14:00-15:00 it said nothing about the afternoon one. It now lists every booked stretch, the same as the line lower down.
+
 **3.59.0** (03-Oct-2026) - **Booked free hours show a day earlier, and the main page lists every one.** A booked free hour now appears on the main page and the Energy page 48 hours ahead instead of 24, so you know it is due. The main page's Saving Session line named only the soonest stretch, so with free hours at 11:00-12:00 and 14:00-15:00 the afternoon one stayed hidden until the morning one had finished. It now lists every booked stretch, for example "Free hours · 11:00-12:00, 14:00-15:00 · booked". Saving Sessions and Power Ups keep their 24-hour window.
 
 **3.58.3** (03-Oct-2026) - **A booked free hour is no longer cut off at the edge of the day-ahead window.** Two booked free hours tomorrow, 11:00 to 13:00, showed as only 11:00 to 12:00 on the main page and the Energy page. Both pages only list sessions starting within 24 hours, and at 11:40 the first hour began 23 hours 20 minutes away while the second began 24 hours 20 minutes away, so the second was dropped before the two could be joined. A booked free hour that starts exactly where a shown one ends now stays with it, so the pair reads as one row, 11:00-13:00.

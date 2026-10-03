@@ -54,7 +54,7 @@ if (!DashCalc || typeof DashCalc.savingSessions !== "function") {
 const ctx = { Date, Math, Number, String, window: { DashCalc }, DashCalc,
               escapeAttr: (x) => String(x).replace(/[<>&"]/g, "_") };
 vm.createContext(ctx);
-vm.runInContext(fn("savingSessionRow") + "\nglobalThis.savingSessionRow = savingSessionRow;", ctx);
+vm.runInContext(fn("freeHourRanges") + "\n" + fn("savingSessionRow") + "\nglobalThis.savingSessionRow = savingSessionRow;", ctx);
 const row = ctx.savingSessionRow;
 
 const NOW = Date.parse("2026-09-15T12:00:00Z");

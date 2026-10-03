@@ -63,6 +63,7 @@ new Function(`
             .replace(/"/g,"&quot;");
     }
     ${(code.match(/const asBool = [^\n]+\n/) || [""])[0]}
+    ${fn("freeHourRanges")}
     ${fn("savingSessionChip")}
     let ROOMS = null;
     ${fn("fireHeaterChip")}
@@ -183,5 +184,15 @@ check(!/Saving Session/.test(html), "no Sigen data, no chip in the hero");
 
 // 11. The energy card row stays too.
 check((code.match(/\$\{ssRow\}/g) || []).length === 2, "the Energy card row is still in both layouts");
+
+// 12. Every booked free-hour stretch is named, not only the soonest (03-Oct-2026).
+const hh = (id, h) => ({ id, start: iso(at(17, h)), end: iso(at(17, h + 1)), points: 0,
+                         direction: "WEEKEND_HAPPY_HOUR", joined: true, capacity: null });
+now = at(16, 14);
+c = savingSessionChip({ upcoming: [hh(1, 11), hh(2, 14)] }, now);
+check(c && /^Free hours/.test(c.text) && c.text.includes(range(at(17, 11), at(17, 12), now))
+      && c.text.endsWith(", " + range(at(17, 14), at(17, 15), now).replace(/^[A-Za-z]{3} /, "") + " · booked"), "two separate free-hour stretches are both on the chip", c && c.text);
+c = savingSessionChip({ upcoming: [hh(1, 11)] }, now);
+check(c && /^Free hour /.test(c.text), "a single stretch stays singular", c && c.text);
 
 done();
