@@ -549,7 +549,8 @@
           ]
         }
       ],
-      "align_second": 2
+      "align_second": 2,
+      "kitchen": true
     },
     {
       "clip": {

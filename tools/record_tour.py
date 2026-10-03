@@ -1481,12 +1481,15 @@ def main():
         with open(args.tour, encoding="utf-8") as fh:
             tour = json.load(fh)
     if args.only:
-        # A preview of one part: only the segments carrying this key (e.g.
-        # "montage"), with no survey, no starting-state check and no commands.
+        # One part on its own: only the segments carrying this key (e.g. "wall"
+        # or "kitchen"). Without --live it sends nothing and checks no state;
+        # with --live it keeps the tour's starting-state check and preparation,
+        # so one section can be re-shot and cut into an earlier take.
         tour["segments"] = [x for x in tour["segments"] if x.get(args.only)]
         if not tour["segments"]:
             sys.exit(f"no segment in the tour has {args.only!r}")
-        tour["preflight"], tour["prepare"] = {}, []
+        if not args.live:
+            tour["preflight"], tour["prepare"] = {}, []
     args.preflight = tour.get("preflight", {})
 
     sanitiser = cs.Sanitiser(renames)
@@ -1519,7 +1522,7 @@ def main():
             for line in prepare(args.host, args.iws_port, api_key, tour["prepare"], guard.allow_ids):
                 print(f"  {line}")
         print("reading the house ...")
-        state = asyncio.run(survey(args, origin, work)) if not args.only else {}
+        state = asyncio.run(survey(args, origin, work)) if not (args.only and not args.live) else {}
         energy = state.get("energy") or {}
         words = energy_words(energy)
         print(f"  energy: {energy}")
