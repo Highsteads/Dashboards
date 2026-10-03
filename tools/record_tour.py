@@ -1188,6 +1188,13 @@ async def record(args, segments, origin, work):
                         problems.append(f"{name}: the energy figures never settled; said none")
                     problems.extend(respeak(seg, energy_words(fresh), args.voice, args.rate, work))
                     print("(re-read) ", end="", flush=True)
+                if seg.get("align_second") is not None:
+                    # Begin on a given second of the minute. The kitchen lights-off
+                    # script runs at :00 every minute, so a take that began its
+                    # lights part at :52 had them switched off under it.
+                    now = time.time()
+                    wait = (float(seg["align_second"]) - (now % 60.0)) % 60.0
+                    await asyncio.sleep(wait)
                 await asyncio.sleep(0.5)
                 t0 = time.time()
                 if seg.get("label"):

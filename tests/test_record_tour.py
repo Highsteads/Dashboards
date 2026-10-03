@@ -380,3 +380,11 @@ def test_wall_pictures_are_scaled_to_twice_the_tile_and_keep_their_proportions()
     assert imgs[1]["h"] > imgs[0]["h"] * 5, "energy is far taller than timeline"
     html = rt.wall_background(imgs, tile_w, 17.0)
     assert 'id="wall"' in html and f"{rt.WALL_COLS}" in html and "setInterval" in html
+
+
+def test_the_kitchen_section_starts_early_in_the_minute():
+    # The kitchen lights-off script runs at :00 each minute and switched both
+    # lights off eight seconds after All On in a live take.
+    tour = json.loads((ROOT / "tools/tour.json").read_text(encoding="utf-8"))
+    kitchen = [s for s in tour["segments"] if s.get("page") == "room.html?room=Kitchen"][0]
+    assert 0 <= kitchen["align_second"] <= 10
