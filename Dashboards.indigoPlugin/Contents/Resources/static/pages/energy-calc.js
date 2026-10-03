@@ -604,7 +604,9 @@
          clock is re-checked here rather than trusting the cache to be fresh. */
       if (!isFinite(start) || !isFinite(end) || end <= nowMs) continue;
       var live = start <= nowMs;
-      if (!live && start - nowMs > ahead) continue;
+      /* Beyond the lookahead is decided after the sort, so a booked free hour
+         that runs on from one inside it is not cut off mid-stretch. */
+      var beyond = !live && start - nowMs > ahead;
       /* An unbooked free hour is left out (CliveS, 26-Sep-2026): only the hours
          that are booked are worth a line. Octopus offers several a Sunday and the
          plugin books the ones the battery can use, so "not booked" beside each of
@@ -616,6 +618,7 @@
         endMs: end,
         live: live,
         joined: !!r.joined,
+        beyond: beyond,
         direction: r.direction || null,
         /* A turn-down is the only one the battery earns by exporting into. */
         isTurnDown: r.direction === SS_TURN_DOWN,
@@ -633,6 +636,17 @@
       });
     }
     out.sort(function (a, b) { return a.startMs - b.startMs; });
+    /* A booked free hour that starts exactly where a kept row ends is the same
+       stretch of free electricity, so it stays even past the lookahead. Without
+       this, 11:00-12:00 tomorrow showed while the booked 12:00-13:00 was cut,
+       because the second hour began 24h20m ahead (CliveS, 03-Oct-2026). */
+    out = out.filter(function (r, i) {
+      if (!r.beyond) return true;
+      var prev = i > 0 ? out[i - 1] : null;
+      if (prev && !prev._cut && prev.isHappyHour && r.isHappyHour && r.startMs === prev.endMs) return true;
+      r._cut = true;
+      return false;
+    });
     /* Back-to-back booked free hours are one stretch of free electricity, so
        they become one row: "Free hours 13:00-15:00" (CliveS, 26-Sep-2026 — the
        hub shows only the soonest row and so showed only the first hour).
