@@ -541,7 +541,7 @@ def plan(tour, work, voice, rate, words=None):
             dur, wav = 0.0, None
             if text:
                 wav = os.path.join(work, f"s{si:02d}b{bi:02d}.aiff")
-                dur = speak(text, wav, voice, rate)
+                dur = speak(text, wav, voice, seg.get("rate", rate))
             span = max(dur, float(beat.get("hold", 0)))
             beats.append({**beat, "say": text, "template": beat.get("say", ""),
                           "audio": wav, "start": local, "dur": dur, "span": span})
@@ -997,7 +997,7 @@ def page_url(origin, page):
 
 
 WALL_COLS, WALL_ROWS, WALL_GAP = 6, 3, 8
-WALL_SWAP_S = 0.3                      # one tile swaps this often: each tile every ~3.6 s
+WALL_SWAP_S = 0.25                     # one tile swaps this often: each tile every ~3.6 s
 
 
 def wall_images(names, folder):
@@ -1048,7 +1048,9 @@ function show(tile,i){{
   const d=IMGS[i], img=document.createElement('img');
   img.src=d.u;
   const over=Math.max(0,d.h-TH);
-  if(over>0){{img.animate([{{transform:'translateY(0)'}},{{transform:'translateY(-'+over+'px)'}}],{{duration:DWELL*1000,easing:'linear',fill:'forwards'}});}}
+  const up=(tile._n=(tile._n||0)+1)%2===0;
+  if(over>0){{const a=up?['translateY(-'+over+'px)','translateY(0)']:['translateY(0)','translateY(-'+over+'px)'];img.animate([{{transform:a[0]}},{{transform:a[1]}}],{{duration:DWELL*1000,easing:'linear',fill:'forwards'}});}}
+  else{{img.style.transformOrigin=up?'50% 0':'50% 40%';const z=up?[1.14,1]:[1,1.14];img.animate([{{transform:'scale('+z[0]+')'}},{{transform:'scale('+z[1]+')'}}],{{duration:DWELL*1000,easing:'linear',fill:'forwards'}});}}
   tile.appendChild(img);
   [...tile.querySelectorAll('img')].filter(x=>x!==img).forEach(o=>{{o.classList.add('out');setTimeout(()=>o.remove(),450);}});
 }}
@@ -1084,7 +1086,7 @@ async def settle_on(cdp, origin, seg, args, navigated, work=None):
         if seg.get("wall"):
             folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "docs", "screenshots")
             imgs, tile_w = wall_images(seg["wall"], folder)
-            banner_at = max(2.0, seg["length"] - 4.6)
+            banner_at = max(2.0, seg["length"] - 3.6)
             html = card_html(seg["card"], ICON_URI, None, 1.5, banner_at,
                              bg=wall_background(imgs, tile_w, banner_at))
             path = os.path.join(work or tempfile.gettempdir(), "wall.html")
@@ -1095,7 +1097,7 @@ async def settle_on(cdp, origin, seg, args, navigated, work=None):
             return
         if seg.get("montage"):
             slides = await capture_slides(cdp, origin, seg["montage"], args)
-            banner_at = max(2.0, seg["length"] - 4.6)
+            banner_at = max(2.0, seg["length"] - 3.6)
             step = max(0.7, min(2.5, (banner_at - 0.4) / len(slides)))
         html = card_html(seg["card"], ICON_URI, slides, step, banner_at if slides else 0.0)
         if slides:

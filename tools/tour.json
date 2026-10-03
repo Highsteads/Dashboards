@@ -787,7 +787,7 @@
         "subtitle": "Your thoughts, and Claude.",
         "foot": "<b>highsteads.github.io/Dashboards</b>"
       },
-      "tail": 2.2,
+      "tail": 1.4,
       "beats": [
         {
           "say": "Every page you have seen began as a sentence."
@@ -819,7 +819,9 @@
         "wifi-ap-detail.png",
         "ecowitt.png",
         "mains.png"
-      ]
+      ],
+      "rate": 192,
+      "lead_in": 0.4
     }
   ],
   "prepare": [
