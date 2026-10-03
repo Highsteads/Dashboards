@@ -198,8 +198,8 @@
 
   /* ── door favourite: state-to-tile map (pure — the other test seam) ──── */
 
-  /* Map a door device's doorState (GarageDoor plugin: closed/open/moving/
-     stuck/unknown) to what the hub tile shows and does. lastSettled is the
+  /* Map a door device's doorState (GarageDoor plugin: closed/opening/open/closing/
+     moving/stuck/unknown) to what the hub tile shows and does. lastSettled is the
      last end state THIS page saw ("open"/"closed"), which is what names the
      direction while moving — a page opened mid-travel has none and honestly
      shows neutral "Moving…".
@@ -214,11 +214,21 @@
 
      An absent or unrecognised state is UNKNOWN, never a guess — a device
      missing from the poll must not render as a confident "Closed". */
-  function doorTile(doorState, lastSettled) {
+  function doorTile(doorState, lastSettled, direction) {
     var s = (doorState == null) ? '' : String(doorState).trim().toLowerCase();
     if (s === 'closed') return { key: 'closed', label: 'Closed', intent: 'open' };
     if (s === 'open')   return { key: 'open', label: 'Open', intent: 'close' };
+    // GarageDoor 1.10 publishes opening/closing as the state itself.
+    if (s === 'opening') return { key: 'opening', label: 'Opening…', intent: null };
+    if (s === 'closing') return { key: 'closing', label: 'Closing…', intent: null };
     if (s === 'moving') {
+      // Direction unknown to the plugin (started mid-travel). The door's own word wins (GarageDoor 1.9 publishes `direction` from its
+      // two position sensors), so a page opened part-way through a trip names
+      // the direction at once. Without it, fall back to the last settled state
+      // this page has seen.
+      var dir = (direction == null) ? '' : String(direction).trim().toLowerCase();
+      if (dir === 'opening') return { key: 'opening', label: 'Opening…', intent: null };
+      if (dir === 'closing') return { key: 'closing', label: 'Closing…', intent: null };
       if (lastSettled === 'closed') return { key: 'opening', label: 'Opening…', intent: null };
       if (lastSettled === 'open')   return { key: 'closing', label: 'Closing…', intent: null };
       return { key: 'moving', label: 'Moving…', intent: null };
@@ -247,8 +257,8 @@
      hub and the room page each kept their own map of it. One map here, one
      rule for what counts as settled. */
   var _doorMemory = {};
-  function doorTileRemembered(id, raw) {
-    var t = doorTile(raw, _doorMemory[id]);
+  function doorTileRemembered(id, raw, direction) {
+    var t = doorTile(raw, _doorMemory[id], direction);
     var s = raw == null ? '' : String(raw).trim().toLowerCase();
     if (s === 'open' || s === 'closed') _doorMemory[id] = s;
     return t;

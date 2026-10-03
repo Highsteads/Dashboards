@@ -151,13 +151,19 @@ const flush = () => new Promise(r => setImmediate(r));
 
 const box = makeBox();
 const DA = box.DashAction;
-const dt = (state, last) => DA.doorTile(state, last);
+const dt = (state, last, dir) => DA.doorTile(state, last, dir);
 
 console.log("\n== doorTile: the settled states ==");
 check("closed -> white tile, press opens",
     dt("closed"), { key: "closed", label: "Closed", intent: "open" });
 check("open -> red tile, press closes",
     dt("open"), { key: "open", label: "Open", intent: "close" });
+
+console.log("\n== doorTile: GarageDoor 1.10 publishes opening/closing as the state ==");
+check("opening state -> Opening…, display-only",
+    dt("opening"), { key: "opening", label: "Opening…", intent: null });
+check("closing state -> Closing…, display-only",
+    dt("closing"), { key: "closing", label: "Closing…", intent: null });
 
 console.log("\n== doorTile: moving names its direction from the last settled state ==");
 check("moving after closed -> Opening…, display-only",
@@ -166,6 +172,22 @@ check("moving after open -> Closing…, display-only",
     dt("moving", "open"), { key: "closing", label: "Closing…", intent: null });
 check("moving with no history (page opened mid-travel) -> neutral",
     dt("moving", undefined), { key: "moving", label: "Moving…", intent: null });
+
+console.log("\n== doorTile: the door's own direction wins, and a page opened mid-travel uses it ==");
+check("moving + direction closing, no history -> Closing…",
+    dt("moving", undefined, "closing"), { key: "closing", label: "Closing…", intent: null });
+check("moving + direction opening, no history -> Opening…",
+    dt("moving", undefined, "opening"), { key: "opening", label: "Opening…", intent: null });
+check("the door's word beats a stale memory",
+    dt("moving", "closed", "closing"), { key: "closing", label: "Closing…", intent: null });
+check("direction none falls back to the memory",
+    dt("moving", "open", "none"), { key: "closing", label: "Closing…", intent: null });
+check("direction none and no memory -> neutral",
+    dt("moving", undefined, "none"), { key: "moving", label: "Moving…", intent: null });
+check("a direction never changes a settled door",
+    dt("closed", undefined, "opening"), { key: "closed", label: "Closed", intent: "open" });
+check("remembered form passes the direction through",
+    DA.doorTileRemembered(991, "moving", "closing"), { key: "closing", label: "Closing…", intent: null });
 
 console.log("\n== doorTile: stuck offers the recovery, unknown offers nothing ==");
 check("stuck -> amber, press fires close (secure the house)",

@@ -9,6 +9,8 @@ Every release, newest first. The three most recent also appear under **What's ne
 [README](https://github.com/Highsteads/Dashboards#whats-new). This page is the whole record.
 Dates are day-month-year.
 
+**3.59.2** (03-Oct-2026) - **A page opened while the garage door is moving now says which way it is going.** The hub and the room page used to say "Moving…" unless they had seen you press the button, because they guessed the direction from what they had seen before. Garage Door 1.10 now publishes opening and closing as the door's state itself, worked out from its two position sensors, and the tile uses it, so the tile reads "Opening…" or "Closing…" the moment the page loads. With an older Garage Door plugin nothing changes: the pages fall back to guessing as before.
+
 **3.59.1** (03-Oct-2026) - **The main page's Saving Session chip names every booked free hour too.** The chip at the top of the main page showed only the soonest stretch, so with free hours at 11:00-12:00 and 14:00-15:00 it said nothing about the afternoon one. It now lists every booked stretch, the same as the line lower down.
 
 **3.59.0** (03-Oct-2026) - **Booked free hours show a day earlier, and the main page lists every one.** A booked free hour now appears on the main page and the Energy page 48 hours ahead instead of 24, so you know it is due. The main page's Saving Session line named only the soonest stretch, so with free hours at 11:00-12:00 and 14:00-15:00 the afternoon one stayed hidden until the morning one had finished. It now lists every booked stretch, for example "Free hours · 11:00-12:00, 14:00-15:00 · booked". Saving Sessions and Power Ups keep their 24-hour window.

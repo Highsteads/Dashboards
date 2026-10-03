@@ -1415,7 +1415,8 @@
         let t = { key: "unknown", label: "—", intent: null };
         // One memory of each door's last settled state, shared with the hub
         // (v3.41.0), so "moving" can be named Opening… or Closing….
-        if (window.DashAction && DashAction.doorTileRemembered) t = DashAction.doorTileRemembered(did, raw);
+        const dirRaw = (d && d.states) ? d.states[door.directionState || "direction"] : undefined;
+        if (window.DashAction && DashAction.doorTileRemembered) t = DashAction.doorTileRemembered(did, raw, dirRaw);
 
         const label  = door.label || (d && d.name) || "Door";
         const action = t.intent === "open"  ? "Press to Open"

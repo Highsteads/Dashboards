@@ -2096,7 +2096,8 @@
                     if (window.DashAction && DashAction.lockTile) t = DashAction.lockTile(contactRaw, lockRaw);
                 } else {
                     const raw = (d && d.states) ? d.states[f.state || "doorState"] : undefined;
-                    if (window.DashAction && DashAction.doorTileRemembered) t = DashAction.doorTileRemembered(did, raw);
+                    const dirRaw = (d && d.states) ? d.states[f.directionState || "direction"] : undefined;
+                    if (window.DashAction && DashAction.doorTileRemembered) t = DashAction.doorTileRemembered(did, raw, dirRaw);
                 }
                 const dname = f.label || (d && d.name) || "Door";
                 return `<button class="fav-tile fav-door fav-door-${t.key}" data-fav-type="door" data-fav-id="${escapeAttr(f.id)}" data-door-intent="${t.intent || ""}" data-dsh-act-key="door:${escapeAttr(f.id)}">
