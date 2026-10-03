@@ -13,7 +13,7 @@ leaving the house.
 
 <img src="screenshots/index.png" width="860" alt="The hub — who is home, the heating, the battery, and a strip of live cameras">
 
-## Watch a six-minute tour
+## Watch a five-minute tour
 
 <video controls preload="metadata" width="860" poster="video/tour-poster.jpg" style="max-width:100%;height:auto">
   <source src="video/tour.mp4" type="video/mp4">
