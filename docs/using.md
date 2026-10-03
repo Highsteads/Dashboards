@@ -43,6 +43,7 @@ over: it fills, says what it is doing, counts the seconds, and a light sweep run
 for as long as the contacts say the door is actually moving. It holds until the sensors confirm the
 door really has moved, goes red if it failed, and goes amber and tells you to go and look if nothing
 confirmed it either way. It is reporting the door, not the fact that Indigo accepted the request.
+With the Garage Door plugin the tile reads **Opening…** or **Closing…** as soon as the door starts to move, even on a page you opened part-way through.
 
 **Cameras are live video, not stills.** The camera's own H.264, relayed over WebRTC with no
 re-encoding, on the Cameras page and on the hub's camera strip, wherever the connection is fast

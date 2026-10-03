@@ -7,8 +7,8 @@ nav_order: 1
 
 **Your house on a screen — energy, cameras, heating, every room, and the whole day replayed.**
 
-Browser dashboards for [Indigo Domotics](https://www.indigodomo.com/), built for an iPad on the
-wall, a phone in your pocket and a Mac on the desk. No app to install, no cloud account, nothing
+Browser dashboards for [Indigo Domotics](https://www.indigodomo.com/), built for an iPad, a phone
+in your pocket and a laptop on the desk. No app to install, no cloud account, nothing
 leaving the house.
 
 <img src="screenshots/index.png" width="860" alt="The hub — who is home, the heating, the battery, and a strip of live cameras">

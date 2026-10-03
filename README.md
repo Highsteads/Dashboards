@@ -19,7 +19,7 @@
 
 ## What it does
 
-This plugin gives [Indigo](https://www.indigodomo.com) a set of web pages for your house, built for an iPad on the wall, a phone in your pocket and a Mac on the desk. Indigo's own web server hands them out, so there is no app to install, no cloud account, and nothing leaves the house.
+This plugin gives [Indigo](https://www.indigodomo.com) a set of web pages for your house, built for an iPad, a phone in your pocket and a laptop on the desk. Indigo's own web server hands them out, so there is no app to install, no cloud account, and nothing leaves the house.
 
 - **A hub page** says at a glance whether anything needs a look, who is home, how the heating is doing, and shows your favourite controls and a strip of camera pictures.
 - **A page for every room**, built from your Indigo device folders, with lights, sockets, blinds, sensors, doors and cameras, and buttons that check the device really did what you asked.
