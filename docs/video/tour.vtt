@@ -37,8 +37,8 @@ Press to close, and the tile follows the door down.
 Back to the hub.
 
 10
-00:00:57.421 --> 00:01:02.562
-The hub's tile shows the door still moving, and the live camera strip shows it too.
+00:00:57.421 --> 00:01:03.842
+The hub's tile now reads Closing, and the live camera strip shows the door still on its way down.
 
 11
 00:01:04.371 --> 00:01:07.400
@@ -49,153 +49,153 @@ Then the tile goes quiet and reads closed.
 Tap any camera on the hub,
 
 13
-00:01:11.559 --> 00:01:15.505
+00:01:11.569 --> 00:01:15.515
 and the Cameras page opens with every camera playing live.
 
 14
-00:01:15.955 --> 00:01:21.651
+00:01:15.965 --> 00:01:21.661
 The big picture follows whichever one you tap. Tap the front door, and it swaps to the top.
 
 15
-00:01:25.505 --> 00:01:32.567
+00:01:25.515 --> 00:01:32.577
 Further down the hub are the power flow, today's solar and the weather station. More on the energy in a moment.
 
 16
-00:01:33.017 --> 00:01:39.865
+00:01:33.027 --> 00:01:39.875
 Below them, today's totals, what the solar has saved in pounds, and the weather from the station on the roof.
 
 17
-00:01:40.315 --> 00:01:47.568
+00:01:40.325 --> 00:01:47.578
 At the bottom, a list of any open doors and windows, then tiles for the menu and the rooms. The menu first.
 
 18
-00:01:48.868 --> 00:01:56.100
+00:01:48.878 --> 00:01:56.110
 The menu groups every page by the question it answers: what is on right now, and then the energy and the cost.
 
 19
-00:01:56.550 --> 00:02:04.315
+00:01:56.560 --> 00:02:04.325
 Then what happened, with a timeline that replays any day, and whether anything is wrong, from alerts to the server itself.
 
 20
-00:02:04.765 --> 00:02:13.747
+00:02:04.775 --> 00:02:13.757
 Setup holds the settings, and any web page can be added as a tile, such as the UniFi controller, so one menu leads to everything.
 
 21
-00:02:14.197 --> 00:02:17.269
+00:02:14.207 --> 00:02:17.279
 Rooms has a page for every room in the house.
 
 22
-00:02:18.569 --> 00:02:24.798
+00:02:18.579 --> 00:02:24.808
 Every room gets its own page, with lights, sensors, radiators and doors. Pick the kitchen.
 
 23
-00:02:25.898 --> 00:02:28.479
+00:02:25.908 --> 00:02:28.489
 In the kitchen, switch the spot lights on,
 
 24
-00:02:29.348 --> 00:02:31.972
+00:02:29.358 --> 00:02:31.982
 and slide them down to half brightness.
 
 25
-00:02:32.798 --> 00:02:35.657
+00:02:32.808 --> 00:02:35.667
 All On switches on every light in the room.
 
 26
-00:02:37.248 --> 00:02:42.837
+00:02:37.258 --> 00:02:42.847
 A room can leave a light out of that group, such as a main light that keeps its own switch.
 
 27
-00:02:43.287 --> 00:02:45.698
+00:02:43.297 --> 00:02:45.708
 And All Off puts them all out again.
 
 28
-00:02:46.737 --> 00:02:52.668
+00:02:46.747 --> 00:02:52.678
 Below the lights are the room's motion sensors, its temperature and humidity, and the window.
 
 29
-00:02:53.968 --> 00:02:56.421
+00:02:53.978 --> 00:02:56.431
 The living room works the same way.
 
 30
-00:02:56.871 --> 00:02:59.559
+00:02:56.881 --> 00:02:59.569
 In the living room, switch the colour lamp on,
 
 31
-00:03:00.321 --> 00:03:02.775
+00:03:00.331 --> 00:03:02.785
 and slide it down to half brightness.
 
 32
-00:03:03.771 --> 00:03:08.209
+00:03:03.781 --> 00:03:08.219
 All On switches on every light in the group, and that includes the fire.
 
 33
-00:03:08.659 --> 00:03:13.672
+00:03:08.669 --> 00:03:13.682
 The main light is left out of the group on purpose, so it keeps its own switch.
 
 34
-00:03:14.122 --> 00:03:16.533
+00:03:14.132 --> 00:03:16.543
 And All Off puts them all out again.
 
 35
-00:03:18.822 --> 00:03:29.233
+00:03:18.832 --> 00:03:29.243
 The Heating page draws its data from the Evohome heating plugin: every radiator with its temperature and setpoint, and a boost for the whole house at the top.
 
 36
-00:03:29.683 --> 00:03:38.451
+00:03:29.693 --> 00:03:38.461
 We are still in summer mode here, so every radiator is held at eight degrees. The boost comes into its own once the heating is needed again.
 
 37
-00:03:38.901 --> 00:03:46.197
+00:03:38.911 --> 00:03:46.207
 Scrolling down shows the rest of the radiators, with the coldest and warmest rooms picked out in blue and amber.
 
 38
-00:03:47.897 --> 00:03:55.790
+00:03:47.907 --> 00:03:55.800
 Right now the sun is making far more than the house needs, so the spare is charging the battery, which is 66 percent full.
 
 39
-00:03:58.347 --> 00:04:03.339
+00:03:58.357 --> 00:04:03.349
 The dots show which way the power is going, and they speed up as more of it flows.
 
 40
-00:04:03.789 --> 00:04:19.277
+00:04:03.799 --> 00:04:19.287
 Underneath are how self-sufficient the house has been today, 0 percent so far, with a note when an overnight cheap-rate charge is why it reads low, the solar against today's forecast, what it has saved in pounds, and the battery's charge.
 
 41
-00:04:19.727 --> 00:04:28.708
+00:04:19.737 --> 00:04:28.718
 Each hour's solar is split by roof, and set against a dashed mark for what the forecast promised. The pale bars are the hours still to come.
 
 42
-00:04:29.158 --> 00:04:37.734
+00:04:29.168 --> 00:04:37.744
 The battery section shows what it is doing now, its last day as a line, and its health, down to the temperature and balance of the cells.
 
 43
-00:04:38.184 --> 00:04:42.344
+00:04:38.194 --> 00:04:42.354
 And When to run it plans the washing around the sun and the battery.
 
 44
-00:04:44.044 --> 00:04:48.609
+00:04:44.054 --> 00:04:48.619
 Scenes puts every Indigo action group on a button, grouped by folder.
 
 45
-00:04:50.309 --> 00:04:57.328
+00:04:50.319 --> 00:04:57.338
 Alerts gathers the errors in Indigo's log, and lets you add your own rules, sent by Pushover or email.
 
 46
-00:04:59.028 --> 00:05:07.263
+00:04:59.038 --> 00:05:07.273
 WiFi shows every access point and every client, and flags a crowded channel or an old device slowing the rest down.
 
 47
-00:05:08.963 --> 00:05:15.597
+00:05:08.973 --> 00:05:15.607
 And Mains lists every meter in the house, with how far they disagree with each other and with the inverter.
 
 48
-00:05:16.897 --> 00:05:19.777
+00:05:16.907 --> 00:05:19.787
 Every page you have seen began as a sentence.
 
 49
-00:05:20.227 --> 00:05:28.910
+00:05:20.237 --> 00:05:28.920
 Say what you want on a page, in plain English, and Claude builds it. Lights, doors, heating, cameras, anything Indigo can switch or show.
 
 50
-00:05:29.360 --> 00:05:34.971
+00:05:29.370 --> 00:05:34.981
 Your house is different, so ask for your own pages. The only limit is your imagination.

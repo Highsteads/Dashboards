@@ -212,7 +212,7 @@
       "garagefix": true,
       "beats": [
         {
-          "say": "The hub's tile shows the door still moving, and the live camera strip shows it too.",
+          "say": "The hub's tile now reads Closing, and the live camera strip shows the door still on its way down.",
           "hold": 6.5,
           "do": [
             [
