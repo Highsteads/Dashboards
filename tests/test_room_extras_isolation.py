@@ -8,7 +8,7 @@
 #              entry up front as well.
 # Author:      CliveS & Claude Opus 5.5
 # Date:        23-09-2026
-# Version:     1.0
+# Version:     1.1 (3.59.3: sortOrder keeps a renamed device in its section)
 from conftest import bare_plugin
 
 SECTIONS = ("lights", "motion", "radiators", "windows", "sensors", "extras")
@@ -103,3 +103,62 @@ def test_a_room_whose_sort_fails_is_warned_and_the_rest_still_sort(monkeypatch):
     assert rooms["Lounge"]["lights"] == [4, 3]
     assert p.logger.warning.call_count == 1
     assert "Hall" in str(p.logger.warning.call_args.args[0])
+
+
+# ── sortOrder keeps a listed device in its section (3.59.3) ──────────────────
+# Renaming "Twigs Light Plug" to "Twigs Plug" took the light word out of the
+# name, so the classifier filed the plug in `extras`, which no page draws. It
+# left the Living Room page and its All On / All Off, while the room's sort
+# order still listed it among the lights.
+
+def test_a_renamed_light_listed_in_the_sort_order_stays_a_light():
+    p = _plugin({"Living Room": {"sortOrder": {"lights": [1, 5, 2]}}})
+    rooms = {"Living Room": _room(lights=[1, 2], extras=[5, 9])}
+    p._merge_room_extras(rooms)
+    assert sorted(rooms["Living Room"]["lights"]) == [1, 2, 5]
+    assert rooms["Living Room"]["extras"] == [9]
+
+
+def test_the_sort_order_never_undoes_a_hide_a_pin_or_a_door():
+    p = _plugin({"Living Room": {
+        "sortOrder": {"lights": [5, 6, 7, 8]},
+        "hideDeviceIds": [5],
+        "plugs": [6],
+        "fire": [7],
+        "doors": [{"label": "Door", "relayIds": [8]}],
+    }})
+    rooms = {"Living Room": _room(extras=[5, 6, 7, 8])}
+    p._merge_room_extras(rooms)
+    r = rooms["Living Room"]
+    assert r["lights"] == []
+    assert r["plugs"] == [6] and r["fire"] == [7]
+    assert r["extras"] == []
+
+
+def test_the_sort_order_only_rescues_from_extras():
+    """A device the classifier shows in another section stays where it is
+    shown, and an id that is not in this room is not pulled into it."""
+    p = _plugin({"Living Room": {"sortOrder": {"lights": [3, 4]}}})
+    rooms = {"Living Room": _room(motion=[3])}
+    p._merge_room_extras(rooms)
+    assert rooms["Living Room"]["lights"] == []
+    assert rooms["Living Room"]["motion"] == [3]
+
+
+def test_a_sort_order_of_the_wrong_shape_is_ignored():
+    p = _plugin({"Living Room": {"sortOrder": {"lights": 5, "extras": [5], "nope": [5]}}})
+    rooms = {"Living Room": _room(extras=[5])}
+    p._merge_room_extras(rooms)
+    assert rooms["Living Room"]["extras"] == [5]
+    assert p.logger.warning.call_count == 0
+
+
+def test_a_device_pinned_by_include_is_not_also_rescued():
+    """include takes what it pins out of extras; the sort order must see that,
+    or a device pinned into Motion would show under Lights as well."""
+    p = _plugin({"Living Room": {"include": {"motion": [5]},
+                                 "sortOrder": {"lights": [5]}}})
+    rooms = {"Living Room": _room(extras=[5])}
+    p._merge_room_extras(rooms)
+    assert rooms["Living Room"]["motion"] == [5]
+    assert rooms["Living Room"]["lights"] == []

@@ -9,6 +9,8 @@ Every release, newest first. The three most recent also appear under **What's ne
 [README](https://github.com/Highsteads/Dashboards#whats-new). This page is the whole record.
 Dates are day-month-year.
 
+**3.59.3** (04-Oct-2026) - **A light no longer drops off its room page when you rename it.** A plug or switch counts as a light only while its name has a word such as light or lamp in it, so renaming "Twigs Light Plug" to "Twigs Plug" took it off the Living Room page and out of its All On / All Off without a word. A device you have listed under "Sort first — Lights" in Settings now stays in Lights whatever it is called. "Force into Lights" still pins one that is not in the sort list.
+
 **3.59.2** (03-Oct-2026) - **A page opened while the garage door is moving now says which way it is going.** The hub and the room page used to say "Moving…" unless they had seen you press the button, because they guessed the direction from what they had seen before. Garage Door 1.10 now publishes opening and closing as the door's state itself, worked out from its two position sensors, and the tile uses it, so the tile reads "Opening…" or "Closing…" the moment the page loads. With an older Garage Door plugin nothing changes: the pages fall back to guessing as before.
 
 **3.59.1** (03-Oct-2026) - **The main page's Saving Session chip names every booked free hour too.** The chip at the top of the main page showed only the soonest stretch, so with free hours at 11:00-12:00 and 14:00-15:00 it said nothing about the afternoon one. It now lists every booked stretch, the same as the line lower down.

@@ -127,7 +127,9 @@ folder). The Settings page's Rooms card edits all of this.
 - **`include`** — a section name to a list of device ids to force into that section whatever the
   classifier thinks: `lights`, `motion`, `radiators`, `windows`, `sensors` or `extras`.
 - **`sortOrder`** — a section name to a list of device ids that go first, in that order, the rest
-  follow alphabetically.
+  follow alphabetically. A listed device also stays in that section when the classifier would no
+  longer put it there. A plug counts as a light only while its name has a light word in it, so
+  renaming "Twigs Light Plug" to "Twigs Plug" would otherwise take it off the room page.
 
 ## Other config keys
 

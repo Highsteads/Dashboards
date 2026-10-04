@@ -17,9 +17,9 @@
 #              browser for live tiles, and a small HTTP server on port 8177
 #              for the WebRTC signalling and the bootstrap routes. Tiles that
 #              are not live poll the snapshots.
-# Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.58.0); Claude Sonnet 5.5 (3.58.1); Claude Opus 5.5 (3.58.2); Claude Sonnet 5.5 (3.58.3, 3.59.0-3.59.1); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
-# Date:        03-10-2026
-# Version:     3.59.2
+# Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.58.0); Claude Sonnet 5.5 (3.58.1); Claude Opus 5.5 (3.58.2); Claude Sonnet 5.5 (3.58.3, 3.59.0-3.59.1); Claude Opus 5.5 (3.59.3); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
+# Date:        04-10-2026
+# Version:     3.59.3
 #
 # Version history: docs/changelog.md (what each release does, for users) and
 # `git log` (why, for developers). The per-version engineering notes that sat
@@ -103,7 +103,7 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION = "3.59.2"
+PLUGIN_VERSION = "3.59.3"
 
 import logging
 from dash_common import (  # noqa: E402
@@ -579,6 +579,8 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         #      that's a "charger", or a Z2M button you want surfaced under
         #      Motion to see last-pressed)
         #   3. doors — pass-through to the page template
+        #   4. sortOrder — a device listed under a section that the classifier
+        #      dropped into extras (a rename, say) goes back to that section
         # Sort happens AFTER this so manually-included devices land in the
         # right alphabetical position.
         self._merge_room_extras(rooms)
@@ -835,6 +837,32 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
                 for k in self.ROOM_SECTIONS:
                     room_data[k] = [i for i in room_data[k]
                                     if i not in auto_hide]
+        # (4) sortOrder keeps a listed device in its section (3.59.3). A relay
+        # is a light only while its NAME carries a light word, so renaming
+        # "Twigs Light Plug" to "Twigs Plug" moved it into `extras`, which
+        # nothing renders: it vanished from the Living Room page and from its
+        # All On / All Off, with only the sort list still naming it as a light.
+        # A device the room's sortOrder lists under a section and the
+        # classifier has dropped into `extras` goes back to that section.
+        # From `extras` only, so it never moves a device out of a section it
+        # is shown in. After `include`, which takes what it pins out of
+        # `extras`, so a device pinned elsewhere is not shown twice. A hidden,
+        # door, plug or fire device is stripped from every section by its own
+        # step, so it cannot come back this way whatever the order.
+        sort_order = cfg.get("sortOrder") or {}
+        if isinstance(sort_order, dict):
+            for section, ids in sort_order.items():
+                if section not in self.ROOM_SECTIONS or section == "extras":
+                    continue
+                if not isinstance(ids, (list, tuple)):
+                    continue
+                stranded = [i for i in ids
+                            if isinstance(i, int) and i in room_data["extras"]
+                            and i not in room_data[section]]
+                if stranded:
+                    room_data[section].extend(stranded)
+                    room_data["extras"] = [i for i in room_data["extras"]
+                                           if i not in stranded]
 
     # --------------------------------------------------------
     # Weather card extras (Sunset + OWM forecast → weather.json)

@@ -774,7 +774,7 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
                 "Pin a reading-style device (e.g. a battery voltage monitor) into the room's Sensors section"));
             const sort = ex.sortOrder || {};
             body.appendChild(idField("Sort first — Lights", sort.lights, "f-sort-lights",
-                "Listed ids render first (in order); everything else follows alphabetically"));
+                "Listed ids render first (in order); everything else follows alphabetically. A listed device stays in Lights even after a rename takes the light word out of its name"));
             body.appendChild(idField("Sort first — Windows & Doors", sort.windows, "f-sort-windows"));
 
             const delBtn = el(`<div style="margin-top:10px"><button class="btn danger">Remove this room override</button></div>`);
