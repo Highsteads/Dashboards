@@ -91,6 +91,13 @@ the Bearer-authed `logErrors` endpoint.
 Credentials come from `IndigoSecrets.py` (`PUSHOVER_USER_TOKEN`,
 `LOG_WATCH_EMAIL` / `DIGEST_EMAIL`) with blank-safe fallbacks.
 
+Rules that only make sense for your own house go in an optional
+`log_error_watch_local.py` beside the script. It may define `EXPLAINED_BY`,
+`RECOVERS`, `MUTED` and `TEST_MARKERS`, in the same shapes as the script's own
+lists, and each one is added to the script's list, never put in its place. The
+file is read fresh on every run, so you can edit it without a restart. If it
+will not load, the watch logs one warning and carries on without it.
+
 ## Reflector_Bandwidth_Watch.py
 
 Measures how much data the Indigo reflector is actually carrying, and says so
