@@ -11,8 +11,21 @@
 #              doubles as the feed for the Dashboards alerts page.
 #              Errors alert; warnings are recorded and shown but never pushed.
 # Author:      CliveS & Claude Opus 5
-# Date:        18-09-2026 + UK time now
-# Version:     1.7
+# Date:        05-10-2026 + UK time now
+# Version:     1.9
+#
+# v1.9 (05-10-2026): house-only rules move to an optional local file,
+#   log_error_watch_local.py beside this script. The v1.8 test-harness rules
+#   named a private project, so this file could not be shipped in the public
+#   Dashboards repo and the two copies drifted. The local file may define
+#   EXPLAINED_BY, RECOVERS, MUTED and TEST_MARKERS; each EXTENDS the list here,
+#   never replaces it. A missing file is normal; a broken one logs one WARNING
+#   and the watch runs on without it, because a typo there must not blind it.
+#
+# v1.8 (05-10-2026): lines carrying a TEST MARKER are never signatures. A
+#   test harness that logs at Warning and Error on purpose reached Pushover as
+#   "new errors". A marker is not a mute: it names the harness that wrote the
+#   line, which no real fault can contain, so nothing genuine hides behind it.
 #
 # v1.7 (18-09-2026): an IWS 500 whose client had already gone logs no address
 #   at all -- the line ends at "from " -- so it keyed to its own signature and
@@ -206,6 +219,16 @@ EXPLAINED_BY = [
 # the next run would otherwise collapse into a signature and report on. Skip our
 # own output so the watcher never watches itself.
 SELF_PREFIX = "Log Error Watch"
+
+# Lines written on purpose by a test harness: a row whose message opens with one
+# of these, or names an object in quotes that starts with one, is never a
+# signature. Empty here; a house that runs such a harness lists its marker in
+# the local rules file.
+TEST_MARKERS = ()
+
+# Optional house-only rules, read from beside this script on every run.
+LOCAL_RULES_FILE = "log_error_watch_local.py"
+LOCAL_RULE_NAMES = ("EXPLAINED_BY", "RECOVERS", "MUTED", "TEST_MARKERS")
 
 FETCH_LINES          = 3000    # the in-memory buffer is the real limit (~1300)
 CONTINUATION_SECONDS = 0.05    # a wrapped message arrives as rows ~1ms apart
@@ -497,8 +520,9 @@ def mark_explained(records, rules=None):
 def _is_fail_line(message):
     """True when a message matches any RECOVERS fail pattern — a complete
     failure line in its own right, never the tail of the one before."""
-    rules = list(_cfg("RECOVERS", RECOVERS) or [])
-    rules += list(_cfg("EXPLAINED_BY", EXPLAINED_BY) or [])
+    local = _cfg("_LOCAL_RULES", {})
+    rules = combined("RECOVERS", _cfg("RECOVERS", RECOVERS), local)
+    rules += combined("EXPLAINED_BY", _cfg("EXPLAINED_BY", EXPLAINED_BY), local)
     for rule in rules:
         try:
             if re.search(rule[1], str(message or ""), re.I):
@@ -506,6 +530,57 @@ def _is_fail_line(message):
         except (re.error, IndexError, TypeError):
             continue
     return False
+
+
+def load_local_rules(path):
+    """Read the optional house-only rules file. Returns (rules, problem).
+
+    rules maps each name in LOCAL_RULE_NAMES the file defines to a list; problem
+    is None, or a sentence saying why the file could not be used. The source is
+    compiled straight from disk, so no .pyc is written and an edit is seen on
+    the very next run.
+    """
+    if not path or not os.path.exists(path):
+        return {}, None
+    namespace = {}
+    try:
+        with open(path, encoding="utf-8") as fh:
+            source = fh.read()
+        exec(compile(source, path, "exec"), namespace)
+    except Exception as exc:
+        return {}, f"{os.path.basename(path)} could not be read ({exc.__class__.__name__}: {exc})"
+    rules = {}
+    for name in LOCAL_RULE_NAMES:
+        if name not in namespace:
+            continue
+        value = namespace[name]
+        if not isinstance(value, (list, tuple)):
+            return {}, f"{os.path.basename(path)} sets {name} to something that is not a list"
+        rules[name] = list(value)
+    return rules, None
+
+
+def combined(name, base, local_rules):
+    """This file's own list for name, followed by the local file's additions."""
+    return list(base or []) + list((local_rules or {}).get(name, []))
+
+
+def drop_test_rows(rows, markers=TEST_MARKERS):
+    """Remove rows a test harness wrote, BEFORE continuations are merged.
+
+    Done row by row, and only where the marker OPENS the line or names an object
+    in quotes (Indigo's own lines about a test device read 'sent
+    "<marker>_..." on'). Merging welds rows from one source that land
+    within CONTINUATION_SECONDS, so filtering the merged record instead would
+    swallow a real error that happened to follow a probe line by milliseconds.
+    """
+    if not markers:
+        return list(rows)
+
+    def is_test(msg):
+        msg = msg.lstrip()
+        return any(msg.startswith(m) or f'"{m}' in msg for m in markers)
+    return [r for r in rows if not is_test(str(r.get("Message", "")))]
 
 
 def merge_continuations(rows, gap_seconds=CONTINUATION_SECONDS):
@@ -913,7 +988,14 @@ def main(dry_run=False, quiet=False):
     state_path = _cfg("STATE_PATH", None) or os.path.join(
         os.path.dirname(indigo.server.getInstallFolderPath()),
         "Python Scripts", "log_error_watch_state.json")
-    muted      = _cfg("MUTED", [])
+    local_path = _cfg("LOCAL_RULES_PATH", None) or os.path.join(
+        os.path.dirname(state_path), _cfg("LOCAL_RULES_FILE", LOCAL_RULES_FILE))
+    local, problem = load_local_rules(local_path)
+    globals()["_LOCAL_RULES"] = local   # _is_fail_line reads it during the merge
+    if problem:
+        log(f"Log Error Watch: {problem}, so its extra rules are not in use this run",
+            level="WARNING")
+    muted      = combined("MUTED", _cfg("MUTED", []), local)
     window_start = now - timedelta(hours=lookback)
 
     rows, truncated = _fetch_from_buffer(window_start, _cfg("FETCH_LINES", 3000))
@@ -927,10 +1009,13 @@ def main(dry_run=False, quiet=False):
 
     # Recovery is decided BEFORE collapse, because it needs the info rows that
     # collapse throws away — the success line is what proves the retry landed.
-    records = mark_recovered(merge_continuations(rows), _cfg("RECOVERS", []))
+    rows = drop_test_rows(rows, tuple(combined("TEST_MARKERS",
+                                               _cfg("TEST_MARKERS", TEST_MARKERS), local)))
+    records = mark_recovered(merge_continuations(rows),
+                             combined("RECOVERS", _cfg("RECOVERS", []), local))
     # Explanation is decided BEFORE collapse for the same reason recovery is:
     # the causing line is an INFO row, and collapse throws those away.
-    records = mark_explained(records, _cfg("EXPLAINED_BY", []))
+    records = mark_explained(records, combined("EXPLAINED_BY", _cfg("EXPLAINED_BY", []), local))
     current = collapse(records, muted)
     state = load_state(state_path)
     known = state.get("signatures", {})
