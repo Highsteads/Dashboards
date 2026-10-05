@@ -116,6 +116,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_hub_vpp_rows.mjs` | Contract tests for the hub's VPP status and earnings rows. |
 | `test_idle_guard.mjs` | Contract test for DashUI.idleGuard, DashUI.lanUrl and the |
 | `test_immediate_numbers.mjs` | Numeric readings update synchronously, while graphical callbacks may animate. |
+| `test_indigo_names_exist.py` | Fail when plugin code names an `indigo` attribute that Indigo does not have, |
 | `test_insights_sql_portable.py` | The battery-trend and room-temperature insight queries compared |
 | `test_lan_origin.py` | The "at home use this" LAN link (config.js lanURL, the |
 | `test_laundry_deadline.py` | Contract test for the Laundry page's deadline validation. |
