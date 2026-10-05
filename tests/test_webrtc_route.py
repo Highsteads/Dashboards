@@ -136,7 +136,7 @@ def _do_post_source():
 
 def test_handler_gates_before_reading_body():
     body = _do_post_source()
-    private = body.index("_client_is_private")
+    private = body.index("_client_is_trusted")
     allow   = body.index("allowed_hosts")
     size    = body.index("body size out of range")
     read    = body.index("self.rfile.read(length)")

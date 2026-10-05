@@ -660,7 +660,11 @@ class ConfigMixin:
         if swap_in is not None and not isinstance(swap_in, str):
             errors.append("swapOutHost must be a camera host")
             swap_in = ""
-        cam_hosts = {c.get("host") for c in cameras if isinstance(c, dict)}
+        # String hosts only (DB-01, audit 05-10-2026): a list or object host
+        # made this set raise "unhashable type", a 500 that hid the errors
+        # gathered above. Such a camera has already been named in them.
+        cam_hosts = {c.get("host") for c in cameras
+                     if isinstance(c, dict) and isinstance(c.get("host"), str)}
         for h in main_cams:
             if h not in cam_hosts:
                 errors.append(f"mainCameras entry {h} is not in the cameras list")

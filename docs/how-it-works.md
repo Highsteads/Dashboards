@@ -21,7 +21,8 @@ using the Indigo API key — the long password-like code Indigo gives you for ot
 which the browser keeps once you have paired it. That is why each phone, tablet or computer has to
 be paired once, with a setup link from the plugin menu, and why the key itself is never written into
 any of the public files. Guest pairing, and automatic pairing if you turn it on, go through the
-plugin's own port 8177, which only answers devices on your home network or on Tailscale.
+plugin's own port 8177, which only answers devices on the Indigo Mac's own network, on Tailscale,
+or on a network you have added in Configure.
 
 ## Keeping up with the house
 

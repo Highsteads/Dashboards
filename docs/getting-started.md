@@ -83,6 +83,28 @@ ways it can get one:
 
 The footer of every page carries a *Reset connection* link that forgets the stored key.
 
+### Which networks are trusted
+
+Auto-seeding, guest pairing and live camera video all go through the plugin's port 8177, and from
+3.60.0 that port answers only these:
+
+- **the Indigo Mac itself**
+- **Tailscale** — any device on your tailnet
+- **the network the Indigo Mac is plugged into** — worked out from the Mac's own network settings,
+  and checked again every five minutes, so a change of address is picked up without a restart
+- **any network you add** under **Plugins → Dashboards → Configure → Extra trusted networks**
+
+Every other network in the house is refused, an IoT network or a guest Wi-Fi included, even though
+it is just as "private" as the main one. Before 3.60.0 the port trusted any private address, so with
+auto-seeding on, a smart plug or a visitor on the guest Wi-Fi could have asked for the full API key.
+
+If your own phones and tablets are on a different network from the Indigo Mac, add that network in
+the Extra trusted networks field, written like `192.168.2.0/24`, with commas between several.
+Leave it blank if they share the Mac's network, which is the usual case. Should the plugin ever fail
+to work out the Mac's network, it trusts only the Mac and Tailscale until it can, and says so once
+in the event log, naming that field. A one-time setup link works from any network, so it is always
+the way to pair a device that is refused.
+
 ## The first five minutes
 
 1. **Rooms.** Open the hub, tap Settings (or the Settings card), and on the Rooms card tick the

@@ -17,9 +17,9 @@
 #              browser for live tiles, and a small HTTP server on port 8177
 #              for the WebRTC signalling and the bootstrap routes. Tiles that
 #              are not live poll the snapshots.
-# Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.58.0); Claude Sonnet 5.5 (3.58.1); Claude Opus 5.5 (3.58.2); Claude Sonnet 5.5 (3.58.3, 3.59.0-3.59.1); Claude Opus 5.5 (3.59.3); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
-# Date:        04-10-2026
-# Version:     3.59.3
+# Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.58.0); Claude Sonnet 5.5 (3.58.1); Claude Opus 5.5 (3.58.2); Claude Sonnet 5.5 (3.58.3, 3.59.0-3.59.1); Claude Opus 5.5 (3.59.3, 3.60.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
+# Date:        05-10-2026
+# Version:     3.60.0
 #
 # Version history: docs/changelog.md (what each release does, for users) and
 # `git log` (why, for developers). The per-version engineering notes that sat
@@ -103,7 +103,7 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION = "3.59.3"
+PLUGIN_VERSION = "3.60.0"
 
 import logging
 from dash_common import (  # noqa: E402
@@ -124,6 +124,7 @@ from dash_common import (  # noqa: E402
     STAMP_QUIESCE_SECONDS,
     _COLOUR_LEVEL_KEYS,
     _detect_lan_ip,
+    parse_trusted_subnets,
     dict_entries,
     _install_file_mirror,
     _parse_cameras,
@@ -245,6 +246,9 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         # one-time notice recommending the switch. See _bootstrap_seed_pref.
         self.bootstrap_key_seed = self._settle_bootstrap_seed(
             pluginPrefs, existing=_existing_install or _prefs_history)
+        # Extra networks the :8177 server trusts besides this Mac's own,
+        # loopback and Tailscale (3.60.0, audit DB-R1). Blank by default.
+        self.trusted_subnets_text = str(pluginPrefs.get("trustedSubnets", "") or "").strip()
 
         # Routine activity narration (06-09-2026). OFF means the file copies,
         # page syncs and poller/proxy/go2rtc start-stop lines are written at
@@ -2711,6 +2715,21 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         self._write_config_js()
         return True
 
+    def validatePrefsConfigUi(self, valuesDict):
+        """Check the Configure dialog before it saves. Only Extra trusted
+        networks needs it (3.60.0): a typing mistake there would otherwise be
+        dropped with a warning in the log, which is easy to miss."""
+        errors = indigo.Dict()
+        _nets, bad = parse_trusted_subnets(valuesDict.get("trustedSubnets", ""))
+        if bad:
+            errors["trustedSubnets"] = (
+                f"Not a network: {', '.join(bad)}. Write each one like 192.168.2.0/24, "
+                f"separated by commas. 0.0.0.0/0 is refused because it would trust the "
+                f"whole internet.")
+        if errors:
+            return (False, valuesDict, errors)
+        return (True, valuesDict)
+
     def closedPrefsConfigUi(self, valuesDict, userCancelled):
         """Apply Configure changes LIVE. Every pref cached at __init__ was
         previously restart-only — including the bootstrapKeySeed security
@@ -2726,6 +2745,7 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         # changed, and a save must never be what flips it).
         self.bootstrap_key_seed = as_bool(prefs.get("bootstrapKeySeed"),
                                           getattr(self, "bootstrap_key_seed", False))
+        self._set_trusted_subnets(prefs.get("trustedSubnets", ""))
         self.log_activity = as_bool(prefs.get("logActivityToEventLog"), False)
         secrets_mod = None
         try:

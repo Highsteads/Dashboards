@@ -409,6 +409,98 @@ def _detect_lan_ip():
     except Exception:
         return "127.0.0.1"
 
+
+# ── Who the :8177 server trusts (3.60.0, audit DB-R1) ──────────────────────
+# That server hands out the full API key (/bootstrap, with auto-seed on), the
+# guest token and WebRTC camera set-up. It used to trust every private
+# address, which takes in an IoT VLAN or a guest Wi-Fi as readily as the
+# owner's own LAN. Now: loopback, Tailscale, the networks the Indigo Mac itself
+# has an address on, and whatever the owner adds in Configure.
+LOOPBACK_NETWORKS  = ("127.0.0.0/8", "::1/128")
+TAILSCALE_NETWORKS = ("100.64.0.0/10", "fd7a:115c:a1e0::/48")
+TRUSTED_NETS_TTL_S = 300          # re-read the Mac's interfaces every 5 minutes
+IFCONFIG_PATH      = "/sbin/ifconfig"
+
+_IFACE_HEADER_RE = re.compile(r"^(\S+?):\s+flags=\w+<([^>]*)>")
+_INET_RE         = re.compile(r"^\s+inet\s+(\S+)(?:\s+-->\s+\S+)?\s+netmask\s+(\S+)")
+_INET6_RE        = re.compile(r"^\s+inet6\s+(\S+)\s+prefixlen\s+(\d+)")
+
+
+def interface_networks(ifconfig_text):
+    """The networks this Mac has an address on, from `ifconfig -a` output.
+
+    Only interfaces flagged UP count, so a dormant port that still holds an
+    old address is not trusted. Loopback is left out (it is always trusted
+    anyway). IPv6 scope suffixes (%en0) are dropped. Anything that does not
+    parse is skipped, never fatal."""
+    import ipaddress
+    nets = []
+    up = False
+    for line in (ifconfig_text or "").splitlines():
+        m = _IFACE_HEADER_RE.match(line)
+        if m:
+            flags = {f.strip().upper() for f in m.group(2).split(",")}
+            up = "UP" in flags and "LOOPBACK" not in flags
+            continue
+        if not up:
+            continue
+        try:
+            m4 = _INET_RE.match(line)
+            if m4:
+                addr, mask = m4.group(1), m4.group(2)
+                if mask.lower().startswith("0x"):
+                    mask = str(ipaddress.IPv4Address(int(mask, 16)))
+                net = ipaddress.ip_network(f"{addr}/{mask}", strict=False)
+            else:
+                m6 = _INET6_RE.match(line)
+                if not m6:
+                    continue
+                addr = m6.group(1).split("%", 1)[0]
+                net = ipaddress.ip_network(f"{addr}/{m6.group(2)}", strict=False)
+        except ValueError:
+            continue
+        if net.is_loopback or net in nets:
+            continue
+        nets.append(net)
+    return nets
+
+
+def parse_trusted_subnets(text):
+    """(networks, bad_entries) from the Configure field: networks written as
+    CIDR (192.168.2.0/24), separated by commas or spaces. A bare address
+    counts as that one address. /0 is refused, because it would trust every
+    address on the internet."""
+    import ipaddress
+    nets, bad = [], []
+    for raw in re.split(r"[,\s]+", str(text or "").strip()):
+        if not raw:
+            continue
+        try:
+            net = ipaddress.ip_network(raw, strict=False)
+        except ValueError:
+            bad.append(raw)
+            continue
+        if net.prefixlen == 0:
+            bad.append(raw)
+            continue
+        nets.append(net)
+    return nets, bad
+
+
+def address_in_networks(text, networks):
+    """True when `text` is an address inside one of `networks`. An
+    IPv4-mapped IPv6 address is judged as the IPv4 address it carries.
+    Anything that is not an address is False."""
+    import ipaddress
+    try:
+        addr = ipaddress.ip_address(str(text or "").strip().strip("[]").split("%", 1)[0])
+    except ValueError:
+        return False
+    mapped = getattr(addr, "ipv4_mapped", None)
+    if mapped is not None:
+        addr = mapped
+    return any(addr.version == n.version and addr in n for n in networks)
+
 # The camera makes whose stream addresses are known (3.53.0; Dahua and
 # Hikvision only before). {host} is the camera's address. There is no login in
 # a template: rtsp_with_login adds the right one per camera, so every make and

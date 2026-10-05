@@ -2,11 +2,11 @@
 
 **Your house on a screen — energy, cameras, heating, every room, and the whole day replayed.**
 
-**Version:** 3.59.3 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
+**Version:** 3.60.0 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
 
 **[Read the full guide](https://highsteads.github.io/Dashboards/)** — setting up, a page of notes for every one of the 20 pages, and what to do when something goes wrong.
 
-<img src="https://img.shields.io/badge/version-3.59.3-5856d6" alt="Version 3.59.3">
+<img src="https://img.shields.io/badge/version-3.60.0-5856d6" alt="Version 3.60.0">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-20-0a84ff" alt="20 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
@@ -94,11 +94,11 @@ The [Getting started](https://highsteads.github.io/Dashboards/getting-started.ht
 The three most recent releases, word for word. Every release before these is in
 **[the version history](https://highsteads.github.io/Dashboards/changelog.html)**.
 
+**3.60.0** (05-Oct-2026) - **Only your own network is trusted with the API key.** The plugin's port 8177 hands out the API key when auto-seeding is on, the guest token, and live camera video. It used to answer any private address, so a smart plug on an IoT network, or a visitor on a guest Wi-Fi, could have asked for the full key. It now answers only the Indigo Mac, Tailscale, and the network the Mac is plugged into, which it works out from the Mac's own settings. If your phones and tablets are on a different network, add it under Configure, in the new Extra trusted networks field, written like `192.168.2.0/24`. See [Which networks are trusted](https://highsteads.github.io/Dashboards/getting-started.html#which-networks-are-trusted). The Settings page also stops failing with a server error when a camera's address is a list rather than text: it now says what is wrong.
+
 **3.59.3** (04-Oct-2026) - **A light no longer drops off its room page when you rename it.** A plug or switch counts as a light only while its name has a word such as light or lamp in it, so renaming "Twigs Light Plug" to "Twigs Plug" took it off the Living Room page and out of its All On / All Off without a word. A device you have listed under "Sort first — Lights" in Settings now stays in Lights whatever it is called. "Force into Lights" still pins one that is not in the sort list.
 
 **3.59.2** (03-Oct-2026) - **A page opened while the garage door is moving now says which way it is going.** The hub and the room page used to say "Moving…" unless they had seen you press the button, because they guessed the direction from what they had seen before. Garage Door 1.10 now publishes opening and closing as the door's state itself, worked out from its two position sensors, and the tile uses it, so the tile reads "Opening…" or "Closing…" the moment the page loads. With an older Garage Door plugin nothing changes: the pages fall back to guessing as before.
-
-**3.59.1** (03-Oct-2026) - **The main page's Saving Session chip names every booked free hour too.** The chip at the top of the main page showed only the soonest stretch, so with free hours at 11:00-12:00 and 14:00-15:00 it said nothing about the afternoon one. It now lists every booked stretch, the same as the line lower down.
 
 ## Authors & licence
 

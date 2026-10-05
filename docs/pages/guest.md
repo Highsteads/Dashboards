@@ -17,16 +17,17 @@ A single card, in one of three states, before the page forwards on:
 - **Setting up guest access…** — a spinner while it pairs, which takes well under a second.
 - **Guest access ready** — "This device can view the dashboards but control nothing." Then it
   forwards to the hub.
-- **Pairing failed** — with the reason in brackets. Guest pairing works on the home network and
-  Tailscale only.
+- **Pairing failed** — with the reason in brackets. Guest pairing works on the Indigo Mac's own
+  network and over Tailscale, plus any network added under Configure → Extra trusted networks.
 
 ## How it works
 
 It fetches `guest-bootstrap` from the plugin's proxy on port 8177, with a four-second abort. On
 success it stores the returned guest token in `localStorage` and removes any full API key that was
 there — so a device that previously held the key is demoted rather than left holding both. The proxy
-refuses any non-private source address, which is what makes guest access home-network and Tailscale
-only by construction.
+answers only the trusted networks (see
+[Which networks are trusted](../getting-started.md#which-networks-are-trusted)), which is what keeps
+guest access to your own network and Tailscale.
 
 ## What a guest device can do
 

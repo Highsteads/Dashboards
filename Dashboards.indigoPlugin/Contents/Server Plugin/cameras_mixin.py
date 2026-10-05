@@ -45,10 +45,17 @@ from dash_common import (
     GO2RTC_LOG_CAP_BYTES,
     GO2RTC_RTSP_PORT,
     GO2RTC_WEBRTC_PORT,
+    IFCONFIG_PATH,
+    LOOPBACK_NETWORKS,
     PROXY_PORT,
+    TAILSCALE_NETWORKS,
+    TRUSTED_NETS_TTL_S,
+    address_in_networks,
     camera_make_address,
     camera_problem,
+    interface_networks,
     log,
+    parse_trusted_subnets,
     rtsp_with_login,
 )
 from dash_util import stills_idle_minutes
@@ -252,6 +259,90 @@ class CamerasMixin:
                 return 504, "text/plain", b"go2rtc timed out"
             return 502, "text/plain", f"go2rtc unreachable: {exc}".encode("utf-8")
 
+    # --------------------------------------------------------
+    # Which source addresses the :8177 server trusts (3.60.0, audit DB-R1)
+    # --------------------------------------------------------
+    # Every route there that hands out something worth having (the API key,
+    # the guest token, WebRTC camera set-up) asks _client_trusted. It used to
+    # be ipaddress' is_private, which says yes to an IoT VLAN or a guest Wi-Fi
+    # as readily as the owner's own LAN. The answer is now loopback, Tailscale,
+    # the networks this Mac has an address on, and the Configure field
+    # "Extra trusted networks" (pref trustedSubnets).
+    trusted_subnets_text  = ""
+    _trusted_nets_cache   = None      # (built_at, [networks])
+    _trusted_nets_lock    = threading.Lock()
+    _trusted_nets_warned  = False     # interfaces could not be read
+    _trusted_bad_warned   = None      # the setting text last warned about
+
+    def _read_ifconfig(self):
+        """`ifconfig -a` output. The plugin host's environment is nearly empty
+        and decodes as ASCII, so both are set here."""
+        import subprocess
+        res = subprocess.run(
+            [IFCONFIG_PATH, "-a"], capture_output=True, timeout=5,
+            encoding="utf-8", errors="replace",
+            env={"PATH": "/usr/bin:/bin:/usr/sbin:/sbin", "LANG": "C"})
+        if res.returncode != 0:
+            raise OSError(f"ifconfig exited {res.returncode}")
+        return res.stdout
+
+    def _set_trusted_subnets(self, text):
+        """Take a new value of the Configure field; it applies to the next
+        request rather than at the next interface re-read."""
+        with self._trusted_nets_lock:
+            self.trusted_subnets_text = str(text or "").strip()
+            self._trusted_nets_cache = None
+
+    def _trusted_networks(self):
+        """The networks the :8177 server trusts, cached for TRUSTED_NETS_TTL_S
+        so a DHCP move is picked up without a restart."""
+        import ipaddress
+        now = time.time()
+        with self._trusted_nets_lock:
+            cached = self._trusted_nets_cache
+            if cached and now - cached[0] < TRUSTED_NETS_TTL_S:
+                return cached[1]
+            nets = [ipaddress.ip_network(n) for n in LOOPBACK_NETWORKS + TAILSCALE_NETWORKS]
+            why = ""
+            try:
+                lan = interface_networks(self._read_ifconfig())
+                if not lan:
+                    why = "it has no network address other than loopback"
+            except Exception as exc:
+                lan, why = [], f"{type(exc).__name__}: {exc}"
+            if why:
+                if not self._trusted_nets_warned:
+                    self._trusted_nets_warned = True
+                    self.logger.warning(
+                        f"[Security] Could not work out which network this Mac is on ({why}). "
+                        f"Until it can, the plugin's port {PROXY_PORT} trusts only this Mac and "
+                        f"Tailscale, so pairing, guest access and camera video from other devices "
+                        f"at home are refused. To trust your home network by hand, add it under "
+                        f"Plugins > Dashboards > Configure > Extra trusted networks "
+                        f"(for example 192.168.1.0/24).")
+            else:
+                self._trusted_nets_warned = False
+            extra, bad = parse_trusted_subnets(self.trusted_subnets_text)
+            if bad and self._trusted_bad_warned != self.trusted_subnets_text:
+                self._trusted_bad_warned = self.trusted_subnets_text
+                self.logger.warning(
+                    f"[Security] Extra trusted networks: ignored {', '.join(bad)} - each entry "
+                    f"must be a network such as 192.168.2.0/24.")
+            for n in lan + extra:
+                if n not in nets:
+                    nets.append(n)
+            self._trusted_nets_cache = (now, nets)
+            return nets
+
+    def _client_trusted(self, ip):
+        """True when a request from address `ip` may have what the :8177
+        server hands out. See _trusted_networks."""
+        try:
+            return address_in_networks(ip, self._trusted_networks())
+        except Exception as exc:
+            self.logger.debug(f"[Security] trust check failed for {ip!r}: {exc}")
+            return False
+
     _PRIVATE_DNS_SUFFIXES = ("local", "lan", "home", "internal", "localdomain", "home.arpa")
 
     def _proxy_host_allowed(self, host_header):
@@ -347,7 +438,6 @@ class CamerasMixin:
                 self.logger.info("[Proxy] no cameras configured — /bootstrap only")
 
         import http.server
-        import ipaddress
         import socketserver
         import threading
         from urllib.parse import urlparse
@@ -377,18 +467,15 @@ class CamerasMixin:
                 self.send_error(421, "misdirected request")
                 return True
 
-            def _client_is_private(self):
-                """True only for LAN / Tailscale / loopback sources. This port
-                is not fronted by the Indigo reflector and must not be exposed
-                through the router, but the explicit source check means a
-                mistaken port-forward still doesn't leak the key."""
-                try:
-                    addr = ipaddress.ip_address(self.client_address[0])
-                except Exception:
-                    return False
-                # is_private covers RFC1918 + loopback + link-local; Tailscale
-                # uses CGNAT 100.64.0.0/10 which is NOT is_private, so add it.
-                return addr.is_private or addr in ipaddress.ip_network("100.64.0.0/10")
+            def _client_is_trusted(self):
+                """True only for this Mac, Tailscale, the networks this Mac
+                sits on and the owner's extra trusted networks (3.60.0 -
+                every private address before, an IoT VLAN or a guest Wi-Fi
+                included). This port is not fronted by the Indigo reflector
+                and must not be exposed through the router, but the explicit
+                source check means a mistaken port-forward still doesn't leak
+                the key."""
+                return plugin_self._client_trusted(self.client_address[0])
 
             def _echo_same_host_origin(self):
                 """Send Access-Control-Allow-Origin ONLY when the caller's Origin
@@ -408,7 +495,7 @@ class CamerasMixin:
             # ── WebRTC signalling (WHEP) — v2.68.0 ─────────────────
             # POST /webrtc/<host> forwards the browser's SDP offer to
             # go2rtc's loopback API and relays the answer. Security model:
-            # private sources only, configured-camera
+            # trusted sources only, configured-camera
             # allowlist, port never fronted by the reflector. The answer
             # carries session ICE credentials and the LAN candidate — no
             # camera passwords. Media never touches this process.
@@ -450,7 +537,7 @@ class CamerasMixin:
                 if not parsed.path.startswith("/webrtc/"):
                     self.send_error(404, "not found")
                     return
-                if not self._client_is_private():
+                if not self._client_is_trusted():
                     self.send_error(403, "forbidden")
                     return
                 host = parsed.path[len("/webrtc/"):]
@@ -482,7 +569,7 @@ class CamerasMixin:
                 if self._host_refused():
                     return
                 # Routes:
-                #   /bootstrap                 → API-key seed (private sources only)
+                #   /bootstrap                 → API-key seed (trusted sources only)
                 #   /healthz                   → "ok"
                 parsed = urlparse(self.path)
                 if parsed.path == "/healthz":
@@ -497,10 +584,10 @@ class CamerasMixin:
                 # so there is no control surface on them at all. The proxy
                 # fetches from IWS server-side with the real key and pipes the
                 # JSON through, keeping the response shape identical to
-                # /v2/api so the pages work unchanged. Private sources only;
+                # /v2/api so the pages work unchanged. Trusted sources only;
                 # :8177 is never fronted by the reflector.
                 if parsed.path == "/guest-bootstrap":
-                    if not self._client_is_private():
+                    if not self._client_is_trusted():
                         self.send_error(403, "forbidden")
                         return
                     payload = json.dumps({"guestToken": plugin_self.guest_token}).encode("utf-8")
@@ -525,7 +612,7 @@ class CamerasMixin:
                                 or (qs.get("token") or [""])[0] or "")
                     import hmac
                     tok = plugin_self.guest_token or ""
-                    if not (self._client_is_private() and tok
+                    if not (self._client_is_trusted() and tok
                             and hmac.compare_digest(str(supplied).encode("utf-8"),
                                                     str(tok).encode("utf-8"))):   # constant-time (v2.38.0); bytes so non-ASCII cannot raise
                         self.send_error(401, "guest token required")
@@ -638,9 +725,9 @@ class CamerasMixin:
                     # One-shot credential seed for dashboards-auth.js: a browser
                     # on the LAN/Tailnet fetches this on first visit, stores the
                     # key in localStorage and never asks again. Anything outside
-                    # the private ranges gets a 403 (and can't reach this port
+                    # the trusted networks gets a 403 (and can't reach this port
                     # anyway — the reflector only fronts IWS).
-                    if not (plugin_self.api_key and self._client_is_private()):
+                    if not (plugin_self.api_key and self._client_is_trusted()):
                         self.send_error(403, "forbidden")
                         return
                     # v2.36.0 SECURITY: source-IP alone can't tell a guest-tier
@@ -657,7 +744,7 @@ class CamerasMixin:
                     # full Indigo API key, so it must NOT be readable cross-origin.
                     # The old Access-Control-Allow-Origin:* let any website open in
                     # a LAN/Tailnet browser fetch and read the key (the victim
-                    # browser is itself on a private IP, so _client_is_private
+                    # browser is itself on a trusted address, so _client_is_trusted
                     # doesn't help). Echo an allow-origin ONLY when the caller's
                     # Origin is served from THIS SAME MACHINE (same hostname as the
                     # request Host) — that is the legitimate consumer,

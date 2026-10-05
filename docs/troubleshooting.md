@@ -24,7 +24,9 @@ Paste that, with the setup check, into any request for help.
 | "out of date" or "not updating for four minutes" in amber beside the Updated time | The page has had no fresh data for a while, usually because the plugin is restarting | Wait for the next good update, which clears it. If it stays amber, check the plugin is running and look in the event log |
 | Every page, and every other plugin's web page, goes quiet for about five minutes just after a plugin restart | A page left open for days, still running old code, asked the plugin a question in the middle of the restart and held up Indigo's web server | It clears by itself. Reload any dashboard that has been open for days so it picks up the newer pages, which wait for the restart to finish |
 | The Settings page will not save | The plugin is restarting, and Save waits until it is running again | Wait a few seconds and press Save again. A refused save says what is wrong |
-| A guest device will not pair | Guest pairing only works from your home network or over Tailscale | Connect the device to your Wi-Fi or to Tailscale and open the guest address again |
+| A guest device will not pair | Guest pairing only works from the Indigo Mac's own network, over Tailscale, or from a network added under Configure → Extra trusted networks | Connect the device to the main Wi-Fi or to Tailscale and open the guest address again |
+| A device on another network in the house (an IoT or guest Wi-Fi, say) no longer pairs itself or shows live video | From 3.60.0 the plugin's port 8177 answers only the Mac's own network and Tailscale, not every private network | If it is one of your own devices, add its network under **Plugins → Dashboards → Configure → Extra trusted networks**, or pair it with a one-time setup link. See [Which networks are trusted](getting-started.md#which-networks-are-trusted) |
+| The event log says the plugin "could not work out which network this Mac is on" | Port 8177 is trusting only the Mac and Tailscale until it can | Add your home network under **Configure → Extra trusted networks**, written like `192.168.1.0/24` |
 
 ## Rooms
 

@@ -380,3 +380,18 @@ def test_a_swap_out_host_that_matches_no_camera_is_cleared():
     save(p, {"cameras": [{"host": "10.0.0.5", "name": "Front", "vendor": "dahua"}],
              "swapOutHost": " 10.0.0.5 "})
     assert cap["clean"]["swapOutHost"] == "10.0.0.5"
+
+
+def test_unhashable_camera_host_is_a_400_not_a_500():
+    """DB-01 (audit 05-10-2026): a camera whose host is a list or an object
+    must come back as the validation errors, not crash building the set of
+    camera hosts with "unhashable type" (a 500 that hid every other error)."""
+    p, _ = make_plugin()
+    for bad in (["10.0.0.5"], {"ip": "10.0.0.5"}):
+        body, status = save(p, {
+            "cameras": [{"host": bad, "name": "Front", "vendor": "dahua"}],
+            "mainCameras": ["10.0.0.5"],
+        })
+        assert status == 400, (bad, status, body)
+        assert body["ok"] is False
+        assert "camera 1" in body["error"]

@@ -109,9 +109,11 @@ keep it for a device that is genuinely away, and close the page when you have fi
 
 A wall tablet or a visitor's phone should be able to look and not touch. **Plugins → Dashboards →
 Show Guest Access Info** logs a pairing URL. Open it on the device and `guest.html` takes a guest
-token from the plugin's LAN-only proxy, stores it, and forwards to the hub. That proxy refuses any
-non-private source address, which makes guest access home-network and Tailscale only by
-construction. Clearing the browser's site data un-pairs it.
+token from the plugin's own server on port 8177, stores it, and forwards to the hub. That server
+answers only the Indigo Mac, Tailscale, the network the Mac is plugged into and any network you
+add in Configure (see [Which networks are trusted](getting-started.md#which-networks-are-trusted)),
+so a device on a guest Wi-Fi or an IoT network cannot pair. Clearing the browser's site data
+un-pairs it.
 
 A guest device cannot switch anything: it holds no API key, so that is not a matter of the
 interface politely hiding buttons. It is not a private view, though. It reads every device's name
@@ -151,7 +153,7 @@ but for the reasons above it is not the way to get this.
 | Port | Purpose | Auth |
 |---|---|---|
 | 8176 | Indigo Web Server — the pages are served here | None for the pages. API key for every data call |
-| 8177 | Plugin server — WebRTC set-up, pairing | None (trusted LAN / Tailscale, refuses non-private sources) |
+| 8177 | Plugin server — WebRTC set-up, pairing | None. Answers the Indigo Mac, Tailscale, the Mac's own network and any you add in Configure, nothing else |
 | 1984 | go2rtc HTTP API | Loopback only |
 | 8554 | go2rtc RTSP republish | Loopback only |
 | 8555 | go2rtc WebRTC media (TCP and UDP) | None |

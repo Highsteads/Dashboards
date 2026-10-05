@@ -198,6 +198,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_timeline_carry.py` | The Timeline page's "state at the start of the day" query must |
 | `test_timeline_clock_change.py` | On the two clock-change days the Timeline and the solar hours |
 | `test_timeline_views.mjs` | Timeline as the one history page (v3.33.0): the four tabs, the |
+| `test_trusted_networks.py` | DB-R1 (audit 05-10-2026). The :8177 server hands out the full |
 | `test_verify_pin.py` | handleVerifyPin — the control-PIN speed bump. Had no tests at |
 | `test_version_consistency.py` | Fails when the version signals disagree — the bundle's |
 | `test_vpp_card.mjs` | Contract tests for the Cost page's Grid events (Axle VPP) card. |
