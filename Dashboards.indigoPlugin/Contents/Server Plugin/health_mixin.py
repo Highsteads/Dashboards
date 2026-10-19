@@ -13,10 +13,50 @@ try:
 except ImportError:
     pass
 
+import json
 import os
 import re
 import shutil
 import time
+
+# Presence gate, shared with Device Health Monitor. A device that leaves with the
+# household (the car battery monitor drops off the network whenever the car is
+# driven) is out of contact while someone is away, so the page says that rather
+# than "unreachable". Same file Device Health Monitor reads, written by hand; absent
+# means no gate. Keep parse_presence_gated and presence_gate_away in step with
+# DeviceHealthMonitor's copies (tests/test_presence_gate.py pins the rule here).
+PRESENCE_GATED_FILE = os.path.expanduser(
+    "~/Documents/Indigo/DeviceHealthMonitor/presence_gated.json"
+)
+PRESENCE_STATES     = ("home", "away")
+AWAY_WITH_HOUSEHOLD = "out of contact while someone is away"
+
+
+def parse_presence_gated(data):
+    """{device id: [presence device ids]} from presence_gated.json.
+
+    A bad entry is skipped, so that device keeps its plain verdict (fail towards alerting).
+    """
+    by_id = {}
+    if not isinstance(data, list):
+        return by_id
+    for entry in data:
+        try:
+            by_id[int(entry["id"])] = [int(p) for p in entry["presence_ids"]]
+        except (KeyError, TypeError, ValueError):
+            continue
+    return by_id
+
+
+def presence_gate_away(states):
+    """True only when every presence reading is home or away and at least one is away.
+
+    A missing, unknown or unreadable reading keeps the plain "unreachable" label.
+    """
+    if not states or any(s not in PRESENCE_STATES for s in states):
+        return False
+    return "away" in states
+
 
 class HealthMixin:
     # -----------------------------------------------------------------------
@@ -264,6 +304,30 @@ class HealthMixin:
             return None, True
         return None, False
 
+    def _presence_gated_map(self):
+        """presence_gated.json read fresh each call. Any failure is no gate at all."""
+        try:
+            if not os.path.exists(PRESENCE_GATED_FILE):
+                return {}
+            with open(PRESENCE_GATED_FILE, "r", encoding="utf-8") as f:
+                return parse_presence_gated(json.load(f))
+        except Exception as exc:
+            self.logger.error(f"Presence gate file unreadable, no gate applied: {exc}")
+            return {}
+
+    def _household_away(self, dev_id, gated):
+        """True when a presence device for this device reads away, and every one reads."""
+        pids = gated.get(dev_id)
+        if not pids:
+            return False
+        states = []
+        for pid in pids:
+            try:
+                states.append(indigo.devices[pid].states.get("presence"))
+            except Exception:
+                states.append(None)
+        return presence_gate_away(states)
+
     def _device_health(self):
         """Per-device alerts + per-plugin census, computed over the live IOM.
         'In error' uses dev.errorState (the reliable liveness signal); 'quiet'
@@ -281,6 +345,7 @@ class HealthMixin:
         now = indigo.server.getTime()
         in_error, low_batt, stale = [], [], []
         census = {}
+        gated = self._presence_gated_map()
         total = enabled = 0
         # len() and iteration disagree: iteration skips unconfigured devices
         # (measured 209 vs 211 here). Publish both so the page can show the gap.
@@ -306,7 +371,9 @@ class HealthMixin:
             # flat battery or an error sat on the attention page for good.
             es = (d.errorState or "").strip()
             if is_on and es:
-                in_error.append({"id": d.id, "name": d.name, "plugin": pid, "error": es})
+                label = AWAY_WITH_HOUSEHOLD if self._household_away(d.id, gated) else es
+                in_error.append({"id": d.id, "name": d.name, "plugin": pid,
+                                 "error": label, "error_state": es})
 
             bl, alarm = self._battery_pct(d)
             if is_on and (alarm or (bl is not None and bl <= low_batt_pct)):

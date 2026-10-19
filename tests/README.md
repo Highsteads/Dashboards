@@ -150,6 +150,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_plugin_config_secure.py` | Every credential field in the Configure dialog is masked |
 | `test_poller_auth_and_hidden.mjs` | Contract test for the hub's four side pollers — sigen, string |
 | `test_presence_endpoint.py` | Contract tests for the v2.71.0 presence-data privacy fix — the |
+| `test_presence_gate.py` | System Health shows a presence-gated device as out of contact while |
 | `test_proxy_host_check.py` | The :8177 server hands out the API key (/bootstrap) and the |
 | `test_proxy_status_reason.py` | The :8177 proxy's error replies always reach the browser |
 | `test_psql_encoding.py` | Inside IndigoPluginHost3 the preferred encoding is US-ASCII, so |
