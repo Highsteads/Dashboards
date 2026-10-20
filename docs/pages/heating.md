@@ -55,7 +55,7 @@ Zone readings and timer status refresh every three seconds. The countdown ticks 
 
 - Step any zone's setpoint up or down. Steps are whole degrees, because Indigo's REST setpoint call
   is integer-only.
-- Boost the rooms configured in EvoHomeControl for one or two hours, and cancel a boost.
+- Boost the rooms configured in EvoHomeControl for one or two hours. With EvoHomeControl 1.23.0 or later, Cancel Boost sets all radiators to 12 degrees until each room's next scheduled temperature change; open-window protection still wins. Natural expiry returns to the schedule.
 - Bypass summer shut-off for 24 hours, allowing normal scheduled heating, and cancel it.
 - Write the current heating status to the Indigo log.
 
