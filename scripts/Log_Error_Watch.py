@@ -10,9 +10,18 @@
 #              one Pushover headline plus a full email, and the state file
 #              doubles as the feed for the Dashboards alerts page.
 #              Errors alert; warnings are recorded and shown but never pushed.
-# Author:      CliveS & Claude Opus 5
-# Date:        05-10-2026 + UK time now
-# Version:     1.9
+# Author:      CliveS & Claude Opus 5.5
+# Date:        06-10-2026 14:20 BST
+# Version:     2.0
+#
+# v2.0 (06-10-2026): no credential is ever stored, keyed, pushed or shown. A
+#   failed Claude Bridge run on 23-09-2026 logged "login refused for '<the
+#   password>'" for four passwords, and this watch copied the line into its
+#   state file, which the Dashboards alerts card shows. Every IndigoSecrets
+#   value whose NAME says credential (PASS, TOKEN, KEY, SECRET, ACCOUNT, PIN...)
+#   is now replaced by <redacted> as each line is read, and load_state scrubs
+#   what an older version stored, so the next run cleans the file. The state
+#   file is written 0600.
 #
 # v1.9 (05-10-2026): house-only rules move to an optional local file,
 #   log_error_watch_local.py beside this script. The v1.8 test-harness rules
@@ -299,9 +308,79 @@ def _parse(text):
 # ======================================
 # PURE LOGIC (no Indigo, no disk — unit-testable)
 # ======================================
+# What a setting's name must contain for its value to be blanked out of every
+# message. Addresses and user names are left alone: they carry diagnosis, and a
+# short user name such as "indigo" would mangle every plugin id.
+_SECRET_NAME_RE = re.compile(r"PASS|TOKEN|KEY|SECRET|ACCOUNT|MPAN|MPRN|SERIAL|PIN|AUTH|"
+                             r"BEARER|PSK|CREDENTIAL", re.IGNORECASE)
+REDACTED = "<redacted>"
+
+
+def secret_values(module=None):
+    """The credential values in IndigoSecrets (or `module`), longest first, so a
+    value that contains another is replaced whole."""
+    if module is None:
+        try:
+            import IndigoSecrets as module
+        except Exception:
+            return ()
+    out = set()
+    for name in dir(module):
+        value = getattr(module, name, None)
+        if not name.startswith("_") and _SECRET_NAME_RE.search(name) \
+                and isinstance(value, str) and len(value) >= 6:
+            out.add(value)
+    return tuple(sorted(out, key=len, reverse=True))
+
+
+SECRET_VALUES = secret_values()
+
+
+def redact(text, values=None):
+    """`text` with every credential value replaced by <redacted>."""
+    text = str(text or "")
+    for value in (SECRET_VALUES if values is None else values):
+        if value in text:
+            text = text.replace(value, REDACTED)
+    return text
+
+
+def scrub_state(state, values=None):
+    """An older state file may hold a credential in a message, a reason or a key.
+    Returns the number of entries changed; colliding keys keep the first entry."""
+    changed = 0
+    sigs = state.get("signatures") or {}
+    clean = {}
+    for key, entry in sigs.items():
+        new_key = redact(key, values)
+        if isinstance(entry, dict):
+            for field in ("message", "reason", "key"):
+                if isinstance(entry.get(field), str):
+                    scrubbed = redact(entry[field], values)
+                    if scrubbed != entry[field]:
+                        entry[field] = scrubbed
+                        changed += 1
+        if new_key != key:
+            changed += 1
+        clean.setdefault(new_key, entry)
+    state["signatures"] = clean
+    feed = state.get("feed")
+    if isinstance(feed, list):
+        for item in feed:
+            if isinstance(item, dict):
+                for field in ("message", "reason", "key"):
+                    if isinstance(item.get(field), str):
+                        scrubbed = redact(item[field], values)
+                        if scrubbed != item[field]:
+                            item[field] = scrubbed
+                            changed += 1
+    return changed
+
+
 def clean_message(raw):
-    """Strip the plugin-added [HH:MM:SS.mmm] prefix, as the Activity page does."""
-    return _TS_PREFIX_RE.sub("", str(raw or "")).strip()
+    """Strip the plugin-added [HH:MM:SS.mmm] prefix, as the Activity page does,
+    and blank out any credential (v2.0)."""
+    return redact(_TS_PREFIX_RE.sub("", str(raw or "")).strip())
 
 
 def classify(src, type_val):
@@ -851,6 +930,7 @@ def load_state(path):
         with open(path, encoding="utf-8") as fh:
             data = json.load(fh)
         if isinstance(data, dict) and isinstance(data.get("signatures"), dict):
+            scrub_state(data)                 # what an older version stored (v2.0)
             return data
         _quarantine_state(path, "malformed")
     except FileNotFoundError:
@@ -875,7 +955,9 @@ def _quarantine_state(path, why):
 
 def save_state(path, state):
     tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as fh:
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    os.fchmod(fd, 0o600)                      # error text is private (v2.0)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
         json.dump(state, fh, ensure_ascii=False, indent=1)
     os.replace(tmp, path)
 

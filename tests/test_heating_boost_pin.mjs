@@ -51,6 +51,7 @@ function world({ pinIds = [], answer = "1234", guest = false } = {}) {
             querySelectorAll: () => [],
         },
         DashUI: { message: async (name, body) => { sent.push({ name, body }); return { ok: true }; } },
+        refreshEvoTimers() {},
         console, Date, Promise, JSON, Map,
     };
     vm.createContext(ctx);

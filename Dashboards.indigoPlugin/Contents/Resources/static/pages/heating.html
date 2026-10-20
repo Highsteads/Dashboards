@@ -95,7 +95,7 @@
         }
         .ctrl-group:last-child { margin-bottom: 0; }
         .ctrl-btn {
-            flex: 0 0 auto;
+            flex: 0 0 auto; max-width: 100%;
             background: var(--bg); border: 1px solid var(--border);
             color: var(--text); border-radius: var(--r-sm);
             padding: 8px 14px; font-size: 13px; font-weight: 550;
@@ -127,7 +127,10 @@
         .ctrl-toast.ok  { color: var(--on-color); }
         .ctrl-toast.err { color: var(--bad); }
     
+        .control-card p { font-size: 12px; line-height: 1.5; color: var(--text-secondary); margin-top: 8px; }
         .control-card .ctrl-h2 { margin-top: 14px; }
+        .ctrl-btn.primary.timer-active { background: #b42318; border-color: #b42318; color: #fff; }
+        .ctrl-btn.primary.timer-active:hover { background: #912018; }
 </style>
     <link rel="stylesheet" href="dashboards-chrome.css">
 </head>
@@ -152,16 +155,18 @@
         <div class="control-card" style="margin-top:16px" id="evo-panel" hidden>
             <h2>Timed boost</h2>
             <div class="ctrl-group">
-                <button class="ctrl-btn primary" onclick="callEvoAction('startTimedBoost1h', this)"><span data-icon="flame"></span>+2°C for 1 hour</button>
-                <button class="ctrl-btn primary" onclick="callEvoAction('startTimedBoost2h', this)"><span data-icon="flame"></span>+2°C for 2 hours</button>
+                <button id="evo-boost1" class="ctrl-btn primary" aria-pressed="false" onclick="callEvoAction('startTimedBoost1h', this)"><span data-icon="flame"></span>+2°C for 1 hour</button>
+                <button id="evo-boost2" class="ctrl-btn primary" aria-pressed="false" onclick="callEvoAction('startTimedBoost2h', this)"><span data-icon="flame"></span>+2°C for 2 hours</button>
                 <button class="ctrl-btn cancel" onclick="callEvoAction('cancelTimedBoost', this)">Cancel Boost</button>
             </div>
-            <h2 class="ctrl-h2">Force heating</h2>
+            <h2 class="ctrl-h2">Summer shut-off override</h2>
             <div class="ctrl-group">
-                <button class="ctrl-btn primary" onclick="callEvoAction('forceHeatingOn24h', this)"><span data-icon="flame"></span>Force on for 24 hours</button>
-                <button class="ctrl-btn cancel" onclick="callEvoAction('cancelForcedHeating', this)">Cancel Force</button>
+                <button id="evo-summer" class="ctrl-btn primary" aria-pressed="false" onclick="callEvoAction('forceHeatingOn24h', this)"><span data-icon="flame"></span>Bypass summer shut-off for 24 hours</button>
+                <button class="ctrl-btn cancel" onclick="callEvoAction('cancelForcedHeating', this)">Cancel override</button>
                 <button class="ctrl-btn status" onclick="callEvoAction('showSummerStatus', this)">Write status to the log</button>
             </div>
+            <p>Boost raises the configured rooms' scheduled targets. The summer override allows normal scheduled heating; it does not keep the radiators on.</p>
+            <p id="evo-timer-status" role="status">Checking active timers...</p>
             <div class="ctrl-toast" id="evo-toast"></div>
         </div>
 
@@ -348,11 +353,53 @@
         startTimedBoost1h:   "Boost started (1 hour)",
         startTimedBoost2h:   "Boost started (2 hours)",
         cancelTimedBoost:    "Boost cancelled",
-        forceHeatingOn24h:   "Heating forced on (24 hours)",
-        cancelForcedHeating: "Force heating cancelled",
+        forceHeatingOn24h:   "Summer shut-off bypass requested (24 hours)",
+        cancelForcedHeating: "Summer shut-off bypass cancelled",
         showSummerStatus:    "Status logged — check Indigo event log",
     };
     let _evoToastTimer = null;
+    // Timers come from the controller's saved expiry, never from the tap time.
+    let _evoTimers = null;
+    let _evoTimersAt = 0;
+    const EVO_TIMER_BUTTONS = [
+        ["boost1", "+2°C for 1 hour", 1],
+        ["boost2", "+2°C for 2 hours", 2],
+        ["summer", "Bypass summer shut-off for 24 hours", 24],
+    ];
+    function renderEvoTimers() {
+        const elapsed = (Date.now() - _evoTimersAt) / 1000;
+        const known = _evoTimers && elapsed < 15;
+        const now = known ? _evoTimers.serverNow + elapsed : 0;
+        for (const [key, label, hours] of EVO_TIMER_BUTTONS) {
+            const button = document.getElementById("evo-" + key);
+            if (!button) continue;
+            const expiry = known ? (key === "summer" ? _evoTimers.summerExpiry
+                : _evoTimers.boostHours === hours ? _evoTimers.boostExpiry : null) : null;
+            const left = expiry ? Math.max(0, Math.ceil(expiry - now)) : 0;
+            button.classList.toggle("timer-active", left > 0);
+            button.setAttribute("aria-pressed", String(left > 0));
+            const clock = `${Math.floor(left / 3600)}:${_pad(Math.floor(left / 60) % 60)}:${_pad(left % 60)}`;
+            button.textContent = left ? `${label} · ${clock} left` : label;
+        }
+        const status = document.getElementById("evo-timer-status");
+        if (status) status.textContent = known
+            ? "Red means the timer is active. Radiators still stop when their target is reached."
+            : "Timer status unavailable. Active overrides may still be running.";
+    }
+    async function refreshEvoTimers() {
+        if ((window.INDIGO_CONFIG || {}).heatingControls !== true) return;
+        try {
+            const status = await DashUI.message("evoHomeStatus", {});
+            if (!status || status.ok !== true || !Number.isFinite(status.serverNow)) throw new Error("No timer status");
+            _evoTimers = status;
+            _evoTimersAt = Date.now();
+        } catch (_) {
+            _evoTimers = null;
+        }
+        renderEvoTimers();
+    }
+    DashUI.poll(refreshEvoTimers, 3000);
+    setInterval(renderEvoTimers, 1000);
 
     async function callEvoAction(actionId, btn) {
         const toast = document.getElementById("evo-toast");
@@ -382,6 +429,7 @@
             if (data && data.ok) {
                 toast.textContent = EVO_LABELS[actionId] || "Done";
                 toast.className = "ctrl-toast ok";
+                refreshEvoTimers();
             } else {
                 toast.textContent = "Error: " + ((data && data.error) || "no reply");
                 toast.className = "ctrl-toast err";

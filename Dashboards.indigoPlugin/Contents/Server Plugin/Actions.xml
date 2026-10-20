@@ -1,6 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Actions>
 
+    <!-- POST /message/com.clives.indigoplugin.dashboards/evoHomeStatus/
+         Read-only saved heating timer status; no heating commands. -->
+    <Action id="evoHomeStatus" uiPath="hidden">
+        <Name>EvoHome Timer Status</Name>
+        <CallbackMethod>handleEvoHomeStatus</CallbackMethod>
+    </Action>
+
     <!-- POST /message/com.clives.indigoplugin.dashboards/evoHomeAction/
          Body: {"action_id": "<id>"}
          Proxies the call to the EvoHome Heating Controller plugin so the

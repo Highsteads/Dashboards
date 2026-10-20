@@ -2,11 +2,11 @@
 
 **Your house on a screen — energy, cameras, heating, every room, and the whole day replayed.**
 
-**Version:** 3.61.0 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
+**Version:** 3.62.0 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
 
 **[Read the full guide](https://highsteads.github.io/Dashboards/)** — setting up, a page of notes for every one of the 20 pages, and what to do when something goes wrong.
 
-<img src="https://img.shields.io/badge/version-3.61.0-5856d6" alt="Version 3.61.0">
+<img src="https://img.shields.io/badge/version-3.62.0-5856d6" alt="Version 3.62.0">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-20-0a84ff" alt="20 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
@@ -91,14 +91,11 @@ The [Getting started](https://highsteads.github.io/Dashboards/getting-started.ht
 
 ## What's new
 
-The three most recent releases, word for word. Every release before these is in
-**[the version history](https://highsteads.github.io/Dashboards/changelog.html)**.
+**3.62.0** (20-Oct-2026) - **Heating buttons show their active timers.** The one-hour or two-hour boost and the summer shut-off override turn red while active, with a countdown inside each button. The timers come from the heating controller, so reloading the page or opening another device keeps the same expiry. An unavailable controller is shown as unknown. The 24-hour button now says "Bypass summer shut-off": it allows normal scheduled heating, rather than holding radiators on. A boost still stops calling for heat when its target is reached. The bundled log watcher also includes the existing credential-redaction fix.
 
 **3.61.0** (19-Oct-2026) - **System Health says a car that is out is out, not unreachable.** The Qashqai battery monitor drops off the network whenever the car is driven, so the page showed it as "unreachable" on every trip. While someone is away it now says "out of contact while someone is away". With both home it still says "unreachable". The device and its presence devices come from presence_gated.json, the file Device Health Monitor reads. A missing or unknown presence reading keeps the plain wording.
 
 **3.60.0** (05-Oct-2026) - **Only your own network is trusted with the API key.** The plugin's port 8177 hands out the API key when auto-seeding is on, the guest token, and live camera video. It used to answer any private address, so a smart plug on an IoT network, or a visitor on a guest Wi-Fi, could have asked for the full key. It now answers only the Indigo Mac, Tailscale, and the network the Mac is plugged into, which it works out from the Mac's own settings. If your phones and tablets are on a different network, add it under Configure, in the new Extra trusted networks field, written like `192.168.2.0/24`. See [Which networks are trusted](https://highsteads.github.io/Dashboards/getting-started.html#which-networks-are-trusted). The Settings page also stops failing with a server error when a camera's address is a list rather than text: it now says what is wrong.
-
-**3.59.3** (04-Oct-2026) - **A light no longer drops off its room page when you rename it.** A plug or switch counts as a light only while its name has a word such as light or lamp in it, so renaming "Twigs Light Plug" to "Twigs Plug" took it off the Living Room page and out of its All On / All Off without a word. A device you have listed under "Sort first — Lights" in Settings now stays in Lights whatever it is called. "Force into Lights" still pins one that is not in the sort list.
 
 ## Authors & licence
 

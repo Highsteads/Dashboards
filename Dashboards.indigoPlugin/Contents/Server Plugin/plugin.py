@@ -17,9 +17,9 @@
 #              browser for live tiles, and a small HTTP server on port 8177
 #              for the WebRTC signalling and the bootstrap routes. Tiles that
 #              are not live poll the snapshots.
-# Author:      CliveS & Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.58.0); Claude Sonnet 5.5 (3.58.1); Claude Opus 5.5 (3.58.2); Claude Sonnet 5.5 (3.58.3, 3.59.0-3.59.1); Claude Opus 5.5 (3.59.3, 3.60.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
-# Date:        05-10-2026
-# Version:     3.61.0
+# Author:      CliveS & Codex GPT-6 (3.62.0); Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.58.0); Claude Sonnet 5.5 (3.58.1); Claude Opus 5.5 (3.58.2); Claude Sonnet 5.5 (3.58.3, 3.59.0-3.59.1); Claude Opus 5.5 (3.59.3, 3.60.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
+# Date:        20-10-2026 15:03 UK
+# Version:     3.62.0
 #
 # Version history: docs/changelog.md (what each release does, for users) and
 # `git log` (why, for developers). The per-version engineering notes that sat
@@ -103,7 +103,7 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION = "3.61.0"
+PLUGIN_VERSION = "3.62.0"
 
 import logging
 from dash_common import (  # noqa: E402
@@ -1874,6 +1874,52 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
 
         self.logger.info(f"[EvoHome proxy] {action_id} triggered via dashboard")
         return self._evo_reply({"ok": True, "action": action_id})
+
+    def _read_evo_timers(self):
+        """Read only the persisted timer fields, off the shared dispatch thread.
+
+        EvoHomeControl saves these atomically on start/cancel and restores them
+        after restart. Do not infer a timer from a radiator's current setpoint.
+        """
+        path = os.path.join(indigo.server.getInstallFolderPath(), "Preferences",
+                            "Plugins", self._EVO_PLUGIN_ID, "plugin_state.json")
+        with open(path, encoding="utf-8") as stream:
+            saved = json.load(stream)
+        now = time.time()
+
+        def expiry(prefix):
+            active = saved.get(prefix + "_active")
+            if active not in (True, "True", "true"):
+                return None
+            value = datetime.fromisoformat(saved[prefix + "_expiry"])
+            # Current EvoHomeControl writes offset-aware ISO timestamps. Refuse
+            # older ambiguous wall times rather than inventing a DST countdown.
+            if value.tzinfo is None:
+                raise ValueError("Heating timer has no time zone")
+            stamp = value.timestamp()
+            return stamp if stamp > now else None
+
+        boost = expiry("timed_boost")
+        hours = saved.get("timed_boost_hours", 0)
+        if boost and hours not in (1, 2):
+            raise ValueError("Heating boost duration is unknown")
+        return {"boostExpiry": boost, "boostHours": hours if boost else 0,
+                "summerExpiry": expiry("summer_force")}
+
+    def handleEvoHomeStatus(self, action, dev=None, callerWaitingForResult=True):
+        """Read-only timer status. Never expose the rest of the saved state."""
+        _, reply = self._request_body(action)
+        if reply:
+            return reply
+        evo = indigo.server.getPlugin(self._EVO_PLUGIN_ID)
+        if not evo or not evo.isInstalled() or not evo.isRunning():
+            return self._evo_reply({"error": "Heating controller is not running"}, status=503)
+        state, payload = self._offpath_get("evo-timers", self._read_evo_timers, 1, wait=0.1)
+        if state == "fresh":
+            return self._evo_reply({"ok": True, "serverNow": time.time(), **payload})
+        if state == "pending":
+            return self._evo_reply({"error": "Heating timer status is loading", "pending": True}, status=503)
+        return self._evo_reply({"error": "Heating timer status is unavailable"}, status=502)
 
     @staticmethod
     def _evo_reply(obj, status=200):

@@ -9,16 +9,21 @@ nav_order: 10
 ![The Heating page](../screenshots/heating.png)
 
 Every radiator zone with its live temperature and a working setpoint control, plus the two
-whole-house overrides where the heating plugin supports them.
+timed controls where the heating plugin supports them.
 
 ## Down the page
 
 **Controls card.** Drawn only when the EvoHomeControl plugin is installed and enabled — the buttons
 are wired to that plugin's own actions. Two rows: *Timed boost* (+2 °C for one hour, +2 °C for two
-hours, Cancel boost) and *Force heating* (force on for 24 hours, Cancel force, and a link that
+hours, Cancel boost) and *Summer shut-off override* (bypass summer shut-off for 24 hours, Cancel override, and a link that
 writes the current heating state into the Indigo event log). Each of them asks for the control
 PIN, once per session, when any heating zone on the page is on the PIN list (Settings → Security),
 as the zones' own buttons do, before 3.46.0 they skipped it.
+
+Active buttons turn red and show the time left, counting down every second. Both a boost and
+the summer bypass can be active together. These are the controller's saved timers, so they
+survive a page reload. If their status cannot be read, the page says so. A red button means
+the timer is active, not that a radiator must be heating.
 
 **Summary strip.** Zones calling for heat, the house average, the coldest zone with its name, the
 warmest with its name, and the outside temperature. A coloured edge on the strip reflects whether
@@ -36,22 +41,22 @@ temperature is coloured — blue when cold, amber when warm — so the grid read
 |---|---|
 | Zone temperatures, setpoints, valve state, last heard | Indigo thermostat devices via `/v2/api`, through the shared delta cache |
 | Room membership and titles | `rooms.json` |
-| Boost and force buttons | `evoHomeAction`, which passes the call through to the EvoHomeControl plugin |
+| Timer status | `evoHomeStatus`, reading only the timer fields from EvoHomeControl's saved state |
+| Boost and summer bypass buttons | `evoHomeAction`, which passes the call through to the EvoHomeControl plugin |
 
 Zone temperatures and setpoints work with any Indigo thermostat device. Only the boost and force
 buttons are plugin-specific.
 
 ## Refresh
 
-Every second — one of the fastest pages in the set, because a setpoint change should show up as
-soon as the plugin has taken it.
+Zone readings and timer status refresh every three seconds. The countdown ticks every second.
 
 ## What you can do here
 
 - Step any zone's setpoint up or down. Steps are whole degrees, because Indigo's REST setpoint call
   is integer-only.
-- Boost the whole house for one or two hours, and cancel a boost.
-- Force heating on for 24 hours, and cancel it.
+- Boost the rooms configured in EvoHomeControl for one or two hours, and cancel a boost.
+- Bypass summer shut-off for 24 hours, allowing normal scheduled heating, and cancel it.
 - Write the current heating status to the Indigo log.
 
 ## Worth knowing
