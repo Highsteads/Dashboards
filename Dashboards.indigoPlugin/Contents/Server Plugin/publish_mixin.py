@@ -21,6 +21,7 @@ from dash_common import (
     CAMERA_POLL_SECONDS,
     CAMERA_THUMB_WIDTH,
     COLOUR_PRESETS,
+    LEVOIT_PLUGIN_ID,
     LIVE_POOL_MAX,
     LIVE_POOL_SIZE,
     PROXY_PORT,
@@ -210,6 +211,9 @@ class PublishMixin:
         return {
             "heatingControls": self._plugin_present(self._EVO_PLUGIN_ID),
             "sigenAvailable":  self._sigen_available(),
+            # 3.63.0: the Air page draws Levoit Purifier devices; its menu
+            # tile is dropped on an install without that plugin.
+            "levoitAvailable": self._plugin_present(LEVOIT_PLUGIN_ID),
             # v3.33.0: views and cards that draw what a companion script
             # writes hide when it is not installed, so a new user never
             # meets an empty page (Timeline's Nights view, the laundry plan).
@@ -256,7 +260,8 @@ class PublishMixin:
         if flags == last:
             return False
         for key, label in (("sigenAvailable", "SigenEnergyManager"),
-                           ("heatingControls", "EvoHomeControl")):
+                           ("heatingControls", "EvoHomeControl"),
+                           ("levoitAvailable", "Levoit Purifier")):
             if flags.get(key) != last.get(key):
                 self.logger.info(f"[Config] {label} is now "
                                  f"{'present' if flags.get(key) else 'absent'} — "

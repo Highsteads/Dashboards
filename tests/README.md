@@ -124,6 +124,8 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_laundry_deadline.py` | Contract test for the Laundry page's deadline validation. |
 | `test_laundry_replan_offpath.py` | A laundry deadline replans on the off-path pool, not on IWS's |
 | `test_legacy_config_import.py` | One settings store (v3.27.0). A first start with no |
+| `test_levoit_control.py` | Contract test for Plugin.handleLevoitControl - the Air page's |
+| `test_levoit_view.mjs` | Node contract test for LevoitView (levoit-view.js), the Air |
 | `test_link_class.mjs` | Contract test for DashUI.linkClass / measuredClass — how the |
 | `test_live_bandwidth.mjs` | Contract test for live camera video decided by MEASURED |
 | `test_live_dot_stale.mjs` | The top bar's "· live" can say it is not (3.46.0). The hub, |

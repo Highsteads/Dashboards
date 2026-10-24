@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta name="indigo-page-name" content="Air">
+    <meta name="indigo-page-icon" content="aqi.medium">
+    <meta name="indigo-page-description" content="Air — Levoit purifiers: air quality, PM2.5, fan, mode and filter">
+
+    <!-- iOS / macOS Web App (File → Add to Dock on Mac, Share → Add to Home Screen on iPhone). -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Dashboards">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#5856d6">
+    <link rel="apple-touch-icon" sizes="180x180" href="/public/dashboards/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="/public/dashboards/apple-touch-icon-167.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="/public/dashboards/apple-touch-icon-152.png">
+    <link rel="apple-touch-icon-precomposed" href="/public/dashboards/apple-touch-icon.png">
+    <title>Air</title>
+    <link rel="stylesheet" href="dashboards-theme.css">
+    <link rel="stylesheet" href="dashboards-controls.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        /* CliveS, 24-10-2026: the setting the purifier is on is solid BLUE, and
+           a button just pressed turns solid RED at once and stays red until the
+           purifier shows it - feedback you cannot miss, so nobody presses twice.
+           Both carry white text at better than 4.5:1, in light and dark mode. */
+        :root { --sel-blue: #0a6cd6; --wait-red: #d1281f; }
+        body {
+            font-family: var(--font-ui);
+            background: var(--bg); color: var(--text);
+            padding: max(80px, calc(72px + env(safe-area-inset-top))) 0 max(32px, env(safe-area-inset-bottom));
+            min-height: 100vh; -webkit-overflow-scrolling: touch;
+        }
+        .bottombar {
+            position: sticky; bottom: 0; z-index: 10;
+            background: var(--card-bg);
+            border-top: 1px solid var(--border);
+            box-shadow: 0 -1px 3px rgba(0,0,0,0.08);
+            padding: 8px max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left));
+            padding-bottom: max(8px, env(safe-area-inset-bottom));
+            margin-top: 16px;
+        }
+        .bottombar-inner {
+            text-align: center; max-width: 900px; margin: 0 auto;
+            font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; line-height: 1.4;
+        }
+        .container {
+            max-width: 900px; margin: 0 auto;
+            padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
+        }
+        .loading { text-align: center; padding: 60px 20px; color: var(--text-secondary); }
+        .spinner {
+            width: 24px; height: 24px; border: 3px solid var(--off-color);
+            border-top-color: var(--accent); border-radius: 50%;
+            animation: spin 0.8s linear infinite; margin: 0 auto 12px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .empty {
+            background: var(--card-bg); border-radius: var(--r-lg); box-shadow: var(--shadow);
+            padding: 20px; margin-top: 16px; line-height: 1.5; color: var(--text-secondary);
+        }
+        .empty strong { color: var(--text); }
+
+        /* ── one purifier ── */
+        .pur { margin-top: 16px; display: flex; flex-direction: column; gap: 12px; }
+        .pur-card {
+            background: var(--card-bg); border-radius: var(--r-lg); box-shadow: var(--shadow);
+            padding: 14px 16px; display: flex; flex-direction: column; gap: 12px;
+        }
+        .pur-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+        .pur-name { font-size: 17px; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+        .pur-sub { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+        .pur-sub.bad { color: var(--bad); }
+
+        .aq { display: flex; align-items: center; gap: 16px; }
+        .aq-num {
+            font-size: 56px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums;
+            color: var(--text-secondary);
+        }
+        .aq-num.good     { color: var(--good); }
+        .aq-num.moderate { color: var(--warn); }
+        .aq-num.poor     { color: var(--bad); }
+        .aq-unit { font-size: 13px; color: var(--text-secondary); }
+        .aq-words { font-size: 20px; font-weight: 600; }
+        .aq-words.good     { color: var(--good); }
+        .aq-words.moderate { color: var(--warn); }
+        .aq-words.poor     { color: var(--bad); }
+        .off-note { font-size: 13px; color: var(--text-secondary); }
+
+        .ctl-label {
+            font-size: 12px; color: var(--text-secondary);
+            text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;
+        }
+        .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; }
+        .seg button {
+            min-height: 44px; border-radius: var(--r-md); cursor: pointer;
+            border: 1px solid var(--border); background: var(--card-bg-alt); color: var(--text);
+            font: inherit; font-size: 15px; font-weight: 600;
+        }
+        .seg button.on { background: var(--sel-blue); border-color: var(--sel-blue); color: #fff; }
+        .seg button.waiting { background: var(--wait-red); border-color: var(--wait-red); color: #fff; }
+        .toggle.waiting .slider, .toggle.waiting input:checked + .slider { background: var(--wait-red); }
+        .seg button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+        .ctl-note { font-size: 12px; color: var(--text-secondary); margin-top: 6px; min-height: 1em; }
+        .ctl-note.bad { color: var(--bad); }
+
+        .filter-bar { height: 10px; border-radius: 5px; background: var(--track); overflow: hidden; }
+        .filter-fill { height: 100%; background: var(--good); border-radius: 5px; }
+        .filter-fill.low { background: var(--bad); }
+        .filter-row { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px; }
+        .filter-warn { color: var(--bad); font-size: 13px; font-weight: 600; margin-top: 6px; }
+
+        .switch-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 15px; }
+        .energy { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+        .energy-cell { background: var(--card-bg-alt); border-radius: var(--r-md); padding: 10px; }
+        .energy-val { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .energy-sub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; font-variant-numeric: tabular-nums; }
+        .energy-note { font-size: 12px; color: var(--text-secondary); margin-top: 8px; line-height: 1.4; }
+
+        .chart-card { padding-bottom: 10px; }
+        .chart-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        .chart-title { font-size: 15px; font-weight: 600; }
+        .ranges { display: flex; gap: 6px; }
+        .range-chip {
+            border: 1px solid var(--border); background: var(--card-bg-alt); color: var(--text);
+            border-radius: var(--r-pill); padding: 4px 12px; font: inherit; font-size: 13px; cursor: pointer;
+        }
+        .range-chip.on { background: var(--sel-blue); border-color: var(--sel-blue); color: #fff; }
+        .chart-box { position: relative; height: 200px; }
+        .chart-note { font-size: 13px; color: var(--text-secondary); text-align: center; padding: 40px 8px; }
+    </style>
+    <link rel="stylesheet" href="dashboards-chrome.css">
+</head>
+<body>
+    <header class="topbar">
+        <div class="hdr-left">
+            <a class="nav-btn" href="index.html">&larr; Home</a>
+        </div>
+        <div class="hdr-center">
+            <h1>Air</h1>
+            <span class="topbar-status">Updated <span id="ts">—</span> · Next refresh <span id="cdwn">—</span>s</span>
+        </div>
+        <div class="hdr-right">
+            <button class="nav-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="Back to top">↑ Top</button>
+        </div>
+    </header>
+    <div class="container">
+        <div id="content">
+            <div class="loading"><div class="spinner"></div><p>Connecting…</p></div>
+        </div>
+    </div>
+
+    <script src="config.js" onerror="window.INDIGO_CONFIG_MISSING=true"></script>
+    <script src="dashboards-auth.js"></script>
+    <script src="dashboards-ui.js"></script>
+    <script src="dashboards-gate.js"></script>
+    <script src="dashboard.js"></script>
+    <script src="levoit-view.js"></script>
+    <script src="chart.umd.min.js"></script>
+    <script>
+    "use strict";
+    // ── Refresh status: drives Updated / Next refresh in both top + bottom bar.
+    const POLL_INTERVAL_MS = 3000;
+    const HISTORY_EVERY_MS = 5 * 60 * 1000;   // the chart's line moves slowly
+    const V = window.LevoitView;
+    let _lastUpdate = 0;
+    function _pad(n) { return String(n).padStart(2, "0"); }
+    function markRefreshed() { _lastUpdate = Date.now(); tickRefreshStatus(); }
+    function tickRefreshStatus() {
+        let tsStr = "—";
+        if (_lastUpdate) {
+            const d = new Date(_lastUpdate);
+            tsStr = _pad(d.getHours()) + ":" + _pad(d.getMinutes()) + ":" + _pad(d.getSeconds());
+        }
+        const elapsedS = _lastUpdate ? (Date.now() - _lastUpdate) / 1000 : 0;
+        const cdwn = Math.max(0, Math.round((POLL_INTERVAL_MS / 1000) - elapsedS));
+        for (const id of ["ts", "ts-bot"]) { const el = document.getElementById(id); if (el) el.textContent = tsStr; }
+        for (const id of ["cdwn", "cdwn-bot"]) { const el = document.getElementById(id); if (el) el.textContent = String(cdwn); }
+    }
+    setInterval(tickRefreshStatus, 1000);
+
+    const esc = t => DashUI.esc(t);
+    let indigo = null;
+    let _ids = "";                // the purifier ids the page was last built for
+    const _press = {};            // dev id -> {command: {command, value, sentAt}}, one per control
+    const _said = {};             // dev id -> a line under the controls
+    const _hours = {};            // dev id -> chart range in hours
+    const _histAt = {};           // dev id -> when the chart was last fetched
+    const _energy = {};           // dev id -> the levoitEnergy reply: its plug, kWh and cost
+    const _energyAt = {};         // dev id -> when that was last asked for
+    const ENERGY_EVERY_MS = 2 * 60 * 1000;   // the plug logs its energy about once a minute
+
+    if (!IndigoAPI.isConfigured()) {
+        location.href = "index.html";
+    } else {
+        start();
+    }
+
+    function start() {
+        indigo = new IndigoAPI();
+        const auth = DashUI.authStrikes();
+        indigo.onAuthFailure(auth.fail);
+        let _errShown = false;
+        indigo.observeAll(d => render(d), POLL_INTERVAL_MS, e => {
+            if (e && e.fromCache) return;      // keep the last readings while the plugin restarts
+            _errShown = true;
+            const c = document.getElementById("content");
+            if (c) c.innerHTML = `<div class="empty"><strong>Connection error</strong><br>${esc((e && e.message) || String(e))}</div>`;
+            _ids = "";
+        }, d => {
+            auth.ok();
+            markRefreshed();
+            if (_errShown) { _errShown = false; render(d); }
+        });
+        // A press waiting for confirmation needs its note to move on to "not
+        // confirmed" even if nothing on the purifier changes.
+        setInterval(() => { if (window.__lastDevices) render(window.__lastDevices); }, 5000);
+    }
+
+    function render(devices) {
+        window.__lastDevices = devices;
+        const list = V.purifiers(devices);
+        const content = document.getElementById("content");
+        if (!list.length) {
+            _ids = "";
+            content.innerHTML = `<div class="empty"><strong>No air purifier found.</strong><br>
+                This page shows purifiers added with the Levoit Purifier plugin. Install that plugin,
+                give it your VeSync sign-in, then add a <strong>Levoit Air Purifier</strong> device in Indigo.</div>`;
+            return;
+        }
+        const ids = list.map(d => d.id).join(",");
+        if (ids !== _ids) {
+            // Built once per set of purifiers, so the charts keep their canvas.
+            _ids = ids;
+            content.innerHTML = list.map(d => `
+                <section class="pur" id="pur-${d.id}" aria-label="${esc(d.name)}">
+                    <div class="pur-card" id="pur-${d.id}-main"></div>
+                    <div class="pur-card" id="pur-${d.id}-more"></div>
+                    <div class="pur-card chart-card">
+                        <div class="chart-head">
+                            <span class="chart-title">PM2.5</span>
+                            <span class="ranges" data-dev="${d.id}">
+                                <button class="range-chip on" data-h="24">Day</button>
+                                <button class="range-chip" data-h="168">Week</button>
+                            </span>
+                        </div>
+                        <div class="chart-box"><canvas id="pur-${d.id}-chart" aria-label="PM2.5 over time" role="img"></canvas>
+                            <div class="chart-note" id="pur-${d.id}-chartnote" hidden></div></div>
+                    </div>
+                </section>`).join("");
+            list.forEach(d => { _histAt[d.id] = 0; });
+        }
+        const now = Date.now();
+        for (const d of list) {
+            const v = V.view(d);
+            // Each control's press stays red until the purifier shows it, so two
+            // quick presses (a fan speed, then the display) both stay red.
+            const pending = {};
+            for (const [command, press] of Object.entries(_press[v.id] || {})) {
+                const status = V.pressStatus(v, press, now);
+                if (status === null) { delete _press[v.id][command]; continue; }
+                if (status === "late" && !press.lateSaid) {
+                    press.lateSaid = true;
+                    _said[v.id] = "The purifier has not shown that change yet. VeSync may be slow; it will show when it lands.";
+                }
+                pending[command] = press;
+            }
+            document.getElementById(`pur-${v.id}-main`).innerHTML = mainCard(v, pending);
+            document.getElementById(`pur-${v.id}-more`).innerHTML = moreCard(v, pending);
+            if (now - (_histAt[v.id] || 0) > HISTORY_EVERY_MS) loadHistory(v.id);
+            if (now - (_energyAt[v.id] || 0) > ENERGY_EVERY_MS) loadEnergy(v.id);
+        }
+    }
+
+    function mainCard(v, pending) {
+        // While a press is on its way, its group shows only the button pressed,
+        // in red; once the purifier shows it, the setting goes back to blue.
+        const cls = (command, key, selected) => pending[command]
+            ? (String(pending[command].value) === String(key) ? "waiting" : "") : (selected ? "on" : "");
+        const sub = !v.online
+            ? `<div class="pur-sub bad">${esc(v.error ? "Not reachable (" + v.error + ")" : "Not connected to VeSync")}${v.lastUpdate ? ", last heard " + esc(V.updatedWords(v.lastUpdate, Date.now())) : ""}</div>`
+            : `<div class="pur-sub">${v.lastUpdate ? "Read " + esc(V.updatedWords(v.lastUpdate, Date.now())) : "Waiting for its first reading"}</div>`;
+        const pm = v.pm25 === null ? "—" : String(v.pm25);
+        const off = v.on ? "" : `<div class="off-note">Switched off, so this is the last reading before it stopped.</div>`;
+        const locked = !v.online ? " disabled" : "";
+        const modes = V.MODES.map(([key, label]) =>
+            `<button data-cmd="mode" data-val="${key}" class="${cls("mode", key, v.on && v.mode === key)}"${locked}
+                     aria-pressed="${v.on && v.mode === key}">${label}</button>`).join("");
+        const fans = V.FAN_LEVELS.map(n =>
+            `<button data-cmd="fanSpeed" data-val="${n}" class="${cls("fanSpeed", n, v.on && v.fan === n && v.mode === "manual")}"${locked}
+                     aria-label="Fan speed ${n}" aria-pressed="${v.on && v.fan === n && v.mode === "manual"}">${n}</button>`).join("");
+        const prefs = v.mode === "auto" && v.on ? `<div>
+                <div class="ctl-label">Automatic mode works</div>
+                <div class="seg" data-dev="${v.id}">${V.AUTO_PREFS.map(([key, label]) =>
+                    `<button data-cmd="autoPreference" data-val="${key}" class="${cls("autoPreference", key, v.autoPref === key)}"${locked}
+                             aria-pressed="${v.autoPref === key}">${label}</button>`).join("")}</div></div>` : "";
+        const said = _said[v.id] || (Object.keys(pending).length ? "Sent, waiting for the purifier to show it…" : "");
+        // While an on/off press is on its way, the switch shows where it was
+        // put, not where the purifier still is; the note says it is waiting.
+        const powerWaiting = !!pending.power;
+        const powerShown = powerWaiting ? pending.power.value : v.on;
+        return `
+            <div class="pur-head">
+                <div><div class="pur-name">${esc(v.name)}</div>${sub}</div>
+                <label class="toggle${powerWaiting ? " waiting" : ""}" aria-label="Power">
+                    <input type="checkbox" data-power="${v.id}" ${powerShown ? "checked" : ""}${locked}>
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <div class="aq">
+                <div><div class="aq-num ${v.band}">${pm}</div><div class="aq-unit">PM2.5, µg/m³</div></div>
+                <div><div class="aq-words ${v.band}">${esc(v.bandWords)}</div><div class="aq-unit">air quality</div></div>
+            </div>
+            ${off}
+            <div><div class="ctl-label">Mode</div><div class="seg" data-dev="${v.id}">${modes}</div></div>
+            <div><div class="ctl-label">Fan speed</div><div class="seg" data-dev="${v.id}">${fans}</div>
+                <div class="ctl-note">${v.on && v.mode !== "manual"
+                    ? (v.fan ? `Running at speed ${v.fan} of 4. ` : "") + "Choosing a speed switches to manual." : ""}</div></div>
+            ${prefs}
+            <div class="ctl-note${_said[v.id] && /could not|not sent|incorrect|read-only/i.test(_said[v.id]) ? " bad" : ""}">${esc(said)}</div>`;
+    }
+
+    function moreCard(v, pending) {
+        const locked = !v.online ? " disabled" : "";
+        // A switch just flicked shows where it was put, in red, until the purifier shows it.
+        const sw = (command, actual) => {
+            const waiting = !!pending[command];
+            const on = waiting ? pending[command].value === "on" : actual;
+            return { cls: waiting ? " waiting" : "", checked: on ? "checked" : "" };
+        };
+        const lock = sw("childLock", v.childLock), disp = sw("display", v.display);
+        return `
+            <div>
+                <div class="filter-row"><span>Filter life</span><strong>${v.filter}%</strong></div>
+                <div class="filter-bar" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${v.filter}"
+                     aria-label="Filter life"><div class="filter-fill${v.filterLow ? " low" : ""}" style="width:${v.filter}%"></div></div>
+                ${v.filterLow ? `<div class="filter-warn">Time to order a new filter.</div>` : ""}
+            </div>
+            ${energyBlock(v)}
+            <div class="switch-row"><span>Child lock</span>
+                <label class="toggle${lock.cls}" aria-label="Child lock"><input type="checkbox" data-switch="childLock" data-dev="${v.id}" ${lock.checked}${locked}><span class="slider"></span></label></div>
+            <div class="switch-row"><span>Display light</span>
+                <label class="toggle${disp.cls}" aria-label="Display light"><input type="checkbox" data-switch="display" data-dev="${v.id}" ${disp.checked}${locked}><span class="slider"></span></label></div>`;
+    }
+
+    // ── controls ──
+    async function gate(id) {
+        try { await indigo.gateAny([id]); return true; }
+        catch (e) {
+            const m = e && e.message ? e.message : String(e);
+            _said[id] = /cancelled/i.test(m) ? "Not sent: the control PIN is needed"
+                      : /Incorrect PIN/.test(m) ? "Incorrect PIN, nothing was sent"
+                      : /read-only/.test(m) ? "This device has read-only guest access"
+                      : "Not sent: " + m;
+            render(window.__lastDevices || []);
+            return false;
+        }
+    }
+
+    async function send(id, command, value) {
+        // The same press again while the first is still on its way changes
+        // nothing; the red button already says it is being done.
+        const busy = (_press[id] || {})[command];
+        if (busy && String(busy.value) === String(value)
+            && Date.now() - busy.sentAt < V.CONFIRM_MS) return;
+        // Recorded BEFORE the PIN gate is asked, so a second tap arriving while
+        // the gate is answering is already a repeat.
+        (_press[id] = _press[id] || {})[command] = { command, value, sentAt: Date.now() };
+        if (command !== "power" && !await gate(id)) { delete _press[id][command]; return; }
+        delete _said[id];
+        render(window.__lastDevices || []);
+        try {
+            if (command === "power") await (value ? indigo.turnOn(id) : indigo.turnOff(id));
+            else await DashUI.message("levoitControl", { deviceId: id, command, value: String(value) });
+        } catch (e) {
+            delete (_press[id] || {})[command];
+            _said[id] = "Could not send that: " + (e && e.message ? e.message : e);
+            render(window.__lastDevices || []);
+        }
+    }
+
+    document.getElementById("content").addEventListener("click", ev => {
+        const chip = ev.target.closest(".range-chip");
+        if (chip) {
+            const id = Number(chip.parentElement.dataset.dev);
+            chip.parentElement.querySelectorAll(".range-chip").forEach(c => c.classList.toggle("on", c === chip));
+            _hours[id] = Number(chip.dataset.h);
+            loadHistory(id);
+            return;
+        }
+        const btn = ev.target.closest("button[data-cmd]");
+        if (!btn || btn.disabled) return;
+        const id = Number(btn.closest("[data-dev]").dataset.dev);
+        send(id, btn.dataset.cmd, btn.dataset.val);
+    });
+    document.getElementById("content").addEventListener("change", ev => {
+        const box = ev.target;
+        if (box.dataset.power) { send(Number(box.dataset.power), "power", box.checked); return; }
+        if (box.dataset.switch) send(Number(box.dataset.dev), box.dataset.switch, box.checked ? "on" : "off");
+    });
+
+    // ── power and cost, from the plug it runs from ──
+    // Priced at Flux's cheap 2-5am rate: the purifier runs from the battery,
+    // which is filled at that rate (CliveS, 24-10-2026). The server does the
+    // adding up (levoitEnergy); the watts come live from the plug's device.
+    function money(pence) {
+        if (pence === null || pence === undefined) return "";
+        return pence < 100 ? (pence < 10 ? pence.toFixed(1) : Math.round(pence)) + "p" : "\u00a3" + (pence / 100).toFixed(2);
+    }
+    function kwh(x) {
+        if (x === null || x === undefined) return "\u2014";
+        return (x < 1 ? x.toFixed(2) : x.toFixed(1)) + " kWh";
+    }
+    function energyBlock(v) {
+        const e = _energy[v.id];
+        if (!e || !e.plug) return "";
+        const plug = (window.__lastDevices || []).find(d => d.id === e.plug.id);
+        const w = plug && plug.states ? parseFloat(plug.states.powerWatts) : NaN;
+        const watts = isNaN(w) ? "\u2014" : (w < 10 ? w.toFixed(1) : Math.round(w)) + " W";
+        const t = e.today || {}, wk = e.week;
+        const note = e.rate
+            ? `Priced at ${esc(e.rate.words)}, as the battery it runs from is filled then.`
+            : "No tariff prices are published, so only the energy is shown.";
+        return `<div>
+            <div class="ctl-label">Power and cost</div>
+            <div class="energy">
+                <div class="energy-cell"><div class="energy-val">${watts}</div><div class="energy-sub">now</div></div>
+                <div class="energy-cell"><div class="energy-val">${money(t.pence) || kwh(t.kwh)}</div>
+                    <div class="energy-sub">today${money(t.pence) ? ", " + kwh(t.kwh) : ""}</div></div>
+                <div class="energy-cell"><div class="energy-val">${wk ? (money(wk.pence) || kwh(wk.kwh)) : "\u2014"}</div>
+                    <div class="energy-sub">${wk && wk.since ? "since " + esc(wk.since) : "last 7 days"}${wk && money(wk.pence) ? ", " + kwh(wk.kwh) : ""}</div></div>
+            </div>
+            <div class="energy-note">${note} Measured by ${esc(e.plug.name)}.</div>
+        </div>`;
+    }
+    async function loadEnergy(id) {
+        _energyAt[id] = Date.now();
+        try {
+            _energy[id] = await DashUI.message("levoitEnergy", { deviceId: id });
+        } catch (e) {
+            return;                       // keep the last figures; the next round asks again
+        }
+        if (window.__lastDevices) render(window.__lastDevices);
+    }
+
+    // ── PM2.5 history ──
+    async function loadHistory(id) {
+        _histAt[id] = Date.now();
+        const hours = _hours[id] || 24;
+        const canvas = document.getElementById(`pur-${id}-chart`);
+        const note = document.getElementById(`pur-${id}-chartnote`);
+        if (!canvas) return;
+        const say = text => { note.textContent = text; note.hidden = false; canvas.hidden = true; };
+        let res;
+        try { res = await indigo.getHistory(id, "pm25", hours, 240); }
+        catch (e) {
+            const noDb = String((e && e.message) || "").indexOf("SQL Logger") !== -1;
+            say(noDb ? "The chart needs Indigo's SQL Logger plugin. Everything else works without it."
+                     : "Nothing recorded yet. The chart fills in as the purifier reports.");
+            return;
+        }
+        const pts = (res && res.points) || [];
+        if (!pts.length) { say("Nothing recorded in this range yet."); return; }
+        note.hidden = true; canvas.hidden = false;
+        const labels = pts.map(p => new Date(p.t * 1000));
+        const css = getComputedStyle(document.documentElement);
+        const accent = css.getPropertyValue("--accent").trim();
+        const muted = css.getPropertyValue("--text-secondary").trim();
+        const grid = css.getPropertyValue("--border").trim();
+        DashUI.chartRender(canvas, {
+            type: "line",
+            data: { labels, datasets: [
+                { label: "highest", data: pts.map(p => p.max), borderWidth: 0, pointRadius: 0, fill: "+1", backgroundColor: accent + "22" },
+                { label: "lowest", data: pts.map(p => p.min), borderWidth: 0, pointRadius: 0, fill: false },
+                { label: "PM2.5", data: pts.map(p => p.avg), borderColor: accent, borderWidth: 2, pointRadius: 0, tension: 0.25, fill: false },
+            ] },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                interaction: { mode: "index", intersect: false },
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { display: false }, ticks: { maxTicksLimit: 7, color: muted, callback: (_v, i) => {
+                        const d = labels[i]; if (!d) return "";
+                        return hours <= 48 ? _pad(d.getHours()) + ":" + _pad(d.getMinutes()) : d.getDate() + "/" + (d.getMonth() + 1); } } },
+                    // PM2.5 cannot go below zero; the smoothed line must not suggest it does.
+                    y: { min: 0, ticks: { color: muted, maxTicksLimit: 5 }, grid: { color: grid } },
+                },
+            },
+        });
+    }
+    </script>
+
+    <footer class="bottombar">
+        <div class="bottombar-inner">
+            Updated <span id="ts-bot">—</span> · Next refresh <span id="cdwn-bot">—</span>s
+        </div>
+    </footer>
+
+<script src="a11y.js"></script>
+
+<script src="standalone-nav.js"></script>
+</body>
+</html>

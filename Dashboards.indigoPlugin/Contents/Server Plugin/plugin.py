@@ -17,9 +17,9 @@
 #              browser for live tiles, and a small HTTP server on port 8177
 #              for the WebRTC signalling and the bootstrap routes. Tiles that
 #              are not live poll the snapshots.
-# Author:      CliveS & Codex GPT-6 (3.62.0); Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.58.0); Claude Sonnet 5.5 (3.58.1); Claude Opus 5.5 (3.58.2); Claude Sonnet 5.5 (3.58.3, 3.59.0-3.59.1); Claude Opus 5.5 (3.59.3, 3.60.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
-# Date:        20-10-2026 15:03 UK
-# Version:     3.62.0
+# Author:      CliveS & Claude Opus 5.5 (3.63.0); Codex GPT-6 (3.62.0); Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.58.0); Claude Sonnet 5.5 (3.58.1); Claude Opus 5.5 (3.58.2); Claude Sonnet 5.5 (3.58.3, 3.59.0-3.59.1); Claude Opus 5.5 (3.59.3, 3.60.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
+# Date:        24-10-2026 12:30 UK
+# Version:     3.63.0
 #
 # Version history: docs/changelog.md (what each release does, for users) and
 # `git log` (why, for developers). The per-version engineering notes that sat
@@ -42,7 +42,7 @@ import shutil
 import sys as _sys
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Capture cwd at module load time — Indigo sets cwd to Contents/Server Plugin/
 # at launch. Storing now is more robust than calling os.getcwd() later in case
@@ -103,7 +103,7 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION = "3.62.0"
+PLUGIN_VERSION = "3.63.0"
 
 import logging
 from dash_common import (  # noqa: E402
@@ -117,6 +117,9 @@ from dash_common import (  # noqa: E402
     COLOUR_PRESETS,
     GO2RTC_BIN,
     INDEX_PATH,
+    LEVOIT_COMMANDS,
+    LEVOIT_DEVICE_TYPE,
+    LEVOIT_PLUGIN_ID,
     PROXY_PORT,
     STAMP_CHANGE_WRITE_GAP,
     STAMP_FILENAME,
@@ -3247,6 +3250,143 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         if reply:
             return reply
         return self._evo_reply({"ok": True, "device": dev.name, "action": what, "kwh": kwh}, status=202)
+
+    def handleLevoitControl(self, action, dev=None, callerWaitingForResult=True):
+        """POST /message/com.clives.indigoplugin.dashboards/levoitControl/
+
+        Body: {"deviceId": N, "command": "fanSpeed"|"mode"|"autoPreference"|
+               "childLock"|"display", "value": ...}
+
+        The Air page's controls (3.63.0). The Indigo HTTP API has no command
+        for another plugin's action, so this checks the request and hands it to
+        the Levoit Purifier plugin's own action, which checks it again, sends
+        it to VeSync and reads the purifier back. On and off are not here: the
+        device is a relay, so the page uses turnOn / turnOff like any switch.
+        waitUntilDone=False: this handler runs on the web server's single
+        dispatch thread, so it must never wait on another plugin."""
+        payload, _reply = self._request_body(action, changes_state=True)
+        if _reply:
+            return _reply
+        command = str(payload.get("command") or "").strip()
+        spec = LEVOIT_COMMANDS.get(command)
+        if spec is None:
+            return self._evo_reply({"ok": False, "error": f"unknown command {command!r}"}, status=400)
+        action_id, prop, allowed = spec
+        raw = payload.get("value")
+        # A bool is refused rather than read as 1 or 0: true is not a fan speed.
+        value = "" if isinstance(raw, bool) or raw is None else str(raw).strip()
+        if value not in allowed:
+            return self._evo_reply({"ok": False,
+                                    "error": f"{command} must be one of {', '.join(allowed)}"}, status=400)
+        # Only a Levoit purifier: this must not become a way to fire any
+        # plugin's actions at any device.
+        try:
+            dev_id = int(payload.get("deviceId"))
+        except (TypeError, ValueError, OverflowError):
+            return self._evo_reply({"ok": False, "error": "deviceId must be a number"}, status=400)
+        if dev_id not in indigo.devices:
+            return self._evo_reply({"ok": False, "error": f"no device {dev_id}"}, status=404)
+        dev = indigo.devices[dev_id]
+        if dev.pluginId != LEVOIT_PLUGIN_ID or dev.deviceTypeId != LEVOIT_DEVICE_TYPE:
+            return self._evo_reply({"ok": False, "error": f"{dev.name} is not an air purifier"}, status=400)
+        blocked, status = self._device_command_blocked(dev)
+        if blocked:
+            self.logger.warning(f"[Air] {dev.name}: refused — {blocked}")
+            return self._evo_reply({"ok": False, "device": dev.name, "error": blocked}, status=status)
+        try:
+            indigo.server.getPlugin(LEVOIT_PLUGIN_ID).executeAction(
+                action_id, deviceId=dev.id, props={prop: value}, waitUntilDone=False)
+        except Exception as exc:            # noqa: BLE001 — report, never swallow
+            self.logger.warning(f"[Air] {dev.name}: could not pass on {action_id} ({exc})")
+            return self._evo_reply({"ok": False, "device": dev.name, "error": str(exc)}, status=502)
+        # 202: accepted and passed on. The purifier's own answer comes back as
+        # the device's states, which the page watches for.
+        return self._evo_reply({"ok": True, "device": dev.name, "command": command, "value": value},
+                               status=202)
+
+    LEVOIT_ENERGY_TTL = 120          # the plug logs its energy about once a minute
+    LEVOIT_ENERGY_WAIT = 0.75
+
+    def handleLevoitEnergy(self, action, dev=None, callerWaitingForResult=True):
+        """POST /message/com.clives.indigoplugin.dashboards/levoitEnergy/
+
+        Body: {"deviceId": N} - a Levoit purifier.
+
+        The Air page's power and running cost (3.63.0), from the plug the
+        purifier is set to run from in its own settings ("Plug it is on").
+        Reply: {"ok", "plug": {id, name} | null, "today": {kwh, pence},
+        "week": {kwh, pence, since}, "rate": {pence, words} | null}.
+        Every kWh is priced at Flux's cheap rate: the house runs it from the
+        battery, which is filled at that rate (CliveS, 24-10-2026)."""
+        payload, _reply = self._request_body(action)
+        if _reply:
+            return _reply
+        try:
+            dev_id = int(payload.get("deviceId"))
+        except (TypeError, ValueError, OverflowError):
+            return self._evo_reply({"ok": False, "error": "deviceId must be a number"}, status=400)
+        if dev_id not in indigo.devices:
+            return self._evo_reply({"ok": False, "error": f"no device {dev_id}"}, status=404)
+        pur = indigo.devices[dev_id]
+        if pur.pluginId != LEVOIT_PLUGIN_ID or pur.deviceTypeId != LEVOIT_DEVICE_TYPE:
+            return self._evo_reply({"ok": False, "error": f"{pur.name} is not an air purifier"}, status=400)
+        # Another plugin's props: pluginProps reads empty from here, globalProps does not.
+        try:
+            plug_id = int(str((pur.globalProps.get(LEVOIT_PLUGIN_ID) or {}).get("powerPlug") or "0"))
+        except (TypeError, ValueError, AttributeError):
+            plug_id = 0
+        if not plug_id or plug_id not in indigo.devices:
+            return self._evo_reply({"ok": True, "plug": None})
+        state, result = self._offpath_get(f"levoitEnergy:{plug_id}", lambda: self._levoit_energy(plug_id),
+                                          self.LEVOIT_ENERGY_TTL, wait=self.LEVOIT_ENERGY_WAIT)
+        if state == "fresh":
+            return self._evo_reply(result)
+        if state == "failed":
+            self.logger.warning(f"[Air] energy for plug {plug_id} failed: {result}")
+            return self._evo_reply({"ok": False, "error": str(result)}, status=500)
+        return self._evo_reply({"ok": False, "pending": True, "error": "still adding it up"}, status=503)
+
+    def _levoit_energy(self, plug_id):
+        """Off the dispatch path: today's and this week's kWh and cost for a plug."""
+        import device_cost as C
+        plug = indigo.devices[plug_id]
+        now = time.time()
+        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today0 = int(time.mktime(today.timetuple()))
+        week0 = int(time.mktime((today - timedelta(days=6)).timetuple()))   # today and the six before
+        try:
+            cheap = C.cheap_rate(indigo.variables["elec_rates_today_json"].value)
+        except Exception:
+            cheap = None
+        rate = cheap[0] if cheap else None
+        try:
+            today_kwh = round(float(plug.states["energyKwhToday"]), 4)
+        except (KeyError, TypeError, ValueError):
+            today_kwh = None
+        week = None
+        try:
+            rows = self._energy_today_rows(plug_id, week0 - 3600)    # an hour early: the first slice needs a reading before it
+        except ValueError:
+            rows = []
+        if rows:
+            # Today from the history too, not the plug's own state: a Shelly
+            # starts its "today" counter again when it restarts, so after being
+            # unplugged and moved (24-10-2026, 09:30) it read 0.07 kWh against
+            # the 0.42 kWh its logged readings add up to. kwh_slices counts the
+            # energy on both sides of the restart.
+            slices = C.kwh_slices(rows)
+            today_kwh = C.kwh_between(slices, today0)
+            week_kwh = round(C.kwh_between(slices, week0), 4)
+            first = rows[0][0]
+            since = None
+            if first > week0 + 3600:                                  # history starts part-way through the week
+                since = datetime.fromtimestamp(first).strftime("%A %-d %B")
+            week = {"kwh": week_kwh, "pence": C.cost_pence(week_kwh, rate), "since": since}
+        return {"ok": True, "plug": {"id": plug.id, "name": plug.name},
+                "today": {"kwh": today_kwh, "pence": C.cost_pence(today_kwh, rate)},
+                "week": week,
+                "rate": {"pence": round(rate, 2), "words": C.rate_words(cheap)} if cheap else None,
+                "at": int(now)}
 
     def handleApplyColour(self, action, dev=None, callerWaitingForResult=True):
         """POST /message/com.clives.indigoplugin.dashboards/applyColour/

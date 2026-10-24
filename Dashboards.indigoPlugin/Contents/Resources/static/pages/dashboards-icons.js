@@ -125,6 +125,10 @@
     sparkle:  'M12 2.8l2.2 6 6 2.2-6 2.2-2.2 6-2.2-6-6-2.2 6-2.2z',
     pylon:    'M12 2.6L6 21.4M12 2.6l6 18.8M4.4 6.6h15.2M7.6 13.4h8.8M9.3 9.8h5.4',
     inverter: 'M2 12c2.2-6.2 4.4-6.2 6.6 0c2.2 6.2 4.4 6.2 6.6 0c2.2-6.2 4.4-6.2 6.6 0',
+    /* An upright air purifier: the cabinet, its round grille, the top vent (3.63.0). */
+    purifier: 'M7.6 2.6h8.8a2 2 0 0 1 2 2v14.8a2 2 0 0 1-2 2H7.6a2 2 0 0 1-2-2V4.6a2 2 0 0 1 2-2z' +
+              'M12 17.2a3.6 3.6 0 1 0 0-7.2 3.6 3.6 0 0 0 0 7.2zM12 15a1.4 1.4 0 1 0 0-2.8 1.4 1.4 0 0 0 0 2.8z' +
+              'M9 5.8h6',
   };
 
   /* Aliases, so a page can name the thing rather than the drawing. */
@@ -137,6 +141,7 @@
     presence: 'person', motion: 'walk', heating: 'flame', light: 'bulb',
     energy: 'bolt', cost: 'money', water: 'drop', temperature: 'thermo',
     system: 'health', scenes: 'film', weather: 'cloudsun', solar: 'sun',
+    air: 'purifier', fan: 'purifier',
   };
 
   function resolve(name) {

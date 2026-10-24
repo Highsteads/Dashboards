@@ -235,6 +235,23 @@
         <CallbackMethod>handleChargerBoost</CallbackMethod>
     </Action>
 
+    <!-- POST /message/com.clives.indigoplugin.dashboards/levoitControl/
+         Body: {"deviceId": N, "command": "fanSpeed"|"mode"|"autoPreference"|"childLock"|"display", "value": ...}
+         The Air page's purifier controls (3.63.0): checked here, carried out
+         by the Levoit Purifier plugin's own actions. -->
+    <Action id="levoitControl" uiPath="hidden">
+        <Name>Control Air Purifier</Name>
+        <CallbackMethod>handleLevoitControl</CallbackMethod>
+    </Action>
+
+    <!-- POST /message/com.clives.indigoplugin.dashboards/levoitEnergy/
+         Body: {"deviceId": N} -> the purifier's plug, and its kWh and cost
+         today and this week at Flux's cheap rate (3.63.0). Reads only. -->
+    <Action id="levoitEnergy" uiPath="hidden">
+        <Name>Air Purifier Energy</Name>
+        <CallbackMethod>handleLevoitEnergy</CallbackMethod>
+    </Action>
+
     <!-- POST /message/com.clives.indigoplugin.dashboards/verifyPin/
          Body: {"pin": "<entered>"} → {"ok": true, "valid": bool}
          Server-side PIN check for the per-tile PIN speed bump (v2.1.0). -->

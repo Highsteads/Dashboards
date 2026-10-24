@@ -6,7 +6,7 @@ has_children: true
 
 # Every page
 
-Sixteen pages you use, plus four that hold the whole thing together. Every one is a plain HTML
+Seventeen pages you use, plus four that hold the whole thing together. Every one is a plain HTML
 file, and every one reads live Indigo data through the same Bearer-authed API. Each has a page of
 notes here: what is on it, where the numbers come from, how often it refreshes, what you can do,
 and the things worth knowing before you trust it.
@@ -37,6 +37,7 @@ and the things worth knowing before you trust it.
 | [Active](active.md) | `active.html` | Everything currently on, across the whole house |
 | [Scenes](scenes.md) | `scenes.html` | Every Indigo action group as a button, grouped by folder |
 | [Weather](ecowitt.md) | `ecowitt.html` | The weather station in full |
+| [Air](levoit.md) | `levoit.html` | Levoit air purifiers: air quality, PM2.5, fan, mode and filter. Needs the Levoit Purifier plugin |
 | [Timeline](timeline.md) | `timeline.html` | Everything recorded: a day replayed, presence night by night, a chart of any state, and the house diary |
 
 ## Keeping watch

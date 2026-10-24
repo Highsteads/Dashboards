@@ -80,6 +80,7 @@
             ["heating.html",  "Heating",  "Zones, schedules, boost",           "heating",  "thermo"],
             ["cameras.html",  "Cameras",  "Every camera, live",                "cameras",  "camera"],
             ["ecowitt.html",  "Weather",  "The weather station",               "",         "cloudsun"],
+            ["levoit.html",   "Air",      "Purifier, air quality, filter",     "",         "purifier", "levoit"],
         ]},
         { key: "energy", title: "Energy", tiles: [
             ["energy.html",   "Energy",   "Solar, battery, grid, when to run it", "energy", "bolt", "sigen"],
@@ -164,11 +165,13 @@
     /* A tile for a page that needs something optional is dropped when config.js
        says it is absent: SigenEnergyManager for Energy and Cost (v3.13.0). Since
        3.48.2 nothing says why; a section left with no tiles is dropped whole.
-       Several needs join with "+". */
+       Several needs join with "+". 3.63.0: "levoit", the Levoit Purifier
+       plugin, for the Air page. */
     function tileHidden(t, cfgM) {
         cfgM = cfgM || {};
         return String(t[5] || "").split("+").filter(Boolean).some(need =>
-            (need === "sigen" && cfgM.sigenAvailable === false));
+            (need === "sigen" && cfgM.sigenAvailable === false) ||
+            (need === "levoit" && cfgM.levoitAvailable === false));
     }
 
     /* A tile's seventh element (3.48.4) is its description without

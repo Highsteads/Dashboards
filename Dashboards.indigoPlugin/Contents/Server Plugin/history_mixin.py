@@ -794,6 +794,32 @@ class HistoryMixin:
              "error": "the timeline is still being built — try again shortly"},
             status=503)
 
+    def _energy_today_rows(self, dev_id, start_epoch):
+        """[(epoch, kWh so far today)] for a plug, from start_epoch to now, in
+        time order - the readings its energyKwhToday state was logged with.
+        [] when the SQL Logger has none. PK-ranged like every other read here.
+        Raises ValueError when there is no history database at all."""
+        hist = self._history()
+        try:
+            conn = hist.connect()
+        except _history_db.HistoryUnavailable as exc:
+            raise ValueError(str(exc))
+        try:
+            col = "energykwhtoday"
+            if col not in hist.column_names(conn, dev_id):
+                return []
+            table = f"device_history_{int(dev_id)}"
+            start_utc = datetime.fromtimestamp(start_epoch, timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+            lo, _hi = self._pk_window(hist, conn, table, start_utc)
+            pk_sql, pk_args = self._pk_clause(lo, None)
+            rows = conn.execute(
+                f'SELECT {hist.epoch()}, CAST("{col}" AS REAL) FROM "{table}" '
+                f'WHERE ts >= ? AND "{col}" IS NOT NULL{pk_sql} ORDER BY id',
+                (start_utc, *pk_args)).fetchall()
+            return [(int(e), float(v)) for e, v in rows if e is not None and v is not None]
+        finally:
+            conn.close()
+
     def _pk_window(self, hist, conn, table, start_utc, end_utc=None):
         """Rowid bounds for a ts window, so a query can be PK-RANGED rather
         than ts-scanned. Returns (lo, hi); either may be None meaning

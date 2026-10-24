@@ -115,8 +115,9 @@ console.log("\nmenu.html — exactly the right tiles go");
     check("carbon and laundry are no longer menu tiles (v3.34.0: a card on Energy)",
           !tiles.some(t => t[0] === "carbon.html" || t[0] === "laundry.html"));
     const tagged = tiles.filter(t => t[5]).map(t => t[0] + ":" + t[5]).sort();
+    // 3.63.0: the Air tile needs the Levoit Purifier plugin, not Sigen.
     check("only those tiles carry a needs-key",
-          JSON.stringify(tagged) === JSON.stringify(["cost.html:sigen", "energy.html:sigen"]),
+          JSON.stringify(tagged) === JSON.stringify(["cost.html:sigen", "energy.html:sigen", "levoit.html:levoit"]),
           JSON.stringify(tagged));
     check("the filter is the one the sections use",
           /\.filter\(t => !tileHidden\(t, cfgM\)\)\.map\(t => tile\(\.\.\.tileArgs\(t, cfgM\)\)\)/.test(menu),

@@ -655,6 +655,22 @@ CHARGER_MODES        = ("fast", "eco", "ecoPlus", "stopped")
 CHARGER_BOOST_MODES  = ("eco", "ecoPlus")
 CHARGER_BOOST_MAX_KWH = 99
 
+# Air purifier (3.63.0): the Levoit Purifier plugin owns its devices and its
+# actions; the levoitControl handler only checks and forwards. Each command is
+# (that plugin's action id, the prop its action reads, the values allowed).
+# The tokens are the Levoit plugin's own (Actions.xml, levoit_logic) and the
+# Air page's; tests/test_levoit_control.py pins them together. On and off go
+# through the ordinary /v2/api/command turnOn / turnOff - the device is a relay.
+LEVOIT_PLUGIN_ID     = "com.clives.indigoplugin.levoit"
+LEVOIT_DEVICE_TYPE   = "levoitPurifier"
+LEVOIT_COMMANDS      = {
+    "fanSpeed":       ("setFanSpeed",       "speed",      ("1", "2", "3", "4")),
+    "mode":           ("setMode",           "mode",       ("auto", "manual", "sleep")),
+    "autoPreference": ("setAutoPreference", "preference", ("default", "efficient", "quiet")),
+    "childLock":      ("setChildLock",      "value",      ("on", "off")),
+    "display":        ("setDisplay",        "value",      ("on", "off")),
+}
+
 
 # ============================================================
 # Helpers
