@@ -155,8 +155,8 @@
         <div class="control-card" style="margin-top:16px" id="evo-panel" hidden>
             <h2>Timed boost</h2>
             <div class="ctrl-group">
-                <button id="evo-boost1" class="ctrl-btn primary" aria-pressed="false" onclick="callEvoAction('startTimedBoost1h', this)"><span data-icon="flame"></span>+2°C for 1 hour</button>
-                <button id="evo-boost2" class="ctrl-btn primary" aria-pressed="false" onclick="callEvoAction('startTimedBoost2h', this)"><span data-icon="flame"></span>+2°C for 2 hours</button>
+                <button id="evo-boost1" class="ctrl-btn primary" aria-pressed="false" onclick="callEvoAction('startTimedBoost1h', this)"><span data-icon="flame"></span>22°C for 1 hour</button>
+                <button id="evo-boost2" class="ctrl-btn primary" aria-pressed="false" onclick="callEvoAction('startTimedBoost2h', this)"><span data-icon="flame"></span>22°C for 2 hours</button>
                 <button class="ctrl-btn cancel" onclick="callEvoAction('cancelTimedBoost', this)">Cancel Boost</button>
             </div>
             <h2 class="ctrl-h2">Summer shut-off override</h2>
@@ -165,7 +165,7 @@
                 <button class="ctrl-btn cancel" onclick="callEvoAction('cancelForcedHeating', this)">Cancel override</button>
                 <button class="ctrl-btn status" onclick="callEvoAction('showSummerStatus', this)">Write status to the log</button>
             </div>
-            <p>Boost raises the configured rooms' scheduled targets. The summer override allows normal scheduled heating; it does not keep the radiators on.</p>
+            <p>Boost sets the boosted rooms to 22 degrees. The Conservatory is boosted only while its sliding door is open. The summer override allows normal scheduled heating; it does not keep the radiators on.</p>
             <p id="evo-timer-status" role="status">Checking active timers...</p>
             <div class="ctrl-toast" id="evo-toast"></div>
         </div>
@@ -362,8 +362,8 @@
     let _evoTimers = null;
     let _evoTimersAt = 0;
     const EVO_TIMER_BUTTONS = [
-        ["boost1", "+2°C for 1 hour", 1],
-        ["boost2", "+2°C for 2 hours", 2],
+        ["boost1", "22°C for 1 hour", 1],
+        ["boost2", "22°C for 2 hours", 2],
         ["summer", "Bypass summer shut-off for 24 hours", 24],
     ];
     function renderEvoTimers() {

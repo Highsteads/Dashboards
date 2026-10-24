@@ -14,7 +14,7 @@ timed controls where the heating plugin supports them.
 ## Down the page
 
 **Controls card.** Drawn only when the EvoHomeControl plugin is installed and enabled — the buttons
-are wired to that plugin's own actions. Two rows: *Timed boost* (+2 °C for one hour, +2 °C for two
+are wired to that plugin's own actions. Two rows: *Timed boost* (22 °C for one hour, 22 °C for two
 hours, Cancel boost) and *Summer shut-off override* (bypass summer shut-off for 24 hours, Cancel override, and a link that
 writes the current heating state into the Indigo event log). Each of them asks for the control
 PIN, once per session, when any heating zone on the page is on the PIN list (Settings → Security),
