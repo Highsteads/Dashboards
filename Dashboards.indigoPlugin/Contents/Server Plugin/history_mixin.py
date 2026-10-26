@@ -18,6 +18,7 @@ import os
 import re
 import sys as _sys
 import time
+import heating_history
 from datetime import datetime, timedelta, timezone
 
 try:
@@ -144,8 +145,10 @@ class HistoryMixin:
             max_points = min(1000, max(20, int(params.get("maxPoints") or 240)))
         except (ValueError, TypeError, OverflowError):
             max_points = 240
-        action = "states" if str(params.get("action") or "series").strip().lower() == "states" \
-            else "series"
+        action = str(params.get("action") or "series").strip().lower()
+        action = action if action in ("states", "heating") else "series"
+        if action == "heating":
+            hours = min(168.0, hours)
         return {"action": action, "dev_id": dev_id, "state": state,
                 "hours": hours, "max_points": max_points}
 
@@ -175,6 +178,22 @@ class HistoryMixin:
             if not cols:
                 raise ValueError(f"no history recorded for device {dev_id}")
             by_name = {c["name"]: c for c in cols}
+
+            if q["action"] == "heating":
+                result = heating_history.read_history(self, hist, conn, dev_id, by_name, q["hours"])
+                result["decisions"] = {"items": [], "available": False}
+                try:
+                    device = indigo.devices[dev_id]
+                    if device.pluginId == "uk.co.clives.ramses.esp":
+                        zone = str(device.states.get("zoneName") or "")
+                        if zone:
+                            directory = os.path.join(indigo.server.getInstallFolderPath(),
+                                "Preferences", "Plugins", "com.clives.indigoplugin.evohomecontrol", "logs")
+                            result["decisions"] = heating_history.decisions(
+                                directory, zone, result["start"], result["end"])
+                except (KeyError, AttributeError, OSError):
+                    pass  # History remains useful without the optional decision log.
+                return result
 
             if q["action"] == "states":
                 # count/min/max with no ts index is a FULL TABLE SCAN — on the

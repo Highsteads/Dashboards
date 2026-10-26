@@ -107,7 +107,7 @@ console.log("\na setpoint step is read back");
     checkEq("a second tap chains from the pending value", sent[1], 22);
     await flush();
     check("the plugin kept 20, so the tile says 20 again", els["sp-5"].textContent === "20.0°");
-    check("and says why", notes.some(n => n[0] === "device:5" && n[1] === "error"));
+    check("and says why", /Not confirmed/.test(T.zone._notices[5]) && notes.length === 0);
     els["sp-6"] = { dataset: { sp: "28" }, textContent: "28.0°" };
     checkEq("at the ceiling nothing is sent", await T.zone.bump(6, 1), false);
     els["sp-7"] = { dataset: { sp: "17.5" }, textContent: "17.5°" };
@@ -126,15 +126,39 @@ console.log("\na setpoint step is read back");
     checkEq("four quick taps send 9, 10, 11, 12", latest, 12);
     await flush();
     check("a radiator that took every tap draws no complaint", !notes.length, JSON.stringify(notes));
-    checkEq("and the tile keeps showing 12", els["sp-11"].textContent, "12°");
+    checkEq("and the tile keeps showing 12", els["sp-11"].textContent, "12.0°");
     // One tap the radiator ignores still gets its message, in its own words.
     notes.length = 0;
     T.bind({ setHeatSetpoint: async () => {}, getDevice: async () => ({ setpointHeat: 8 }) });
     els["sp-12"] = { dataset: { sp: "8" }, textContent: "8.0°" };
     await T.zone.bump(12, 1); await flush();
     check("an ignored change is still reported",
-          notes.some(n => n[0] === "device:12" && /still says 8\.0°/.test(n[2])), JSON.stringify(notes));
+          /still reports 8\.0 degrees/.test(T.zone._notices[12]) && notes.length === 0, JSON.stringify(notes));
     check("and no longer blames the plugin", !notes.some(n => /plugin running/.test(n[2])));
+}
+
+console.log("\na slow controller reply is not a refusal");
+{
+    let checks = 0;
+    T.bind({setHeatSetpoint:async()=>{},getDevice:async()=>({setpointHeat:++checks < 3 ? 15 : 11})});
+    els['sp-90']={dataset:{sp:'12'},textContent:'12.0°'};
+    await T.zone.bump(90,-1);
+    check("waiting is shown inline", /Waiting/.test(T.zone._notices[90]));
+    await flush();
+    checkEq("retries until the controller replies",checks,3);
+    check("delayed success is confirmed",/Confirmed at 11/.test(T.zone._notices[90]));
+    check("confirmed request no longer shadows the device",!T.zone._pending[90]);
+    let rejectOld;
+    T.bind({setHeatSetpoint:()=>new Promise((resolve,reject)=>{rejectOld=reject;}),getDevice:async()=>({setpointHeat:14})});
+    els['sp-91']={dataset:{sp:'12'},textContent:'12.0°'};
+    const old=T.zone.bump(91,1);
+    T.bind({setHeatSetpoint:async()=>{},getDevice:async()=>({setpointHeat:14})});
+    await T.zone.bump(91,1);
+    rejectOld(new Error('old request failed')); await old;
+    checkEq("an old failure does not erase the newer target",T.zone._pending[91].v,14);
+    await flush();
+    const html=T.zone.render({id:91,name:'Hall',states:{temperatureInput1:18,setpointHeat:14}},{history:true});
+    check("zone has a real keyboard-accessible history link",html.includes('href="heating.html?zone=91"'));
 }
 
 console.log("\na device tile pressed on the hub (v3.41.0)");

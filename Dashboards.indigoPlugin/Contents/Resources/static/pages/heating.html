@@ -131,6 +131,31 @@
         .control-card .ctrl-h2 { margin-top: 14px; }
         .ctrl-btn.primary.timer-active { background: #b42318; border-color: #b42318; color: #fff; }
         .ctrl-btn.primary.timer-active:hover { background: #912018; }
+        .heat-detail { margin-top:16px; background:var(--card-bg); border-radius:var(--r-lg); padding:18px; }
+        .heat-toolbar { display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin:16px 0; }
+        .heat-toolbar select { max-width:100%; padding:10px; background:var(--bg); color:var(--text); border:1px solid var(--border); border-radius:8px; }
+        .heat-detail h2 { font-size:18px; margin-bottom:8px; }
+        .heat-nav { display:grid; grid-template-columns:40px minmax(0,1fr) 40px; }
+        .heat-nav select { display:block; width:100%; }
+        .heat-nav button { padding:10px; }
+        .heat-toolbar label { min-width:0; font-size:14px; }
+        .heat-range[aria-pressed="true"] { background:var(--accent); color:white; }
+        .heat-chart { height:340px; margin-top:16px; }
+        #heat-status,.heat-help,#heat-reason-status { font-size:13px; color:var(--text-secondary); line-height:1.5; }
+        .heat-call { position:relative; height:26px; margin:8px 0 16px; overflow:hidden; border-radius:5px; }
+        .heat-call span { position:absolute; height:100%; }
+        .heat-call .calling { background:#ed9b33; }
+        .heat-call .resting { background:#687681; }
+        .heat-call .unknown { background:repeating-linear-gradient(45deg,#58616b 0 4px,transparent 4px 8px); }
+        .heat-strip-label { font-size:13px; margin-top:10px; }
+        .heat-strip-label span { color:var(--text-secondary); }
+        #heat-summary { line-height:1.6; margin:12px 0; }
+        .heat-detail details { margin-top:22px; }
+        .heat-detail summary { cursor:pointer; font-weight:600; padding:10px 0; }
+        #heat-events { padding-left:22px; max-height:340px; overflow:auto; }
+        #heat-events li { padding:8px 0; font-size:14px; line-height:1.5; }
+        #heat-events time { color:var(--text-secondary); display:block; font-size:12px; }
+        @media(max-width:500px) { .heat-detail { padding:12px; } .heat-chart { height:280px; } }
 </style>
     <link rel="stylesheet" href="dashboards-chrome.css">
 </head>
@@ -189,6 +214,8 @@
     <script src="dashboard.js"></script>
     <script src="dashboards-action.js"></script>
     <script src="dashboards-controls.js"></script>
+    <script src="chart.umd.min.js"></script>
+    <script src="heating-history.js"></script>
     <script>
     // ── Refresh status: drives Updated / Next refresh in both top + bottom bar.
     const POLL_INTERVAL_MS = 3000;
@@ -326,12 +353,19 @@
     }
 
     // The zones on screen, for the boost buttons' PIN check (3.46.0).
+    const detailZone = Number(new URLSearchParams(location.search).get('zone'));
     let _shownZoneIds = [];
     function render(devices) {
         const zones = devices
             .filter(isZone)
             .sort((a, b) => a.name.localeCompare(b.name));
         _shownZoneIds = zones.map(d => d.id);
+        if (detailZone) {
+            const out = devices.find(d => { const st = d.states || {}; return st.temperature !== undefined && st.humidity !== undefined && st.dewPoint !== undefined && !/indoor/i.test(d.name || ''); });
+            HeatingHistory.setOutside(out ? out.id : null);
+            HeatingHistory.mount(indigo, detailZone, zones);
+            return;
+        }
 
         if (zones.length === 0) {
             document.getElementById("content").innerHTML = '<p class="loading">No heating zones returned by the API.</p>';
@@ -341,7 +375,7 @@
         document.getElementById("content").innerHTML =
             houseSummaryCard(zones, devices) +
             '<div class="grid">' +
-            zones.map(d => DashTile.zone.render(d)).join("") +
+            zones.map(d => DashTile.zone.render(d, {history: true})).join("") +
             '</div>';
     }
 

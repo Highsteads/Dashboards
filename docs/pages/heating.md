@@ -30,7 +30,7 @@ warmest with its name, and the outside temperature. A coloured edge on the strip
 anything is calling.
 
 **Zone grid.** One card per zone: the name, the current temperature large, a setpoint stepper with
-minus and plus, the valve state, and how long ago the zone was last heard from. A zone at an unusual
+minus and plus, the heat-demand status, and how long ago the zone was last heard from. A zone at an unusual
 temperature is coloured — blue when cold, amber when warm — so the grid reads at a glance.
 
 **Footer.** Last update and the refresh cadence.
@@ -39,7 +39,7 @@ temperature is coloured — blue when cold, amber when warm — so the grid read
 
 | Part | Source |
 |---|---|
-| Zone temperatures, setpoints, valve state, last heard | Indigo thermostat devices via `/v2/api`, through the shared delta cache |
+| Zone temperatures, setpoints, heat demand, last heard | Indigo thermostat devices via `/v2/api`, through the shared delta cache |
 | Room membership and titles | `rooms.json` |
 | Timer status | `evoHomeStatus`, reading only the timer fields from EvoHomeControl's saved state |
 | Boost and summer bypass buttons | `evoHomeAction`, which passes the call through to the EvoHomeControl plugin |
@@ -61,8 +61,40 @@ Zone readings and timer status refresh every three seconds. The countdown ticks 
 
 ## Worth knowing
 
-- A setpoint change is read back after being sent. A stopped heating plugin swallows the command
+- A setpoint change is read back repeatedly after being sent. A stopped heating plugin swallows the command
   without an error, so the tile would otherwise show the new number as if it had landed when
   nothing moved.
 - "Last heard" is the honest clock for a battery radiator valve. One that has not spoken for hours
   is a valve to go and look at, whatever its temperature reads.
+
+## A room's heating history
+
+Tap anywhere on a room tile apart from its temperature buttons to open its history. It starts
+with the last 24 hours. The room selector and arrows move between zones; each radiator keeps
+its own graph, including rooms with two radiators. The Heating link returns to the overview.
+
+- Blue is the room temperature. The dashed amber line is its target.
+- The strip underneath is orange while the thermostat reports calling for heat, grey when it
+  reports no demand, and striped when the readings are unknown. It does not measure radiator
+  heat or prove the boiler is firing.
+- Select **Outside temperature** to add the weather sensor's recorded temperature, when available.
+- Choose **6 hours**, **24 hours** or **7 days**. The history refreshes once a minute.
+- Purple dots and **What changed** show EvoHomeControl's recorded requests and reasons, when
+  its decision logs are available. Thermostat-reported target changes are listed separately.
+  A requested target is not confirmation that it reached the thermostat.
+
+The graph needs SQL Logger history. The reader keeps individual target changes and short
+heating calls rather than averaging them. Readings more than three hours old are treated as
+unknown, using the temperature-report heartbeat where it is recorded. Missing history is
+shown honestly; an unusually busy history or decision log reports when a read limit is reached.
+Repeated autumn-hour decision times cannot be placed reliably and are omitted with a note.
+The graph's elapsed time remains correct across the clock changes.
+
+## Temperature changes and confirmation
+
+The buttons show the requested temperature straight away, with **Waiting for confirmation**
+below them. The dashboard checks every five seconds for up to five minutes, allowing the radio
+controller time to report back. A confirmed temperature replaces the waiting message. If it
+cannot confirm, it says what the controller still reports, without hiding the room or its
+buttons. A schedule or window rule can still change the target; an unconfirmed request alone
+does not prove a radio fault. PIN protection and read-only guest access still apply.

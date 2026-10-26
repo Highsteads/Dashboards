@@ -193,10 +193,11 @@
   /* ---- heating zone ---------------------------------------------------- */
   var SETPOINT_MIN = 8;      // RAMSES TRVs clamp at 8°C — 5 was silently raised
   var SETPOINT_MAX = 28;
-  var PENDING_MS   = 4000;   // how long a sent setpoint shows before the device's own wins
-  var READBACK_MS  = 2500;
+  var PENDING_MS   = 305000;   // bound confirmation waiting; RAMSES retries for five minutes
+  var READBACK_MS  = 5000;
   var TRV_STALE_MS = 3 * 3600 * 1000;   // flag a TRV unheard for more than 3 hours
   var pending = {};          // device id -> { v, t }
+  var notices = {};          // inline feedback, never an opaque tile overlay
   var presses = {};          // device id -> how many presses so far (see bump)
 
   function currentTemp(d) {
@@ -260,7 +261,7 @@
     var humidity = parseFloat(s.humidityInput1);
     // hvacMode is the system's heat/off setting, "Heat" on every RAMSES zone,
     // so it is only worth saying when it is Off.
-    var status = /off/i.test(d.hvacMode || '') ? 'Off' : (hot ? 'Heating' : 'Valve closed');
+    var status = /off/i.test(d.hvacMode || '') ? 'Off' : (hot ? 'Calling for heat' : 'Not calling for heat');
     var meta = [esc(status)];
     if (isFinite(humidity)) meta.push(esc(humidity.toFixed(0) + '% RH'));
     if (!isNaN(valve) && valve > 0) meta.push(esc('valve ' + valve.toFixed(0) + '%'));
@@ -279,7 +280,8 @@
     return '' +
       '<div class="zone' + (hot ? ' heating' : '') + '" data-dsh-act-key="device:' + d.id + '">' +
         '<div class="zone-head">' +
-          '<div class="name-row"><div class="zone-name">' + name + '</div>' + info + '</div>' +
+          '<div class="name-row"><div class="zone-name">' + (opts.history ?
+            '<a class="zone-history-link" href="heating.html?zone=' + Number(d.id) + '">' + name + '</a>' : name) + '</div>' + info + '</div>' +
           '<div class="zone-flame' + (hot ? ' on' : '') + '">' + icon('flame') + '</div>' +
         '</div>' +
         '<div class="temps"><div class="cur-temp ' + tempClass(cur) + '">' +
@@ -292,6 +294,7 @@
           '<button class="setpoint-btn" onclick="DashTile.zone.bump(' + d.id + ', 1)" aria-label="Raise ' + name + ' setpoint"' + dis + '>+</button>' +
         '</div>' +
         '<div class="zone-meta">' + meta.map(function (m) { return '<span>' + m + '</span>'; }).join('') + '</div>' +
+        '<div class="zone-notice" id="zone-note-' + d.id + '" role="status">' + esc(notices[d.id] || '') + '</div>' +
       '</div>';
   }
 
@@ -317,31 +320,53 @@
     pending[id] = { v: next, t: Date.now() };
     var mine = presses[id] = (presses[id] || 0) + 1;
     el.textContent = next.toFixed(0) + '°';
+    function note(text) {
+      if (presses[id] !== mine) return;
+      notices[id] = text;
+      var node = root.document.getElementById('zone-note-' + id);
+      if (node) node.textContent = text;
+    }
+    note('Waiting for ' + next.toFixed(0) + ' degrees to be confirmed.');
     return Promise.resolve(api.setHeatSetpoint(id, next)).then(function () {
-      root.setTimeout(function () {
-        if (presses[id] !== mine) return;         // a later press will check instead
-        Promise.resolve(api.getDevice(id)).then(function (d) {
+      var attempts = 0;
+      function check() {
+        if (presses[id] !== mine) return Promise.resolve();
+        attempts++;
+        return Promise.resolve(api.getDevice(id)).then(function (d) {
           if (presses[id] !== mine) return;
           var got = d ? setpoint(d) : null;
-          if (got != null && Math.abs(got - next) >= 0.5) {
+          var live = root.document.getElementById('sp-' + id) || el;
+          if (got != null && isFinite(got) && Math.abs(got - next) < 0.5) {
             delete pending[id];
-            // The tile may have been redrawn by the poll since the press.
-            var live = root.document.getElementById('sp-' + id) || el;
+            live.dataset.sp = String(got);
             live.textContent = got.toFixed(1) + '°';
-            // Say what is known — the radiator's own figure — not a guess at
-            // the cause, which the old wording blamed on the plugin.
-            var msg = 'The radiator still says ' + got.toFixed(1) + '° — the change did not take';
-            try { if (root.DashAction) root.DashAction.note('device:' + id, 'error', msg); } catch (_) {}
-            // The Heating page has its own message line and no DashAction.
-            var t = root.document.getElementById('evo-toast');
-            if (t) { t.textContent = msg; t.className = 'ctrl-toast err'; }
+            note('Confirmed at ' + got.toFixed(0) + ' degrees.');
+            return;
           }
-        }).catch(function () {});
-      }, READBACK_MS);
+          if (attempts < 60) {
+            root.setTimeout(check, READBACK_MS);
+            return;
+          }
+          delete pending[id];
+          live.textContent = got == null || !isFinite(got) ? '—' : got.toFixed(1) + '°';
+          note('Not confirmed after five minutes.' + (got == null || !isFinite(got) ?
+            ' The current target is unavailable.' : ' The controller still reports ' + got.toFixed(1) + ' degrees.') +
+            ' A heating rule may have changed it.');
+        }).catch(function () {
+          if (presses[id] !== mine) return;
+          if (attempts < 60) { root.setTimeout(check, READBACK_MS); return; }
+          delete pending[id];
+          note('Cannot check the temperature change. The connection is unavailable.');
+        });
+      }
+      root.setTimeout(check, READBACK_MS);
       return true;
-    }).catch(function () {
+    }).catch(function (error) {
+      if (presses[id] !== mine) return false;
       delete pending[id];
-      el.textContent = actual.toFixed(1) + '°';
+      var live = root.document.getElementById('sp-' + id) || el;
+      live.textContent = actual.toFixed(1) + '°';
+      note('Not sent: ' + String(error && error.message || 'connection failed'));
       return false;
     });
   }
@@ -368,6 +393,7 @@
       SETPOINT_MIN: SETPOINT_MIN,
       SETPOINT_MAX: SETPOINT_MAX,
       _pending: pending,
+      _notices: notices,
     },
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -2,11 +2,11 @@
 
 **Your house on a screen — energy, cameras, heating, every room, and the whole day replayed.**
 
-**Version:** 3.63.1 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
+**Version:** 3.64.0 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
 
 **[Read the full guide](https://highsteads.github.io/Dashboards/)** — setting up, a page of notes for every one of the 21 pages, and what to do when something goes wrong.
 
-<img src="https://img.shields.io/badge/version-3.63.1-5856d6" alt="Version 3.63.1">
+<img src="https://img.shields.io/badge/version-3.64.0-5856d6" alt="Version 3.64.0">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-21-0a84ff" alt="21 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
@@ -91,11 +91,11 @@ The [Getting started](https://highsteads.github.io/Dashboards/getting-started.ht
 
 ## What's new
 
+**3.64.0** (26-Oct-2026) - **Tap a heating zone to see its history.** Each room opens on the last 24 hours, with temperature and target lines, a separate calling-for-heat strip, recorded controller requests and an optional outside-temperature line. Choose six hours or seven days, and move between zones without combining separate radiators. Missing or stale readings stay unknown. Temperature buttons now wait for the controller to confirm instead of declaring failure after 2.5 seconds; waiting and unconfirmed messages sit below the controls and never cover the tile.
+
 **3.63.1** (24-Oct-2026) - The heating page's boost buttons now read 22 degrees, and its note says the boosted rooms are set to 22 degrees, with the Conservatory boosted only while its sliding door is open. The behaviour comes from EvoHomeControl 1.24.0, so update both.
 
 **3.63.0** (24-Oct-2026) - **A new Air page for Levoit air purifiers.** If you use the Levoit Purifier plugin, the menu gains an **Air** tile, and the page shows each purifier: PM2.5 large, coloured by the purifier's own verdict on the air, a switch to turn it on and off, buttons for the mode and the four fan speeds, how hard automatic mode works, the child lock and the display light, how much life the filter has left with a warning below 10%, and a chart of PM2.5 over the last day or week. Each press goes to the Levoit plugin's own action, which sends it to the purifier and reads it back, and the button you press turns red at once and goes blue when the purifier has changed. If the purifier runs from a plug that measures power, the page also shows what it is drawing now and what it has cost today and over the last seven days, priced at Flux's cheap 2am to 5am rate because the battery it runs from is filled then. The controls follow the same PIN and guest rules as everything else. On an install without that plugin the tile does not appear, and nothing else changes.
-
-**3.62.0** (20-Oct-2026) - **Heating buttons show their active timers.** The one-hour or two-hour boost and the summer shut-off override turn red while active, with a countdown inside each button. The timers come from the heating controller, so reloading the page or opening another device keeps the same expiry. An unavailable controller is shown as unknown. The 24-hour button now says "Bypass summer shut-off": it allows normal scheduled heating, rather than holding radiators on. A boost still stops calling for heat when its target is reached. The bundled log watcher also includes the existing credential-redaction fix.
 
 ## Authors & licence
 

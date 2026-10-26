@@ -104,6 +104,8 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_guest_scrub.py` | A guest-token holder must never receive plugin props. The |
 | `test_guest_variables.py` | A guest reads only the Indigo variables it is allowed (3.46.0). |
 | `test_heating_boost_pin.mjs` | The Heating page's boost and force buttons go through the PIN |
+| `test_heating_history.mjs` | Real heating plot transformations: sparse changes, unknowns and clocks. |
+| `test_heating_history.py` | Sparse heating history, query bounds and recorded reasons. |
 | `test_heating_timers.mjs` |  |
 | `test_heating_timers.py` | Heating timers use persisted, offset-aware expiries, never button press times.""" |
 | `test_history_db.py` | Contract tests for history_db.py — the SQL Logger artefact |

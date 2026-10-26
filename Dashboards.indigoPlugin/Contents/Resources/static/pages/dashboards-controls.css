@@ -50,3 +50,12 @@
    dash and the reason, so it reads as out of service, not as live. */
 .light-card.unknown, .env-card.unknown, .appliance-card.unknown, .motion-card.unknown { opacity: 0.6; }
 .light-card.unknown .toggle { cursor: not-allowed; }
+
+/* Heating history links cover the tile without covering its controls. */
+.zone { position: relative; }
+.zone-history-link { color: inherit; text-decoration: none; }
+.zone-history-link::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+.zone-history-link:focus-visible::after { outline: 3px solid var(--accent); outline-offset: 2px; }
+.zone .setpoint-btn, .zone .info-btn { position: relative; z-index: 1; }
+.zone-notice { font-size: 12px; line-height: 1.4; color: var(--text-secondary); margin-top: 8px; }
+.zone-notice:empty { display: none; }
