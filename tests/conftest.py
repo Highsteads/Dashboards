@@ -7,7 +7,7 @@
 #              suite (v2.36.0); Stage 4 of the deep review builds it out.
 # Author:      CliveS & Claude Fable 5
 # Date:        15-07-2026
-# Version:     1.1 (3.47.0: the change callbacks on the PluginBase stub)
+# Version:     1.2 (explicit patched methods survive pytest 9.2 cleanup)
 
 import os
 import sys
@@ -63,6 +63,11 @@ def load_plugin_module():
     for attr in ("server", "devices", "variables", "kStateImageSel",
                  "kDeviceAction", "activePlugin", "actionGroup", "trigger"):
         setattr(ind, attr, MagicMock())
+    # pytest 9.2 restores the instance __dict__, not dynamic __getattr__ children.
+    # These patched methods must exist there or undo() deletes them permanently.
+    ind.server.getPlugin = MagicMock()
+    ind.server.getInstallFolderPath = MagicMock()
+    ind.devices.iter = MagicMock()
     sys.modules["indigo"] = ind
 
     # Optional third-party libs the plugin imports at module or method level.

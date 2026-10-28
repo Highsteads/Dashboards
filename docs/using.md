@@ -159,3 +159,5 @@ browser tab.
 
 Links inside the standalone app stay inside it — tapping through to room pages, the camera grid and
 so on does not bounce out to the browser.
+
+On screens up to 600 pixels wide, Favourites uses three columns for controls, readings and room shortcuts. Names wrap, and the camera layout is unchanged.

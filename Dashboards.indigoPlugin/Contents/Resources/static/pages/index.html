@@ -118,6 +118,14 @@
         .fav-state.val { font-size: 17px; font-weight: 700; color: var(--text);
             font-variant-numeric: tabular-nums; }
 
+        /* Three favourites across on phones, with room for two-line names. */
+        @media (max-width: 600px) {
+            #favourites .fav-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; grid-auto-rows: 112px; }
+            .fav-tile { min-width: 0; padding: 10px 8px; }
+            .fav-name, .fav-state { overflow-wrap: anywhere; flex-shrink: 0; }
+            .fav-state.val { font-size: 14px; line-height: 1.2; }
+        }
+
         /* ── v2.93.0 — group favourite: several devices, one tile ────────
            Borrows the on-tile border so a group that is fully on looks like a
            device that is on. PARTIAL gets its own dashed border rather than a

@@ -2,11 +2,11 @@
 
 **Your house on a screen — energy, cameras, heating, every room, and the whole day replayed.**
 
-**Version:** 3.65.0 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
+**Version:** 3.65.1 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
 
 **[Read the full guide](https://highsteads.github.io/Dashboards/)** — setting up, a page of notes for every one of the 21 pages, and what to do when something goes wrong.
 
-<img src="https://img.shields.io/badge/version-3.65.0-5856d6" alt="Version 3.65.0">
+<img src="https://img.shields.io/badge/version-3.65.1-5856d6" alt="Version 3.65.0">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-21-0a84ff" alt="21 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
@@ -95,11 +95,11 @@ The [Getting started](https://highsteads.github.io/Dashboards/getting-started.ht
 
 ## What's new
 
+**3.65.1** (28-Oct-2026) - **Three favourites across on phones.** The hub's favourite controls, readings and room shortcuts now use three columns on narrow screens, with wrapped names and comfortable tap areas. Camera layouts stay as they were in 3.65.0. The test harness now gives patched Indigo server methods explicit attributes so test cleanup cannot remove them from later tests.
+
 **3.65.0** (28-Oct-2026) - **Open the camera you tapped, with a clearer picture of what it is showing.** A camera on the hub or a room page now opens enlarged on Cameras, and the selected camera takes one existing live-video slot whenever the connection allows one. Choose Selected camera or All cameras, and use the full-screen button for a closer look. Every tile shows its name and picture freshness. Addresses and individual data rates sit behind Details, with a shorter footer on phones. The hub stops its video and picture requests after the camera strip has been off screen for two seconds, and resumes when it returns. The existing slow-link fallback, retry limits and iPhone tap-to-play support stay in place.
 
 **3.64.0** (26-Oct-2026) - **Tap a heating zone to see its history.** Each room opens on the last 24 hours, with temperature and target lines, a separate calling-for-heat strip, recorded controller requests and an optional outside-temperature line. Choose six hours or seven days, and move between zones without combining separate radiators. Missing or stale readings stay unknown. Temperature buttons now wait for the controller to confirm instead of declaring failure after 2.5 seconds; waiting and unconfirmed messages sit below the controls and never cover the tile.
-
-**3.63.1** (24-Oct-2026) - The heating page's boost buttons now read 22 degrees, and its note says the boosted rooms are set to 22 degrees, with the Conservatory boosted only while its sliding door is open. The behaviour comes from EvoHomeControl 1.24.0, so update both.
 
 ## Authors & licence
 

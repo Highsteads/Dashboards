@@ -104,6 +104,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_go2rtc_supervise.py` | The go2rtc supervisor must keep trying after a FAILED restart. |
 | `test_guest_scrub.py` | A guest-token holder must never receive plugin props. The |
 | `test_guest_variables.py` | A guest reads only the Indigo variables it is allowed (3.46.0). |
+| `test_harness_patch_restore.py` | Shared mock methods survive test cleanup. |
 | `test_heating_boost_pin.mjs` | The Heating page's boost and force buttons go through the PIN |
 | `test_heating_history.mjs` | Real heating plot transformations: sparse changes, unknowns and clocks. |
 | `test_heating_history.py` | Sparse heating history, query bounds and recorded reasons. |

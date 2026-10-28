@@ -117,3 +117,5 @@ control anything at all.
   to the page. Until it knows, it shows stills.
 - The build number under the greeting is the fastest way to tell whether a wall tablet is running
   old JavaScript after an upgrade.
+
+On screens up to 600 pixels wide, Favourites uses three columns for controls, readings and room shortcuts. Names wrap, and the camera layout is unchanged.
