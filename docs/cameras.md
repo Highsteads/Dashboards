@@ -109,15 +109,14 @@ Each tile on the Cameras page carries a badge:
 Whether a tile goes live depends on how fast the connection is, not on where you are. The page
 shows stills until it has timed the connection, by downloading a few full-size stills from the
 server at once. It then lets as many tiles go live as that speed carries at twice what each one
-needs, up to `livePoolSize` (default six): a fast link gets them all, a slower one fewer, and one
-with room for a single stream gets the tile you have tapped to the top. A link too slow for even
+needs, up to `livePoolSize` (default six): a fast link gets them all, a slower one fewer, and the camera you select always gets one available slot. A link too slow for even
 one gets stills everywhere. Over the Indigo reflector nothing is live, however fast, because it
 fronts neither video port and Indigo's servers would carry every byte. The timing is kept for three
 minutes and taken again after that when you come back to the page, or at once where the browser
 says the network has changed. A link at the bottom of the page, "this device is", tells the page
 when this browser is on the house wi-fi, which sets how often the stills refresh.
 
-After ten minutes with nobody touching the page, everything stops. Tap anywhere to start it again.
+Over the reflector, ten idle minutes pause the page. Tap anywhere to resume.
 
 ## Bandwidth
 
@@ -137,7 +136,10 @@ The hub carries a strip of up to four cameras, the ones marked "main" in the con
 the connection is fast enough for all of them, by the same timing as the Cameras page, each plays
 live video over its still. Where it is not, and always over the reflector, they are stills that
 cross-fade from frame to frame. A camera with a `room` in its entry also appears on that room's
-page, as a still that does not stream. Tap a tile and the Cameras page opens with it at the top.
+page, as a still that does not stream. Tap a tile and the Cameras page opens with it selected at the top, using one available live slot.
+The hub shows camera names and freshness and stops video and picture requests when the strip
+has been off screen for two seconds. Cameras offers Selected camera and All cameras layouts,
+full screen, and a Details button for addresses and connection figures.
 
 ## Camera makes
 

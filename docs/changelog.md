@@ -9,6 +9,8 @@ Every release, newest first. The three most recent also appear under **What's ne
 [README](https://github.com/Highsteads/Dashboards#whats-new). This page is the whole record.
 Dates are day-month-year.
 
+**3.65.0** (28-Oct-2026) - **Open the camera you tapped, with a clearer picture of what it is showing.** A camera on the hub or a room page now opens enlarged on Cameras, and the selected camera takes one existing live-video slot whenever the connection allows one. Choose Selected camera or All cameras, and use the full-screen button for a closer look. Every tile shows its name and picture freshness. Addresses and individual data rates sit behind Details, with a shorter footer on phones. The hub stops its video and picture requests after the camera strip has been off screen for two seconds, and resumes when it returns. The existing slow-link fallback, retry limits and iPhone tap-to-play support stay in place.
+
 **3.64.0** (26-Oct-2026) - **Tap a heating zone to see its history.** Each room opens on the last 24 hours, with temperature and target lines, a separate calling-for-heat strip, recorded controller requests and an optional outside-temperature line. Choose six hours or seven days, and move between zones without combining separate radiators. Missing or stale readings stay unknown. Temperature buttons now wait for the controller to confirm instead of declaring failure after 2.5 seconds; waiting and unconfirmed messages sit below the controls and never cover the tile.
 
 **3.63.1** (24-Oct-2026) - The heating page's boost buttons now read 22 degrees, and its note says the boosted rooms are set to 22 degrees, with the Conservatory boosted only while its sliding door is open. The behaviour comes from EvoHomeControl 1.24.0, so update both.

@@ -192,6 +192,12 @@
             box-shadow: var(--shadow); cursor: pointer;
             display: block;
         }
+        .home-cam-caption { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; padding: 7px 9px; background: var(--card-bg); color: var(--text); font-size: 12px; }
+        .home-cam-name { font-weight: 600; }
+        .home-cam-status { color: var(--text-secondary); }
+        .home-cam-status[data-old="true"] { color: var(--bad); }
+        .home-cam { text-decoration: none; display: flex; flex-direction: column; min-width: 0; }
+        .home-cam-caption { flex: 1; align-content: flex-start; }
         .home-cam-frame { aspect-ratio: 16 / 9; background: #000; overflow: hidden; }
         .home-cam-frame { position: relative; }
         .cam-badge {
@@ -935,6 +941,54 @@
     let _measuredLink = null;    // set once the link has been timed, not guessed
     let _stripIdle  = false;     // reflector only: pictures paused until a tap (v2.96.1)
     let _stripGuard = null;
+    let _stripInView = true;
+    let _stripObserver = null;
+    let _stripLeaveTimer = null;
+    const HUB_OFFSCREEN_GRACE_MS = 2000;
+    function _hubObserve(mount) {
+        if (_stripObserver) _stripObserver.disconnect();
+        if (_stripLeaveTimer) clearTimeout(_stripLeaveTimer);
+        _stripLeaveTimer = null;
+        if (!("IntersectionObserver" in window)) return;
+        _stripObserver = new IntersectionObserver(entries => {
+            const visible = entries.some(e => e.isIntersecting);
+            if (_stripLeaveTimer) clearTimeout(_stripLeaveTimer);
+            _stripLeaveTimer = null;
+            if (visible) {
+                const returning = !_stripInView;
+                _stripInView = true;
+                if (returning && !document.hidden) {
+                    mount.querySelectorAll("img[data-host]").forEach(img => window._hubSwapIn && window._hubSwapIn(img, true));
+                    _hubDecide();
+                }
+            } else {
+                _stripLeaveTimer = setTimeout(() => {
+                    _stripLeaveTimer = null;
+                    _stripInView = false;
+                    _hubStopAllLive();
+                }, HUB_OFFSCREEN_GRACE_MS);
+            }
+        });
+        _stripObserver.observe(mount);
+    }
+    function _hubPictureWords(img, now) {
+        const frame = img.parentNode;
+        if (frame.classList.contains("is-live")) return "Live";
+        if (img._hubPictureError) return "Picture unavailable";
+        if (!img._stillObj) return "Waiting for picture";
+        const modified = Date.parse(img._stillMod);
+        if (!Number.isFinite(modified) || modified > now + 1500) return "Picture age unknown";
+        const seconds = Math.max(0, Math.floor((now - modified) / 1000));
+        return seconds < 60 ? `Picture ${seconds}s old` : `Picture ${Math.floor(seconds / 60)}m old`;
+    }
+    function _hubPictureStatus(img) {
+        const el = img.closest(".home-cam").querySelector(".home-cam-status");
+        if (!el) return;
+        el.textContent = _hubPictureWords(img, Date.now());
+        const modified = Date.parse(img._stillMod);
+        el.dataset.old = String(!img.parentNode.classList.contains("is-live")
+            && (!!img._hubPictureError || (Number.isFinite(modified) && Date.now() - modified > 10000)));
+    }
 
     document.addEventListener("visibilitychange", () => {
         // A hidden page holds no live camera stream; showing it again asks
@@ -990,7 +1044,7 @@
         const cfg = window.CAMERA_CONFIG || {};
         return _hubLiveWanted(_hubVerdict, {
             link:    window.DashUI && DashUI.linkClass ? DashUI.linkClass() : "reflector",
-            hidden:  document.hidden,
+            hidden:  document.hidden || !_stripInView,
             canRtc:  ("RTCPeerConnection" in window) && !!window.DashRTC,
             hasPath: !!cfg.webrtcPath,
         });
@@ -1000,7 +1054,7 @@
     function _hubDecide() {
         if (_hubDeciding) return _hubDeciding;
         const hosts = (window.CAMERA_CONFIG || {}).mainCameras || [];
-        if (!hosts.length || !window.DashRTC || document.hidden) return Promise.resolve();
+        if (!hosts.length || !window.DashRTC || document.hidden || !_stripInView) return Promise.resolve();
         _hubDeciding = DashRTC.decide(hosts.length, { hosts })
             .then(v => {
                 _hubVerdict = v;
@@ -1109,8 +1163,9 @@
             _stripTimers.forEach(t => { clearInterval(t); clearTimeout(t); });
             _stripTimers = [];
             mount.innerHTML = hosts.map(host => `
-                <a class="home-cam" href="cameras.html" title="${escapeAttr(names[host] || host)}">
+                <a class="home-cam" href="cameras.html?camera=${encodeURIComponent(host)}" title="${escapeAttr(names[host] || host)}">
                     <div class="home-cam-frame cam-nopic"></div>
+                    <div class="home-cam-caption"><span class="home-cam-name">${escapeAttr(names[host] || host)}</span><span class="home-cam-status">Picture unavailable</span></div>
                 </a>`).join("");
             return;
         }
@@ -1155,12 +1210,13 @@
             // not read as a frozen one.
             const badge = link === "home" ? "" : `<span class="cam-badge">${pollMs / 1000}s</span>`;
             return `
-                <a class="home-cam" href="cameras.html" title="${escapeAttr(name)}">
+                <a class="home-cam" href="cameras.html?camera=${encodeURIComponent(host)}" title="${escapeAttr(name)}">
                     <div class="home-cam-frame" data-host="${escapeAttr(host)}">
                         <img crossorigin="anonymous" alt="${escapeAttr(name)}"
                              data-host="${escapeAttr(host)}">
                         ${badge}
                     </div>
+                    <div class="home-cam-caption"><span class="home-cam-name">${escapeAttr(name)}</span><span class="home-cam-status">Waiting for picture</span></div>
                 </a>`;
         }).join("");
 
@@ -1170,7 +1226,7 @@
         // page opened in the background has its strip ready when looked at.
         const swapIn = (img, first) => {
             if (document.hidden && !first) return;   // nothing to see; send nothing
-            if (_stripIdle) return;               // reflector, nobody has touched the page in 10 min
+            if (_stripIdle || !_stripInView) return; // no new pictures while not being watched
             // The strip is rebuilt on resize, so a pending stagger timer can
             // outlive the tile it was made for.
             if (!img.isConnected) return;
@@ -1178,7 +1234,12 @@
             // it is not fetched. A failed stream asks for one straight away.
             if (img.parentNode && img.parentNode.classList.contains("is-live")) return;
             const next = url(still, img.dataset.host);
-            DashUI.refreshStill(img, next).catch(e => {
+            DashUI.refreshStill(img, next).then(result => {
+                if (result === true || result === "same") img._hubPictureError = false;
+                _hubPictureStatus(img);
+            }).catch(e => {
+                img._hubPictureError = true;
+                _hubPictureStatus(img);
                 // No thumbnail on the server (404): it has nothing to shrink
                 // pictures with. Fall the whole strip back to the full-size
                 // pictures. Only ever demotes, so this cannot flap, and a
@@ -1189,6 +1250,10 @@
         window._hubSwapIn = swapIn;
         const imgs = Array.from(mount.querySelectorAll("img[data-host]"));
         imgs.forEach(img => swapIn(img, true));
+        _stripTimers.push(setInterval(() => {
+            if (!document.hidden) imgs.forEach(_hubPictureStatus);
+        }, 1000));
+        _hubObserve(mount);
         imgs.forEach((img, i) => {
             const offset = Math.round(pollMs * (i / imgs.length));
             _stripTimers.push(setTimeout(() => {

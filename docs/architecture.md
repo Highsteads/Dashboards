@@ -73,8 +73,8 @@ The shared scripts, in the order a page loads them:
   id>/`, never served): `dashboards_config.json` (the Settings page's store, and the alert rules)
   with a `.bak` beside it, `guest_token.txt`, and `alert_firings.json`, the last fifty alert
   firings, so a restart does not lose them. All three are 0600.
-- **The plugin's proxy on port 8177** for camera streams and stills, guest pairing and WebRTC
-  signalling. LAN and Tailscale only.
+- **The plugin's proxy on port 8177** for guest pairing and WebRTC signalling. Live video
+  travels directly from go2rtc on port 8555; stills use IWS. LAN and Tailscale only.
 - **The SQL Logger's history database**, read by primary-key range after a binary search for the
   row boundary — never by timestamp, because the `ts` column has no index and a timestamp filter
   would scan the whole table. Long sweeps run on a background thread with a cached reply, a request

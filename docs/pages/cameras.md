@@ -8,71 +8,55 @@ nav_order: 11
 
 ![The Cameras page](../screenshots/cameras.png)
 
-One large tile and a grid of the rest, each either streaming live or polling a still, depending on
-how the page was reached and how fast the link is. The mechanics — go2rtc, ffmpeg, the proxy on
-port 8177 — are on the [Cameras](../cameras.md) page. This is what the page itself does.
+*Earlier layout shown above. Camera names, picture ages and the new view controls were added in 3.65.0.*
 
-## Down the page
+Choose **Selected camera** for one large picture above the others, or **All cameras** for an
+even grid. The smaller grid has four columns on a wide screen, three on a tablet and two on a
+phone. Tap a camera to select it. A camera opened from the hub or a room starts selected.
 
-**Header.** Title, last update, and a live bandwidth figure in kB/s for the whole page. That figure
-is the point of the header: this is the one page that can saturate a mobile connection.
+## What the pictures tell you
 
-**Main tile.** The first camera marked "main" in the configuration, at full width, with the
-camera's own timestamp overlay. The strip under it carries a state dot, the age of the current
-frame, the mode badge and the camera's address.
+Every tile shows its name and picture freshness. **Live** means the video is advancing.
+**Picture 3s old** dates the still picture on screen, not the last attempt to fetch it.
+If its date is missing, the tile says when it was received instead. A stopped live picture says
+**Video stopped**, and a missing picture says so rather than leaving an unexplained black tile.
+The live check measures progress in this browser, not the complete delay from the camera.
 
-**Grid.** The remaining cameras, four across, each with the same strip.
+The page measures the connection before opening live video, then uses no more than the configured
+limit, six by default. The selected camera gets one of those slots whenever any are available.
+When you select another camera, the page releases a displaced stream before opening its replacement.
+Other live cameras keep their slots where possible. Both layouts use the same allowance.
+A failed live stream falls back to stills and retries with increasing waits. The reflector always
+uses stills. See [Camera connections](../cameras.md) for the machinery and setup.
 
-**Footer.** Camera count, last update, total bandwidth, a health word, then a second line giving the
-detected connection ("home network"), the measured round trip and speed, the live-versus-still split, and the build
-number. Under that, a link reading "this device is: not set" — tapping it pins how this particular
-browser should behave rather than leaving it to detection.
+## Full screen and snapshots
 
-## Modes
+Use the **Full screen** button on a picture for a closer look, with the whole image fitted inside
+the screen. Use **Close full screen** or Escape to return. On a browser without native full screen,
+the picture fills the page instead. **Snapshot** saves the current picture.
 
-Each tile shows one of these as a badge:
+Tab to a camera and press Enter or Space to select it. The full-screen and snapshot buttons also
+work from the keyboard. Selecting a camera scrolls it below the header, so the top stays visible.
 
-- **live** — WebRTC video, straight from go2rtc.
-- **2s**, **5s** — polling the still image at that interval. A tile that could not hold its live
-  video drops to the longer one, says "SLOW LINK", and tries live again later.
+## Details when needed
 
-The page shows stills until it has timed the connection, then lets as many tiles go live as the
-speed carries with room to spare, up to six: a fast connection gets all six, one with room for a
-few gets that many, and one with room for only one gets the tile at the top, which follows the tile
-you tap. It judges by speed, not by address, so a phone that keeps Tailscale on gets the full six at
-home. Over the reflector none are live, however fast. The state dot has four
-states: grey before anything has arrived, green with live frames, amber when connected but frames
-have stalled, red when unreachable. A tile that cannot get a still says so on the tile itself
-("No snapshot (HTTP 404)") rather than staying a blank square.
+The short footer shows the camera count and health. **Details** opens connection information,
+the measured speed, the live/still split, the build number and browser pairing. It also reveals
+camera addresses and individual data rates beneath the pictures. Close Details to put them away.
+The header retains the total data rate, so mobile use is still visible.
 
-## Where the pictures come from
+The **this device is** control pairs this browser with a presence device to help choose the still
+refresh rate. It does not override the measured live-stream allowance. Tap the connection line
+inside Details for the extra clock-skew diagnostic.
 
-Live video comes from go2rtc over WebRTC, set up by one request to the plugin's own port 8177
-(`/webrtc/<host>`). Stills are `cam-<host>.jpg` and its smaller `-thumb.jpg`, which the plugin
-writes into a private folder on the web server. The page asks the plugin where that folder is, and
-only a browser holding the API key gets an answer. If the page cannot find out, every still tile
-says "No picture" rather than guess. Camera hosts, makes, stream names and room membership all come from the configuration.
-Changing them needs a plugin restart. The state dots come from Indigo's `/v2/api`.
+## Refresh and privacy
 
-## Refresh
+Live video arrives continuously. Stills follow each tile's refresh rate and are requested only
+when changed. Hiding the tab stops its streams. Over the reflector, ten idle minutes pause the
+page until it is touched. iPhone or iPad users who keep **Auto-Play Video Previews** off can tap
+the page to start video.
 
-The page ticks every second for its own status line. The pictures refresh at each tile's own rate:
-continuously when live, every 2 or 5 seconds when polling. Reached through the reflector, it polls
-at a tenth of the home rate, and after ten minutes with nobody touching it everything stops until
-you tap.
-
-## What you can do here
-
-- Tap a tile to promote it to the main position, and tap the main tile for full screen. From a
-  keyboard, Tab to a tile and press Enter or Space. Each tile carries its camera's name under the
-  picture, and a screen reader announces it.
-- Pin this device's mode with the "this device is" link.
-- Jump to Settings to change the camera configuration.
-
-## Worth knowing
-
-- The number of tiles that can be live at once is a browser limit (`livePoolSize`, default six),
-  not a plugin one.
-- A sub-second stream failure with a 500 is usually ffmpeg's first attempt. One retry clears it.
-- All the cameras at full rate can be tens of megabits a second, which is why the bandwidth figure
-  is in the header rather than buried in a fold.
+Camera names and settings come from the configuration. The private still-picture folder is given
+only to a browser with the API key. The camera service health comes from the plugin's health file,
+while each picture's freshness comes from what this browser actually displayed. Camera configuration
+changes need a plugin restart.

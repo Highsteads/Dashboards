@@ -327,7 +327,7 @@ await section(async () => {
     check("[71] so does the tab showing again", /if \(document\.hidden\) \{ stopAll\(\); return; \}\s*_healthLastFetch = 0;/.test(vis));
     const boot = src.slice(src.indexOf("buildGrid();\n        loadStills();"));
     check("[72] the first tile is focused before the first layout",
-          boot.indexOf("focusedHost = hosts[0];") > 0 && boot.indexOf("focusedHost = hosts[0];") < boot.indexOf("relayoutAll();"));
+          boot.indexOf("focusedHost = initialCamera(window.location.search, hosts);") > 0 && boot.indexOf("focusedHost = initialCamera(window.location.search, hosts);") < boot.indexOf("relayoutAll();"));
 
     // X1: the page resolves a still beside itself, so the live
     // "stills-<token>/..." pattern works.

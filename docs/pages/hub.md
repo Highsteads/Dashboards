@@ -8,6 +8,8 @@ nav_order: 1
 
 ![The hub](../screenshots/index.png)
 
+*Earlier layout shown above. Camera names, picture ages and the new view controls were added in 3.65.0.*
+
 The page every other page hangs off, and the one to keep open on a phone, laptop or tablet. It answers "is the
 house all right" from the top of the screen, then offers a way into everything else. It is
 deliberately short: the House, Rooms and Tools tile walls it used to carry moved to the
@@ -34,18 +36,15 @@ and puts itself right, with a note, if the command went nowhere), a reading (sho
 it is a display, not a button), a door tile (shows
 the door's state and acts on it), a room shortcut or a group.
 
-**Camera strip.** Up to four tiles from the cameras marked "main". Each tile starts as a still, and
-the page then times how fast the connection to the Indigo server really is. If it can carry all the
-tiles as live video with room to spare (about 11 Mbit/s for four), each tile plays live video over
-its still. If not, the tiles stay as stills that cross-fade from one frame to the next: every two
-seconds at home, every three over a VPN and every fifteen over the reflector, where the strip also
-pauses after ten idle minutes. It judges by speed, not by address, so a phone that keeps Tailscale
-on gets live video at home and wherever else the connection is fast enough. Over the reflector it
-never streams, however fast the connection. A tile whose video stops or slows to a crawl goes back
-to its still and tries again a minute later, then two, up to five. Hiding the page stops every
-stream. A tap on any tile opens the [Cameras](cameras.md) page. Each still is asked for only if it
-has changed, so a camera that is offline costs a few bytes a tick rather than the whole picture
-again.
+**Camera strip.** Up to four cameras marked "main", four across on a wide screen and two by two
+on a phone. Each has a visible name and a status such as **Live**, **Picture 3s old** or
+**Picture unavailable**. Tap one to open Cameras with that camera selected and enlarged.
+The strip starts with stills, then measures whether the connection can carry all its video with
+room to spare. Slow links keep stills, and failed video falls back and retries. After the strip
+has been outside the visible part of the page for two seconds, it stops video and further picture
+requests. Scrolling back resumes them. Hiding the page stops video immediately. The reflector
+never streams and pauses stills after ten idle minutes. A still's age comes from its own date,
+so repeatedly receiving an unchanged picture never makes it look new.
 
 **Energy · now.** The power-flow diagram — solar, grid, home and battery around a central node, the
 flowing edges showing which way the power is going and how much. Underneath, today's totals and

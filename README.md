@@ -2,16 +2,20 @@
 
 **Your house on a screen — energy, cameras, heating, every room, and the whole day replayed.**
 
-**Version:** 3.64.0 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
+**Version:** 3.65.0 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
 
 **[Read the full guide](https://highsteads.github.io/Dashboards/)** — setting up, a page of notes for every one of the 21 pages, and what to do when something goes wrong.
 
-<img src="https://img.shields.io/badge/version-3.64.0-5856d6" alt="Version 3.64.0">
+<img src="https://img.shields.io/badge/version-3.65.0-5856d6" alt="Version 3.65.0">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-21-0a84ff" alt="21 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
 
-<img src="docs/screenshots/index.png" width="860" alt="The hub — whether anything needs a look, who is home, the heating, the battery and a strip of camera stills">
+<img src="docs/screenshots/index.png" width="860" alt="The hub — whether anything needs a look, who is home, the heating, the battery and a strip of named camera pictures">
+
+*Earlier layout shown above. Camera names, picture ages and the new view controls were added in 3.65.0.*
+
+The video tour and its downloadable stills show the earlier layout. The current camera controls are described in [the camera guide](https://highsteads.github.io/Dashboards/pages/cameras.html).
 
 **[Watch the five-minute tour](https://highsteads.github.io/Dashboards/#watch-a-five-minute-tour)** · [download the video](https://highsteads.github.io/Dashboards/video/tour.mp4) · [download every page as stills](https://highsteads.github.io/Dashboards/video/dashboards-screenshots.zip)
 
@@ -23,7 +27,7 @@ This plugin gives [Indigo](https://www.indigodomo.com) a set of web pages for yo
 
 - **A hub page** says at a glance whether anything needs a look, who is home, how the heating is doing, and shows your favourite controls and a strip of camera pictures.
 - **A page for every room**, built from your Indigo device folders, with lights, sockets, blinds, sensors, doors and cameras, and buttons that check the device really did what you asked.
-- **Live camera video** from any IP camera with a video stream, which drops to still pictures on a slow connection so it does not run up a bill.
+- **Live camera video** from IP cameras with a video stream, with priority for the camera you select, full screen and an all-camera grid. Slow connections use still pictures, and every tile says how fresh its picture is.
 - **The solar and battery picture, and what the house costs to run**, for anyone with a Sigenergy solar and battery system, through my free SigenEnergyManager plugin.
 - **Any day replayed** — presence, lights, doors and heating hour by hour, and a chart of anything Indigo has recorded, from the SQL Logger that comes with Indigo.
 - **Alerts** when a device or variable changes, sent to your phone by Pushover or by email with no page open, or shown as a browser notification.
@@ -64,7 +68,7 @@ Seventeen pages you use, plus four that hold the whole thing together (the menu,
 | **[Meter](docs/pages/meter.md)** | One meter in detail — its live reading, its rank and its history |
 | **[Timeline](docs/pages/timeline.md)** | A day replayed, presence night by night, a chart of anything recorded, and the house diary |
 | **[Heating](docs/pages/heating.md)** | Every heating zone, its temperature and its setpoint, with controls |
-| **[Cameras](docs/pages/cameras.md)** | Every camera as live video, tap to enlarge |
+| **[Cameras](docs/pages/cameras.md)** | Live video or fresh stills, selected view or full grid, and full screen |
 | **[Weather](docs/pages/ecowitt.md)** | The weather station in full |
 | **[System](docs/pages/system-health.md)** | The Indigo Mac's own health, devices in trouble, and what the automation is about to do |
 | **[Wi-Fi](docs/pages/wifi.md)** | Every access point and how hard it is working, with [a page for each one](docs/pages/wifi-ap.md). Needs UniFiHealth |
@@ -91,11 +95,11 @@ The [Getting started](https://highsteads.github.io/Dashboards/getting-started.ht
 
 ## What's new
 
+**3.65.0** (28-Oct-2026) - **Open the camera you tapped, with a clearer picture of what it is showing.** A camera on the hub or a room page now opens enlarged on Cameras, and the selected camera takes one existing live-video slot whenever the connection allows one. Choose Selected camera or All cameras, and use the full-screen button for a closer look. Every tile shows its name and picture freshness. Addresses and individual data rates sit behind Details, with a shorter footer on phones. The hub stops its video and picture requests after the camera strip has been off screen for two seconds, and resumes when it returns. The existing slow-link fallback, retry limits and iPhone tap-to-play support stay in place.
+
 **3.64.0** (26-Oct-2026) - **Tap a heating zone to see its history.** Each room opens on the last 24 hours, with temperature and target lines, a separate calling-for-heat strip, recorded controller requests and an optional outside-temperature line. Choose six hours or seven days, and move between zones without combining separate radiators. Missing or stale readings stay unknown. Temperature buttons now wait for the controller to confirm instead of declaring failure after 2.5 seconds; waiting and unconfirmed messages sit below the controls and never cover the tile.
 
 **3.63.1** (24-Oct-2026) - The heating page's boost buttons now read 22 degrees, and its note says the boosted rooms are set to 22 degrees, with the Conservatory boosted only while its sliding door is open. The behaviour comes from EvoHomeControl 1.24.0, so update both.
-
-**3.63.0** (24-Oct-2026) - **A new Air page for Levoit air purifiers.** If you use the Levoit Purifier plugin, the menu gains an **Air** tile, and the page shows each purifier: PM2.5 large, coloured by the purifier's own verdict on the air, a switch to turn it on and off, buttons for the mode and the four fan speeds, how hard automatic mode works, the child lock and the display light, how much life the filter has left with a warning below 10%, and a chart of PM2.5 over the last day or week. Each press goes to the Levoit plugin's own action, which sends it to the purifier and reads it back, and the button you press turns red at once and goes blue when the purifier has changed. If the purifier runs from a plug that measures power, the page also shows what it is drawing now and what it has cost today and over the last seven days, priced at Flux's cheap 2am to 5am rate because the battery it runs from is filled then. The controls follow the same PIN and guest rules as everything else. On an install without that plugin the tile does not appear, and nothing else changes.
 
 ## Authors & licence
 

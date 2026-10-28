@@ -195,12 +195,10 @@ console.log("\nteardown discipline — count the call sites");
 console.log("\nfocus handover");
 {
     const ft = fn("focusTile");
-    const block = ft.slice(ft.indexOf("if (WEBRTC_FOCUS)"));
-    const stopOld = block.indexOf("startStill(previous)");
-    const startNew = block.indexOf("startWebrtc(host)");
-    check(stopOld >= 0 && startNew > stopOld,
-          "the OLD tile is stopped before the new one starts",
-          "never two peer connections on the one link that matters");
+    const stopOld = ft.indexOf("startStill(h)");
+    const startNew = ft.indexOf("startWebrtc(host)");
+    check(stopOld >= 0 && startNew > stopOld, "release displaced streams before starting the selection");
+
 }
 
 console.log("\nfailure ladder and the fallback floor");

@@ -13,6 +13,10 @@ leaving the house.
 
 <img src="screenshots/index.png" width="860" alt="The hub — who is home, the heating, the battery, and a strip of live cameras">
 
+*Earlier layout shown above. Camera names, picture ages and the new view controls were added in 3.65.0.*
+
+The video tour and its downloadable stills show the earlier layout. The current camera controls are described in [the camera guide](pages/cameras.md).
+
 ## Watch a five-minute tour
 
 <video controls preload="metadata" width="860" poster="video/tour-poster.jpg" style="max-width:100%;height:auto">
@@ -40,7 +44,7 @@ have to fit into — it shows what is possible when you can describe a page and 
 the right way to use it is to take the ideas that suit your house, ignore the rest, and ask for
 the pages you actually want.
 
-Every page here, the plugin behind it and these docs were written by Claude from conversation.
+These pages, the plugin and these docs were built with Claude and Codex from conversation.
 Nobody typed the code. If that sounds out of reach, start at
 **[Start with nothing but Claude](no-coding-needed.md)** — it assumes you have Indigo, a Claude
 subscription and nothing else.

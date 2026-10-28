@@ -130,13 +130,9 @@ console.log("\nrendering");
     check(/ageEl\s*=\s*wrap\.querySelector\(["']\.age["']\)/.test(code),
           "and buildGrid wires it to tile state");
     const ages = fn("tickAges");
-    check(/!dbg\s*&&\s*host\s*!==\s*focusedHost/.test(ages),
-          "without debug, only the focused tile shows an age");
-    check(/st\.lastChangeAt/.test(ages) && /["']live · ["']/.test(ages),
-          "a live tile shows time since last visible CHANGE, labelled as such",
-          "live has no Last-Modified — pretending otherwise is a different lie");
-    check(/age ≥/.test(fn("tickAges")),
-          "an undated frame shows a lower bound, not a made-up number");
+    check(!/host\s*!==\s*focusedHost/.test(ages), "every tile shows freshness without debug");
+    check(/st\.lastChangeAt/.test(ages) && /Video stopped/.test(ages), "live freshness follows visible frame progress");
+    check(/Received /.test(ages), "undated pictures say when received, not an invented capture age");
     check(/tickRefreshStatus\(\);\s*tickAges\(\);/.test(code),
           "the age ticker runs on the same 1 s beat as the clock");
     check(/dash_cam_debug/.test(code) && /policyLine\.addEventListener\(["']click["']/.test(code),

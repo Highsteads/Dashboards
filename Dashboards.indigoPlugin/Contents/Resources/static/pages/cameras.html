@@ -73,7 +73,30 @@
             display: flex; flex-direction: column;
             transition: transform 0.15s ease-out;
         }
+        .cam { scroll-margin-top: 88px; }
         .cam.focused .cam-frame { max-height: 70vh; }
+        .grid.all-cameras { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+        @media (max-width: 900px) { .grid.all-cameras { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+        @media (max-width: 600px) { .grid.all-cameras { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+        .view-controls { display: flex; gap: 8px; margin-bottom: 12px; }
+        .view-controls button { min-height: 44px; padding: 8px 14px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--card-bg); color: var(--text); font: inherit; cursor: pointer; }
+        .view-controls button[aria-pressed="true"] { background: var(--accent); color: white; }
+        .cam-meta .host, .cam-meta .bw { display: none !important; }
+        body.camera-details .cam-meta .host, body.camera-details .cam-meta .bw { display: inline-block !important; }
+        .cam-meta .host { overflow-wrap: anywhere; white-space: normal !important; max-width: 100%; }
+        .cam-meta .name { flex-basis: 100%; }
+        .camera-diagnostics { display: none; position: fixed; bottom: 64px; left: 16px; right: 16px; z-index: 20; max-height: 40vh; overflow: auto; padding: 16px; background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--r-md); box-shadow: var(--shadow); }
+        body.camera-details .camera-diagnostics { display: block; }
+        .camera-footer-row { height: 40px; display: flex; align-items: center; gap: 12px; }
+        .camera-footer-row .foot-line { flex: 1; text-align: left; }
+        .camera-footer-row button { min-height: 40px; padding: 6px 10px; }
+        .cam:fullscreen, .cam.camera-expanded { background: #000; color: white; }
+        .cam:fullscreen .cam-frame, .cam.camera-expanded .cam-frame { flex: 1; max-height: none; min-height: 0; }
+        .cam:fullscreen img, .cam:fullscreen video, .cam.camera-expanded img, .cam.camera-expanded video { object-fit: contain; }
+        .cam:fullscreen .cam-toolbar, .cam.camera-expanded .cam-toolbar { opacity: 1; pointer-events: auto; }
+        .cam:fullscreen .cam-meta, .cam.camera-expanded .cam-meta { background: var(--card-bg); }
+        .cam.camera-expanded { position: fixed; inset: 0; z-index: 100; border-radius: 0; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+        body.camera-expanded-open { overflow: hidden; }
         .cam-frame {
             position: relative;
             background: #000;
@@ -198,6 +221,7 @@
         }
         .cam-meta .mode[data-mode="still"]  { background: rgba(255, 149, 0, 0.18); color: #ff9500; }
         .cam-meta .mode[data-mode="webrtc"] { background: rgba(52, 199, 89, 0.18); color: var(--on-color); }
+        body:not(.camera-details) .cam-meta .mode[data-mode="webrtc"] { display: none; }
         .cam-meta .mode[data-mode="off"]    { background: rgba(255, 69, 58, 0.18); color: var(--bad); }
         .cam-meta .mode[data-mode="paused"] { background: rgba(142, 142, 147, 0.25); color: var(--text-secondary); }
         .cam-meta .bw {
@@ -290,19 +314,25 @@
 
     <div class="container">
         <div id="warn"></div>
+        <div class="view-controls" aria-label="Camera layout">
+            <button type="button" id="view-focus" aria-pressed="true">Selected camera</button>
+            <button type="button" id="view-all" aria-pressed="false">All cameras</button>
+        </div>
         <main class="grid" id="grid"></main>
     </div>
 
     <footer class="bottombar">
         <div class="bottombar-inner" id="bottombar-status">
-            <span class="foot-line"><span id="grid-cam-count">0</span> cameras · <span id="camera-health-bot">health waiting</span> · Updated <span id="ts-bot">—</span> · <span id="total-bw-bot">0 kB/s</span></span>
-            <!-- Says WHICH policy is in force and WHICH build is running. Two
-                 rounds of "the cameras still stop" were spent not knowing
-                 whether the phone had even picked up the new page — a
-                 home-screen PWA resumes from memory without re-fetching. -->
-            <br><span id="link-policy" class="link-policy">—</span>
-            <span id="live-tap" class="link-policy" hidden><br>Tap anywhere to start the live video. An iPhone or iPad with Auto-Play Video Previews switched off (Settings, Accessibility, Motion) will not start video until the page has been touched. Switch it on and the cameras go live by themselves.</span>
-            <br><button type="button" id="pair-device" class="pair-btn">this device is: not set</button>
+            <div class="camera-footer-row">
+                <span class="foot-line"><span id="grid-cam-count">0</span> cameras · <span id="camera-health-bot">health waiting</span></span>
+                <button type="button" id="camera-details" class="pair-btn" aria-expanded="false" aria-controls="camera-diagnostics">Details</button>
+            </div>
+            <div id="camera-diagnostics" class="camera-diagnostics">
+                <span class="foot-line">Updated <span id="ts-bot">—</span> · <span id="total-bw-bot">0 kB/s</span></span>
+                <p id="link-policy" class="link-policy">—</p>
+                <button type="button" id="pair-device" class="pair-btn">this device is: not set</button>
+            </div>
+            <span id="live-tap" class="link-policy" hidden>Tap anywhere to start live video. On iPhone or iPad, check Auto-Play Video Previews in Settings, Accessibility, Motion.</span>
         </div>
     </footer>
 
@@ -334,7 +364,7 @@
     // port 8177 only carries the one signalling POST per tile. Every other
     // tile polls the snapshot the plugin writes.
     //
-    // Per-tile features: pause, snapshot, focus. See the toolbar in each tile.
+    // Per-tile features: snapshot, focus and full screen. Views share the same stream budget.
 
     const cfg          = window.CAMERA_CONFIG || {};
     const hosts        = cfg.hosts || [];
@@ -453,6 +483,55 @@
     const camState = {};
     let _lastUpdate = 0;
     let focusedHost = null;
+    let allCamerasView = false;
+    let expandedCamera = null;
+    let fullscreenReturnFocus = null;
+    function initialCamera(search, available) {
+        const params = new URLSearchParams(search);
+        const chosen = params.get("camera") || params.get("focus");
+        return available.includes(chosen) ? chosen : available[0];
+    }
+    function setCameraView(all) {
+        allCamerasView = !!all;
+        const grid = document.getElementById("grid");
+        grid.classList.toggle("has-focus", !allCamerasView);
+        grid.classList.toggle("all-cameras", allCamerasView);
+        document.getElementById("view-focus").setAttribute("aria-pressed", String(!allCamerasView));
+        document.getElementById("view-all").setAttribute("aria-pressed", String(allCamerasView));
+    }
+    function closeCameraFullscreen() {
+        if (expandedCamera) expandedCamera.classList.remove("camera-expanded");
+        expandedCamera = null;
+        document.body.classList.remove("camera-expanded-open");
+        if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+        document.querySelectorAll('[data-action="full"]').forEach(b => {
+            b.textContent = "⛶"; b.setAttribute("aria-label", "Full screen"); b.title = "Full screen";
+        });
+        if (fullscreenReturnFocus) fullscreenReturnFocus.focus({ preventScroll: true });
+        fullscreenReturnFocus = null;
+    }
+    function openCameraFullscreen(host) {
+        const st = camState[host];
+        if (!st) return;
+        const wrap = st.frameEl.closest(".cam");
+        if (expandedCamera === wrap || document.fullscreenElement === wrap) { closeCameraFullscreen(); return; }
+        closeCameraFullscreen();
+        fullscreenReturnFocus = document.activeElement;
+        expandedCamera = wrap;
+        wrap.classList.add("camera-expanded");
+        document.body.classList.add("camera-expanded-open");
+        const button = wrap.querySelector('[data-action="full"]');
+        button.textContent = "×"; button.setAttribute("aria-label", "Close full screen"); button.title = "Close full screen";
+        button.focus({ preventScroll: true });
+        // The in-page expansion works on iPhones without the Fullscreen API too.
+        if (wrap.requestFullscreen) {
+            try { Promise.resolve(wrap.requestFullscreen()).catch(() => {}); } catch (e) { /* keep in-page expansion */ }
+        }
+    }
+    document.addEventListener("fullscreenchange", () => {
+        if (!document.fullscreenElement && expandedCamera) closeCameraFullscreen();
+    });
+    document.addEventListener("keydown", e => { if (e.key === "Escape" && expandedCamera) closeCameraFullscreen(); });
     // Declared HERE, not down in the presence section where it is filled in:
     // renderPolicy() reads it and runs once at boot, and a `let` below that
     // call is in its temporal dead zone — the resulting ReferenceError killed
@@ -497,16 +576,15 @@
     // address: a phone that keeps Tailscale on arrives from a tunnel address
     // at home and away alike.
     //   fast enough for the pool   the configured pool (6)
-    //   fast enough for some       that many, fixed on the first cameras
+    //   fast enough for some       that many, including the selected camera
     //   fast enough for one        ONE, the focused tile (WEBRTC_FOCUS)
     //   slower, or not measured    none; every tile polls a still
     //   reflector                  NONE, whatever the speed. Neither the
     //              signalling port nor go2rtc's media port is fronted by the
     //              reflector, and Indigo's servers would carry every byte.
     //
-    // With one live tile it FOLLOWS the tile you tap to the top — see
-    // focusTile. With more the pool is fixed and tapping only changes the
-    // layout. The link CLASS (home / vpn / reflector) still sets how often the
+    // One existing live slot follows the selected camera at every non-zero
+    // budget. The remaining slots keep their configured order. The link CLASS (home / vpn / reflector) still sets how often the
     // stills poll and what the footer calls the connection.
     // Policy is MUTABLE: boot uses the last measured verdict (or all stills)
     // and measureAndApply() re-lays-out when a measurement changes it.
@@ -685,8 +763,7 @@
             if (el) el.textContent = tsStr;
         }
     }
-    // The per-tile age readout. Focused tile always; every tile when the
-    // debug view is on (tap the footer policy line). One Date.now() and a
+    // Every tile carries freshness. Debug adds the clock-skew tell. One Date.now() and a
     // handful of textContent writes a second — effectively free.
     function tickAges() {
         const now = Date.now();
@@ -694,7 +771,7 @@
         for (const host of hosts) {
             const st = camState[host];
             if (!st || !st.ageEl) continue;
-            if (st.paused || (!dbg && host !== focusedHost)) {
+            if (st.paused) {
                 st.ageEl.textContent = "";
                 st.ageEl.classList.remove("old");
                 continue;
@@ -705,18 +782,18 @@
                 // watchdog last saw the picture CHANGE, and say so.
                 if (st.lastChangeAt) {
                     const a = now - st.lastChangeAt;
-                    txt = "live · " + fmtAge(a);
                     old = a > STALE_MS;
+                    txt = old ? "Video stopped" : "Live";
                 }
             } else if (st.mode === "still") {
                 const a = frameAgeMs(st, now);
                 if (a != null) {
-                    txt = "age " + fmtAge(a);
+                    txt = "Picture " + Math.floor(a / 1000) + "s old";
                     old = a > STALE_MS;
                 } else if (st.lastFrameAt) {
                     // No usable Last-Modified on this frame — the honest
                     // answer is a lower bound: at least as old as our hold.
-                    txt = "age ≥" + fmtAge(now - st.lastFrameAt);
+                    txt = "Received " + Math.floor((now - st.lastFrameAt) / 1000) + "s ago";
                 }
             }
             // The skew tell. A frame cannot be received before it was
@@ -1122,6 +1199,10 @@
     // exactly what we are avoiding.
     function mayHoldLive(host) {
         if (LIVE_FOLLOWS_FOCUS) return host === (focusedHost || DEFAULT_LIVE[0]);
+        // Reserve one existing slot for the selection, keeping every other slot stable.
+        if (LIVE_POOL_SIZE > 1 && focusedHost && !DEFAULT_LIVE_SET.has(focusedHost)) {
+            return host === focusedHost || (DEFAULT_LIVE_SET.has(host) && host !== DEFAULT_LIVE[DEFAULT_LIVE.length - 1]);
+        }
         return DEFAULT_LIVE_SET.has(host);
     }
     // Periodically give live another go. If the link has recovered the watchdog
@@ -1278,10 +1359,11 @@
 
     // ── Focus mode ─────────────────────────────────────────────
     // Exactly one tile is focused (the big one at the top of the grid).
-    // Tapping any other tile just moves the focused class — live and still
-    // tiles keep their assigned mode, except off the LAN where the one live
-    // tile follows the focus.
+    // Selecting a tile moves it to the top and reserves one existing live
+    // slot for it. Release any displaced stream before starting another.
     function focusTile(host) {
+        if (!camState[host]) return;
+        if (allCamerasView) setCameraView(false);
         if (focusedHost === host) return;
         const previous = focusedHost;
         if (focusedHost && camState[focusedHost]) {
@@ -1293,36 +1375,28 @@
         focusedHost = host;
         if (wrap) wrap.scrollIntoView({ behavior: "smooth", block: "start" });
 
-        // Away over the tunnel the WEBRTC slot follows the focus. Stop the
-        // old tile FIRST — never two peer connections over the tunnel.
-        if (WEBRTC_FOCUS) {
-            if (previous && camState[previous] && camState[previous].mode === "webrtc") {
-                startStill(previous);            // closes the pc via stopWebrtc
-            }
-            const stN = camState[host];
-            if (stN && stN.mode !== "webrtc" && !stN.paused) {
-                stN.webrtcFails = 0;             // a promoted tile gets a clean slate
-                stN.webrtcRetryAt = 0;
-                startWebrtc(host);
-            }
+        // Release the displaced slot before opening its replacement. Background
+        // retries use mayHoldLive too, so they cannot steal the slot back.
+        for (const h of hosts) {
+            const st = camState[h];
+            const entitled = WEBRTC_FOCUS ? h === host : mayHoldLive(h);
+            if (st && !st.paused && st.mode === "webrtc" && !entitled) startStill(h);
         }
-
-        // A configured pool of one follows the focus too. Hand it over: drop
-        // the old one to stills first so there are never two at once.
-        if (LIVE_FOLLOWS_FOCUS && camState[host] && camState[host].mode !== "webrtc") {
-            if (previous && camState[previous] && camState[previous].mode === "webrtc") {
-                startStill(previous);
-            }
-            const st = camState[host];
-            // Give the newly-promoted tile a clean slate — if it had been
-            // auto-degraded earlier, it deserves a fresh attempt rather than
-            // inheriting somebody else's backoff.
-            st.autoDegraded = false;
-            st.degradeCount = 0;
-            st.retryAfterMs = 0;
-            startLive(host);
+        const selected = camState[host];
+        if (!selected.paused && selected.mode !== "webrtc" && (WEBRTC_FOCUS || mayHoldLive(host))) {
+            selected.autoDegraded = false;
+            selected.degradeCount = 0;
+            selected.retryAfterMs = 0;
+            selected.webrtcFails = 0;
+            selected.webrtcRetryAt = 0;
+            if (WEBRTC_FOCUS) startWebrtc(host); else startLive(host);
         }
-
+        // Restore an original pool member when focus returns to that pool.
+        for (const h of hosts) {
+            const st = camState[h];
+            if (h !== host && st && !st.paused && st.mode !== "webrtc"
+                    && mayHoldLive(h) && !st.autoDegraded && !st.webrtcRetryAt) startLive(h);
+        }
         // Off-LAN there is no live slot to move, but the focused tile polls
         // faster than the rest — so both the tile gaining focus and the one
         // losing it need their timer rebuilt at the new rate. Without this the
@@ -1349,7 +1423,8 @@
                 <div class="cam-frame" role="button" tabindex="0"
                      aria-label="Show ${escAttr(name)} large">
                     <div class="cam-toolbar">
-                        <button class="cam-btn" data-action="snap" title="Snapshot">⤓</button>
+                        <button class="cam-btn" data-action="full" title="Full screen" aria-label="Full screen">⛶</button>
+                        <button class="cam-btn" data-action="snap" title="Snapshot" aria-label="Snapshot">⤓</button>
                     </div>
                     <div class="placeholder">Connecting…</div>
                     <img alt="${escAttr(name)}">
@@ -1358,7 +1433,7 @@
                     <span class="name"><span class="dot"></span>${escAttr(name)}</span>
                     <span class="age"></span>
                     <span class="bw">— kB/s</span>
-                    <span class="host"><span class="mode">…</span> · ${escAttr(host)}</span>
+                    <span class="mode">…</span><span class="host">${escAttr(host)}</span>
                 </div>`;
             grid.appendChild(wrap);
 
@@ -1411,8 +1486,7 @@
             img.onerror = camState[host].onFrameError;
 
             // Click frame (anywhere except a toolbar button) → focus this tile.
-            // Live/still mode of every tile is fixed for the lifetime of the
-            // page; clicking only changes which tile is the big one at the top.
+            // Selection also transfers an existing live slot where the budget permits.
             frame.addEventListener("click", (e) => {
                 if (e.target.closest(".cam-btn")) return;
                 focusTile(host);
@@ -1426,8 +1500,10 @@
                 focusTile(host);
             });
 
-            // Toolbar wiring — only Snapshot remains; click on the tile itself
-            // handles live/still toggle and focus changes.
+            wrap.querySelector('[data-action="full"]').addEventListener("click", e => {
+                e.stopPropagation(); focusTile(host); openCameraFullscreen(host);
+            });
+            // Snapshot and fullscreen are explicit actions, independent of selection.
             wrap.querySelector('[data-action="snap"]').addEventListener("click", (e) => {
                 e.stopPropagation(); takeSnapshot(host);
             });
@@ -1440,6 +1516,11 @@
     // live over WebRTC, everything else snapshot-polls. Used at boot, on resume, and on
     // every policy change.
     function relayoutAll() {
+        for (const host of hosts) {
+            const st = camState[host];
+            const entitled = WEBRTC_FOCUS ? host === (focusedHost || hosts[0]) : mayHoldLive(host);
+            if (st && st.mode === "webrtc" && !entitled) startStill(host);
+        }
         for (const host of hosts) {
             const st = camState[host];
             if (st) {
@@ -1958,15 +2039,21 @@
     } else {
         buildGrid();
         loadStills();
-        // Pin focus to the first camera BEFORE the first layout: each still
+        // Resolve the requested camera BEFORE the first layout: each still
         // chain takes its period once, when it starts, and over the reflector
         // the focused tile's is 3 s against 10 s for the rest. Set afterwards,
         // the big top tile kept the slow period until the focus next changed.
         const grid = document.getElementById("grid");
         grid.classList.add("has-focus");
-        const wrap = camState[hosts[0]]?.frameEl?.closest(".cam");
+        focusedHost = initialCamera(window.location.search, hosts);
+        const wrap = camState[focusedHost]?.frameEl?.closest(".cam");
         if (wrap) wrap.classList.add("focused");
-        focusedHost = hosts[0];
+        document.getElementById("view-focus").addEventListener("click", () => setCameraView(false));
+        document.getElementById("view-all").addEventListener("click", () => setCameraView(true));
+        document.getElementById("camera-details").addEventListener("click", e => {
+            const open = document.body.classList.toggle("camera-details");
+            e.currentTarget.setAttribute("aria-expanded", String(open));
+        });
         // Initial layout under the BOOT policy — the cached measured verdict,
         // or conservative all-stills when there isn't a fresh one (see
         // bootPolicy). measureAndApply below corrects it within a second or
@@ -1975,8 +2062,7 @@
         relayoutAll();
         startBandwidthPoll();
         startStallWatchdog();
-        // Tap the footer policy line to toggle the debug view: every tile
-        // shows its age (plus the clock-skew tell), not just the focused one.
+        // Tap the diagnostic policy line to toggle the extra clock-skew tell.
         const policyLine = document.getElementById("link-policy");
         if (policyLine) policyLine.addEventListener("click", () => {
             try { localStorage.setItem("dash_cam_debug", debugAges() ? "0" : "1"); } catch (e) {}

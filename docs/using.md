@@ -70,7 +70,7 @@ entrances all go, while everything keeps working.
 | On this page | Tapping this | Opens |
 |---|---|---|
 | Hub | a room tile | that room, end to end |
-| Hub | the camera strip | the full camera grid |
+| Hub | a camera in the strip | that camera selected and enlarged on Cameras |
 | Hub | the weather, energy or timeline card | that page |
 | Mains | any meter tile | that meter's own page — its live reading, its rank against every other meter, its seven-day offset and its history |
 | Wi-Fi | any access-point tile | that AP's own page — per-radio state and every client on it |
@@ -86,7 +86,10 @@ entrances all go, while everything keeps working.
 | Room | a light or socket | its own controls, and a full colour picker for anything colour-capable |
 | Room | a blind | its position control |
 | Weather | any sensor | that sensor's reading and its recent history |
-| Cameras | any stream | full screen — tap again to come back |
+| Cameras | a picture | select and enlarge it, giving it an available live slot |
+| Cameras | Full screen / Close full screen | fill the screen / return |
+| Cameras | All cameras / Selected camera | change layout within the same stream limit |
+| Cameras | Details | show or hide addresses and connection figures |
 | Hub | a Favourite | the device's controls, in the tile |
 | Energy | a deadline chip in the When to run it card | replans that appliance on the spot |
 | Meter, System, Settings | a fold | the detail underneath, which stays open while you are on the page |
