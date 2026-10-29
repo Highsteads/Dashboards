@@ -124,6 +124,7 @@
             show_lifetime: false,
         });
         configured = true;
+        markCharger();
         return true;
     }
     function feed() {
@@ -159,11 +160,43 @@
 
     // His card opens Home Assistant's own details window for some taps. Here
     // the weather goes to the weather station page and the rest stay put.
+    // His card gives the AC charger no tap of its own, so the page catches a
+    // tap on its reading and label and opens the Zappi card on the Energy
+    // page, where its mode and boost buttons are. The charger drawn on the
+    // garage wall is left out: it is about 10 by 36 pixels and his scene
+    // draws another layer over it, so it cannot take a tap.
+    const CHARGER_TARGETS = ["acNode"];
+    function openCharger() { location.href = "energy.html#ev-card"; }
     function wireCard() {
         card.addEventListener("hass-more-info", ev => {
             const id = ev.detail && ev.detail.entityId;
             if (id === SigenFlowBridge.E.weather) location.href = "ecowitt.html";
         });
+        card.addEventListener("click", ev => {
+            if (ev.composedPath().some(el => el && CHARGER_TARGETS.includes(el.id))) openCharger();
+        });
+        card.addEventListener("keydown", ev => {
+            if ((ev.key === "Enter" || ev.key === " ") &&
+                ev.composedPath().some(el => el && el.id === "acNode")) { ev.preventDefault(); openCharger(); }
+        });
+    }
+    // setConfig rebuilds the card's insides, so this runs after each one: a
+    // pointer, and a keyboard stop, on the charger label.
+    function markCharger() {
+        const root = card.shadowRoot;
+        if (!root) return;
+        const node = root.getElementById("acNode");
+        if (node) {
+            node.setAttribute("role", "link");
+            node.setAttribute("tabindex", "0");
+            node.setAttribute("aria-label", "Car charger: open its controls on the Energy page");
+        }
+        if (!root.getElementById("dash-charger-tap")) {
+            const st = document.createElement("style");
+            st.id = "dash-charger-tap";
+            st.textContent = "#acNode{cursor:pointer}";
+            root.appendChild(st);
+        }
     }
     wireCard();
 

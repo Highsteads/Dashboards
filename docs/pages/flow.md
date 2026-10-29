@@ -16,7 +16,7 @@ The picture and the card are the [Sigenergy Flow Card](https://github.com/jyaven
 
 **The weather**, top left: an icon for the conditions now from OpenWeatherMap, with a moon after dark, and the outdoor temperature from the Ecowitt station. Tap it to open the Weather page. Without an OpenWeatherMap key there is no icon and the picture cannot tell day from night by the sun.
 
-**The car charger**, on the garage wall, only when the Zappi plugin has a charger: the power going into the car and whether a car is plugged in. The car's draw is taken off the house figure, so Home shows the house on its own, as the Sigenergy app does. A charger that has not reported for ten minutes shows as not reachable, with no power figure.
+**The car charger**, on the garage wall, only when the Zappi plugin has a charger: the power going into the car and whether a car is plugged in. Tap the AC CHARGER reading to open the car charger card on the Energy page, with its mode and boost buttons. The car's draw is taken off the house figure, so Home shows the house on its own, as the Sigenergy app does. A charger that has not reported for ten minutes shows as not reachable, with no power figure.
 
 **Tap SOLAR** for each string: voltage, current, power, what it has made today, and a chart of each string through the day. String names come from SigenEnergyManager.
 
@@ -39,6 +39,7 @@ The picture and the card are the [Sigenergy Flow Card](https://github.com/jyaven
 
 ## Worth knowing
 
+- The charger drawn on the garage wall is too small to tap; tap its reading instead.
 - His card asks Home Assistant for things Indigo does not have. A few taps that open Home Assistant's own details windows (a single reading's history) do nothing here.
 - The page needs a browser that shows AVIF pictures: iOS 16, macOS 13 Ventura, or a current Chrome, Edge or Firefox. On older systems the readings work but there is no picture.
 - When his card gets a new version, Dashboards can take it as it is; the stand-in that feeds it is `sigen-flow-bridge.js`.
