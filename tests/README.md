@@ -88,6 +88,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_event_log_quiet.py` | The Indigo event log is shared by every plugin on the server and |
 | `test_fav_device_label.mjs` | Contract test for the label on a plain on/off device favourite |
 | `test_fav_group_tile.mjs` | Contract test for the group favourite (v2.93.0) — ONE hub tile |
+| `test_fav_page_links.mjs` | Contract test for page-link favourites on the hub (3.68.0). |
 | `test_fav_room_shortcuts.mjs` | Contract test for room shortcuts in the Favourites card |
 | `test_fav_spoken_when.mjs` | Contract test for spokenWhen() (v3.23.0) — a reading favourite |
 | `test_fire_heater_chip.mjs` | Contract test for the hub's fire-heater chip (index.html |

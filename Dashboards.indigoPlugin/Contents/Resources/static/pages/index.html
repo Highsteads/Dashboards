@@ -100,6 +100,9 @@
            carry the accent colour to say "this goes somewhere" rather than
            "this switches something". */
         .fav-grid-rooms { margin-top: 10px; }
+        /* 3.68.0: a nav card pinned as a page favourite steps aside. The card
+           styles set display, which beats the hidden attribute on its own. */
+        #grid[hidden], #grid a.card[hidden] { display: none !important; }
         .fav-tile.fav-roomlink { text-decoration: none; }
         .fav-tile.fav-roomlink .fav-state { color: var(--accent); }
         .fav-tile.on { border-color: var(--on-color); }
@@ -2130,10 +2133,41 @@
                (t.getFullYear() !== now.getFullYear() ? " " + t.getFullYear() : "");
     }
 
+    // Page-link favourites (3.68.0): the name and line under it for the
+    // pages people are likely to pin. A typed label still wins.
+    const FAV_PAGE_NOTES = {
+        "flow.html":         ["Flow", "Power flow"],
+        "menu.html":         ["Menu", "Every page"],
+        "menu.html?g=rooms": ["Rooms", "Every room"],
+        "energy.html":       ["Energy", "Open page"],
+        "cameras.html":      ["Cameras", "Open page"],
+        "heating.html":      ["Heating", "Open page"],
+        "timeline.html":     ["Timeline", "Open page"],
+    };
+
+    // A hub navigation card whose page is pinned as a favourite is hidden, and
+    // the row goes with it once every card in it is hidden. Unpin it and the
+    // card comes back on the next poll.
+    function hidePinnedNavCards(allFavs) {
+        const grid = document.getElementById("grid");
+        if (!grid) return;
+        const pinned = new Set(allFavs.filter(f => f && f.type === "page").map(f => String(f.page)));
+        let shown = 0;
+        grid.querySelectorAll("a.card").forEach(a => {
+            const hide = pinned.has(a.getAttribute("href"));
+            a.hidden = hide;
+            if (!hide) shown++;
+        });
+        grid.hidden = shown === 0;
+    }
+
     function renderFavouritesCard(devices) {
         const host = document.getElementById("favourites");
         if (!host) return;
         const allFavs = (window.INDIGO_CONFIG || {}).favourites || [];
+        // 3.68.0: a Menu or Rooms card pinned as a page link moves up into the
+        // favourites, so its full-size card further down steps aside.
+        hidePinnedNavCards(allFavs);
         if (!allFavs.length) { host.style.display = "none"; return; }
         // Room shortcuts are navigation, not state, so they get their own row
         // under the live tiles rather than being mixed in among them.
@@ -2141,6 +2175,19 @@
         const favs     = allFavs.filter(f => f && f.type !== "room");
         const byId = new Map(devices.map(d => [d.id, d]));
         const tiles = favs.map(f => {
+            // Page link (3.68.0): opens another Dashboards page, in place among
+            // the tiles so the list order decides where it sits. An anchor, like
+            // a room shortcut, so it behaves as a link.
+            if (f.type === "page") {
+                const page = String(f.page || "");
+                if (!page) return "";
+                const pname = f.label || FAV_PAGE_NOTES[page]?.[0] || page.replace(/\.html.*$/, "");
+                const pnote = FAV_PAGE_NOTES[page]?.[1] || "Open page";
+                return `<a class="fav-tile fav-roomlink fav-pagelink" data-fav-type="page" data-fav-readonly="1"
+                           href="${escapeAttr(page)}">
+                    <span class="fav-name">${escapeAttr(pname)}</span>
+                    <span class="fav-state">${escapeAttr(pnote)}</span></a>`;
+            }
             if (f.type === "scene") {
                 const name = f.label || "Scene";
                 // data-dsh-act-key lets DashAction repaint an in-flight takeover

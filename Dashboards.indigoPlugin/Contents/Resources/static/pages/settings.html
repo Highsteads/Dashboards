@@ -235,11 +235,22 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
                         : selType === "scene" ? GROUPS.some(g => g.id === selId) : true;
             const missing = (selType && selId && !known)
                 ? `<option value="${esc(selType)}:${esc(String(selId))}" selected>(not found: ${esc(selType)} #${esc(String(selId))} — pick another, or it stays as is)</option>` : "";
+            // Page links (3.68.0): a tile that opens another Dashboards page.
+            // Once saved it comes back as a pass-through row, like a room.
+            const pageOpts = FAV_PAGES.map(([href, name]) =>
+                `<option value="page:${esc(href)}">${esc(name)}</option>`).join("");
             return `<option value="">&mdash; pick a device or scene &mdash;</option>${missing}
                 <optgroup label="Devices">${devOpts}</optgroup>
                 <optgroup label="Scenes">${scOpts}</optgroup>
-                <optgroup label="Door tiles (state-driven)">${doorOpts}</optgroup>`;
+                <optgroup label="Door tiles (state-driven)">${doorOpts}</optgroup>
+                <optgroup label="Page links">${pageOpts}</optgroup>`;
         }
+        const FAV_PAGES = [
+            ["flow.html", "Flow (power flow)"], ["menu.html", "Menu"],
+            ["menu.html?g=rooms", "Rooms"], ["energy.html", "Energy"],
+            ["cameras.html", "Cameras"], ["heating.html", "Heating"],
+            ["timeline.html", "Timeline"],
+        ];
         // Door rows: the action-group pickers for each direction.
         function doorActionOptions(selId) {
             const opts = GROUPS.map(g =>
@@ -306,6 +317,10 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
                 const cell = r.querySelector(".fav-extra");
                 const pickVal = r.querySelector(".fav-pick").value;
                 const type = pickVal ? pickVal.slice(0, pickVal.indexOf(":")) : (f.type || "");
+                if (type === "page") {
+                    cell.innerHTML = "";          // a page link has nothing more to set
+                    return;
+                }
                 if (type === "door") {
                     cell.innerHTML = `<select class="fav-open" title="Action group that OPENS (or unlocks) this door">${doorActionOptions(f.openAction)}</select>
                         <select class="fav-close" title="Action group that CLOSES this door — leave unset for a lock-style door">${doorActionOptions(f.closeAction)}</select>
@@ -338,6 +353,7 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
             }
             function favPassThroughText(f) {
                 if (f.type === "room") return "Room shortcut &mdash; " + esc(f.room || "?");
+                if (f.type === "page") return "Page link &mdash; " + esc(f.page || "?");
                 if (f.type === "group") {
                     const n = (f.devices || []).length;
                     return "Group &mdash; " + n + " device" + (n === 1 ? "" : "s");
@@ -411,6 +427,13 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
                 if (!v) return;
                 const idx = v.indexOf(":");
                 const type = v.slice(0, idx);
+                if (type === "page") {
+                    const page = { type: "page", page: v.slice(idx + 1) };
+                    const plabel = r.querySelector(".fav-label").value.trim();
+                    if (plabel) page.label = plabel;
+                    out.push(page);
+                    return;
+                }
                 const id = parseInt(v.slice(idx + 1), 10);
                 if ((type !== "device" && type !== "scene" && type !== "door") || isNaN(id)) return;
                 const item = { type, id };

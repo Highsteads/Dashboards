@@ -109,7 +109,7 @@ await section(async () => {
     };
     vm.createContext(ctx);
     vm.runInContext((src.match(/const asBool = [^\n]+\n/) || [""])[0] + "let DEVCOUNTS = null;\n"
-        + extractFn(src, "spokenWhen") + "\n" + extractFn(src, "renderFavouritesCard") + "\n" + extractFn(src, "renderHousePulse")
+        + extractFn(src, "spokenWhen") + "\n" + extractFn(src, "hidePinnedNavCards") + "\n" + extractFn(src, "renderFavouritesCard") + "\n" + extractFn(src, "renderHousePulse")
         + "\nglobalThis.__h = { renderFavouritesCard, renderHousePulse };", ctx);
     ctx.window.INDIGO_CONFIG.favourites = [{ type: "device", id: 5, state: "voltage", label: "Mains", warnBelow: 230 }];
     ctx.__h.renderFavouritesCard([{ id: 5, name: "Meter", enabled: false, states: { voltage: 241.3 } }]);

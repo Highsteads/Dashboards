@@ -395,3 +395,24 @@ def test_unhashable_camera_host_is_a_400_not_a_500():
         assert status == 400, (bad, status, body)
         assert body["ok"] is False
         assert "camera 1" in body["error"]
+
+
+# ── 3.68.0: page-link favourites ──────────────────────────────────────────
+def test_page_favourites_keep_known_pages_and_drop_links_off_the_site():
+    p, cap = make_plugin()
+    save(p, {"favourites": [
+        {"type": "page", "page": "flow.html", "label": " Sigenergy "},
+        {"type": "page", "page": "menu.html?g=rooms"},
+        {"type": "page", "page": "javascript:alert(1)"},
+        {"type": "page", "page": "https://example.com/x.html"},
+        {"type": "page", "page": "//example.com/x.html"},
+        {"type": "page", "page": "../secret.html"},
+        {"type": "page", "page": "flow.html\" onclick=\"x"},
+        {"type": "page", "page": ""},
+        {"type": "page"},
+        {"type": "page", "page": "a" * 80 + ".html"},
+    ]})
+    assert cap["clean"]["favourites"] == [
+        {"type": "page", "page": "flow.html", "label": "Sigenergy"},
+        {"type": "page", "page": "menu.html?g=rooms"},
+    ]

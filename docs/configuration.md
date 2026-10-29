@@ -52,7 +52,9 @@ where it writes.
 
 - **Favourites.** One-tap tiles for the hub, in the order given. A favourite is a control (toggle a
   device or run a scene), a reading (show a device state, not tappable), a door tile (shows the
-  door's state and acts on it), a room shortcut or a group. Pickers take device ids with a live
+  door's state and acts on it), a room shortcut, a group, or a page link (opens another
+  Dashboards page such as Flow, Menu or Rooms; a pinned Menu or Rooms card leaves the foot of the
+  hub). Pickers take device ids with a live
   lookup showing which device they resolve to. A favourite pointing at something that no longer
   exists is named rather than silently dropped.
 - **Custom links.** Extra tiles for the menu's Tools group — anything with a URL.

@@ -33,6 +33,9 @@ from dash_common import (
 )
 
 _PA_ROOT = "/Library/Application Support/Perceptive Automation"
+# A page-link favourite (3.68.0) names a Dashboards page beside the hub,
+# optionally with a plain query string: flow.html, menu.html?g=rooms.
+_FAV_PAGE_RE = re.compile(r"^[a-z0-9][a-z0-9-]*\.html(\?[A-Za-z0-9=&_.-]*)?$")
 if _PA_ROOT not in _sys.path:
     _sys.path.insert(0, _PA_ROOT)
 # The legacy DASHBOARDS_* keys, read only by _import_legacy_config.
@@ -760,7 +763,21 @@ class ConfigMixin:
                 if not isinstance(f, dict):
                     continue
                 ftype = f.get("type")
-                if ftype not in ("device", "scene", "door", "room", "group"):
+                if ftype not in ("device", "scene", "door", "room", "group", "page"):
+                    continue
+                # Page link (3.68.0): a tile that opens another Dashboards
+                # page, such as flow.html or menu.html?g=rooms. Only a bare
+                # page name in this folder is accepted, so the tile can never
+                # become an off-site or javascript: link on a public page.
+                if ftype == "page":
+                    page = str(f.get("page") or "").strip()
+                    if len(page) > 80 or not _FAV_PAGE_RE.match(page):
+                        continue
+                    page_item = {"type": "page", "page": page}
+                    page_label = str(f.get("label") or "").strip()
+                    if page_label:
+                        page_item["label"] = page_label[:60]
+                    favs_clean.append(page_item)
                     continue
                 # Group favourite (v2.93.0): ONE tile driving several devices —
                 # the living room's three lamps and the fire behind a single
