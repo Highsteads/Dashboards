@@ -206,9 +206,8 @@ const SLOTS = [
     check(/Copyright 2025-2026 Jean-Yves Avenard/.test(CARD), "vendored card keeps its copyright header");
     // 3.66.1: a tap on the AC charger opens the Zappi card on the Energy page.
     check(CARD.includes('id="acNode"'), "the card still names its charger reading acNode");
-    check(/const CHARGER_TARGETS = \["acNode"\]/.test(page), "the page catches taps on acNode");
-    check(page.includes('location.href = "energy.html#ev-card"'), "a charger tap opens the Zappi card");
-    check(/function configure\(\)[\s\S]*markCharger\(\);[\s\S]*return true;/.test(page), "the charger is marked tappable after every setConfig");
+    check(/acNode:\s*\{[^}]*energy\.html#ev-card/.test(page), "the page catches taps on acNode and opens the Zappi card");
+    check(/function configure\(\)[\s\S]*markTaps\(\);[\s\S]*return true;/.test(page), "the taps are marked after every setConfig");
     const energy = fs.readFileSync(path.join(PAGES, "energy.html"), "utf8");
     check(energy.includes('id="ev-card"') && /#ev-card\{scroll-margin-top:\d+px\}/.test(energy), "the Zappi card exists and clears the top bar");
 }

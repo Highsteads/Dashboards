@@ -18,6 +18,10 @@ The picture and the card are the [Sigenergy Flow Card](https://github.com/jyaven
 
 **The car charger**, on the garage wall, only when the Zappi plugin has a charger: the power going into the car and whether a car is plugged in. Tap the AC CHARGER reading to open the car charger card on the Energy page, with its mode and boost buttons. The car's draw is taken off the house figure, so Home shows the house on its own, as the Sigenergy app does. A charger that has not reported for ten minutes shows as not reachable, with no power figure.
 
+**Tap SigenStor** for the battery in plain words: what the battery manager is doing and why, how much charge should be left at dawn, how long the battery would run the house in a power cut at what the house is using now, its health and pack temperatures, and what it has taken in and given out today. It also says when something unusual is going on: a VPP export, a storm warning, or the hold on exports after a power cut. The percentage beside SigenStor opens the card's own battery history instead.
+
+**Tap GRID** for the money side: the price band you are in, what a unit costs to buy and to sell, when that changes and to what, what the house has bought and sold today, whether the supply voltage and frequency are inside their limits, any Saving Session booked, and the last power cut. Both pop-ups stay live while open, and leave out anything SigenEnergyManager has not sent rather than guessing. They only show information: nothing on them changes what the battery does.
+
 **Tap SOLAR** for each string: voltage, current, power, what it has made today, and a chart of each string through the day. String names come from SigenEnergyManager.
 
 **Tap HOME** for what is drawing power now: every metered plug and switch in Indigo, highest first, with the share of the house load each one takes and the rest shown as unmeasured. Meters whose name says they measure a whole circuit or the house (mains, grid, solar and the like) are left out, so they do not swamp the list.

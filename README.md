@@ -2,11 +2,11 @@
 
 **Your house on a screen — energy, cameras, heating, every room, and the whole day replayed.**
 
-**Version:** 3.66.1 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
+**Version:** 3.67.0 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
 
 **[Read the full guide](https://highsteads.github.io/Dashboards/)** — setting up, a page of notes for every one of the 22 pages, and what to do when something goes wrong.
 
-<img src="https://img.shields.io/badge/version-3.66.1-5856d6" alt="Version 3.66.1">
+<img src="https://img.shields.io/badge/version-3.67.0-5856d6" alt="Version 3.67.0">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-22-0a84ff" alt="22 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
@@ -96,11 +96,11 @@ The [Getting started](https://highsteads.github.io/Dashboards/getting-started.ht
 
 ## What's new
 
+**3.67.0** (29-Oct-2026) - **Tap the battery or the grid on the Flow page to see what they are doing.** The SigenStor reading opens a pop-up that says, in plain words, what the battery manager is doing and why, how much charge should be left at dawn, how long the battery would run the house in a power cut at what it is using now, the battery's health and pack temperatures, and what it has taken in and given out today. It also warns of a VPP export, a storm warning or the hold on exports after a power cut. The GRID reading opens one with the price band you are in, what a unit costs to buy and sell, when that changes and to what, what the house has bought and sold today, whether the supply voltage and frequency are within their limits, any booked Saving Session, and the last power cut. Both stay live while open and say nothing they have no figure for. They show information only: nothing on them changes what the battery does. The percentage beside SigenStor still opens the card's own battery history.
+
 **3.66.1** (29-Oct-2026) - **Tap the car charger on the Flow page to reach the Zappi.** The AC CHARGER reading opens the Energy page at the car charger card, where the mode and boost buttons are. That card now lands with its heading clear of the top bar, from the hub's link too.
 
 **3.66.0** (29-Oct-2026) - **A new Flow page: the house, live, the way the Sigenergy app draws it.** Solar, the SigenStor battery, the grid, the house and the car charger sit on a picture of a house, with lines of light running along the cables in the direction power is moving, in a light look by day and a night look after sunset. Tap Solar for each string's voltage, current, power and today's energy with a chart through the day, or Home for every metered plug sorted by what it is drawing. Below are today's energy, the battery level, a chart of the day from midnight with a dashed forecast for the rest of it, and a diagram of where the energy went over a day, week, month, year or all time. The picture and card are Jean-Yves Avenard's Sigenergy Flow Card for Home Assistant, used unchanged under the Apache License 2.0; Dashboards feeds it from SigenEnergyManager, the Zappi plugin and the weather station. The Flow tile sits beside Energy and Cost on the menu and only appears where SigenEnergyManager is installed.
-
-**3.65.1** (28-Oct-2026) - **Three favourites across on phones.** The hub's favourite controls, readings and room shortcuts now use three columns on narrow screens, with wrapped names and comfortable tap areas. Camera layouts stay as they were in 3.65.0. The test harness now gives patched Indigo server methods explicit attributes so test cleanup cannot remove them from later tests.
 
 ## Acknowledgements
 

@@ -44,6 +44,28 @@
             margin: 14px 4px 0; font-size: 12px; line-height: 1.5; color: var(--text-secondary);
         }
         .credit a { color: inherit; }
+
+        /* 3.67.0: the SigenStor and GRID pop-ups */
+        dialog.pop {
+            width: min(460px, calc(100vw - 32px)); max-height: calc(100vh - 48px); margin: auto;
+            border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow);
+            background: var(--card-bg); color: var(--text); padding: 18px 18px 14px;
+        }
+        dialog.pop::backdrop { background: rgba(0, 0, 0, .35); }
+        .pop-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+        .pop-title { font-size: 20px; font-weight: 650; }
+        .pop-sub { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+        .pop-close {
+            flex: none; border: 1px solid var(--border); background: transparent; color: var(--text);
+            border-radius: 50%; width: 32px; height: 32px; font-size: 16px; cursor: pointer;
+        }
+        .pop-lines { list-style: none; margin: 14px 0 0; display: flex; flex-direction: column; gap: 10px; }
+        .pop-lines li { font-size: 15px; line-height: 1.45; padding-left: 12px; border-left: 3px solid var(--border); }
+        .pop-lines li.warn { border-left-color: var(--warn); }
+        .pop-lines li.bad { border-left-color: var(--bad); }
+        .pop-links { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 16px; font-size: 13px; }
+        .pop-links a { color: var(--accent); }
+        .pop-age { margin-top: 10px; font-size: 12px; color: var(--text-secondary); }
     </style>
     <link rel="stylesheet" href="dashboards-chrome.css">
 </head>
@@ -71,6 +93,15 @@
             Dashboards feeds it from SigenEnergyManager, the Zappi and the weather station.
         </p>
     </div>
+    <dialog class="pop" id="pop" aria-labelledby="pop-title">
+        <div class="pop-head">
+            <div><div class="pop-title" id="pop-title"></div><div class="pop-sub" id="pop-sub"></div></div>
+            <button class="pop-close" id="pop-close" type="button" aria-label="Close">&#x2715;</button>
+        </div>
+        <ul class="pop-lines" id="pop-lines"></ul>
+        <div class="pop-links" id="pop-links"></div>
+        <div class="pop-age" id="pop-age"></div>
+    </dialog>
 
     <script src="config.js" onerror="window.INDIGO_CONFIG_MISSING=true"></script>
     <script src="dashboards-auth.js"></script>
@@ -78,6 +109,7 @@
     <script src="dashboards-gate.js"></script>
     <script src="dashboard.js"></script>
     <script src="sigen-flow-bridge.js"></script>
+    <script src="flow-popups.js"></script>
     <script src="sigenergy-flow-card.js"></script>
     <script>
     "use strict";
@@ -124,13 +156,14 @@
             show_lifetime: false,
         });
         configured = true;
-        markCharger();
+        markTaps();
         return true;
     }
     function feed() {
         if (!configure()) return;
         card.hass = bridge.hass(stringDay);
         stamp();
+        if (popKind) drawPop();
     }
 
     async function pollStatus() {
@@ -160,44 +193,115 @@
 
     // His card opens Home Assistant's own details window for some taps. Here
     // the weather goes to the weather station page and the rest stay put.
-    // His card gives the AC charger no tap of its own, so the page catches a
-    // tap on its reading and label and opens the Zappi card on the Energy
-    // page, where its mode and boost buttons are. The charger drawn on the
-    // garage wall is left out: it is about 10 by 36 pixels and his scene
-    // draws another layer over it, so it cannot take a tap.
-    const CHARGER_TARGETS = ["acNode"];
-    function openCharger() { location.href = "energy.html#ev-card"; }
+    //
+    // His card gives three readings no tap of their own, so the page catches
+    // taps on them (composedPath reaches into the open shadow root):
+    //   AC CHARGER -> the Zappi card on the Energy page, with its controls;
+    //   SigenStor  -> the battery pop-up (the % beside it is left to his own
+    //                 battery history window);
+    //   GRID       -> the grid pop-up.
+    // The charger drawn on the garage wall is left out: it is about 10 by 36
+    // pixels and his scene draws another layer over it.
+    const TAPS = {
+        acNode:  { label: "Car charger: open its controls on the Energy page", go: () => { location.href = "energy.html#ev-card"; } },
+        battery: { label: "Battery: what it is doing and why", go: () => openPop("battery") },
+        grid:    { label: "Grid: prices now and today", go: () => openPop("grid") },
+    };
+    // The element that carries each tap: the charger's own node, or the node
+    // that holds the battery or grid reading.
+    function tapNode(id) {
+        const root = card.shadowRoot;
+        const el = root && root.getElementById(id);
+        return el ? (id === "acNode" ? el : el.closest(".node")) : null;
+    }
+    function tapTarget(path) {
+        if (path.some(el => el && el.id === "socButton")) return null;
+        for (const id of Object.keys(TAPS)) {
+            const node = tapNode(id);
+            if (node && path.includes(node)) return id;
+        }
+        return null;
+    }
     function wireCard() {
         card.addEventListener("hass-more-info", ev => {
             const id = ev.detail && ev.detail.entityId;
             if (id === SigenFlowBridge.E.weather) location.href = "ecowitt.html";
         });
         card.addEventListener("click", ev => {
-            if (ev.composedPath().some(el => el && CHARGER_TARGETS.includes(el.id))) openCharger();
+            const id = tapTarget(ev.composedPath());
+            if (id) TAPS[id].go();
         });
         card.addEventListener("keydown", ev => {
-            if ((ev.key === "Enter" || ev.key === " ") &&
-                ev.composedPath().some(el => el && el.id === "acNode")) { ev.preventDefault(); openCharger(); }
+            if (ev.key !== "Enter" && ev.key !== " ") return;
+            const id = tapTarget(ev.composedPath());
+            if (id) { ev.preventDefault(); TAPS[id].go(); }
         });
     }
     // setConfig rebuilds the card's insides, so this runs after each one: a
-    // pointer, and a keyboard stop, on the charger label.
-    function markCharger() {
+    // pointer, a keyboard stop and a name on each of the three, and a "›"
+    // after the label, as his own SOLAR and HOME carry.
+    function markTaps() {
         const root = card.shadowRoot;
         if (!root) return;
-        const node = root.getElementById("acNode");
-        if (node) {
-            node.setAttribute("role", "link");
+        for (const id of Object.keys(TAPS)) {
+            const node = tapNode(id);
+            if (!node) continue;
+            node.setAttribute("role", id === "acNode" ? "link" : "button");
             node.setAttribute("tabindex", "0");
-            node.setAttribute("aria-label", "Car charger: open its controls on the Energy page");
+            node.setAttribute("aria-label", TAPS[id].label);
+            node.classList.add("dash-tap");
+            const small = node.querySelector("small");
+            if (small && !small.querySelector(".dash-more")) {
+                const more = document.createElement("span");
+                more.className = "dash-more";
+                more.textContent = " ›";
+                small.appendChild(more);
+            }
         }
-        if (!root.getElementById("dash-charger-tap")) {
+        if (!root.getElementById("dash-tap-style")) {
             const st = document.createElement("style");
-            st.id = "dash-charger-tap";
-            st.textContent = "#acNode{cursor:pointer}";
+            st.id = "dash-tap-style";
+            st.textContent = ".dash-tap{cursor:pointer}";
             root.appendChild(st);
         }
     }
+
+    // ── the pop-ups ─────────────────────────────────────────────────────
+    const pop = document.getElementById("pop");
+    let popKind = null, popFrom = null;
+    function openPop(kind) {
+        if (!bridge || !bridge.status) return;
+        popKind = kind;
+        popFrom = document.activeElement;
+        drawPop();
+        if (!pop.open) pop.showModal();
+    }
+    // Redrawn on every status poll while open, so it stays live.
+    function drawPop() {
+        const v = popKind === "battery" ? FlowPopups.batteryView(bridge.status, Date.now())
+                                        : FlowPopups.gridView(bridge.status, Date.now());
+        const esc = DashUI.esc;
+        document.getElementById("pop-title").textContent = v.title;
+        document.getElementById("pop-sub").textContent = v.sub || "";
+        document.getElementById("pop-lines").innerHTML = v.lines.length
+            ? v.lines.map(l => `<li class="${esc(l.tone || "")}">${esc(l.text)}</li>`).join("")
+            : "<li>SigenEnergyManager has not sent these figures yet.</li>";
+        document.getElementById("pop-links").innerHTML =
+            v.links.map(l => `<a href="${esc(l.href)}">${esc(l.text)} &rsaquo;</a>`).join("");
+        const at = String(bridge.status.timestamp || "");
+        document.getElementById("pop-age").textContent = at ? "Live: SigenEnergyManager's reading at " + at + "." : "";
+    }
+    function closePop() { if (pop.open) pop.close(); }
+    pop.addEventListener("close", () => {
+        popKind = null;
+        if (popFrom && typeof popFrom.focus === "function") popFrom.focus();
+    });
+    document.getElementById("pop-close").addEventListener("click", closePop);
+    // A tap on the dimmed backdrop, outside the box, closes it too.
+    pop.addEventListener("click", ev => {
+        const r = pop.getBoundingClientRect();
+        if (ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom) closePop();
+    });
     wireCard();
 
     if (!IndigoAPI.isConfigured()) {
