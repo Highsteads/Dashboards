@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta name="indigo-page-name" content="Flow">
+    <meta name="indigo-page-icon" content="bolt.fill">
+    <meta name="indigo-page-description" content="Flow — the house, live, as the Sigenergy app shows it: solar, battery, grid, home and car charger">
+
+    <!-- iOS / macOS Web App (File → Add to Dock on Mac, Share → Add to Home Screen on iPhone). -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Dashboards">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#5856d6">
+    <link rel="apple-touch-icon" sizes="180x180" href="/public/dashboards/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="/public/dashboards/apple-touch-icon-167.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="/public/dashboards/apple-touch-icon-152.png">
+    <link rel="apple-touch-icon-precomposed" href="/public/dashboards/apple-touch-icon.png">
+    <title>Flow</title>
+    <link rel="stylesheet" href="dashboards-theme.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: var(--font-ui);
+            background: var(--bg); color: var(--text);
+            padding: max(80px, calc(72px + env(safe-area-inset-top))) 0 max(32px, env(safe-area-inset-bottom));
+            min-height: 100vh; -webkit-overflow-scrolling: touch;
+        }
+        .container {
+            max-width: 1100px; margin: 0 auto;
+            padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
+        }
+        .empty {
+            background: var(--card-bg); border-radius: var(--r-lg); box-shadow: var(--shadow);
+            padding: 20px; margin-top: 16px; line-height: 1.5; color: var(--text-secondary);
+        }
+        .empty strong { color: var(--text); }
+        sigenergy-flow-card { display: block; }
+        .credit {
+            margin: 14px 4px 0; font-size: 12px; line-height: 1.5; color: var(--text-secondary);
+        }
+        .credit a { color: inherit; }
+    </style>
+    <link rel="stylesheet" href="dashboards-chrome.css">
+</head>
+<body>
+    <header class="topbar">
+        <div class="hdr-left">
+            <a class="nav-btn" href="index.html">&larr; Home</a>
+        </div>
+        <div class="hdr-center">
+            <h1>Flow</h1>
+            <span class="topbar-status">Updated <span id="ts">—</span></span>
+        </div>
+        <div class="hdr-right">
+            <a class="nav-btn" href="energy.html">Energy</a>
+        </div>
+    </header>
+    <div class="container">
+        <div id="note" class="empty" style="display:none"></div>
+        <sigenergy-flow-card id="card"></sigenergy-flow-card>
+        <p class="credit">
+            The picture and this card are the
+            <a href="https://github.com/jyavenard/sigenergy-flow-card" target="_blank" rel="noopener">Sigenergy Flow Card</a>
+            by Jean-Yves Avenard, used under the
+            <a href="sigenergy-flow-card.LICENSE.txt" target="_blank">Apache License 2.0</a>.
+            Dashboards feeds it from SigenEnergyManager, the Zappi and the weather station.
+        </p>
+    </div>
+
+    <script src="config.js" onerror="window.INDIGO_CONFIG_MISSING=true"></script>
+    <script src="dashboards-auth.js"></script>
+    <script src="dashboards-ui.js"></script>
+    <script src="dashboards-gate.js"></script>
+    <script src="dashboard.js"></script>
+    <script src="sigen-flow-bridge.js"></script>
+    <script src="sigenergy-flow-card.js"></script>
+    <script>
+    "use strict";
+    const STATUS_EVERY_MS  = 5000;
+    const DEVICES_EVERY_MS = 10000;
+    const WEATHER_EVERY_MS = 10 * 60 * 1000;
+    const STRINGS_EVERY_MS = 5 * 60 * 1000;
+
+    let card = document.getElementById("card");
+    const note = document.getElementById("note");
+    let bridge = null, configured = false, devicesIn = false, stringDay = [], loadIds = "";
+
+    function say(html) { note.innerHTML = html; note.style.display = html ? "" : "none"; }
+    function stamp() {
+        const d = new Date(), p = n => String(n).padStart(2, "0");
+        document.getElementById("ts").textContent = p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
+    }
+
+    // The card's own settings, made once the first reading AND the device
+    // list are in. setConfig empties the card's charts and the card only
+    // fetches them again for a new day, so when the strings or the HOME list
+    // change later the card is replaced by a fresh one, which fetches them.
+    function configure() {
+        const status = bridge.status;
+        if (!status || !devicesIn) return false;
+        const strings = ((status.solar || {}).strings || []).map((s, i) => s.label || ("PV" + (i + 1)));
+        const loads = SigenFlowBridge._t.homeLoads(bridge.devices).map(l => l.entity);
+        const key = strings.join("|") + "#" + loads.join(",");
+        if (configured && key === loadIds) return true;
+        if (configured) {
+            const fresh = document.createElement("sigenergy-flow-card");
+            fresh.id = "card";
+            card.replaceWith(fresh);
+            card = fresh;
+            wireCard();
+        }
+        loadIds = key;
+        const site = String((window.INDIGO_CONFIG || {}).siteName || "").trim();
+        card.setConfig({
+            title: "Sigenergy",
+            name: site && site !== "Dashboards" ? site : "",
+            pv_strings: strings.length ? strings : ["PV1", "PV2", "PV3", "PV4"],
+            home_entities: loads,
+            show_lifetime: false,
+        });
+        configured = true;
+        return true;
+    }
+    function feed() {
+        if (!configure()) return;
+        card.hass = bridge.hass(stringDay);
+        stamp();
+    }
+
+    async function pollStatus() {
+        try {
+            bridge.status = await DashUI.message("sigenApi", { path: "status", query: {} }, { pendingMs: 15000 });
+            say("");
+            feed();
+        } catch (e) {
+            if (!bridge.status) say("<strong>No reading from SigenEnergyManager yet.</strong><br>" + DashUI.esc((e && e.message) || String(e)));
+        }
+    }
+    async function pollWeather() {
+        try {
+            const r = await fetch("weather.json", { cache: "no-store" });
+            if (r.ok) bridge.weather = await r.json();
+        } catch (e) { /* no OpenWeatherMap key: the card simply shows no weather */ }
+    }
+    async function pollStrings() {
+        const d = await bridge._stringHours();
+        const hours = (d && d.hours) || [];
+        const sums = [];
+        hours.forEach(row => (row || []).forEach((v, i) => {
+            if (v !== null && v !== undefined) sums[i] = (sums[i] || 0) + v;
+        }));
+        stringDay = sums.map(v => Math.round(v * 100) / 100);
+    }
+
+    // His card opens Home Assistant's own details window for some taps. Here
+    // the weather goes to the weather station page and the rest stay put.
+    function wireCard() {
+        card.addEventListener("hass-more-info", ev => {
+            const id = ev.detail && ev.detail.entityId;
+            if (id === SigenFlowBridge.E.weather) location.href = "ecowitt.html";
+        });
+    }
+    wireCard();
+
+    if (!IndigoAPI.isConfigured()) {
+        location.href = "index.html";
+    } else if (window.DashFeatures && DashFeatures.sigenAbsent("Flow")) {
+        /* No SigenEnergyManager: the notice is on screen and there is nothing to poll. */
+        card.style.display = "none";
+    } else {
+        bridge = new SigenFlowBridge.Bridge({ message: DashUI.message.bind(DashUI), wx: DashUI.wx });
+        const indigo = new IndigoAPI();
+        const auth = DashUI.authStrikes();
+        indigo.onAuthFailure(auth.fail);
+        indigo.observeAll(d => {
+            bridge.devices = d || [];
+            const first = !devicesIn;
+            devicesIn = true;
+            if (first) feed();
+        }, DEVICES_EVERY_MS, () => {}, () => auth.ok());
+        // A slow device list must not hold the whole picture back: after a
+        // few seconds the card starts without the HOME list, and gains it
+        // (as a fresh card) when the list arrives.
+        setTimeout(() => { if (!devicesIn) { devicesIn = true; feed(); } }, 4000);
+        // Weather first, so the first picture already knows day from night.
+        pollWeather().then(() => {
+            DashUI.poll(pollStatus, STATUS_EVERY_MS);
+            DashUI.poll(pollWeather, WEATHER_EVERY_MS, { immediate: false });
+        });
+        DashUI.poll(pollStrings, STRINGS_EVERY_MS);
+    }
+    </script>
+</body>
+</html>

@@ -188,6 +188,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_shutdown_budget.py` | shutdown() must not wait on the snapshot pool. Until 2.95.1 |
 | `test_shutdown_setup_links.py` | A one-time setup link is a /public file holding the API key. |
 | `test_sigen_available.py` | The server half of "the Sigenergy pages hide themselves when |
+| `test_sigen_flow_bridge.mjs` | Node contract test for SigenFlowBridge (sigen-flow-bridge.js), |
 | `test_sigen_paths.py` | Every SigenEnergyManager path a page asks the sigenApi proxy for |
 | `test_sigen_visibility.mjs` | The browser half of "the Sigenergy pages hide themselves when |
 | `test_snapshot_conditional.mjs` | Contract test for the camera still-refresh mechanism — the |

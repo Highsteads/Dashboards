@@ -108,16 +108,16 @@ console.log("\nmenu.html — exactly the right tiles go");
     vm.runInNewContext(extractFn(menu, "tileHidden") + "\nglobalThis.__h = tileHidden;", ctx);
     const tiles = sections.flatMap(sec => sec.tiles);
     const hidden = cfg => tiles.filter(t => ctx.__h(t, cfg)).map(t => t[0]).sort();
-    check("absent: energy and cost are dropped",
-          JSON.stringify(hidden({ sigenAvailable: false })) === JSON.stringify(["cost.html", "energy.html"]));
+    check("absent: energy, cost and flow are dropped",
+          JSON.stringify(hidden({ sigenAvailable: false })) === JSON.stringify(["cost.html", "energy.html", "flow.html"]));
     check("present: nothing dropped", hidden({ sigenAvailable: true }).length === 0);
     check("no key: nothing dropped", hidden({}).length === 0 && hidden(undefined).length === 0);
     check("carbon and laundry are no longer menu tiles (v3.34.0: a card on Energy)",
           !tiles.some(t => t[0] === "carbon.html" || t[0] === "laundry.html"));
     const tagged = tiles.filter(t => t[5]).map(t => t[0] + ":" + t[5]).sort();
-    // 3.63.0: the Air tile needs the Levoit Purifier plugin, not Sigen.
+    // 3.63.0: the Air tile needs the Levoit Purifier plugin, not Sigen. 3.66.0: Flow needs Sigen.
     check("only those tiles carry a needs-key",
-          JSON.stringify(tagged) === JSON.stringify(["cost.html:sigen", "energy.html:sigen", "levoit.html:levoit"]),
+          JSON.stringify(tagged) === JSON.stringify(["cost.html:sigen", "energy.html:sigen", "flow.html:sigen", "levoit.html:levoit"]),
           JSON.stringify(tagged));
     check("the filter is the one the sections use",
           /\.filter\(t => !tileHidden\(t, cfgM\)\)\.map\(t => tile\(\.\.\.tileArgs\(t, cfgM\)\)\)/.test(menu),

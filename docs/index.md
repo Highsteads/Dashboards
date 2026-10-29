@@ -56,7 +56,7 @@ subscription and nothing else.
 | Have Claude Code do all the setting up for you, with no coding | [Start with nothing but Claude](no-coding-needed.md) |
 | Install the plugin, pair a browser and see your first rooms | [Getting started](getting-started.md) |
 | Know what moves, what you can tap, and how alerts and the PIN work | [Using the dashboards](using.md) |
-| Know what every card and tile on each page means — one page of notes for each of the 21 pages | [Every page](pages/index.md) |
+| Know what every card and tile on each page means — one page of notes for each of the 22 pages | [Every page](pages/index.md) |
 | Understand what goes on behind the scenes, in plain words | [How it works](how-it-works.md) |
 | Know what every setting does | [Configuration](configuration.md) |
 | Know what each item in the Plugins menu does | [The plugin menu](plugin-menu.md) |

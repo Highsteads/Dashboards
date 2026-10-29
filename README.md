@@ -2,13 +2,13 @@
 
 **Your house on a screen — energy, cameras, heating, every room, and the whole day replayed.**
 
-**Version:** 3.65.1 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
+**Version:** 3.66.0 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
 
-**[Read the full guide](https://highsteads.github.io/Dashboards/)** — setting up, a page of notes for every one of the 21 pages, and what to do when something goes wrong.
+**[Read the full guide](https://highsteads.github.io/Dashboards/)** — setting up, a page of notes for every one of the 22 pages, and what to do when something goes wrong.
 
-<img src="https://img.shields.io/badge/version-3.65.1-5856d6" alt="Version 3.65.0">
+<img src="https://img.shields.io/badge/version-3.66.0-5856d6" alt="Version 3.66.0">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
-<img src="https://img.shields.io/badge/pages-21-0a84ff" alt="21 pages">
+<img src="https://img.shields.io/badge/pages-22-0a84ff" alt="22 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
 
 <img src="docs/screenshots/index.png" width="860" alt="The hub — whether anything needs a look, who is home, the heating, the battery and a strip of named camera pictures">
@@ -53,7 +53,7 @@ It needs Indigo 2025.2 and nothing else. Each of these adds to it, and a page th
 
 ## The pages
 
-Seventeen pages you use, plus four that hold the whole thing together (the menu, Settings, Setup and Guest). Each one has its own page of notes in the guide.
+Eighteen pages you use, plus four that hold the whole thing together (the menu, Settings, Setup and Guest). Each one has its own page of notes in the guide.
 
 | Page | What it is for |
 |---|---|
@@ -64,6 +64,7 @@ Seventeen pages you use, plus four that hold the whole thing together (the menu,
 | **[Scenes](docs/pages/scenes.md)** | Every Indigo action group as a button, each saying what actually happened |
 | **[Energy](docs/pages/energy.md)** | The solar and battery picture, and when to run the washing. Needs SigenEnergyManager |
 | **[Cost](docs/pages/cost.md)** | What the house costs to run, day by day. Needs SigenEnergyManager |
+| **[Flow](docs/pages/flow.md)** | The house, live, drawn the way the Sigenergy app draws it. Needs SigenEnergyManager |
 | **[Mains](docs/pages/mains.md)** | Every mains meter and how far each one disagrees with the others |
 | **[Meter](docs/pages/meter.md)** | One meter in detail — its live reading, its rank and its history |
 | **[Timeline](docs/pages/timeline.md)** | A day replayed, presence night by night, a chart of anything recorded, and the house diary |
@@ -95,11 +96,15 @@ The [Getting started](https://highsteads.github.io/Dashboards/getting-started.ht
 
 ## What's new
 
+**3.66.0** (29-Oct-2026) - **A new Flow page: the house, live, the way the Sigenergy app draws it.** Solar, the SigenStor battery, the grid, the house and the car charger sit on a picture of a house, with lines of light running along the cables in the direction power is moving, in a light look by day and a night look after sunset. Tap Solar for each string's voltage, current, power and today's energy with a chart through the day, or Home for every metered plug sorted by what it is drawing. Below are today's energy, the battery level, a chart of the day from midnight with a dashed forecast for the rest of it, and a diagram of where the energy went over a day, week, month, year or all time. The picture and card are Jean-Yves Avenard's Sigenergy Flow Card for Home Assistant, used unchanged under the Apache License 2.0; Dashboards feeds it from SigenEnergyManager, the Zappi plugin and the weather station. The Flow tile sits beside Energy and Cost on the menu and only appears where SigenEnergyManager is installed.
+
 **3.65.1** (28-Oct-2026) - **Three favourites across on phones.** The hub's favourite controls, readings and room shortcuts now use three columns on narrow screens, with wrapped names and comfortable tap areas. Camera layouts stay as they were in 3.65.0. The test harness now gives patched Indigo server methods explicit attributes so test cleanup cannot remove them from later tests.
 
 **3.65.0** (28-Oct-2026) - **Open the camera you tapped, with a clearer picture of what it is showing.** A camera on the hub or a room page now opens enlarged on Cameras, and the selected camera takes one existing live-video slot whenever the connection allows one. Choose Selected camera or All cameras, and use the full-screen button for a closer look. Every tile shows its name and picture freshness. Addresses and individual data rates sit behind Details, with a shorter footer on phones. The hub stops its video and picture requests after the camera strip has been off screen for two seconds, and resumes when it returns. The existing slow-link fallback, retry limits and iPhone tap-to-play support stay in place.
 
-**3.64.0** (26-Oct-2026) - **Tap a heating zone to see its history.** Each room opens on the last 24 hours, with temperature and target lines, a separate calling-for-heat strip, recorded controller requests and an optional outside-temperature line. Choose six hours or seven days, and move between zones without combining separate radiators. Missing or stale readings stay unknown. Temperature buttons now wait for the controller to confirm instead of declaring failure after 2.5 seconds; waiting and unconfirmed messages sit below the controls and never cover the tile.
+## Acknowledgements
+
+The Flow page's picture and card are the [Sigenergy Flow Card](https://github.com/jyavenard/sigenergy-flow-card) by Jean-Yves Avenard, © 2025-2026, used unchanged under the [Apache License 2.0](Dashboards.indigoPlugin/Contents/Resources/static/pages/sigenergy-flow-card.LICENSE.txt). Thank you, Jean-Yves.
 
 ## Authors & licence
 
