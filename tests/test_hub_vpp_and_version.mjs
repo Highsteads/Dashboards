@@ -146,7 +146,8 @@ check("version renders beside the date", d.includes("· v2.66.0"), d);
 check("date itself survives", /\d/.test(d) && d.length > 10, d);
 
 d = hero("");
-check("absent version leaves a clean date", !d.includes("·") && !d.includes("v"), d);
+// A version pattern, not the letter v: November has one, so this failed all month.
+check("absent version leaves a clean date", !d.includes("·") && !/\bv\d/.test(d), d);
 
 
 // 5. An aged payload (v2.95.3) — a VPP chip painted from a two-minute-old

@@ -826,6 +826,7 @@
       var result, cls = '';
       if (end > nowMs || r.status === 'UPCOMING') { result = start <= nowMs ? 'Running now' : 'Coming up'; }
       else if (r.results === 'SUCCESS') { result = free ? 'Used' : 'Won'; cls = 'good'; }
+      else if (r.results === 'PARTIAL_SUCCESS') { result = 'Part won'; cls = 'good'; }
       else if (r.results === 'FAIL') { result = 'Missed'; }
       else { result = 'Being scored'; }
       var scored = Date.parse(r.results_set_at);
@@ -874,8 +875,12 @@
       var p = (c.date || '').split('-').map(Number);
       var dayMs = p.length === 3 ? new Date(p[0], p[1] - 1, p[2], 12).getTime() : NaN;
       var head = isFinite(dayMs) ? dayWords(dayMs) : c.date;
-      var s = Date.parse(c.start), e = Date.parse(c.end);
-      if (isFinite(s) && isFinite(e)) head += ', ' + clock(s) + '-' + clock(e);
+      var spans = (c.windows && c.windows.length) ? c.windows : [{ start: c.start, end: c.end }];
+      var times = spans.map(function (w) {
+        var s = Date.parse(w.start), e = Date.parse(w.end);
+        return isFinite(s) && isFinite(e) ? clock(s) + '-' + clock(e) : '';
+      }).filter(Boolean);
+      if (times.length) head += ', ' + times.join(' and ');
       var rates = (c.rate_p || []).map(Number).filter(isFinite);
       var rate = rates.length === 1 ? rates[0].toFixed(1) + 'p' : 'the rates at the time';
       var used = num(c.kwh) != null

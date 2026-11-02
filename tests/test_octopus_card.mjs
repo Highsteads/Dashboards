@@ -37,6 +37,34 @@ check(DashCalc.kwhWords(6) === "6 kWh" && DashCalc.kwhWords(15.25) === "15.3 kWh
 check(DashCalc.netKwhWords(-3.9) === "3.9 kWh out" && DashCalc.netKwhWords(0.5) === "0.5 kWh in",
       "negative net usage is export", DashCalc.netKwhWords(-3.9));
 
+// ── a Power Down that only won part of its hour (26-Oct-2026) ──
+{
+  const rows = DashCalc.sessionHistoryRows([{
+    start: "2026-09-26T18:00:00Z", end: "2026-09-26T19:00:00Z", direction: "TURN_DOWN",
+    status: "DONE", results: "PARTIAL_SUCCESS", results_set_at: "2026-09-29T09:00:00Z",
+  }], NOW);
+  check(rows[0].result === "Part won" && rows[0].cls === "good",
+        "a part win is scored, not still being scored", rows[0].result);
+}
+
+// ── two separate free hours are not one long window (18-Oct-2026) ──
+{
+  const two = DashCalc.freeHourCreditLines([{
+    date: "2026-09-27", state: "paid", paid_p: 475, expected_p: 475, kwh: 20.4,
+    start: "2026-09-27T10:00:00Z", end: "2026-09-27T14:00:00Z",
+    windows: [{ start: "2026-09-27T10:00:00Z", end: "2026-09-27T11:00:00Z" },
+              { start: "2026-09-27T13:00:00Z", end: "2026-09-27T14:00:00Z" }],
+    credits: [], other_credits: [],
+  }], NOW);
+  check((two[0].head.match(/-/g) || []).length === 2 && two[0].head.includes(" and "),
+        "both windows are named", two[0].head);
+  const old = DashCalc.freeHourCreditLines([{
+    date: "2026-09-27", state: "paid", paid_p: 616, expected_p: 616, kwh: 25.2,
+    start: "2026-09-27T12:00:00Z", end: "2026-09-27T14:00:00Z", credits: [], other_credits: [],
+  }], NOW);
+  check((old[0].head.match(/-/g) || []).length === 1, "a row without windows still reads", old[0].head);
+}
+
 // ── history: Octopus's own record ──────────────────────────────
 const history = [
     { id: 6541, start: "2026-09-27T13:00:00+00:00", end: "2026-09-27T14:00:00+00:00",
