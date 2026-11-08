@@ -18,7 +18,8 @@
 #              ~168 such scans every 300 s.
 # Author:      CliveS & Claude Sonnet 5
 # Date:        02-09-2026 + UK Time Now
-# Version:     1.5
+# Version:     1.6
+# v1.6 - Rename the living room sensor label to Twigs; device ID unchanged.
 #
 # v1.5 (02-09-2026): the agreement track is N-way now, not hardcoded to the
 #   first two sensors. green = every reporting sensor on at once; amber = some
@@ -64,7 +65,7 @@ BUCKETS      = 60      # PIR-activity resolution (buckets across the window)
 ROOMS = [
     {"key": "living_room", "title": "Living room", "icon": "sofa",
      "start": (18, 0), "end": (23, 0), "wrap": False,
-     "sensors": [{"id": 1496890672, "label": "Centre"},
+     "sensors": [{"id": 1496890672, "label": "Twigs"},
                  {"id": 1909477979, "label": "Left"},
                  {"id": 1899487413, "label": "Right"}]},
     {"key": "bedroom_1", "title": "Bedroom 1", "icon": "bed",

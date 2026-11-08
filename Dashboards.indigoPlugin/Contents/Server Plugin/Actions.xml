@@ -252,6 +252,15 @@
         <CallbackMethod>handleLevoitEnergy</CallbackMethod>
     </Action>
 
+    <!-- POST /message/com.clives.indigoplugin.dashboards/plugCosts/
+         Body: {} -> every plug that measures its own energy, with its kWh and
+         cost today, yesterday, the last 7 and 30 days at Flux's cheap rate,
+         and all of them together (3.69.0). Reads only. -->
+    <Action id="plugCosts" uiPath="hidden">
+        <Name>Plug Costs</Name>
+        <CallbackMethod>handlePlugCosts</CallbackMethod>
+    </Action>
+
     <!-- POST /message/com.clives.indigoplugin.dashboards/verifyPin/
          Body: {"pin": "<entered>"} → {"ok": true, "valid": bool}
          Server-side PIN check for the per-tile PIN speed bump (v2.1.0). -->

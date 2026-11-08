@@ -14,9 +14,10 @@
 #              trigger until 14-09-2026 and had never once run, so on 27-08 there
 #              was nothing downstream to stop it. This closes that gap.
 # Author:      CliveS & Claude Opus 5
-# Date:        24-09-2026 + UK Time Now
-# Version:     1.8
+# Date:        08-11-2026 + UK Time Now
+# Version:     1.9
 #
+# v1.9 - Conservatory Lamp moved from the Shelly plug (974294416) to the Third Reality Zigbee plug 1295526983, 08-11-2026.
 # v1.8 (24-09-2026) — the Living Room Door Motion Sensor is out of the
 #   living room zone: CliveS is removing the device. The three FP300 presence
 #   sensors cover the room.
@@ -244,7 +245,7 @@ FIRE_DEVICE_ID = 614164061    # "Fire On/Off" — Broadlink RF relay, New Forest
 ZONES = {
     "living_room": {
         "sensors": [1909477979,   # Living Room Left Presence Sensor   (FP300)
-                    1496890672,   # Living Room Centre Presence Sensor (FP300)
+                    1496890672,   # Living Room Twigs Presence Sensor (FP300)
                     1899487413],  # Living Room Right Presence Sensor  (FP300)
         "lights":  [1765266302,   # Living Room Main Light
                     372666822,    # Living Room Colour Lamp
@@ -278,7 +279,7 @@ ZONES = {
     },
     "conservatory": {
         "sensors": [],            # no presence sensor in the room
-        "lights":  [974294416],   # Conservatory Lamp Plug
+        "lights":  [1295526983],   # Conservatory Lamp Plug
     },
 }
 

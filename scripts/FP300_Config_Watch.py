@@ -86,7 +86,7 @@ SENSOR_IDS = [
 # presence settings in DESIRED, so the lounge and bathroom sensors keep detecting
 # people exactly as before.
 TEMP_SENSOR_IDS = [
-    1496890672,   # Living Room Centre Presence Sensor
+    1496890672,   # Living Room Twigs Presence Sensor
     1909477979,   # Living Room Left Presence Sensor
     1899487413,   # Living Room Right Presence Sensor
     1070583195,   # Bathroom Basin Presence Sensor

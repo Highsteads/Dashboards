@@ -2,13 +2,13 @@
 
 **Your house on a screen — energy, cameras, heating, every room, and the whole day replayed.**
 
-**Version:** 3.68.1 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
+**Version:** 3.69.0 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
 
-**[Read the full guide](https://highsteads.github.io/Dashboards/)** — setting up, a page of notes for every one of the 22 pages, and what to do when something goes wrong.
+**[Read the full guide](https://highsteads.github.io/Dashboards/)** — setting up, a page of notes for every one of the 23 pages, and what to do when something goes wrong.
 
-<img src="https://img.shields.io/badge/version-3.68.1-5856d6" alt="Version 3.68.1">
+<img src="https://img.shields.io/badge/version-3.69.0-5856d6" alt="Version 3.69.0">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
-<img src="https://img.shields.io/badge/pages-22-0a84ff" alt="22 pages">
+<img src="https://img.shields.io/badge/pages-23-0a84ff" alt="23 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
 
 <img src="docs/screenshots/index.png" width="860" alt="The hub — whether anything needs a look, who is home, the heating, the battery and a strip of named camera pictures">
@@ -43,7 +43,7 @@ It needs Indigo 2025.2 and nothing else. Each of these adds to it, and a page th
 | Add this | And you get |
 |---|---|
 | **ffmpeg** and **go2rtc**, two free programs installed with Homebrew | The cameras. Both are needed |
-| The **SQL Logger** plugin, which comes with Indigo | The Timeline, charts, and the history on the meter pages |
+| The **SQL Logger** plugin, which comes with Indigo | The Timeline, charts, the history on the meter pages, and the past days on the Plugs page |
 | My free **SigenEnergyManager** plugin, for any Sigenergy solar and battery system | The Energy and Cost pages, and the hub's energy cards |
 | **EvoHomeControl** | The boost and force buttons on the Heating page. Temperatures and setpoints work with any thermostat |
 | **UniFiHealth** 0.2.0 or later | The Wi-Fi pages |
@@ -53,7 +53,7 @@ It needs Indigo 2025.2 and nothing else. Each of these adds to it, and a page th
 
 ## The pages
 
-Eighteen pages you use, plus four that hold the whole thing together (the menu, Settings, Setup and Guest). Each one has its own page of notes in the guide.
+Nineteen pages you use, plus four that hold the whole thing together (the menu, Settings, Setup and Guest). Each one has its own page of notes in the guide.
 
 | Page | What it is for |
 |---|---|
@@ -65,6 +65,7 @@ Eighteen pages you use, plus four that hold the whole thing together (the menu, 
 | **[Energy](docs/pages/energy.md)** | The solar and battery picture, and when to run the washing. Needs SigenEnergyManager |
 | **[Cost](docs/pages/cost.md)** | What the house costs to run, day by day. Needs SigenEnergyManager |
 | **[Flow](docs/pages/flow.md)** | The house, live, drawn the way the Sigenergy app draws it. Needs SigenEnergyManager |
+| **[Plugs](docs/pages/plugs.md)** | What each plug that measures its own energy costs a day, one by one and all together |
 | **[Mains](docs/pages/mains.md)** | Every mains meter and how far each one disagrees with the others |
 | **[Meter](docs/pages/meter.md)** | One meter in detail — its live reading, its rank and its history |
 | **[Timeline](docs/pages/timeline.md)** | A day replayed, presence night by night, a chart of anything recorded, and the house diary |
@@ -96,11 +97,11 @@ The [Getting started](https://highsteads.github.io/Dashboards/getting-started.ht
 
 ## What's new
 
+**3.69.0** (08-Nov-2026) - **A new Plugs page: what each plug costs a day.** Every plug that measures its own energy, whether a Shelly, a Zigbee plug or an ESPHome power monitor, is listed with what it has cost today and over the last 7 and 30 days, dearest first, and all of them together for today, yesterday, the last 7 days and the last 30 days. A chart shows the cost of each of the last 30 days for all the plugs, or for one when you tap it. Every kWh is priced at Flux's cheap rate, because the house runs from a battery filled then, and each day at the rate published for that day, so a price change moves only the days after it. Past days come from the SQL Logger and are worked out once and kept, so the page opens quickly. Reach it from the Plugs tile on the menu or from the foot of the Cost page. The Air page's cost for its purifier was counting the day again whenever a Shelly's reading stepped back by a few watt-hours, which they do many times a day; it now ignores those small steps, so its figures are lower and correct.
+
 **3.68.1** (02-Nov-2026) - **A Power Down that only partly won now says so.** Octopus score a session as a part win when only one half hour beat your usual, and the Energy page had no word for that, so it said Being scored for ever. It now says Part won. A Sunday with two separate free hours also shows both times, rather than one long window from the first to the last.
 
 **3.68.0** (29-Oct-2026) - **Pin another page to the hub's Favourites.** A new kind of favourite, the page link, opens another Dashboards page from a tile among the others, in the order you put it. Pin the Flow page as "Sigenergy", or bring Menu and Rooms up beside your other tiles. Once Menu or Rooms is pinned, its big card further down the hub steps aside, and it comes back if you unpin it. Add one in Settings from the picker's Page links group. Only a page beside the hub can be pinned, so a page link can never point off the site.
-
-**3.67.0** (29-Oct-2026) - **Tap the battery or the grid on the Flow page to see what they are doing.** The SigenStor reading opens a pop-up that says, in plain words, what the battery manager is doing and why, how much charge should be left at dawn, how long the battery would run the house in a power cut at what it is using now, the battery's health and pack temperatures, and what it has taken in and given out today. It also warns of a VPP export, a storm warning or the hold on exports after a power cut. The GRID reading opens one with the price band you are in, what a unit costs to buy and sell, when that changes and to what, what the house has bought and sold today, whether the supply voltage and frequency are within their limits, any booked Saving Session, and the last power cut. Both stay live while open and say nothing they have no figure for. They show information only: nothing on them changes what the battery does. The percentage beside SigenStor still opens the card's own battery history.
 
 ## Acknowledgements
 

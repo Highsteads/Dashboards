@@ -6,7 +6,7 @@ has_children: true
 
 # Every page
 
-Eighteen pages you use, plus four that hold the whole thing together. Every one is a plain HTML
+Nineteen pages you use, plus four that hold the whole thing together. Every one is a plain HTML
 file, and every one reads live Indigo data through the same Bearer-authed API. Each has a page of
 notes here: what is on it, where the numbers come from, how often it refreshes, what you can do,
 and the things worth knowing before you trust it.
@@ -25,6 +25,7 @@ and the things worth knowing before you trust it.
 | [Energy](energy.md) | `energy.html` | The whole solar and battery picture, and when to run things. Needs SigenEnergyManager |
 | [Cost](cost.md) | `cost.html` | What the house costs to run, from bill-exact economics. Needs SigenEnergyManager |
 | [Flow](flow.md) | `flow.html` | The house, live, drawn the way the Sigenergy app draws it. Needs SigenEnergyManager |
+| [Plugs](plugs.md) | `plugs.html` | What each plug that measures its own energy costs a day, one by one and all together |
 | [Mains](mains.md) | `mains.html` | Every mains meter in the house and how far each disagrees with the others |
 | [Meter](meter.md) | `meter.html?id=N` | One meter in detail |
 

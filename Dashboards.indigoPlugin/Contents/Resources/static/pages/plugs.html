@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta name="indigo-page-name" content="Plugs">
+    <meta name="indigo-page-icon" content="powerplug">
+    <meta name="indigo-page-description" content="Plugs — what each plug that measures its own energy costs a day, and all of them together">
+
+    <!-- iOS / macOS Web App (File → Add to Dock on Mac, Share → Add to Home Screen on iPhone). -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Dashboards">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#5856d6">
+    <link rel="apple-touch-icon" sizes="180x180" href="/public/dashboards/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="/public/dashboards/apple-touch-icon-167.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="/public/dashboards/apple-touch-icon-152.png">
+    <link rel="apple-touch-icon-precomposed" href="/public/dashboards/apple-touch-icon.png">
+    <title>Plugs</title>
+    <link rel="stylesheet" href="dashboards-theme.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        /* Selected is solid blue, as on the Air page (CliveS, 24-10-2026). */
+        :root { --sel-blue: #0a6cd6; }
+        body {
+            font-family: var(--font-ui);
+            background: var(--bg); color: var(--text);
+            padding: max(80px, calc(72px + env(safe-area-inset-top))) 0 max(32px, env(safe-area-inset-bottom));
+            min-height: 100vh; -webkit-overflow-scrolling: touch;
+        }
+        .bottombar {
+            position: sticky; bottom: 0; z-index: 10;
+            background: var(--card-bg);
+            border-top: 1px solid var(--border);
+            box-shadow: 0 -1px 3px rgba(0,0,0,0.08);
+            padding: 8px max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left));
+            padding-bottom: max(8px, env(safe-area-inset-bottom));
+            margin-top: 16px;
+        }
+        .bottombar-inner {
+            text-align: center; max-width: 900px; margin: 0 auto;
+            font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; line-height: 1.4;
+        }
+        .container {
+            max-width: 900px; margin: 0 auto;
+            padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
+        }
+        .loading { text-align: center; padding: 60px 20px; color: var(--text-secondary); }
+        .spinner {
+            width: 24px; height: 24px; border: 3px solid var(--off-color);
+            border-top-color: var(--accent); border-radius: 50%;
+            animation: spin 0.8s linear infinite; margin: 0 auto 12px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .card {
+            background: var(--card-bg); border-radius: var(--r-lg); box-shadow: var(--shadow);
+            padding: 14px 16px; margin-top: 16px;
+        }
+        .empty { line-height: 1.5; color: var(--text-secondary); }
+        .empty strong { color: var(--text); }
+        .card-title { font-size: 15px; font-weight: 600; }
+        .note { font-size: 12px; color: var(--text-secondary); margin-top: 8px; line-height: 1.45; }
+
+        /* ── all of them together ── */
+        .sums { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 10px; }
+        .sum { background: var(--card-bg-alt); border-radius: var(--r-md); padding: 10px; min-width: 0; }
+        .sum-val { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .sum-sub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; font-variant-numeric: tabular-nums; }
+        @media (max-width: 560px) { .sums { grid-template-columns: repeat(2, 1fr); } }
+
+        /* ── the chart ── */
+        .chart-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+        .chip {
+            border: 1px solid var(--border); background: var(--card-bg-alt); color: var(--text);
+            border-radius: var(--r-pill); padding: 4px 12px; font: inherit; font-size: 13px; cursor: pointer;
+        }
+        .chip.on { background: var(--sel-blue); border-color: var(--sel-blue); color: #fff; }
+        .chip:focus-visible, .plug:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+        .chart-box { position: relative; height: 220px; margin-top: 10px; }
+
+        /* ── one row per plug ── */
+        .list-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+        .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+        .plugs { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+        .plug {
+            display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, 76px); gap: 8px; align-items: center;
+            width: 100%; text-align: left; font: inherit; color: var(--text); cursor: pointer;
+            background: var(--card-bg-alt); border: 1px solid transparent; border-radius: var(--r-md); padding: 10px;
+        }
+        .plug.on { border-color: var(--sel-blue); }
+        .plug-name { font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+        .plug-sub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+        .plug-sub.bad { color: var(--bad); }
+        .cell { text-align: right; font-variant-numeric: tabular-nums; }
+        .cell-val { font-size: 15px; font-weight: 600; }
+        .cell-sub { font-size: 11px; color: var(--text-secondary); }
+        .cell.sorted .cell-val { color: var(--sel-blue); }
+        .cols { display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, 76px); gap: 8px; padding: 0 11px;
+                font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 10px; }
+        .cols span { text-align: right; }
+        .cols span:first-child { text-align: left; }
+        @media (max-width: 420px) {
+            .plug, .cols { grid-template-columns: minmax(0, 1fr) repeat(3, 58px); gap: 6px; }
+            .cell-val { font-size: 14px; }
+        }
+        .unused { font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin-top: 12px; }
+    </style>
+    <link rel="stylesheet" href="dashboards-chrome.css">
+</head>
+<body>
+    <header class="topbar">
+        <div class="hdr-left">
+            <a class="nav-btn" href="index.html">&larr; Home</a>
+        </div>
+        <div class="hdr-center">
+            <h1>Plugs</h1>
+            <span class="topbar-status">Updated <span id="ts">—</span></span>
+        </div>
+        <div class="hdr-right">
+            <a class="nav-btn" href="cost.html">Cost &rarr;</a>
+        </div>
+    </header>
+    <div class="container">
+        <div id="content">
+            <div class="loading"><div class="spinner"></div><p>Adding up the plugs…</p></div>
+        </div>
+    </div>
+
+    <script src="config.js" onerror="window.INDIGO_CONFIG_MISSING=true"></script>
+    <script src="dashboards-auth.js"></script>
+    <script src="dashboards-ui.js"></script>
+    <script src="dashboards-gate.js"></script>
+    <script src="dashboard.js"></script>
+    <script src="chart.umd.min.js"></script>
+    <script>
+    "use strict";
+    /* What each plug costs a day (3.69.0). The server adds it up (plugCosts):
+       every plug that measures its own energy, each day priced at that day's
+       Flux cheap rate, because the house runs from a battery filled then
+       (CliveS, 08-11-2026). The page only lays it out. */
+    const POLL_MS = 5 * 60 * 1000;           // the server keeps its answer 5 minutes
+    const esc = t => DashUI.esc(t);
+    const PERIODS = [["today", "Today"], ["week", "7 days"], ["month", "30 days"]];
+    let data = null;
+    let sortBy = "month";
+    let chosen = null;                        // a plug id, or null for all of them
+
+    function pad(n) { return String(n).padStart(2, "0"); }
+    function money(p) {
+        if (p === null || p === undefined) return "—";
+        if (p === 0) return "0p";
+        if (Number(p.toFixed(1)) < 10) return p.toFixed(1) + "p";
+        if (Math.round(p) < 100) return Math.round(p) + "p";     // 99.6p reads as £1.00, not 100p
+        return "£" + (p / 100).toFixed(2);
+    }
+    function kwh(x) {
+        if (x === null || x === undefined) return "not recorded";
+        if (x === 0) return "nothing used";
+        return (x < 1 ? x.toFixed(2) : x.toFixed(1)) + " kWh";
+    }
+    function dayWords(iso) {
+        const d = new Date(iso + "T12:00:00");
+        return d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+    }
+
+    if (!IndigoAPI.isConfigured()) {
+        location.href = "index.html";
+    } else {
+        DashUI.poll(load, POLL_MS);
+    }
+
+    async function load() {
+        try {
+            data = await DashUI.message("plugCosts", {}, { pendingMs: 120000 });
+        } catch (e) {
+            if (!data) {
+                document.getElementById("content").innerHTML =
+                    `<div class="card empty"><strong>Could not add up the plugs</strong><br>${esc((e && e.message) || String(e))}</div>`;
+            }
+            return;                           // keep the last figures; the next round asks again
+        }
+        const d = new Date((data.at || Date.now() / 1000) * 1000);
+        document.getElementById("ts").textContent = pad(d.getHours()) + ":" + pad(d.getMinutes());
+        render();
+    }
+
+    function sumCell(label, s) {
+        return `<div class="sum"><div class="sum-val">${s && s.pence !== null ? money(s.pence) : "—"}</div>
+            <div class="sum-sub">${label}, ${esc(kwh(s && s.kwh))}</div></div>`;
+    }
+
+    function render() {
+        const content = document.getElementById("content");
+        const plugs = (data && data.plugs) || [];
+        if (!plugs.length) {
+            content.innerHTML = `<div class="card empty"><strong>No plug that measures its energy was found.</strong><br>
+                This page lists Shelly plugs (ShellyDirect), Zigbee plugs (Zigbee2MQTT Bridge) and
+                ESPHome power monitors that report their own energy.</div>`;
+            return;
+        }
+        const used = plugs.filter(p => p.month && p.month.kwh);
+        const idle = plugs.filter(p => !(p.month && p.month.kwh));
+        used.sort((a, b) => ((b[sortBy] && b[sortBy].kwh) || 0) - ((a[sortBy] && a[sortBy].kwh) || 0)
+                            || a.name.localeCompare(b.name));
+        const t = data.totals || {};
+        const rateNote = data.rate
+            ? `Each day is priced at that day's cheap rate, now ${esc(data.rate.words)}, because the battery the house runs from is filled then. Anything drawn from the grid at another time costs more than this.`
+            : "No tariff prices are published, so only the energy is shown.";
+        const unpriced = data.unpricedDays
+            ? ` ${data.unpricedDays === 1 ? "One day has" : data.unpricedDays + " days have"} no published rate on record, so ${data.unpricedDays === 1 ? "its" : "their"} energy is not in the money totals.` : "";
+        const row = p => {
+            const sub = [p.room, !p.answering ? "not answering" : "", p.since ? "records from " + p.since : ""].filter(Boolean).join(" · ");
+            const cells = PERIODS.map(([key]) => {
+                const s = p[key] || {};
+                return `<div class="cell${key === sortBy ? " sorted" : ""}"><div class="cell-val">${s.pence !== null && s.pence !== undefined ? money(s.pence) : "—"}</div>
+                    <div class="cell-sub">${esc(kwh(s.kwh))}</div></div>`;
+            }).join("");
+            return `<button class="plug${chosen === p.id ? " on" : ""}" data-id="${p.id}" aria-pressed="${chosen === p.id}">
+                <div><div class="plug-name">${esc(p.name)}</div>${sub ? `<div class="plug-sub${!p.answering ? " bad" : ""}">${esc(sub)}</div>` : ""}</div>
+                ${cells}</button>`;
+        };
+        const chosenPlug = chosen !== null ? plugs.find(p => p.id === chosen) : null;
+        if (chosen !== null && !chosenPlug) chosen = null;
+        content.innerHTML = `
+            <section class="card" aria-label="All the plugs together">
+                <div class="card-title">All ${plugs.length === 1 ? "the plug" : "the plugs"} together</div>
+                <div class="sums">
+                    ${sumCell("today", t.today)}${sumCell("yesterday", t.yesterday)}
+                    ${sumCell("last 7 days", t.week)}${sumCell("last 30 days", t.month)}
+                </div>
+                <div class="note">${rateNote}${unpriced}</div>
+            </section>
+            <section class="card" aria-label="Cost each day">
+                <div class="chart-head">
+                    <span class="card-title">Cost each day, ${chosenPlug ? esc(chosenPlug.name) : "all the plugs"}</span>
+                    ${chosenPlug ? `<button class="chip" data-all="1">Show all the plugs</button>` : ""}
+                </div>
+                <div class="chart-box"><canvas id="chart" role="img" aria-label="Cost each day over the last 30 days"></canvas></div>
+                <div class="note">Tap a plug below to see its own days.</div>
+            </section>
+            <section class="card" aria-label="Each plug">
+                <div class="list-head">
+                    <span class="card-title">Each plug, dearest first</span>
+                    <span class="chips">${PERIODS.map(([key, label]) =>
+                        `<button class="chip${key === sortBy ? " on" : ""}" data-sort="${key}" aria-pressed="${key === sortBy}">${label}</button>`).join("")}</span>
+                </div>
+                <div class="cols" aria-hidden="true"><span>Plug</span>${PERIODS.map(([, l]) => `<span>${l}</span>`).join("")}</div>
+                <div class="plugs">${used.map(row).join("")}</div>
+                ${idle.length ? `<div class="unused">Used nothing in the last 30 days: ${esc(listWords(idle.map(p => p.name)))}.</div>` : ""}
+            </section>`;
+        drawChart(chosenPlug);
+    }
+
+    function listWords(names) {
+        if (names.length < 2) return names.join("");
+        return names.slice(0, -1).join(", ") + " and " + names[names.length - 1];
+    }
+
+    function drawChart(plug) {
+        const canvas = document.getElementById("chart");
+        if (!canvas || !data) return;
+        const days = data.days || [];
+        const series = plug ? plug.days : data.daily;
+        const css = getComputedStyle(document.documentElement);
+        const accent = css.getPropertyValue("--accent").trim();
+        const muted = css.getPropertyValue("--text-secondary").trim();
+        const grid = css.getPropertyValue("--border").trim();
+        DashUI.chartRender(canvas, {
+            type: "bar",
+            data: { labels: days, datasets: [{
+                label: "Cost", data: series.map(x => x.pence === null ? null : x.pence),
+                backgroundColor: days.map((_, i) => i === days.length - 1 ? accent + "88" : accent),
+                borderRadius: 3,
+            }] },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: {
+                        title: items => items.length ? dayWords(days[items[0].dataIndex]) + (items[0].dataIndex === days.length - 1 ? " (so far)" : "") : "",
+                        label: item => {
+                            const x = series[item.dataIndex] || {};
+                            return money(x.pence) + ", " + kwh(x.kwh);
+                        },
+                    } },
+                },
+                scales: {
+                    x: { grid: { display: false }, ticks: { color: muted, maxTicksLimit: 8, autoSkip: true,
+                         callback: (_v, i) => { const d = new Date(days[i] + "T12:00:00"); return d.getDate() + "/" + (d.getMonth() + 1); } } },
+                    y: { min: 0, grid: { color: grid }, ticks: { color: muted, maxTicksLimit: 5, callback: v => money(v) } },
+                },
+            },
+        });
+    }
+
+    document.getElementById("content").addEventListener("click", ev => {
+        const sort = ev.target.closest("[data-sort]");
+        if (sort) { sortBy = sort.dataset.sort; render(); return; }
+        if (ev.target.closest("[data-all]")) { chosen = null; render(); return; }
+        const plug = ev.target.closest(".plug");
+        if (plug) {
+            const id = Number(plug.dataset.id);
+            chosen = chosen === id ? null : id;
+            render();
+            document.getElementById("chart").scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+    });
+    </script>
+
+    <footer class="bottombar">
+        <div class="bottombar-inner">
+            Every plug that measures its own energy, priced at the Flux cheap rate.
+        </div>
+    </footer>
+
+<script src="a11y.js"></script>
+
+<script src="standalone-nav.js"></script>
+</body>
+</html>
