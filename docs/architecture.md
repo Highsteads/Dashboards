@@ -36,7 +36,7 @@ The shared scripts, in the order a page loads them:
 | `dashboards-controls.js`, `dashboards-controls.css` | The device tiles the room, Active, Heating and weather pages share: the one on/off rule, the toggle and brightness handlers and the hub's favourite device press (each confirmed from the device, and put right if the command went nowhere), the heating zone tile with its read-back setpoint buttons, and their styles. Needs `dashboards-action.js` loaded first. Driven by `tests/test_dash_tile.mjs` |
 | `dashboards-ui.js` | Link classification, the idle guard, the camera cross-fade (`swapImage`), the tap guard, and the other pieces several pages share |
 | `dashboards-alerts.js` | Browser notifications for the alert rules, loaded by the hub, the room pages, Energy and Alerts. The plugin judges the rules (3.47.0). This asks it for new firings and raises a notification for each whose rule includes Browser. One tab polls at a time, and a firing is claimed in `localStorage` so two open tabs never announce it twice. It also keeps the page-side statement of what a rule means, which the plugin's Python is held to case for case (`tests/lib/alert_rule_cases.json`). Driven by `tests/test_alerts_shared.mjs` |
-| `when-to-run.js` | The Energy page's When to run it card: the laundry plan and grid carbon |
+| `when-to-run.js` | Retained laundry and grid-carbon helper, no longer loaded by the Energy page |
 | `energy-calc.js` | The arithmetic shared by the Energy and Cost pages — unit formatting, the daily energy allocation behind the Sankey, the half-hourly balance, the rolling money sums. DOM-free, so `tests/test_energy_cost.mjs` can drive it |
 | `a11y.js`, `dashboards-icons.js`, `standalone-nav.js`, `sw.js` | Accessibility polish, the icon set, keeping links inside the home-screen app, and the service worker that raises notifications |
 | `chart.umd.min.js` | [Chart.js](https://www.chartjs.org) (MIT), bundled so charts work with no internet |
@@ -95,7 +95,7 @@ running pre-2.70 JavaScript is the reason the upgrade note says to reload long-o
 The plugin ticks a handful of Python scripts from its own thread, so they need no schedule in
 Indigo: the presence watch that writes the Timeline's Nights data, the hourly event-log watch behind
 the Alerts page and the hub's needs-a-look check, the drive-lights and night-sweep helpers, the FP300 presence
-sensor configuration watch, the appliance scheduler behind the When to run it card, and the reflector
+sensor configuration watch, the appliance scheduler, and the reflector
 bandwidth watch. They live in `scripts/` in the repo with their own tests and a README. Copy the ones you want
 into Indigo's `Python Scripts` folder and the plugin picks them up on its next tick — no restart. At
 startup it logs one line naming whichever are missing. Each is optional. A page whose script is
@@ -154,6 +154,6 @@ lives in modules beside it, which `Plugin` inherits, so every method is still `s
 | `history_mixin.py` | Everything that reads the SQL Logger history: the Timeline and its Chart view, the per-string solar hours, and the primary-key helpers that keep those queries off a full scan |
 | `mains_mixin.py` | The Mains and Meter pages: every 240 V meter and how far each can be trusted |
 | `insights_mixin.py` | Home Insights, the hub's "out of the ordinary" card |
-| `carbon_mixin.py` | The grid-carbon advice in the Energy page's When to run it card (answers at once, with no lookup, without SigenEnergyManager) |
+| `carbon_mixin.py` | The retained grid-carbon advice endpoint (answers at once, with no lookup, without SigenEnergyManager) |
 | `dash_common.py` | The constants and the `log()` helper every module shares |
 | `dash_util.py` | Small pure helpers the modules share |

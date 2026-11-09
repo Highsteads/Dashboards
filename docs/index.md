@@ -38,8 +38,7 @@ any other current browser.
 ## One house, not a template
 
 **Everything here is my interpretation of my house.** The rooms are mine, the energy pages exist
-because I have solar and a battery, the When to run it card because I was tired of guessing when to put
-the washing on. Yours will be different, and they should be. Nothing on this site is a shape you
+because I have solar and a battery. Yours will be different, and they should be. Nothing on this site is a shape you
 have to fit into — it shows what is possible when you can describe a page and have it built, and
 the right way to use it is to take the ideas that suit your house, ignore the rest, and ask for
 the pages you actually want.
@@ -91,9 +90,8 @@ generation against a dashed forecast line, and the day's totals.
 
 <img src="screenshots/cost.png" width="860" alt="The Cost page">
 
-**What it costs and what it costs the planet.** Bill-exact daily electricity and gas, standing
-charges, export earnings and week-on-week comparisons. On the Energy page, When to run it says when
-to put the washing on for the least money, and how clean the grid is now and over the next day.
+**What it costs.** Bill-exact daily electricity and gas, standing
+charges, export earnings and week-on-week comparisons.
 
 <img src="screenshots/timeline.png" width="860" alt="The Timeline page">
 

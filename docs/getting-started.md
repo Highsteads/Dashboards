@@ -33,13 +33,13 @@ showing an empty chart:
 | **ffmpeg** and **go2rtc** (Homebrew) | The camera grid, the hub's camera strip and the cameras on room pages. Both are required. Without either the plugin logs a warning and shows no streams. See [Cameras](cameras.md) |
 | **SQL Logger** plugin (ships with Indigo) | The Timeline (all four views), the hub's Home Insights check, the Mains page's trust figures and the Meter page's history |
 | **PostgreSQL** behind the SQL Logger | Supported as an alternative backend to SQLite. Reads go through the `psql` client, so Postgres.app or the `postgresql` client package must be installed. Use **Plugins → Dashboards → Test History Connection** before relying on it |
-| **SigenEnergyManager** plugin | The Energy page (with its When to run it card), the Cost page and the hub's Energy · Now card. Without it the menu drops both tiles, the hub leaves out its Energy and Solar cards, and a bookmark to either page opens the hub. The Mains page still lists every meter, without the trust figures that are measured against the inverter |
+| **SigenEnergyManager** plugin | The Energy page, the Cost page and the hub's Energy · Now card. Without it the menu drops both tiles, the hub leaves out its Energy and Solar cards, and a bookmark to either page opens the hub. The Mains page still lists every meter, without the trust figures that are measured against the inverter |
 | **EvoHomeControl** plugin | The heating page's boost and force buttons. Zone temperatures and setpoints work with any thermostat device |
 | **UniFiHealth** plugin (v0.2.0 or later) | The Wi-Fi pages |
 | **OpenWeatherMap** key | The hub's weather card forecast and sun times |
 | **Pushover** plugin and a user key | Alert rules sent to your phone (3.47.0). Without it a rule can still email you, through Indigo's own mail settings, or raise a browser notification. See [Alerts](using.md#alerts) |
 | **Pillow** and **qrcode** | Camera thumbnails and setup-link QR codes. These install themselves from `requirements.txt` the first time the plugin starts |
-| **The companion scripts** in `scripts/` | The Timeline's Nights view, the hourly error watch behind the Alerts page and the hub's needs-a-look check, and the laundry half of the Energy page's When to run it card. Copy the ones you want into Indigo's `Python Scripts` folder. The plugin picks them up on its next tick and logs which are missing at startup. See [How it works](how-it-works.md#companion-scripts) |
+| **The companion scripts** in `scripts/` | The Timeline's Nights view, the hourly error watch behind the Alerts page and the hub's needs-a-look check. Copy the ones you want into Indigo's `Python Scripts` folder. The plugin picks them up on its next tick and logs which are missing at startup. See [How it works](how-it-works.md#companion-scripts) |
 
 ## Install
 

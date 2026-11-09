@@ -24,8 +24,7 @@ The old `?g=house` and `?g=tools` addresses open the menu.
 
 **Right now.** Active, Scenes, Heating, Cameras and Weather.
 
-**Energy.** Energy and Cost. Laundry and Carbon are no longer tiles: they are the When to run it card
-on the Energy page. Both tiles need SigenEnergyManager, and without it this whole section is left
+**Energy.** Energy and Cost. Laundry and Grid Carbon advice is no longer shown. Both tiles need SigenEnergyManager, and without it this whole section is left
 out.
 
 **What happened.** Timeline: a day replayed, presence night by night, a chart of anything recorded,

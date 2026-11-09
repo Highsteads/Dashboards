@@ -14,8 +14,7 @@ plain English, looked at what came back, and said what was wrong. That is the wh
 ## First, an honest word about what you are looking at
 
 **These dashboards are my interpretation of my house.** The rooms are my rooms, the energy
-pages exist because I have solar and a battery, the When to run it card exists because I got fed up
-guessing when to put the washing on, and the Mains page exists because I wanted to know which
+pages exist because I have solar and a battery, and the Mains page exists because I wanted to know which
 of my plugs was telling the truth. Yours will be different, and they should be.
 
 You can go as deep as you want on any Indigo device. A page can show or control any of it:

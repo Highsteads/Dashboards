@@ -336,51 +336,6 @@ a,button,input,select,textarea{-webkit-tap-highlight-color:transparent}
 }
 
 h1 .dsh-icon {width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;opacity:.85}
-/* v3.34.0: the When to run it card (laundry + grid carbon). */
-.when-grid{display:grid;grid-template-columns:1fr 1fr;gap:22px}
-@media(max-width:760px){.when-grid{grid-template-columns:1fr}}
-#when-fresh.stale{color:var(--warn)}
-#when-card .wr-head{font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
-#when-card .wr-appl+.wr-appl{margin-top:16px;padding-top:14px;border-top:1px solid var(--border-soft)}
-#when-card .wr-verdict{font-size:17px;font-weight:700;letter-spacing:-.01em;line-height:1.3}
-#when-card .wr-detail{font-size:12.5px;color:var(--text-secondary);margin-top:3px;line-height:1.4}
-#when-card .wr-sub{font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.6px;margin-top:12px}
-#when-card .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
-#when-card .chips button{font:inherit;font-size:12.5px;padding:6px 12px;border-radius:999px;cursor:pointer;
-  border:1px solid var(--border);background:var(--card-bg);color:var(--text);transition:background .2s,border-color .2s,color .2s}
-#when-card .chips button:hover:not(:disabled){border-color:var(--accent)}
-#when-card .chips button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
-#when-card .chips button:disabled{opacity:.5;cursor:default}
-#when-card .split{display:flex;gap:2px;height:12px;border-radius:6px;overflow:hidden;margin:8px 0 6px}
-#when-card .split span{display:block;transition:width .5s cubic-bezier(.2,.8,.2,1)}
-#when-card .split .s{background:var(--on-color)}#when-card .split .b{background:var(--accent)}#when-card .split .g{background:var(--warn-color,#ff9f0a)}
-#when-card .legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--text-secondary)}
-#when-card .legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px}
-#when-card details{margin-top:10px}#when-card summary{cursor:pointer;font-size:12.5px;font-weight:600;color:var(--accent)}
-#when-card .slot{display:grid;grid-template-columns:52px 1fr auto;gap:10px;align-items:center;padding:3px 0;font-size:12px;font-variant-numeric:tabular-nums}
-#when-card .slot .t{color:var(--text-secondary)}
-#when-card .slot .track{height:8px;border-radius:5px;background:var(--border);overflow:hidden;opacity:.55}
-#when-card .slot .fill{height:100%;border-radius:5px;background:var(--warn-color,#ff9f0a)}
-#when-card .slot.free .fill{background:var(--on-color)}#when-card .slot.pick{font-weight:600}#when-card .slot.pick .t{color:var(--accent)}
-#when-card .slot .p{color:var(--text-secondary);min-width:44px;text-align:right}
-#when-card .wr-carbon-head{display:flex;gap:10px;align-items:flex-start}
-#when-card .wr-tag{flex:none;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;margin-top:2px;
-  background:rgba(52,199,89,.14);color:var(--on-color)}
-#when-card .wr-tag.wait{background:rgba(255,149,0,.15);color:var(--warn)}
-#when-card .wr-tag.neutral{background:var(--track);color:var(--text-secondary)}
-#when-card .wr-gauges{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
-#when-card .wr-gauge{flex:1;min-width:130px;background:var(--card-bg-alt);border-radius:var(--r-md);padding:10px 12px}
-#when-card .wr-gauge .l{font-size:11px;color:var(--text-secondary)}
-#when-card .wr-gauge .v{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:2px}
-#when-card .wr-gauge .u{font-size:11px;font-weight:600;color:var(--text-secondary)}
-#when-card .wr-gauge .idx{display:inline-block;font-size:11px;font-weight:700;padding:1px 8px;border-radius:999px;margin-top:4px;text-transform:capitalize}
-#when-card .wr-chart{position:relative;height:130px;margin-top:10px}
-#when-card .mixrow{display:flex;align-items:center;gap:10px;font-size:12px;padding:3px 0}
-#when-card .mixrow .ml{width:70px;color:var(--text-secondary);text-transform:capitalize}
-#when-card .mixrow .mt{flex:1;height:7px;background:var(--track);border-radius:5px;overflow:hidden}
-#when-card .mixrow .mf{height:100%;border-radius:5px}
-#when-card .mixrow .mv{width:44px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
-#when-card .note{font-size:11.5px;color:var(--text-muted);margin-top:8px;line-height:1.5}
 /* v3.55.0 car charger card */
 .ev-charger + .ev-charger{margin-top:16px;padding-top:14px;border-top:1px solid var(--separator,rgba(128,128,128,.2))}
 .ev-name{font-size:13px;font-weight:600;margin:0 0 4px;color:var(--text-secondary)}
@@ -644,16 +599,6 @@ h1 .dsh-icon {width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;
     </section>
   </div>
 
-  <!-- ═══ WHEN TO RUN IT (v3.34.0: was the Carbon and Laundry pages) ═══ -->
-  <div class="sec-label" id="when-label">When to run it</div>
-  <section class="card" id="when-card">
-    <h2 data-help-title="When to run it" data-help="The cheapest time to run each metered appliance before the deadline you choose, from its own measured cycles, the solar forecast, the battery and the tariff; and how clean the grid is now and over the next day. The laundry half needs the Appliance_Scheduler.py companion script; the carbon half covers Great Britain and can be switched off under Configure.">When to run it <span class="h2sub" id="when-fresh"></span></h2>
-    <div class="when-grid">
-      <div id="when-laundry"><p class="note">Working out the best time&#8230;</p></div>
-      <div id="when-carbon"><p class="note">Reading the grid&#8230;</p></div>
-    </div>
-  </section>
-
   <!-- ═══ ENVIRONMENT ═══ -->
   <div class="sec-label">Environment</div>
   <section class="card env-card">
@@ -729,7 +674,6 @@ h1 .dsh-icon {width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;
 <script src="dashboards-gate.js"></script>
 <script src="dashboard.js"></script>
 <script src="dashboards-alerts.js"></script>   <!-- 3.46.0: the Alerts rules fire from this page too -->
-<script src="when-to-run.js"></script>
 
 <script>
 /* ════════════════════════════════════════════════════════════════
@@ -2392,11 +2336,6 @@ if (window.DashFeatures && DashFeatures.sigenAbsent('Energy')) {
   setInterval(refreshPatterns, 30 * 60 * 1000);
   setInterval(refreshWeekCompare, 60 * 60 * 1000);
   setInterval(refreshExportSync, 60 * 60 * 1000);
-  // v3.34.0: the Carbon and Laundry pages are one card here now.
-  if (window.WhenToRun) WhenToRun.mount({
-    card: document.getElementById('when-card'), label: document.getElementById('when-label'),
-    laundryEl: document.getElementById('when-laundry'), carbonEl: document.getElementById('when-carbon'),
-    freshEl: document.getElementById('when-fresh') });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) return;
     fetchStatus(); refreshDevices(); refreshCharts(); refreshStringHours();

@@ -169,12 +169,12 @@ console.log("\na refusal and a failed poll (lows batch [53] [54])");
     ctx.DashUI.poll = oldPoll; ctx.DashUI.message = oldMsg;
 }
 
-console.log("\nthe old pages forward to the card");
+console.log("\nthe old pages forward to Energy");
 for (const f of ["carbon.html", "laundry.html"]) {
     const s = read(f);
-    check(f + " goes to Energy's card", /location\.replace\("energy\.html#when-card"\)/.test(s) && /http-equiv="refresh"/.test(s));
+    check(f + " goes to Energy", /location\.replace\("energy\.html"\)/.test(s) && /http-equiv="refresh"/.test(s));
 }
-check("Energy loads the card and has somewhere to put it",
-      read("energy.html").includes('<script src="when-to-run.js"></script>') && read("energy.html").includes('id="when-card"'));
+check("Energy no longer loads or mounts the removed card",
+      !/when-to-run\.js|WhenToRun|when-card|when-laundry|when-carbon/.test(read("energy.html")));
 
 done();

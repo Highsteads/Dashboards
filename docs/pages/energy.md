@@ -72,24 +72,7 @@ the projected dawn state of charge and the reasoning in the plugin's own words, 
 tomorrow's rate and direction, and the system card — connection, VPP state, storm watch, export
 lockout, and a short log of recent grid events.
 
-**When to run it** (from 3.34.0, when the Carbon and Laundry pages merged into it). Two halves:
-
-- *Laundry.* For each metered appliance, one sentence ("Put the washing machine on now and it
-  should finish about 4:31pm"), deadline chips (noon, 2pm, 4pm, 7pm, 10pm, no deadline) that replan
-  it on the spot, a sun / battery / grid bar for the recommended run, and, folded away, every half
-  hour to the deadline (said once when they all cost the same). The machine's own measured cycle is
-  named underneath, "not the manual". Needs the `Appliance_Scheduler.py` companion script, which
-  finds every enabled ApplianceMonitor device and measures each machine from its own history, a
-  machine needs about five logged cycles first. Nothing here switches a machine on.
-- *Grid carbon.* The advice (run now, wait, any time) with its reason, grid carbon for your region
-  with a plain-English band, the cleanest half hour in the next day, a 24-hour forecast chart, and,
-  folded away, the live generation mix and how the advice is worked out: spare solar first, then a
-  clean grid, then the cleanest window in the next 16 hours. Great Britain only, from the free UK
-  Carbon Intensity API. Switch it off under Configure. Like the rest of this page it needs
-  SigenEnergyManager, and without it the plugin makes no carbon lookups at all.
-
-Each half hides itself when it has nothing to say, and the card goes when both do. The old
-`carbon.html` and `laundry.html` addresses land here.
+The former Laundry and Grid Carbon card was removed in 3.69.2. Old Laundry and Carbon bookmarks open this page.
 
 **Environment.** Lifetime CO₂ avoided, expressed several ways.
 
@@ -124,9 +107,7 @@ poll as the battery tiles. Its mode buttons call `chargerMode`, which checks the
 charger and the mode is one of the four, then hands it to the Zappi plugin's own Set Mode action.
 The boost buttons call `chargerBoost` the same way, which also refuses a start outside Eco or Eco+.
 
-The When to run it card reads `laundryPlan` (and `laundryDeadline` for a chip) and `carbonAdvisor`,
-which caches the carbon data for ten minutes server-side. The stacked hourly chart is the other
-exception: it reads `solarStringHours`, which integrates per-hour
+The stacked hourly chart reads `solarStringHours`, which integrates per-hour
 per-array kWh out of the SQL Logger history, PK-ranged and cached, and returns null for an hour with
 no samples so the page falls back rather than inventing zeros.
 
@@ -138,12 +119,11 @@ no samples so the page falls back rather than inventing zeros.
 - Daily totals every 30 minutes.
 - Through the day every 30 minutes (the patterns change once a day).
 - The lifetime and records blocks hourly.
-- When to run it every minute, and on demand when a deadline chip is tapped.
 
 ## What you can do here
 
 Control of the battery lives in the energy plugin itself. The interactions are the chart range
-buttons, the laundry deadline chips, the link to the Cost page and, with a Zappi, the car charger's
+buttons, the link to the Cost page and, with a Zappi, the car charger's
 mode and boost buttons.
 
 ## Worth knowing

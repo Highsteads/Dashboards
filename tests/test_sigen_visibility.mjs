@@ -267,10 +267,6 @@ console.log("\nthe three pages guard their boot");
     const iC = cost.indexOf("DashFeatures.sigenAbsent('Cost')");
     check("cost: after the api-key redirect, before the poll",
           cost.indexOf("location.href = 'index.html'") < iC && iC < cost.indexOf("DashUI.poll(load, POLL_INTERVAL_MS)"));
-    // v3.34.0: laundry is a card on Energy, mounted inside Energy's guarded boot.
-    const iW = energy.indexOf("WhenToRun.mount(");
-    check("the When to run it card only mounts in the guarded boot",
-          iW > iE && energy.lastIndexOf("} else {", iW) > iE);
     check("each page loads the auth shim (where DashFeatures lives)",
           [energy, cost].every(p => /<script src="dashboards-auth\.js">/.test(p)));
 }

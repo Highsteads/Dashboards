@@ -91,7 +91,6 @@ entrances all go, while everything keeps working.
 | Cameras | All cameras / Selected camera | change layout within the same stream limit |
 | Cameras | Details | show or hide addresses and connection figures |
 | Hub | a Favourite | the device's controls, in the tile |
-| Energy | a deadline chip in the When to run it card | replans that appliance on the spot |
 | Meter, System, Settings | a fold | the detail underneath, which stays open while you are on the page |
 
 **And two things that look like they should be tappable and deliberately are not.** A meter that is
