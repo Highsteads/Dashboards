@@ -87,7 +87,7 @@
         .chips { display: flex; gap: 6px; flex-wrap: wrap; }
         .plugs { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
         .plug {
-            display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, 76px); gap: 8px; align-items: center;
+            display: grid; grid-template-columns: minmax(0, 1fr) repeat(4, 70px); gap: 8px; align-items: center;
             width: 100%; text-align: left; font: inherit; color: var(--text); cursor: pointer;
             background: var(--card-bg-alt); border: 1px solid transparent; border-radius: var(--r-md); padding: 10px;
         }
@@ -99,13 +99,18 @@
         .cell-val { font-size: 15px; font-weight: 600; }
         .cell-sub { font-size: 11px; color: var(--text-secondary); }
         .cell.sorted .cell-val { color: var(--sel-blue); }
-        .cols { display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, 76px); gap: 8px; padding: 0 11px;
+        .cols { display: grid; grid-template-columns: minmax(0, 1fr) repeat(4, 70px); gap: 8px; padding: 0 11px;
                 font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 10px; }
-        .cols span { text-align: right; }
-        .cols span:first-child { text-align: left; }
-        @media (max-width: 420px) {
-            .plug, .cols { grid-template-columns: minmax(0, 1fr) repeat(3, 58px); gap: 6px; }
-            .cell-val { font-size: 14px; }
+        .cols > span { text-align: right; }
+        .cols > span:first-child { text-align: left; }
+        .cols .short { display: none; }
+        @media (max-width: 640px) {
+            /* A phone has no room for a name beside four columns: the name takes its own line. */
+            .plug, .cols { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; row-gap: 6px; }
+            .plug > :first-child { grid-column: 1 / -1; }
+            .cols > span:first-child { display: none; }
+            .cols .long { display: none; }
+            .cols .short { display: inline; }
         }
         .unused { font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin-top: 12px; }
     </style>
@@ -144,7 +149,7 @@
        (CliveS, 08-11-2026). The page only lays it out. */
     const POLL_MS = 5 * 60 * 1000;           // the server keeps its answer 5 minutes
     const esc = t => DashUI.esc(t);
-    const PERIODS = [["today", "Today"], ["week", "7 days"], ["month", "30 days"]];
+    const PERIODS = [["today", "Today", "Today"], ["yesterday", "Yesterday", "Yest."], ["week", "7 days", "7 days"], ["month", "30 days", "30 days"]];
     let data = null;
     let sortBy = "month";
     let chosen = null;                        // a plug id, or null for all of them
@@ -248,7 +253,7 @@
                     <span class="chips">${PERIODS.map(([key, label]) =>
                         `<button class="chip${key === sortBy ? " on" : ""}" data-sort="${key}" aria-pressed="${key === sortBy}">${label}</button>`).join("")}</span>
                 </div>
-                <div class="cols" aria-hidden="true"><span>Plug</span>${PERIODS.map(([, l]) => `<span>${l}</span>`).join("")}</div>
+                <div class="cols" aria-hidden="true"><span>Plug</span>${PERIODS.map(([, l, s]) => `<span><span class="long">${l}</span><span class="short">${s}</span></span>`).join("")}</div>
                 <div class="plugs">${used.map(row).join("")}</div>
                 ${idle.length ? `<div class="unused">Used nothing in the last 30 days: ${esc(listWords(idle.map(p => p.name)))}.</div>` : ""}
             </section>`;

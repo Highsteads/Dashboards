@@ -14,7 +14,7 @@ What every plug that measures its own energy costs a day, one by one and all of 
 
 **Cost each day.** A bar for each of the last 30 days, today's paler because it is not over yet. Hold or hover over a bar for the day, the cost and the kWh. It shows all the plugs together until you tap a plug in the list, then that plug alone; tap it again, or **Show all the plugs**, to go back.
 
-**Each plug.** One row per plug, dearest first, with its cost and kWh for today, the last 7 days and the last 30 days. The chips above the list choose which of the three the order follows. Under the name is the room it is filed in, "not answering" in red when Indigo shows the plug in error, and "records from" a date when its history starts part way through the 30 days. Plugs that used nothing in 30 days are listed by name at the bottom instead of taking a row each.
+**Each plug.** One row per plug, dearest first, with its cost and kWh for today, yesterday, the last 7 days and the last 30 days. The chips above the list choose which of the four the order follows. Under the name is the room it is filed in, "not answering" in red when Indigo shows the plug in error, and "records from" a date when its history starts part way through the 30 days. Plugs that used nothing in 30 days are listed by name at the bottom instead of taking a row each.
 
 ## Where the numbers come from
 

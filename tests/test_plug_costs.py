@@ -24,6 +24,7 @@
 
 import json
 import os
+import re
 import sqlite3
 import time
 import types
@@ -267,6 +268,9 @@ def test_page_action_and_menu_agree():
     assert action.get("uiPath") == "hidden" and action.find("CallbackMethod").text == "handlePlugCosts"
     html = open(os.path.join(PAGES, "plugs.html"), encoding="utf-8").read()
     assert 'DashUI.message("plugCosts"' in html
+    # Every span the report carries per plug has a column in the list (yesterday added 3.69.1).
+    periods = re.search(r"const PERIODS = (\[.*?\]);", html).group(1)
+    assert [k for k in ("today", "yesterday", "week", "month") if f'["{k}",' in periods] == ["today", "yesterday", "week", "month"]
     menu = open(os.path.join(PAGES, "menu.html"), encoding="utf-8").read()
     assert '["plugs.html",' in menu
     assert 'href="plugs.html"' in open(os.path.join(PAGES, "cost.html"), encoding="utf-8").read()
