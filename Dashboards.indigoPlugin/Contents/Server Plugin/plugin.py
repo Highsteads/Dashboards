@@ -17,9 +17,9 @@
 #              browser for live tiles, and a small HTTP server on port 8177
 #              for the WebRTC signalling and the bootstrap routes. Tiles that
 #              are not live poll the snapshots.
-# Author:      CliveS & Claude Opus 5.5 (3.66.0-3.67.0); Codex GPT-6 (3.65.0); Claude Opus 5.5 (3.63.0); Codex GPT-6 (3.62.0); Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.58.0); Claude Sonnet 5.5 (3.58.1); Claude Opus 5.5 (3.58.2); Claude Sonnet 5.5 (3.58.3, 3.59.0-3.59.1); Claude Opus 5.5 (3.59.3, 3.60.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
-# Date:        09-11-2026 08:02 UK
-# Version:     3.69.2
+# Author:      CliveS & Claude Opus 5.5 (3.66.0-3.67.0, 3.70.0); Codex GPT-6 (3.65.0); Claude Opus 5.5 (3.63.0); Codex GPT-6 (3.62.0); Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.58.0); Claude Sonnet 5.5 (3.58.1); Claude Opus 5.5 (3.58.2); Claude Sonnet 5.5 (3.58.3, 3.59.0-3.59.1); Claude Opus 5.5 (3.59.3, 3.60.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
+# Date:        09-11-2026 16:20 UK
+# Version:     3.70.0
 #
 # Version history: docs/changelog.md (what each release does, for users) and
 # `git log` (why, for developers). The per-version engineering notes that sat
@@ -103,7 +103,7 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION = "3.69.2"
+PLUGIN_VERSION = "3.70.0"
 
 import logging
 from dash_common import (  # noqa: E402
@@ -1908,7 +1908,36 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         if boost and hours not in (1, 2):
             raise ValueError("Heating boost duration is unknown")
         return {"boostExpiry": boost, "boostHours": hours if boost else 0,
+                "boostRooms": self._evo_boost_rooms(saved) if boost else [],
                 "summerExpiry": expiry("summer_force")}
+
+    @staticmethod
+    def _evo_boost_rooms(saved):
+        """What each boosted room was asked for at the last heating check, and why a
+        room got less (EvoHomeControl 1.26.0 and later; older versions save nothing
+        and this is empty). Only these named fields are passed on, each checked, so
+        a malformed entry is dropped rather than shown. Whether the controller has
+        confirmed it is the page's to judge, from the radiator's own setpoint."""
+        raw = saved.get("timed_boost_outcome")
+        rooms = []
+        if not isinstance(raw, dict):
+            return rooms
+        for key, entry in raw.items():
+            if not isinstance(entry, dict):
+                continue
+            try:
+                req = entry.get("requested")
+                rooms.append({
+                    "id":        int(key),
+                    "room":      str(entry.get("room") or "")[:40],
+                    "target":    float(entry["target"]),
+                    "requested": None if req is None else float(req),
+                    "held":      str(entry.get("held") or "")[:120],
+                })
+            except (KeyError, TypeError, ValueError):
+                continue
+        rooms.sort(key=lambda r: r["room"])
+        return rooms
 
     def handleEvoHomeStatus(self, action, dev=None, callerWaitingForResult=True):
         """Read-only timer status. Never expose the rest of the saved state."""

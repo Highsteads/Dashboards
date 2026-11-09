@@ -9,6 +9,8 @@ Every release, newest first. The three most recent also appear under **What's ne
 [README](https://github.com/Highsteads/Dashboards#whats-new). This page is the whole record.
 Dates are day-month-year.
 
+**3.70.0** (09-Nov-2026) - **The Heating page says how each boosted room is doing.** While a timed boost runs, a line under the buttons names each boosted room: 22 degrees confirmed by Evohome, 22 degrees sent and waiting for Evohome to confirm, waiting for the heating controller's next check, or kept lower and why, such as a window being open or the room already being warm. It used to say only that the boost had started. Needs EvoHomeControl 1.26.0; with an older version the buttons work as before and no room lines appear.
+
 **3.69.2** (09-Nov-2026) - **Remove Laundry and Grid Carbon from Energy.** The When to run it card and its refresh requests are gone. Old Laundry and Carbon bookmarks still open Energy.
 
 **3.69.1** (09-Nov-2026) - **The Plugs page list gains a Yesterday column.** Each plug now shows what it cost yesterday beside today, the last 7 days and the last 30 days, and the list can be put in order by yesterday too. On a phone the plug's name now has a line of its own above the four figures, so long names no longer break part way through a word.

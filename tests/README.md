@@ -108,6 +108,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_guest_variables.py` | A guest reads only the Indigo variables it is allowed (3.46.0). |
 | `test_harness_patch_restore.py` | Shared mock methods survive test cleanup. |
 | `test_heating_boost_pin.mjs` | The Heating page's boost and force buttons go through the PIN |
+| `test_heating_boost_rooms.mjs` | The Heating page says, room by room, what a running boost asked for, whether |
 | `test_heating_history.mjs` | Real heating plot transformations: sparse changes, unknowns and clocks. |
 | `test_heating_history.py` | Sparse heating history, query bounds and recorded reasons. |
 | `test_heating_timers.mjs` |  |

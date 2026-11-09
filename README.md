@@ -2,11 +2,11 @@
 
 **Your house on a screen — energy, cameras, heating, every room, and the whole day replayed.**
 
-**Version:** 3.69.2 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
+**Version:** 3.70.0 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
 
 **[Read the full guide](https://highsteads.github.io/Dashboards/)** — setting up, a page of notes for every one of the 23 pages, and what to do when something goes wrong.
 
-<img src="https://img.shields.io/badge/version-3.69.2-5856d6" alt="Version 3.69.2">
+<img src="https://img.shields.io/badge/version-3.70.0-5856d6" alt="Version 3.70.0">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-23-0a84ff" alt="23 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
@@ -97,11 +97,11 @@ The [Getting started](https://highsteads.github.io/Dashboards/getting-started.ht
 
 ## What's new
 
+**3.70.0** (09-Nov-2026) - **The Heating page says how each boosted room is doing.** While a timed boost runs, a line under the buttons names each boosted room: 22 degrees confirmed by Evohome, 22 degrees sent and waiting for Evohome to confirm, waiting for the heating controller's next check, or kept lower and why, such as a window being open or the room already being warm. It used to say only that the boost had started. Needs EvoHomeControl 1.26.0; with an older version the buttons work as before and no room lines appear.
+
 **3.69.2** (09-Nov-2026) - **Remove Laundry and Grid Carbon from Energy.** The When to run it card and its refresh requests are gone. Old Laundry and Carbon bookmarks still open Energy.
 
 **3.69.1** (09-Nov-2026) - **The Plugs page list gains a Yesterday column.** Each plug now shows what it cost yesterday beside today, the last 7 days and the last 30 days, and the list can be put in order by yesterday too. On a phone the plug's name now has a line of its own above the four figures, so long names no longer break part way through a word.
-
-**3.69.0** (08-Nov-2026) - **A new Plugs page: what each plug costs a day.** Every plug that measures its own energy, whether a Shelly, a Zigbee plug or an ESPHome power monitor, is listed with what it has cost today and over the last 7 and 30 days, dearest first, and all of them together for today, yesterday, the last 7 days and the last 30 days. A chart shows the cost of each of the last 30 days for all the plugs, or for one when you tap it. Every kWh is priced at Flux's cheap rate, because the house runs from a battery filled then, and each day at the rate published for that day, so a price change moves only the days after it. Past days come from the SQL Logger and are worked out once and kept, so the page opens quickly. Reach it from the Plugs tile on the menu or from the foot of the Cost page. The Air page's cost for its purifier was counting the day again whenever a Shelly's reading stepped back by a few watt-hours, which they do many times a day; it now ignores those small steps, so its figures are lower and correct.
 
 ## Acknowledgements
 

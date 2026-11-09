@@ -25,14 +25,16 @@ def test_saved_timers_survive_reload(tmp_path, monkeypatch, offset):
                  timed_boost_hours=2, timed_boost_expiry=expiry,
                  summer_force_active=True, summer_force_expiry=expiry,
                  private_field="never returned")
-    assert p._read_evo_timers() == {"boostExpiry": stamp, "boostHours": 2, "summerExpiry": stamp}
+    assert p._read_evo_timers() == {"boostExpiry": stamp, "boostHours": 2,
+                                    "boostRooms": [], "summerExpiry": stamp}
 
 
 def test_expiry_and_cancellation(tmp_path, monkeypatch):
     p, path = saved(tmp_path, monkeypatch, timed_boost_active=True,
                     timed_boost_hours=1, timed_boost_expiry="2020-01-01T12:00:00+00:00",
                     summer_force_active=False)
-    assert p._read_evo_timers() == {"boostExpiry": None, "boostHours": 0, "summerExpiry": None}
+    assert p._read_evo_timers() == {"boostExpiry": None, "boostHours": 0,
+                                    "boostRooms": [], "summerExpiry": None}
     path.write_text(json.dumps({"timed_boost_active": False, "summer_force_active": False}))
     assert p._read_evo_timers()["boostExpiry"] is None
 
@@ -61,3 +63,34 @@ def test_status_checks_running_controller():
     from unittest.mock import patch
     with patch.object(mod.indigo.server.getPlugin.return_value, "isRunning", return_value=False):
         assert p.handleEvoHomeStatus(None)["status"] == 503
+
+
+def test_boost_rooms_passed_on_checked_and_sorted(tmp_path, monkeypatch):
+    expiry = "2026-11-09T16:32:00+00:00"
+    stamp = datetime.fromisoformat(expiry).timestamp()
+    monkeypatch.setattr(load_plugin_module().time, "time", lambda: stamp - 600)
+    outcome = {
+        "110516814": {"room": "Living Room Front", "target": 22.0, "requested": 22.0,
+                      "held": "", "at": "x", "secret": "dropped"},
+        "9": {"room": "Dining Room", "target": 22, "requested": 16,
+              "held": "it is already warm from the sun or the rest of the house"},
+        "3": {"room": "Hall Kitchen", "target": 22.0, "requested": None, "held": ""},
+        "bad": {"room": "x", "target": 22},
+        "4": {"room": "No target"},
+        "5": "not a dict",
+    }
+    p, _ = saved(tmp_path, monkeypatch, timed_boost_active=True, timed_boost_hours=1,
+                 timed_boost_expiry=expiry, timed_boost_outcome=outcome)
+    rooms = p._read_evo_timers()["boostRooms"]
+    assert [r["room"] for r in rooms] == ["Dining Room", "Hall Kitchen", "Living Room Front"]
+    assert rooms[0] == {"id": 9, "room": "Dining Room", "target": 22.0, "requested": 16.0,
+                        "held": "it is already warm from the sun or the rest of the house"}
+    assert rooms[1]["requested"] is None
+    assert "secret" not in rooms[2]
+
+
+def test_no_boost_rooms_once_the_boost_has_ended(tmp_path, monkeypatch):
+    p, _ = saved(tmp_path, monkeypatch, timed_boost_active=True, timed_boost_hours=1,
+                 timed_boost_expiry="2020-01-01T12:00:00+00:00",
+                 timed_boost_outcome={"9": {"room": "Dining Room", "target": 22, "requested": 22}})
+    assert p._read_evo_timers()["boostRooms"] == []
