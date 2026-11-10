@@ -108,10 +108,14 @@
     var dawn = num(dec.soc_at_dawn_kwh);
     if (dawn !== null) {
       var pct = cap ? ' (' + Math.round(dawn / cap * 100) + '%)' : '';
+      // dawn_viable is null when the manager has no verdict (SigenEnergyManager
+      // 5.145.2). Only a real true may promise it will last (3.70.2).
       lines.push({ key: 'dawn', tone: dec.dawn_viable === false ? 'warn' : '',
                    text: dec.dawn_viable === false
                      ? 'It is expected to run low before the sun comes up, with about ' + kwh(dawn) + pct + ' left at dawn.'
-                     : 'It should last until the sun comes up, with about ' + kwh(dawn) + pct + ' left at dawn.' });
+                     : dec.dawn_viable === true
+                     ? 'It should last until the sun comes up, with about ' + kwh(dawn) + pct + ' left at dawn.'
+                     : 'About ' + kwh(dawn) + pct + ' is expected to be left at dawn.' });
     }
 
     // Backup time at the house's draw now

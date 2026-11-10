@@ -733,6 +733,14 @@ const num    = DashCalc.num;
 /* DOM helpers moved to dashboards-ui.js so the hub page shares them. Aliased
    here rather than renaming several hundred call sites. */
 const setText = DashUI.setText;
+/* 3.70.2: the Dawn viable row. SigenEnergyManager sends null while it has no
+   dawn forecast to judge (5.145.2), and a bare truth test drew that as a red
+   "No". Only a real true or false gets a word and a colour. */
+function dawnVerdict(v) {
+  if (v === true)  return { text: 'Yes', cls: 'dv dawn-ok' };
+  if (v === false) return { text: 'No',  cls: 'dv dawn-warn' };
+  return { text: '\u2014', cls: 'dv' };
+}
 function esc(t) { return DashUI.esc(t); }   // v3.25.0: escapes quotes too
 
 const cssVar = DashUI.cssVar;
@@ -1330,8 +1338,9 @@ function update(d) {
   badge.className = 'action-badge ' + (ACTION_CLASS[action] || 'action-unknown');
   if (d.decision) {
     const dawnEl = document.getElementById('dec-dawn');
-    dawnEl.textContent = d.decision.dawn_viable ? 'Yes' : 'No';
-    dawnEl.className = 'dv ' + (d.decision.dawn_viable ? 'dawn-ok' : 'dawn-warn');
+    const dawn = dawnVerdict(d.decision.dawn_viable);
+    dawnEl.textContent = dawn.text;
+    dawnEl.className = dawn.cls;
     setText('dec-soc-dawn', d.decision.soc_at_dawn_kwh != null ? d.decision.soc_at_dawn_kwh.toFixed(1) + ' kWh' : '—');
     setText('dec-reason', d.decision.reason || '—');
   }

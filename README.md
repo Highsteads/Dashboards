@@ -2,11 +2,11 @@
 
 **Your house on a screen — energy, cameras, heating, every room, and the whole day replayed.**
 
-**Version:** 3.70.1 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
+**Version:** 3.70.2 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
 
 **[Read the full guide](https://highsteads.github.io/Dashboards/)** — setting up, a page of notes for every one of the 23 pages, and what to do when something goes wrong.
 
-<img src="https://img.shields.io/badge/version-3.70.1-5856d6" alt="Version 3.70.1">
+<img src="https://img.shields.io/badge/version-3.70.2-5856d6" alt="Version 3.70.2">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-23-0a84ff" alt="23 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
@@ -97,11 +97,11 @@ The [Getting started](https://highsteads.github.io/Dashboards/getting-started.ht
 
 ## What's new
 
+**3.70.2** (10-Nov-2026) - **Dawn viable shows a dash when the battery manager has no answer.** SigenEnergyManager 5.145.2 sends no answer for "will the battery last until dawn" while it is driving an export or filling in a free hour and has no forecast to judge. The Energy page read no answer as No, in red. It now shows a dash, and only a real yes or no gets a word and a colour. The battery pop-up on the Flow page promises it will last only on a real yes. Older versions of SigenEnergyManager are read as before.
+
 **3.70.1** (10-Nov-2026) - **An alert rule with a name of its own says just that.** A rule named "Someone is at the front door" used to arrive as "Someone is at the front door turned on". When a turns on or turns off rule carries a name that is not simply its device's name, the alert is now that name and nothing more. A rule still named after its device reads as before, "Hall Lamp turned on", and a "changes at all" rule still shows the new value. Whether a name is the rule's own is settled when the rule is saved, so renaming the device in Indigo afterwards does not change how its alerts read.
 
 **3.70.0** (09-Nov-2026) - **The Heating page says how each boosted room is doing.** While a timed boost runs, a line under the buttons names each boosted room: 22 degrees confirmed by Evohome, 22 degrees sent and waiting for Evohome to confirm, waiting for the heating controller's next check, or kept lower and why, such as a window being open or the room already being warm. It used to say only that the boost had started. Needs EvoHomeControl 1.26.0; with an older version the buttons work as before and no room lines appear.
-
-**3.69.2** (09-Nov-2026) - **Remove Laundry and Grid Carbon from Energy.** The When to run it card and its refresh requests are gone. Old Laundry and Carbon bookmarks still open Energy.
 
 ## Acknowledgements
 

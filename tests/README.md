@@ -82,6 +82,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_door_tile_compact_colour.py` | A door tile beside a room's cameras shows its state colour. |
 | `test_energy_alert_bar.mjs` | Node contract test for energy.html's alert bar. Extracts the |
 | `test_energy_cost.mjs` | Node contract test for energy-calc.js — the shared arithmetic |
+| `test_energy_dawn_viable.mjs` | Node contract test for how the Energy page and the Flow page's |
 | `test_energy_palette.py` | The five semantic energy colours (3.42.0). They were re-stepped |
 | `test_energy_soc.mjs` | Node contract test for energy.html's handling of an UNKNOWN |
 | `test_escape_helpers.mjs` | DashUI.esc escapes all five characters that matter, DashUI.ago |
