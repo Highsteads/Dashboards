@@ -10,9 +10,42 @@
 #              one Pushover headline plus a full email, and the state file
 #              doubles as the feed for the Dashboards alerts page.
 #              Errors alert; warnings are recorded and shown but never pushed.
-# Author:      CliveS & Claude Opus 5.5
-# Date:        06-10-2026 14:20 BST
-# Version:     2.0
+# Author:      CliveS & Claude Fable 5.2
+# Date:        10-11-2026 10:45 GMT
+# Version:     2.1
+#
+# v2.1 (10-11-2026): the alert is written for a person, and says less often
+#   what he already knows. From CliveS's audit of every notification the house
+#   sends ("Fix everything").
+#   - Pushover leads with one sentence per error: who logged it, how often
+#     ("nine times") and what it says, cut at a word, never mid-word. ASCII
+#     only, whole sentences kept under 1024 characters, and "The rest is in
+#     your email." when anything is left out. The title carries the answer.
+#   - The email is the same sentences followed by the log lines themselves.
+#     The "edit MUTED in this file" instruction is gone from it.
+#   - An error that was quiet for more than a day and returns is "back after
+#     N days", not "new": on 08-11 a fault first seen in July, 908 occurrences
+#     old, arrived as "1 new error".
+#   - "Still unresolved" is kept for an error that has recurred more than once
+#     since the last alert; a single recurrence is "happened again once".
+#   - A line a script has ALREADY pushed itself is not paged again. Such a
+#     line says so, ending "(told by Pushover at HH:MM)" (startup_z2m_check
+#     v1.12), and is recorded as explained. Twice in a week the watch re-sent
+#     a bridge alert 35 and 55 minutes after the script that raised it.
+#   - The web server 500 (solved and benign since 18-09) stops paging without
+#     a mute. It needs BOTH an ACCEPTED verdict in force in the triage ledger
+#     (error_triage_state.json, written by Error_Triage_Feed.py; 30 days, the
+#     feed's own ACCEPT_EXPIRY_DAYS, after which it pages again) AND a rule in
+#     ACCEPTED_MAY_QUIET naming it. The ledger alone silences nothing: its 28
+#     acceptances in force on 10-11 were verdicts on the feed, not decisions
+#     to stop a page, and every other one of them pages as before. It is still
+#     recorded and counted. An unreadable ledger accepts nothing.
+#   - A line that says its own Pushover was NOT sent has a signature of its
+#     own and always pages: never accepted, explained or muted.
+#   - The web server rule names the last part of the request path whether or
+#     not it ends in "/", so no plugin id or address is quoted in the push; a
+#     Z-Wave status request reads "got no reply"; a long line with no usable
+#     space is cut at the limit rather than down to its first word.
 #
 # v2.0 (06-10-2026): no credential is ever stored, keyed, pushed or shown. A
 #   failed Claude Bridge run on 23-09-2026 logged "login refused for '<the
@@ -242,8 +275,73 @@ LOCAL_RULE_NAMES = ("EXPLAINED_BY", "RECOVERS", "MUTED", "TEST_MARKERS")
 FETCH_LINES          = 3000    # the in-memory buffer is the real limit (~1300)
 CONTINUATION_SECONDS = 0.05    # a wrapped message arrives as rows ~1ms apart
 MAX_PUSHOVER_LINES   = 4       # headline only; the email carries the rest
-PUSH_LINE_CHARS      = 90
+PUSH_EXCERPT_CHARS   = 220     # of the logged text, cut at a word (was 90, mid-word)
+PUSHOVER_BODY_MAX    = 1024    # Pushover cuts silently above this
+PUSH_TRIMMED_NOTE    = "The rest is in your email."
 FEED_MESSAGE_CHARS   = 300
+
+# Errors a script has ALREADY pushed itself: (source substring, message regex,
+# label). The line must say so in its own words, which only the script that
+# sent the push can write -- startup_z2m_check ends such a line "(told by
+# Pushover at 17:30)" and writes "(Pushover NOT sent)" when it could not. So
+# this is not a mute: the day that script fails to deliver, its line stops
+# matching and the watch pages. Recorded as "explained", shown on the card.
+SELF_REPORTED = [
+    ("Script",
+     r"\(told by Pushover at \d{1,2}:\d\d\)",
+     "the script that logged it sent its own Pushover"),
+]
+
+# An ACCEPTED verdict in the triage ledger stops a signature paging for this
+# long, and no longer. Must equal Error_Triage_Feed.ACCEPT_EXPIRY_DAYS (a test
+# holds the two together): the feed puts the signature back up for review on
+# the same day the watch starts paging it again.
+ACCEPT_EXPIRY_DAYS   = 30
+TRIAGE_LEDGER_FILE   = "error_triage_state.json"
+
+# ...and only for a signature listed HERE: (source substring, message regex).
+# The ledger alone is not enough. Its "accepted" verdicts were recorded when
+# acceptance only quietened the feed, mostly on one occurrence, and 28 were in
+# force on 10-11-2026 -- Modbus read errors, the Axle poll, the heating
+# gateway, the reflector. Honouring them all would have stopped real faults
+# paging for a month on the strength of a decision nobody took. So a signature
+# stops paging only when BOTH hold: the ledger accepts it (which gives the
+# 30-day lapse) and a rule here names it (which is the decision to let
+# acceptance silence the page). One entry: the web server 500, measured benign
+# on 18-09-2026 (a client that stopped listening).
+ACCEPTED_MAY_QUIET = [
+    ("Web Server", r"^internal server error for request "),
+]
+
+# A script that pushes its own alert writes this when the push FAILED. Such a
+# line is the one case the watch exists to catch, so it gets a signature of its
+# own (the marker sits past the 80 characters the key is cut at, so it would
+# otherwise share the key of the line that WAS pushed) and can never be
+# accepted, explained or muted into silence.
+PUSH_FAILED_MARKER   = "(Pushover NOT sent)"
+PUSH_FAILED_KEY      = "|<own push failed>|"
+
+# Indigo's own names for where a line came from, as a person would say them:
+# source -> (at the start of a sentence, inside one). Others are used as logged.
+SOURCE_WORDS = {
+    "Script":        ("A script", "a script"),
+    "Indigo Server": ("The Indigo server", "the Indigo server"),
+    "Web Server":    ("The web server", "the web server"),
+}
+
+# Known faults said in plain words: (source substring, message regex, wording).
+# {0} is the regex's first group. Anything not listed is quoted as logged.
+# The request path may end in "/" (".../alertRules/ from 192.168.1.41"): the
+# name is its last non-empty part, so no plugin id or address reaches the push.
+# Order matters -- the first rule that matches wins.
+PLAIN_WORDS = [
+    ("Web Server", r"internal server error for request \S*?([^/\s]+)/?(?:\s|$)",
+     "it could not answer a request for {0}"),
+    ("Z-Wave", r'send "([^"]+)" .*request.*failed',
+     "a status request to {0} got no reply"),
+    ("Z-Wave", r'send "([^"]+)" .*failed',
+     "a command to {0} was not acknowledged"),
+]
 
 _SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__)) \
     if "__file__" in globals() else \
@@ -450,7 +548,30 @@ def signature(base_src, message):
         # create reflector connection: ...". Alert on it once, not four times.
         # Still scoped by source, so a plugin's own reflector talk stays apart.
         return base_src + "|<reflector connectivity>"
+    if PUSH_FAILED_MARKER in message:
+        # Its own bucket, so a verdict or a record of the line that DID reach
+        # Pushover says nothing about the one that did not.
+        return base_src + PUSH_FAILED_KEY + normalise(message)[:60]
     return base_src + "|" + normalise(message)[:80]
+
+
+def may_quiet(base_src, message, rules=None):
+    """True when an ACCEPTED verdict is allowed to stop this signature paging.
+
+    Needs a rule in ACCEPTED_MAY_QUIET; a malformed rule allows nothing. A line
+    saying its own push failed is never allowed, whatever the rules say."""
+    if PUSH_FAILED_MARKER in str(message):
+        return False
+    for rule in (ACCEPTED_MAY_QUIET if rules is None else rules) or []:
+        try:
+            src_match, pattern = rule
+            if src_match and src_match not in str(base_src):
+                continue
+            if re.search(pattern, str(message), re.I):
+                return True
+        except (TypeError, ValueError, re.error):
+            continue
+    return False
 
 
 def same_error(first, second, chars=60):
@@ -593,6 +714,34 @@ def mark_explained(records, rules=None):
                 break
             if rec.get("explained"):
                 break
+    return records
+
+
+def mark_self_reported(records, rules=None):
+    """Flag error records whose own text says the script that logged them has
+    already sent a Pushover about it. Sets rec["explained"] to the rule's label,
+    so everything downstream treats it as it treats any other explained line:
+    counted, shown on the card, kept out of the alert and of the triage feed.
+
+    One event must not page twice. Nothing is excused on trust: the marker is
+    written only by the sender and only when its own send went, so the same
+    line with "(Pushover NOT sent)" stays an error and alerts here."""
+    for rec in records:
+        if rec.get("explained"):
+            continue
+        base, level = classify(rec["src"], rec["tv"])
+        if level != "error":
+            continue
+        for rule in rules or []:
+            try:
+                src_match, pattern, label = rule
+                if src_match and src_match not in base:
+                    continue
+                if re.search(pattern, rec["msg"]):
+                    rec["explained"] = label
+                    break
+            except (ValueError, TypeError, re.error):
+                continue           # a malformed rule excuses nothing
     return records
 
 
@@ -761,8 +910,59 @@ def collapse(records, muted=None, self_prefix=SELF_PREFIX):
     return out
 
 
+def fresh_count(entry, prev):
+    """How many of this window's occurrences are NEWER than the last run saw.
+
+    The window deliberately overlaps the run cadence (1.5 h vs hourly), so a
+    naive `prev + current` double-counts every event the overlap sees twice.
+    Compared at full precision, so a burst inside one second is not counted
+    again next run -- last_seen is truncated to the second."""
+    prev_last = None
+    try:
+        if prev.get("last_seen_exact"):
+            prev_last = datetime.fromisoformat(prev["last_seen_exact"])
+        elif prev.get("last_seen"):
+            prev_last = datetime.strptime(prev["last_seen"], ISO)
+    except (ValueError, TypeError):
+        prev_last = None
+    if prev_last is None:
+        return entry["count"]
+    return sum(1 for t in entry.get("times", []) if t > prev_last)
+
+
+def load_accepted(path, now, expiry_days=ACCEPT_EXPIRY_DAYS):
+    """The signatures the triage ledger holds as ACCEPTED and still in force.
+
+    The ledger is Error_Triage_Feed's; this only reads it. An acceptance with
+    no readable date, or older than expiry_days, accepts nothing -- the same
+    rule the feed applies, so the signature comes back to both on the same
+    day. A missing or unreadable ledger returns an empty set: failing towards
+    paging is the safe direction for a fault report."""
+    try:
+        with open(path, encoding="utf-8") as fh:
+            entries = json.load(fh).get("entries") or {}
+    except FileNotFoundError:
+        return set()
+    except Exception as exc:
+        log(f"Log Error Watch: triage ledger {os.path.basename(str(path))} could "
+            f"not be read ({exc.__class__.__name__}), so nothing is treated as "
+            f"accepted this run", level="WARNING")
+        return set()
+    accepted = set()
+    for key, entry in entries.items():
+        if not isinstance(entry, dict) or entry.get("verdict") != "accepted":
+            continue
+        decided = _parse(entry.get("decided_at"))
+        if decided is None:
+            continue
+        if now - decided < timedelta(days=expiry_days):
+            accepted.add(key)
+    return accepted
+
+
 def decide(current, known, now, quiet_hours=QUIET_HOURS,
-           re_alert_hours=RE_ALERT_HOURS, alert_levels=ALERT_LEVELS):
+           re_alert_hours=RE_ALERT_HOURS, alert_levels=ALERT_LEVELS,
+           accepted=None, may_quiet_rules=None):
     """Split this window's signatures into (new, unresolved).
 
     new        — never seen, or last seen longer ago than quiet_hours, or a
@@ -770,31 +970,70 @@ def decide(current, known, now, quiet_hours=QUIET_HOURS,
     unresolved — alerted before, still occurring, and last alerted longer ago
                  than re_alert_hours.
 
+    Each entry returned also carries "kind", which is what the message says:
+      new        never seen before (or never delivered);
+      returned   seen before, quiet for longer than quiet_hours, and back --
+                 with "quiet_days", so the alert says "back after two days"
+                 instead of calling a fault from July "new";
+      unresolved recurred MORE THAN ONCE since the last alert ("since_alert");
+      again      recurred once since the last alert.
+
     Anything seen during the seed run carries no alerted_at and is therefore
     neither: it is the estate's existing background, by definition not news.
 
     A signature every occurrence of which was answered by its own source is
-    neither either — see mark_recovered.
+    neither either — see mark_recovered. Nor is one the triage ledger holds as
+    accepted (see load_accepted) AND a rule in ACCEPTED_MAY_QUIET names (see
+    may_quiet): that is flagged "accepted" and recorded. An acceptance with no
+    such rule changes nothing here, and the signature pages as before.
+
+    A line that says its own Pushover was NOT sent is never quietened by any
+    of these: nobody has been told, so this is the page.
     """
     new, unresolved = [], []
+    accepted = accepted or ()
     for key, cur in current.items():
-        if cur["level"] not in alert_levels or cur.get("muted"):
+        cur["accepted"] = False
+        push_failed = PUSH_FAILED_KEY in key
+        if cur["level"] not in alert_levels:
             continue
-        if cur.get("recovered_all") or cur.get("explained_all"):
-            continue
+        if not push_failed:
+            if cur.get("muted"):
+                continue
+            if cur.get("recovered_all") or cur.get("explained_all"):
+                continue
+            if key in accepted and may_quiet(cur.get("source", ""),
+                                             cur.get("message", ""), may_quiet_rules):
+                cur["accepted"] = True
+                continue
         prev = known.get(key)
         if prev is None:
+            cur["kind"] = "new"
             new.append(cur)
             continue
         if prev.get("pending"):
+            cur["kind"] = "new"
             new.append(cur)
             continue
         last_seen = _parse(prev.get("last_seen"))
-        if last_seen is None or (now - last_seen) > timedelta(hours=quiet_hours):
+        if last_seen is None:
+            cur["kind"] = "new"
+            new.append(cur)
+            continue
+        if (now - last_seen) > timedelta(hours=quiet_hours):
+            cur["kind"] = "returned"
+            cur["quiet_days"] = max(1, int(round((now - last_seen).total_seconds() / 86400.0)))
             new.append(cur)
             continue
         alerted = _parse(prev.get("alerted_at"))
         if alerted is not None and (now - alerted) > timedelta(hours=re_alert_hours):
+            try:
+                since = (int(prev.get("count", 0)) + fresh_count(cur, prev)
+                         - int(prev["count_at_alert"]))
+            except (KeyError, ValueError, TypeError):
+                since = cur["count"]      # an older state file: go by this window
+            cur["since_alert"] = max(since, 1)
+            cur["kind"] = "unresolved" if since > 1 else "again"
             unresolved.append(cur)
     new.sort(key=lambda e: (-e["count"], e["source"]))
     unresolved.sort(key=lambda e: (-e["count"], e["source"]))
@@ -818,6 +1057,8 @@ def build_feed(current, now):
             # not answer a 500, it accounts for it, and the card says which.
             "explained": bool(entry.get("explained_all")),
             "reason":    entry.get("reason") or "",
+            # Held as accepted in the triage ledger: recorded, not paged (v2.1).
+            "accepted":  bool(entry.get("accepted")),
             "first":   _fmt(entry["first"]),
             "last":    _fmt(entry["last"]),
         })
@@ -1020,45 +1261,198 @@ def send_email(recipient, subject, body):
         return False
 
 
-def compose(new, unresolved, window_start, now):
-    """Return (pushover_title, pushover_body, email_subject, email_body)."""
-    def _headline():
-        bits = []
-        if new:
-            bits.append(f"{len(new)} new error" + ("s" if len(new) != 1 else ""))
-        if unresolved:
-            bits.append(f"{len(unresolved)} still unresolved")
-        return ", ".join(bits)
+_ASCII_SWAPS = {
+    "\u2014": "-", "\u2013": "-", "\u2026": "...", "\u2018": "'", "\u2019": "'",
+    "\u201c": '"', "\u201d": '"', "\xb0": " degrees", "\xa0": " ",
+}
+_NUMBER_WORDS = ("no", "one", "two", "three", "four", "five", "six", "seven",
+                 "eight", "nine", "ten", "eleven", "twelve")
 
-    lines = []
-    for entry in (new + unresolved)[:MAX_PUSHOVER_LINES]:
-        text = f"{entry['source']} — {entry['message']}"
-        if len(text) > PUSH_LINE_CHARS:
-            text = text[:PUSH_LINE_CHARS - 1] + "…"
-        if entry["count"] > 1:
-            text += f" (x{entry['count']})"
-        lines.append(text)
-    spare = len(new) + len(unresolved) - len(lines)
-    if spare > 0:
-        lines.append(f"…and {spare} more — see the email")
 
-    detail = [f"Window: {_fmt(window_start)} to {_fmt(now)}", ""]
-    for label, group in (("NEW", new), ("STILL UNRESOLVED", unresolved)):
-        if not group:
+def ascii_text(text):
+    """Plain ASCII for Pushover: typographic characters become their keyboard
+    equivalents and anything else that is not ASCII becomes '?'."""
+    text = str(text or "")
+    for odd, plain in _ASCII_SWAPS.items():
+        text = text.replace(odd, plain)
+    return text.encode("ascii", "replace").decode("ascii")
+
+
+def number_word(n):
+    """9 -> 'nine', 908 -> '908'. Small counts read as words."""
+    return _NUMBER_WORDS[n] if isinstance(n, int) and 0 <= n <= 12 else str(n)
+
+
+def times_word(n):
+    """1 -> 'once', 2 -> 'twice', 9 -> 'nine times'."""
+    if n <= 1:
+        return "once"
+    if n == 2:
+        return "twice"
+    return f"{number_word(n)} times"
+
+
+def days_word(n):
+    return "a day" if n <= 1 else f"{number_word(n)} days"
+
+
+def join_and(parts):
+    parts = [p for p in parts if p]
+    if len(parts) <= 1:
+        return "".join(parts)
+    return ", ".join(parts[:-1]) + " and " + parts[-1]
+
+
+def clock(dt):
+    """12:14pm, 4pm -- the time as a person says it."""
+    hour = dt.hour % 12 or 12
+    suffix = "am" if dt.hour < 12 else "pm"
+    return f"{hour}{suffix}" if dt.minute == 0 else f"{hour}:{dt.minute:02d}{suffix}"
+
+
+def excerpt(message, limit=None):
+    """The logged text on one line, in ASCII, cut at a WORD when it is too long
+    (with ' ...' to say so). Never mid-word: "(consecutive failures: 1)" lost its
+    tail to a 90-character cut on 09-11 and that tail was the whole story."""
+    limit = limit or _cfg("PUSH_EXCERPT_CHARS", 220)
+    text = " ".join(ascii_text(message).split())
+    if len(text) <= limit:
+        return text
+    cut = text[:limit + 1]
+    space = cut.rfind(" ")
+    # A space in the first half means the rest is one long token (a URL, a path,
+    # a blob): cutting there leaves "Error ..." and says nothing, so cut hard.
+    cut = cut[:space] if space >= limit // 2 else text[:limit]
+    return cut.rstrip(" ,;:-") + " ..."
+
+
+def plain_words(source, message):
+    """A known fault in plain words, or None to quote the log as written."""
+    for src_match, pattern, wording in _cfg("PLAIN_WORDS", []):
+        if src_match and src_match not in str(source):
             continue
-        detail.append(f"--- {label} ({len(group)}) ---")
-        for entry in group:
-            detail.append(f"[{entry['source']}] x{entry['count']}")
-            detail.append(f"  {entry['message']}")
-            detail.append(f"  first {_fmt(entry['first'])}   last {_fmt(entry['last'])}")
-            detail.append("")
-    detail.append("Muting: add a (source, regex) pair to MUTED in "
-                  "Python Scripts/Log_Error_Watch.py")
+        try:
+            found = re.search(pattern, str(message), re.I)
+        except re.error:
+            continue
+        if found:
+            return ascii_text(wording.format(*found.groups()))
+    return None
 
-    return (f"Indigo: {_headline()}",
-            "\n".join(lines),
-            f"Indigo log errors — {_headline()}",
-            "\n".join(detail))
+
+def source_words(source):
+    """(sentence-start form, mid-sentence form) of a log source's name."""
+    known = _cfg("SOURCE_WORDS", {}).get(str(source))
+    if known:
+        return known
+    return ascii_text(source), ascii_text(source)
+
+
+def item_sentence(entry, default_kind="new"):
+    """One error as a sentence: who logged it, how often, and what it says."""
+    Source, source = source_words(entry["source"])
+    kind   = entry.get("kind") or default_kind
+    often  = times_word(int(entry.get("count", 1)))
+    if kind == "returned":
+        lead = (f"An old error from {source} is back after "
+                f"{days_word(int(entry.get('quiet_days', 1)))}, logged {often}")
+    elif kind == "unresolved":
+        lead = (f"{Source} is still logging an error that has not been resolved, "
+                f"{times_word(int(entry.get('since_alert', 2)))} since the last alert")
+    elif kind == "again":
+        lead = f"An error from {source} has happened again once since the last alert"
+    else:
+        lead = f"{Source} has logged a new error {often}"
+    plain = plain_words(entry["source"], entry["message"])
+    if plain:
+        return f"{lead}: {plain}."
+    said = excerpt(entry["message"])
+    if said and said[-1] not in ".!?":
+        said += "."
+    return f"{lead}. It says: {said}"
+
+
+def headline(new, unresolved):
+    """What arrived, as a phrase: 'three new errors and one still unresolved'."""
+    kinds = [e.get("kind") or "new" for e in new] + \
+            [e.get("kind") or "unresolved" for e in unresolved]
+
+    def _n(kind):
+        return sum(1 for k in kinds if k == kind)
+    bits = []
+    if _n("new"):
+        bits.append(f"{number_word(_n('new'))} new error" + ("s" if _n("new") != 1 else ""))
+    if _n("returned"):
+        bits.append(f"{number_word(_n('returned'))} old error"
+                    + ("s" if _n("returned") != 1 else "") + " back")
+    if _n("unresolved"):
+        bits.append(f"{number_word(_n('unresolved'))} error"
+                    + ("s" if _n("unresolved") != 1 else "") + " still unresolved")
+    if _n("again"):
+        bits.append(f"{number_word(_n('again'))} error"
+                    + ("s" if _n("again") != 1 else "") + " that happened again")
+    return join_and(bits)
+
+
+def push_body(paragraphs, left_out=False, limit=None):
+    """Whole paragraphs up to Pushover's limit, and a line saying so whenever
+    anything was left out. Never a sentence cut in half."""
+    limit = limit or _cfg("PUSHOVER_BODY_MAX", 1024)
+    note  = _cfg("PUSH_TRIMMED_NOTE", "The rest is in your email.")
+    kept = []
+    for para in paragraphs:
+        trial = "\n".join(kept + [para])
+        if len(trial) + 1 + len(note) > limit:
+            left_out = True
+            break
+        kept.append(para)
+    if not kept and paragraphs:
+        kept = [excerpt(paragraphs[0], limit - len(note) - 8)]
+        left_out = True
+    if left_out:
+        kept.append(note)
+    return "\n".join(kept)
+
+
+def compose(new, unresolved, window_start, now):
+    """Return (pushover_title, pushover_body, email_subject, email_body).
+
+    Pushover: a title that carries the answer and one sentence per error, ASCII
+    only. Email: the same sentences, then the log lines as they were written."""
+    items = [(e, "new") for e in new] + [(e, "unresolved") for e in unresolved]
+    what  = headline(new, unresolved)
+    limit = _cfg("MAX_PUSHOVER_LINES", 4)
+
+    sentences = [item_sentence(e, kind) for e, kind in items]
+    p_body = push_body(sentences[:limit], left_out=len(sentences) > limit)
+    if len(items) == 1:
+        p_title = f"Indigo log: {what} from {source_words(items[0][0]['source'])[1]}"
+    else:
+        p_title = f"Indigo log: {what}"
+
+    plural = len(items) != 1
+    detail = [f"The Indigo log shows {what} between {clock(window_start)} and "
+              f"{clock(now)} on {now.day} {now.strftime('%B')}.", ""]
+    detail += sentences
+    detail += ["", "The log line" + ("s themselves:" if plural else " itself:"), ""]
+    for entry, _kind in items:
+        count = int(entry.get("count", 1))
+        first, last = entry.get("first"), entry.get("last")
+        if not (isinstance(first, datetime) and isinstance(last, datetime)):
+            when = f"logged {times_word(count)}"
+        elif count > 1 and clock(first) != clock(last):
+            when = f"logged {times_word(count)} between {clock(first)} and {clock(last)}"
+        else:
+            when = f"logged {times_word(count)} at {clock(last)}"
+        detail.append(f"{entry['source']}, {when}:")
+        for raw_line in str(entry["message"]).splitlines() or [""]:
+            detail.append(f"    {raw_line}")
+        detail.append("")
+
+    return (ascii_text(p_title)[:250],
+            p_body,
+            ascii_text(f"Indigo log: {what}"),
+            "\n".join(detail).rstrip() + "\n")
 
 
 # ======================================
@@ -1098,6 +1492,8 @@ def main(dry_run=False, quiet=False):
     # Explanation is decided BEFORE collapse for the same reason recovery is:
     # the causing line is an INFO row, and collapse throws those away.
     records = mark_explained(records, combined("EXPLAINED_BY", _cfg("EXPLAINED_BY", []), local))
+    # A line whose own text says its script has already pushed it (v2.1).
+    records = mark_self_reported(records, _cfg("SELF_REPORTED", []))
     current = collapse(records, muted)
     state = load_state(state_path)
     known = state.get("signatures", {})
@@ -1106,10 +1502,17 @@ def main(dry_run=False, quiet=False):
     if seeding:
         new, unresolved = [], []
     else:
+        ledger_path = _cfg("TRIAGE_LEDGER_PATH", None) or os.path.join(
+            os.path.dirname(state_path),
+            _cfg("TRIAGE_LEDGER_FILE", "error_triage_state.json"))
+        accepted = load_accepted(ledger_path, now, _cfg("ACCEPT_EXPIRY_DAYS", 30))
         new, unresolved = decide(current, known, now,
                                  _cfg("QUIET_HOURS", 24),
                                  _cfg("RE_ALERT_HOURS", 24),
-                                 _cfg("ALERT_LEVELS", ("error",)))
+                                 _cfg("ALERT_LEVELS", ("error",)),
+                                 accepted,
+                                 _cfg("ACCEPTED_MAY_QUIET", []))
+    accepted_now = sum(1 for e in current.values() if e.get("accepted"))
 
     delivered = False
     if new or unresolved:
@@ -1131,26 +1534,13 @@ def main(dry_run=False, quiet=False):
     alerted_keys = {e["key"] for e in new + unresolved}
     for key, entry in current.items():
         prev = known.get(key, {})
-        # The window deliberately overlaps the run cadence (1.5 h vs hourly),
-        # so a naive `prev + current` double-counts every event the overlap
-        # sees twice. Only events NEWER than the last run's last_seen are new.
-        prev_last = None
-        try:
-            if prev.get("last_seen_exact"):
-                prev_last = datetime.fromisoformat(prev["last_seen_exact"])
-            elif prev.get("last_seen"):
-                prev_last = datetime.strptime(prev["last_seen"], ISO)
-        except (ValueError, TypeError):
-            prev_last = None
-        if prev_last is None:
-            fresh_count = entry["count"]
-        else:
-            fresh_count = sum(1 for t in entry.get("times", []) if t > prev_last)
+        # Only events NEWER than the last run's last_seen are new: see
+        # fresh_count(), which decide() shares so the two cannot disagree.
         record = {
             "source":     entry["source"],
             "message":    entry["message"],
             "level":      entry["level"],
-            "count":      int(prev.get("count", 0)) + fresh_count,
+            "count":      int(prev.get("count", 0)) + fresh_count(entry, prev),
             "first_seen": prev.get("first_seen") or _fmt(entry["first"]),
             "last_seen":  _fmt(entry["last"]),
             # Full precision, so a burst inside one second is not counted
@@ -1172,16 +1562,24 @@ def main(dry_run=False, quiet=False):
             "explained":  bool(entry.get("explained_all")),
             "reason":     entry.get("reason") or "",
             "alerted_at": prev.get("alerted_at"),
+            # The running count when the last alert went, so the next one can
+            # say how often it has happened SINCE ("once" or "still unresolved").
+            "count_at_alert": prev.get("count_at_alert"),
+            # THIS run's reading of the triage ledger, never sticky: the run
+            # after the acceptance lapses or is withdrawn, it pages again.
+            "accepted":   bool(entry.get("accepted")),
             # A failed delivery stays pending until it is actually delivered —
             # it used to be reset to False whenever the signature reappeared
             # outside the alert set (e.g. downgraded to warn-only), silently
             # swallowing the retry. Muting DOES cancel it: that is the user
             # saying "stop telling me".
-            "pending":    bool(prev.get("pending")) and not entry.get("muted"),
+            "pending":    (bool(prev.get("pending")) and not entry.get("muted")
+                           and not entry.get("accepted")),
         }
         if key in alerted_keys:
             if delivered and not dry_run:
                 record["alerted_at"] = _fmt(now)
+                record["count_at_alert"] = record["count"]
                 record["pending"] = False      # delivered: nothing left to retry (v1.4)
             elif not dry_run:
                 record["pending"] = True
@@ -1204,6 +1602,12 @@ def main(dry_run=False, quiet=False):
         log(f"Log Error Watch: {len(new)} new, {len(unresolved)} unresolved "
             f"(from {len(current)} signatures in window)",
             level="WARNING")
+    elif accepted_now:
+        # Said every time, quiet flag or not: an acceptance must never be able
+        # to hide something without the log showing that it did.
+        log(f"Log Error Watch: nothing new ({len(current)} known signatures in "
+            f"window; {accepted_now} accepted in the triage ledger, recorded "
+            f"and not paged)")
     elif not quiet:
         log(f"Log Error Watch: nothing new ({len(current)} known signatures in window)")
 
