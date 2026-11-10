@@ -11,7 +11,7 @@
 #              doubles as the feed for the Dashboards alerts page.
 #              Errors alert; warnings are recorded and shown but never pushed.
 # Author:      CliveS & Claude Fable 5.2
-# Date:        10-11-2026 10:45 GMT
+# Date:        10-11-2026 09:57 GMT
 # Version:     2.1
 #
 # v2.1 (10-11-2026): the alert is written for a person, and says less often
