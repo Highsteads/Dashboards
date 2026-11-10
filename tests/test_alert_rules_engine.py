@@ -39,7 +39,7 @@ def test_device_now_matches_the_page(case):
 def test_judge_device_matches_the_page(case):
     was = am.device_now(case["was"]) if case["was"] is not None else None
     now = am.device_now(case["now"])
-    assert am.judge_device(case["rule"], was, now) == case["expect"]
+    assert am.judge_device(case["rule"], was, now, case.get("target")) == case["expect"]
 
 
 @pytest.mark.parametrize("case", CASES["variable"], ids=_ids("variable"))

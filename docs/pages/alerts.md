@@ -46,7 +46,10 @@ happened to every one — sent, or failed and why. The browser line is raised by
 **Add a rule.** Pick Device or Variable, choose one from the list, choose the condition — turns on,
 turns off, or changes at all — tick how you want to be told, optionally give the rule its own email
 address, and Add. Turns on and turns off use the device's on/off state, while "changes at all"
-watches its display value too. A variable rule fires whenever the value changes.
+watches its display value too. A variable rule fires whenever the value changes. A rule takes its
+device's name, and its alert reads "Hall Lamp turned on". A rule that has been given a name of its
+own, which the page cannot yet do but `saveAlertRules` can, sends that name alone for turns on and
+turns off, so "Someone is at the front door" arrives as written (3.70.1).
 
 **Your rules.** Every rule the plugin holds, each with its current value ("now on", "now 21.5"),
 its channel ticks, which save as you change them, pause or resume, and delete. A rule whose device

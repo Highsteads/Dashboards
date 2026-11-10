@@ -66,6 +66,15 @@ def test_device_updated_calls_super_and_fires_on_a_real_transition(monkeypatch, 
     assert 5 in p._dev_changes, "the changedSince ledger still records it"
 
 
+def test_a_rule_with_its_own_name_fires_as_the_name_alone(monkeypatch, tmp_path):
+    """3.70.1: "Someone is at the front door turned on" reached the phone. The
+    callback hands the device's own name to the judge, so a rule somebody named
+    says just that, and a rule still carrying the device's name is unchanged."""
+    p, ctx = _wired(monkeypatch, tmp_path, [_rule(name="Someone is at the front door")])
+    p.deviceUpdated(Dev(on=False, name="Front Door Person"), Dev(on=True, ui="on", name="Front Door Person"))
+    assert _texts(ctx) == ["Someone is at the front door"]
+
+
 def test_nothing_is_sent_on_the_callback_thread(monkeypatch, tmp_path):
     p, ctx = _wired(monkeypatch, tmp_path, [_rule()], email="house@example.com")
     p.deviceUpdated(Dev(on=False), Dev(on=True, ui="on"))

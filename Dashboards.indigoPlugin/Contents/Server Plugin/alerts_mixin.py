@@ -24,9 +24,13 @@
 #              a WARNING at most once per ALERT_WARN_GAP_S per reason and never
 #              stops the other channels.
 #              Plugin inherits this.
-# Author:      CliveS & Claude
-# Date:        25-09-2026
-# Version:     1.0
+#
+#              1.1 (3.70.1): a "turns on" / "turns off" rule whose name is not
+#              its device's own name fires as that name alone. "Someone is at
+#              the front door turned on" was reaching the phone.
+# Author:      CliveS & Claude; Claude Fable 5.2 (1.1)
+# Date:        10-11-2026 09:41 UK
+# Version:     1.1
 
 try:
     import indigo
@@ -145,16 +149,37 @@ def device_text(now):
     return now["ui"] or ("ON" if now["on"] else "OFF")
 
 
-def judge_device(rule, was, now):
+def has_own_name(rule, target_name):
+    """hasOwnName: True when the rule's name is not simply the name of the
+    device it watches, so somebody wrote it ("Someone is at the front door").
+    Such a name is the message; "turned on" after it reads as nonsense. With no
+    target name to compare (None, or not text) the answer is False, which keeps
+    the old wording. Compared trimmed, cut to the length a rule name is stored
+    at, and without regard to case."""
+    name = rule.get("name")
+    if not isinstance(name, str) or not isinstance(target_name, str):
+        return False
+    own, target = _name_key(name), _name_key(target_name)
+    return bool(own) and bool(target) and own != target
+
+
+def _name_key(text):
+    return text.strip()[:ALERT_NAME_MAX].strip().lower()
+
+
+def judge_device(rule, was, now, target_name=None):
     """judgeDevice: the alert text for a device rule, or None. `was` is the
-    earlier reading of the same device and `now` this one (both device_now)."""
+    earlier reading of the same device and `now` this one (both device_now).
+    `target_name` is the device's own name in Indigo: a "turns on" or "turns
+    off" rule whose name differs from it shows its name alone (3.70.1)."""
     if was is None or now is None:
         return None
     name, cond = js_str(rule.get("name", _UNDEFINED)), rule.get("cond")
+    own = has_own_name(rule, target_name)
     if cond == "on" and now["on"] and not was["on"]:
-        return f"{name} turned on"
+        return name if own else f"{name} turned on"
     if cond == "off" and not now["on"] and was["on"]:
-        return f"{name} turned off"
+        return name if own else f"{name} turned off"
     if cond == "change" and (now["on"] != was["on"] or now["ui"] != was["ui"]):
         return f"{name}: {device_text(now)}"
     return None
@@ -363,7 +388,7 @@ class AlertsMixin:
             # Every rule on the device is judged against the SAME earlier
             # reading, so "turns off" beside "turns on" fires too.
             for r in rules:
-                text = judge_device(r, was, now)
+                text = judge_device(r, was, now, getattr(new_dev, "name", None))
                 if text:
                     self._alert_fire(st, r, text, t)
         except Exception as exc:          # never into Indigo's callback

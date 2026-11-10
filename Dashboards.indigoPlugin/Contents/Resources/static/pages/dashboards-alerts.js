@@ -32,6 +32,10 @@
  *              same answers by tests/lib/alert_rule_cases.json. The legacy
  *              helpers read and clear a browser's old rules for the Alerts
  *              page's one-click move to the plugin.
+ *
+ *              3.70.1: judgeDevice takes the device's own name, and a turns
+ *              on / turns off rule whose name differs from it reads as that
+ *              name alone (hasOwnName).
  * Author:      CliveS & Claude
  * Date:        25-09-2026
  * Version:     2.0
@@ -75,10 +79,20 @@
     return { on: !!d.onState, ui: String(ui === null || ui === undefined ? '' : ui) };
   }
   function deviceText(now) { return now.ui || (now.on ? 'ON' : 'OFF'); }
-  function judgeDevice(rule, was, now) {
+  /* A rule whose name is not simply its device's name was written by somebody
+     ("Someone is at the front door"): that name is the message, so nothing is
+     added to it. With no target name to compare, the old wording stands. */
+  function nameKey(t) { return t.trim().slice(0, 80).trim().toLowerCase(); }
+  function hasOwnName(rule, targetName) {
+    if (typeof rule.name !== 'string' || typeof targetName !== 'string') return false;
+    var own = nameKey(rule.name), target = nameKey(targetName);
+    return !!own && !!target && own !== target;
+  }
+  function judgeDevice(rule, was, now, targetName) {
     if (!was || !now) return null;
-    if (rule.cond === 'on' && now.on && !was.on) return rule.name + ' turned on';
-    if (rule.cond === 'off' && !now.on && was.on) return rule.name + ' turned off';
+    var own = hasOwnName(rule, targetName);
+    if (rule.cond === 'on' && now.on && !was.on) return own ? rule.name : rule.name + ' turned on';
+    if (rule.cond === 'off' && !now.on && was.on) return own ? rule.name : rule.name + ' turned off';
     if (rule.cond === 'change' && (now.on !== was.on || now.ui !== was.ui)) return rule.name + ': ' + deviceText(now);
     return null;
   }
@@ -303,7 +317,7 @@
 
   var API = {
     ruleKey: ruleKey, deviceNow: deviceNow, deviceText: deviceText,
-    judgeDevice: judgeDevice, judgeVariable: judgeVariable,
+    judgeDevice: judgeDevice, judgeVariable: judgeVariable, hasOwnName: hasOwnName,
     loadLegacy: loadLegacy, clearLegacy: clearLegacy, migrationRules: migrationRules,
     channelLine: channelLine, firingOutcome: firingOutcome, pickFirings: pickFirings,
     claim: claim, stillOurs: stillOurs, mayPoll: mayPoll,

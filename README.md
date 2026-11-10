@@ -2,11 +2,11 @@
 
 **Your house on a screen — energy, cameras, heating, every room, and the whole day replayed.**
 
-**Version:** 3.70.0 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
+**Version:** 3.70.1 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
 
 **[Read the full guide](https://highsteads.github.io/Dashboards/)** — setting up, a page of notes for every one of the 23 pages, and what to do when something goes wrong.
 
-<img src="https://img.shields.io/badge/version-3.70.0-5856d6" alt="Version 3.70.0">
+<img src="https://img.shields.io/badge/version-3.70.1-5856d6" alt="Version 3.70.1">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-23-0a84ff" alt="23 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
@@ -97,11 +97,11 @@ The [Getting started](https://highsteads.github.io/Dashboards/getting-started.ht
 
 ## What's new
 
+**3.70.1** (10-Nov-2026) - **An alert rule with a name of its own says just that.** A rule named "Someone is at the front door" used to arrive as "Someone is at the front door turned on". When a turns on or turns off rule carries a name that is not simply its device's name, the alert is now that name and nothing more. A rule still named after its device reads as before, "Hall Lamp turned on", and a "changes at all" rule still shows the new value.
+
 **3.70.0** (09-Nov-2026) - **The Heating page says how each boosted room is doing.** While a timed boost runs, a line under the buttons names each boosted room: 22 degrees confirmed by Evohome, 22 degrees sent and waiting for Evohome to confirm, waiting for the heating controller's next check, or kept lower and why, such as a window being open or the room already being warm. It used to say only that the boost had started. Needs EvoHomeControl 1.26.0; with an older version the buttons work as before and no room lines appear.
 
 **3.69.2** (09-Nov-2026) - **Remove Laundry and Grid Carbon from Energy.** The When to run it card and its refresh requests are gone. Old Laundry and Carbon bookmarks still open Energy.
-
-**3.69.1** (09-Nov-2026) - **The Plugs page list gains a Yesterday column.** Each plug now shows what it cost yesterday beside today, the last 7 days and the last 30 days, and the list can be put in order by yesterday too. On a phone the plug's name now has a line of its own above the four figures, so long names no longer break part way through a word.
 
 ## Acknowledgements
 

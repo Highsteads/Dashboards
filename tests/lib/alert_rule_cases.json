@@ -47,7 +47,21 @@
     {"why": "a rule with no name says undefined, as the page did", "rule": {"kind": "device", "id": 1, "cond": "on"},
      "was": {"onState": false}, "now": {"onState": true}, "expect": "undefined turned on"},
     {"why": "a null name says null", "rule": {"kind": "device", "id": 1, "name": null, "cond": "off"},
-     "was": {"onState": true}, "now": {"onState": false}, "expect": "null turned off"}
+     "was": {"onState": true}, "now": {"onState": false}, "expect": "null turned off"},
+    {"why": "own name, turns on: the name alone", "rule": {"kind": "device", "id": 8, "name": "Someone is at the front door", "cond": "on"}, "target": "Front Door Person",
+     "was": {"onState": false}, "now": {"onState": true}, "expect": "Someone is at the front door"},
+    {"why": "own name, turns off: the name alone", "rule": {"kind": "device", "id": 8, "name": "The garage has been shut", "cond": "off"}, "target": "Garage Door",
+     "was": {"onState": true}, "now": {"onState": false}, "expect": "The garage has been shut"},
+    {"why": "the device's own name still says turned on", "rule": {"kind": "device", "id": 1, "name": "Lamp", "cond": "on"}, "target": "Lamp",
+     "was": {"onState": false}, "now": {"onState": true}, "expect": "Lamp turned on"},
+    {"why": "case and outer spaces do not make a name the rule's own", "rule": {"kind": "device", "id": 1, "name": "hall lamp", "cond": "off"}, "target": " Hall Lamp ",
+     "was": {"onState": true}, "now": {"onState": false}, "expect": "hall lamp turned off"},
+    {"why": "a device name longer than a rule keeps is still the same name", "rule": {"kind": "device", "id": 1, "name": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", "cond": "on"}, "target": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+     "was": {"onState": false}, "now": {"onState": true}, "expect": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA turned on"},
+    {"why": "own name, changes: the new value is still shown", "rule": {"kind": "device", "id": 8, "name": "The thermostat moved", "cond": "change"}, "target": "Hall Thermostat",
+     "was": {"onState": false, "displayStateValUi": 20}, "now": {"onState": false, "displayStateValUi": 21}, "expect": "The thermostat moved: 21"},
+    {"why": "an empty device name is no name to compare", "rule": {"kind": "device", "id": 1, "name": "Lamp", "cond": "on"}, "target": "",
+     "was": {"onState": false}, "now": {"onState": true}, "expect": "Lamp turned on"}
   ],
   "variable": [
     {"why": "a variable that changed fires", "rule": {"kind": "variable", "id": 9, "name": "Mode", "cond": "change"},

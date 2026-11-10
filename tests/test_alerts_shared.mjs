@@ -82,7 +82,7 @@ function server() {
     for (const c of CASES.device) {
         n++;
         const was = c.was === null ? null : A.deviceNow(c.was);
-        const got = A.judgeDevice(c.rule, was, A.deviceNow(c.now));
+        const got = A.judgeDevice(c.rule, was, A.deviceNow(c.now), c.target);
         check(`device: ${c.why}`, got === c.expect, String(got));
     }
     for (const c of CASES.variable) {
