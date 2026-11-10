@@ -49,7 +49,9 @@ address, and Add. Turns on and turns off use the device's on/off state, while "c
 watches its display value too. A variable rule fires whenever the value changes. A rule takes its
 device's name, and its alert reads "Hall Lamp turned on". A rule that has been given a name of its
 own, which the page cannot yet do but `saveAlertRules` can, sends that name alone for turns on and
-turns off, so "Someone is at the front door" arrives as written (3.70.1).
+turns off, so "Someone is at the front door" arrives as written (3.70.1). Whether a name is the rule's own is
+settled when the rule is saved, so renaming the device in Indigo afterwards does not change how the
+alert reads.
 
 **Your rules.** Every rule the plugin holds, each with its current value ("now on", "now 21.5"),
 its channel ticks, which save as you change them, pause or resume, and delete. A rule whose device

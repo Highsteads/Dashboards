@@ -157,10 +157,11 @@ check("the page script was found", !!PAGE);
     await sleep(10);
     const add = saves[0];
     check("Add sends the whole list with the rev it was given", add && add.rev === 2 && add.rules.length === 2);
-    check("the new rule carries its channels and address",
+    check("the new rule carries its channels, address and own: false",
           add && JSON.stringify(add.rules[1]) === JSON.stringify({ kind: "device", id: 6, cond: "off", name: "Shed",
                                                                   enabled: true, channels: ["email", "browser"],
-                                                                  email: "shed@example.com" }), JSON.stringify(add && add.rules[1]));
+                                                                  email: "shed@example.com", own: false }), JSON.stringify(add && add.rules[1]));
+    // 3.70.1: the page names a rule after its device, so it says the name is not the rule's own.
     check("the page shows the saved list", p.els.rules.children.length === 2);
     p.els.master.checked = false;
     p.els.master.onchange();

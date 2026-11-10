@@ -153,6 +153,22 @@ def test_junk_is_refused_and_nothing_saved(monkeypatch, tmp_path, body, needle):
     assert ctx.saves == []
 
 
+def test_a_save_settles_whether_each_name_is_the_rules_own(monkeypatch, tmp_path):
+    """3.70.1: decided once here, not on every firing, so a device renamed
+    later does not take "turned on" off a rule that was named after it."""
+    import sys
+    p, ctx = _plugin(monkeypatch, tmp_path)
+    devs = sys.modules["indigo"].devices
+    devs[5] = Dev(5, "Hall")
+    devs[6] = Dev(6, "Front Door Person")
+    body = {"rules": [_rule(), _rule(id=6, name="Someone is at the front door")]}
+    assert p.handleSaveAlertRules(Action(body))["status"] == 200
+    assert [r["own"] for r in ctx.saves[-1]["alertRules"]] == [False, True]
+    devs[5] = Dev(5, "Hall Table Lamp")
+    assert p.handleSaveAlertRules(Action(body))["status"] == 200
+    assert [r["own"] for r in ctx.saves[-1]["alertRules"]] == [False, True]
+
+
 def test_a_stale_page_is_refused(monkeypatch, tmp_path):
     p, ctx = _plugin(monkeypatch, tmp_path, rules=[_rule()])
     p.cfg_store["alertRulesRev"] = 4

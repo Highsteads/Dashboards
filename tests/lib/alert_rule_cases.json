@@ -61,6 +61,14 @@
     {"why": "own name, changes: the new value is still shown", "rule": {"kind": "device", "id": 8, "name": "The thermostat moved", "cond": "change"}, "target": "Hall Thermostat",
      "was": {"onState": false, "displayStateValUi": 20}, "now": {"onState": false, "displayStateValUi": 21}, "expect": "The thermostat moved: 21"},
     {"why": "an empty device name is no name to compare", "rule": {"kind": "device", "id": 1, "name": "Lamp", "cond": "on"}, "target": "",
+     "was": {"onState": false}, "now": {"onState": true}, "expect": "Lamp turned on"},
+    {"why": "named after its device when saved, device renamed since: still says turned off", "rule": {"kind": "device", "id": 1, "name": "Hall Lamp", "cond": "off", "own": false}, "target": "Hall Table Lamp",
+     "was": {"onState": true}, "now": {"onState": false}, "expect": "Hall Lamp turned off"},
+    {"why": "named after its device when saved, device renamed since: still says turned on", "rule": {"kind": "device", "id": 1, "name": "Hall Lamp", "cond": "on", "own": false}, "target": "Hall Table Lamp",
+     "was": {"onState": false}, "now": {"onState": true}, "expect": "Hall Lamp turned on"},
+    {"why": "own name settled when saved holds even if the device is later given the same name", "rule": {"kind": "device", "id": 8, "name": "Someone is at the front door", "cond": "on", "own": true}, "target": "Someone is at the front door",
+     "was": {"onState": false}, "now": {"onState": true}, "expect": "Someone is at the front door"},
+    {"why": "an own that is not true or false is ignored and the names are compared", "rule": {"kind": "device", "id": 1, "name": "Lamp", "cond": "on", "own": "yes"}, "target": "Lamp",
      "was": {"onState": false}, "now": {"onState": true}, "expect": "Lamp turned on"}
   ],
   "variable": [

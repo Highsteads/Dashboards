@@ -35,7 +35,8 @@
  *
  *              3.70.1: judgeDevice takes the device's own name, and a turns
  *              on / turns off rule whose name differs from it reads as that
- *              name alone (hasOwnName).
+ *              name alone (hasOwnName). A rule carrying `own`, settled by
+ *              the plugin at save, is believed over that comparison.
  * Author:      CliveS & Claude
  * Date:        25-09-2026
  * Version:     2.0
@@ -90,7 +91,9 @@
   }
   function judgeDevice(rule, was, now, targetName) {
     if (!was || !now) return null;
-    var own = hasOwnName(rule, targetName);
+    /* `own`, settled by the plugin when the rule was saved, is believed over
+       the comparison: a device renamed later keeps its "turned on". */
+    var own = typeof rule.own === 'boolean' ? rule.own : hasOwnName(rule, targetName);
     if (rule.cond === 'on' && now.on && !was.on) return own ? rule.name : rule.name + ' turned on';
     if (rule.cond === 'off' && !now.on && was.on) return own ? rule.name : rule.name + ' turned off';
     if (rule.cond === 'change' && (now.on !== was.on || now.ui !== was.ui)) return rule.name + ': ' + deviceText(now);

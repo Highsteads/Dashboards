@@ -285,6 +285,7 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
             const o = { kind: r.kind, id: r.id, cond: r.cond, name: r.name,
                         enabled: r.enabled !== false, channels: (r.channels || []).slice() };
             if (r.email) o.email = r.email;
+            if (typeof r.own === "boolean") o.own = r.own;
             return o;
         });
     }
@@ -438,6 +439,8 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
         const channels = CHANNELS.filter(c => $("add-" + c).checked);
         if (!channels.length) { say("rules-msg", "Tick at least one way to be told.", true); return; }
         const rule = { kind, id, cond, name: String(ent.name).slice(0, 80), enabled: true, channels };
+        // The page names a rule after its device, so it is not a name of its own.
+        if (kind === "device" && (cond === "on" || cond === "off")) rule.own = false;
         const to = $("add-to").value.trim();
         if (to) rule.email = to;
         save({ rules: rulesForSave(rules.concat([rule])) }, "Added.").then(ok => { if (ok) $("add-to").value = ""; });

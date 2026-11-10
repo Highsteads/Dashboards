@@ -27,7 +27,11 @@
 #
 #              1.1 (3.70.1): a "turns on" / "turns off" rule whose name is not
 #              its device's own name fires as that name alone. "Someone is at
-#              the front door turned on" was reaching the phone.
+#              the front door turned on" was reaching the phone. Whether a
+#              name is the rule's own is settled when the rule is saved and
+#              kept on it as `own` (settle_own), so renaming the device later
+#              changes nothing; a rule saved before this is compared with the
+#              device's name when it fires.
 # Author:      CliveS & Claude; Claude Fable 5.2 (1.1)
 # Date:        10-11-2026 09:41 UK
 # Version:     1.1
@@ -171,11 +175,15 @@ def judge_device(rule, was, now, target_name=None):
     """judgeDevice: the alert text for a device rule, or None. `was` is the
     earlier reading of the same device and `now` this one (both device_now).
     `target_name` is the device's own name in Indigo: a "turns on" or "turns
-    off" rule whose name differs from it shows its name alone (3.70.1)."""
+    off" rule whose name differs from it shows its name alone (3.70.1).
+    A rule that carries `own` (settled when it was saved, see settle_own) is
+    believed over the comparison, so renaming the device later does not take
+    "turned on" off a rule that was named after it."""
     if was is None or now is None:
         return None
     name, cond = js_str(rule.get("name", _UNDEFINED)), rule.get("cond")
-    own = has_own_name(rule, target_name)
+    flag = rule.get("own")
+    own = flag if isinstance(flag, bool) else has_own_name(rule, target_name)
     if cond == "on" and now["on"] and not was["on"]:
         return name if own else f"{name} turned on"
     if cond == "off" and not now["on"] and was["on"]:
@@ -183,6 +191,42 @@ def judge_device(rule, was, now, target_name=None):
     if cond == "change" and (now["on"] != was["on"] or now["ui"] != was["ui"]):
         return f"{name}: {device_text(now)}"
     return None
+
+
+def settle_own(rules, have, name_of):
+    """Decide once, at save time, whether each "turns on" / "turns off" device
+    rule has a name of its own, and store it as `own`. Judging it on every
+    firing against the device's CURRENT name meant a device renamed in Indigo
+    turned "Hall Lamp turned off" into a bare "Hall Lamp".
+
+    In order: an `own` the caller sent is kept; a rule already held with the
+    same key and name keeps the `own` it has; otherwise the name is compared
+    with the device's name now (`name_of(id)`). With no device name to be had
+    the key is left out and judge_device falls back to comparing when it fires,
+    which is also how a rule saved before this keeps working."""
+    held = {}
+    for h in have or []:
+        if isinstance(h, dict) and isinstance(h.get("own"), bool):
+            held[(rule_key(h), h.get("name"))] = h["own"]
+    out = []
+    for r in rules:
+        r = dict(r)
+        if r.get("kind") != "device" or r.get("cond") not in ("on", "off"):
+            r.pop("own", None)
+        elif not isinstance(r.get("own"), bool):
+            r.pop("own", None)
+            kept = held.get((rule_key(r), r.get("name")))
+            if kept is not None:
+                r["own"] = kept
+            else:
+                try:
+                    target = name_of(r.get("id"))
+                except Exception:
+                    target = None
+                if isinstance(target, str) and target.strip():
+                    r["own"] = has_own_name(r, target)
+        out.append(r)
+    return out
 
 
 def judge_variable(rule, was, value):
@@ -225,7 +269,7 @@ def plausible_email(text):
 def validate_rules(rules, default_channels):
     """(clean, errors) for a list of rules sent by a page or an old browser.
 
-    Each rule: {kind, id, cond, name, enabled?, channels?, email?}. A rule with
+    Each rule: {kind, id, cond, name, enabled?, channels?, email?, own?}. A rule with
     no `channels` key gets `default_channels` (how a rule moved from a browser,
     which never had channels, is given some). Anything else malformed is an
     error naming the rule; nothing is saved while there is one."""
@@ -261,6 +305,10 @@ def validate_rules(rules, default_channels):
         if not isinstance(enabled, bool):
             errors.append(f"{where}: enabled must be true or false")
             continue
+        own = r.get("own")
+        if own is not None and not isinstance(own, bool):
+            errors.append(f"{where}: own must be true or false")
+            continue
         if "channels" in r:
             chans = r.get("channels")
             if not isinstance(chans, list) or any(c not in ALERT_CHANNELS for c in chans):
@@ -290,6 +338,8 @@ def validate_rules(rules, default_channels):
                 "enabled": enabled, "channels": chans}
         if email:
             item["email"] = email
+        if isinstance(own, bool) and kind == "device" and cond in ("on", "off"):
+            item["own"] = own
         clean.append(item)
     return clean, errors
 
@@ -691,6 +741,13 @@ class AlertsMixin:
             seq = st["seq"]
         return rows, seq
 
+    def _alert_device_name(self, dev_id):
+        """The device's name in Indigo now, or None when it cannot be read."""
+        try:
+            return indigo.devices[dev_id].name
+        except Exception:
+            return None
+
     def _alert_target(self, rule):
         """(state, now_text, current_name) for a rule's device or variable:
         state is "ok", "disabled" or "missing"."""
@@ -877,6 +934,8 @@ class AlertsMixin:
             clean, rule_errors = validate_rules(payload.get("rules"),
                                                 self._alert_default_channels(status))
             errors += rule_errors
+            if not rule_errors:
+                clean = settle_own(clean, have, self._alert_device_name)
         else:
             clean = have
         if errors:

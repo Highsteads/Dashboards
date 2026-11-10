@@ -167,3 +167,66 @@ def test_not_a_list():
 ])
 def test_plausible_email(addr, ok):
     assert am.plausible_email(addr) is ok
+
+
+# ── own name, settled when the rule is saved (3.70.1) ────────────────────
+
+def _names(**by_id):
+    return lambda dev_id: by_id.get(f"d{dev_id}")
+
+
+def test_a_rule_named_after_its_device_is_settled_as_not_its_own():
+    out = am.settle_own([_rule(name="Hall Lamp", cond="off")], [], _names(d101="Hall Lamp"))
+    assert out[0]["own"] is False
+
+
+def test_a_rule_somebody_named_is_settled_as_its_own():
+    out = am.settle_own([_rule(name="Someone is at the front door")], [],
+                        _names(d101="Front Door Person"))
+    assert out[0]["own"] is True
+
+
+def test_a_saved_answer_outlives_a_renamed_device():
+    """The fault: judged on each firing, a device renamed in Indigo turned
+    "Hall Lamp turned off" into a bare "Hall Lamp"."""
+    have = [_rule(name="Hall Lamp", cond="off", own=False)]
+    out = am.settle_own([_rule(name="Hall Lamp", cond="off")], have, _names(d101="Hall Table Lamp"))
+    assert out[0]["own"] is False
+    now, was = {"on": False, "ui": ""}, {"on": True, "ui": ""}
+    assert am.judge_device(out[0], was, now, "Hall Table Lamp") == "Hall Lamp turned off"
+
+
+def test_a_renamed_rule_is_judged_afresh():
+    have = [_rule(name="Hall Lamp", own=False)]
+    out = am.settle_own([_rule(name="The hall is lit")], have, _names(d101="Hall Lamp"))
+    assert out[0]["own"] is True
+
+
+def test_what_the_caller_says_is_kept():
+    out = am.settle_own([_rule(name="Hall Lamp", own=True)], [_rule(name="Hall Lamp", own=False)],
+                        _names(d101="Hall Lamp"))
+    assert out[0]["own"] is True
+
+
+def test_no_device_name_leaves_it_to_the_firing():
+    def boom(dev_id):
+        raise KeyError(dev_id)
+    for name_of in (_names(), boom, lambda dev_id: ""):
+        out = am.settle_own([_rule(name="Hall Lamp")], [], name_of)
+        assert "own" not in out[0]
+
+
+def test_only_turns_on_and_turns_off_device_rules_carry_it():
+    rules = [_rule(cond="change", own=True),
+             {"kind": "variable", "id": 7, "cond": "change", "name": "Mode", "own": True}]
+    out = am.settle_own(rules, [], _names(d101="Other"))
+    assert all("own" not in r for r in out)
+
+
+def test_validate_keeps_a_true_or_false_own_and_refuses_anything_else():
+    clean, errors = am.validate_rules([_rule(own=False)], DEFAULT)
+    assert errors == [] and clean[0]["own"] is False
+    clean, errors = am.validate_rules([_rule(cond="change", own=True)], DEFAULT)
+    assert errors == [] and "own" not in clean[0]
+    clean, errors = am.validate_rules([_rule(own="yes")], DEFAULT)
+    assert clean == [] and "own must be true or false" in errors[0]

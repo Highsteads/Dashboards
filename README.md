@@ -97,7 +97,7 @@ The [Getting started](https://highsteads.github.io/Dashboards/getting-started.ht
 
 ## What's new
 
-**3.70.1** (10-Nov-2026) - **An alert rule with a name of its own says just that.** A rule named "Someone is at the front door" used to arrive as "Someone is at the front door turned on". When a turns on or turns off rule carries a name that is not simply its device's name, the alert is now that name and nothing more. A rule still named after its device reads as before, "Hall Lamp turned on", and a "changes at all" rule still shows the new value.
+**3.70.1** (10-Nov-2026) - **An alert rule with a name of its own says just that.** A rule named "Someone is at the front door" used to arrive as "Someone is at the front door turned on". When a turns on or turns off rule carries a name that is not simply its device's name, the alert is now that name and nothing more. A rule still named after its device reads as before, "Hall Lamp turned on", and a "changes at all" rule still shows the new value. Whether a name is the rule's own is settled when the rule is saved, so renaming the device in Indigo afterwards does not change how its alerts read.
 
 **3.70.0** (09-Nov-2026) - **The Heating page says how each boosted room is doing.** While a timed boost runs, a line under the buttons names each boosted room: 22 degrees confirmed by Evohome, 22 degrees sent and waiting for Evohome to confirm, waiting for the heating controller's next check, or kept lower and why, such as a window being open or the room already being warm. It used to say only that the boost had started. Needs EvoHomeControl 1.26.0; with an older version the buttons work as before and no room lines appear.
 

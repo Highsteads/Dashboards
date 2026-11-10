@@ -75,6 +75,13 @@ def test_a_rule_with_its_own_name_fires_as_the_name_alone(monkeypatch, tmp_path)
     assert _texts(ctx) == ["Someone is at the front door"]
 
 
+def test_a_device_renamed_after_its_rule_was_made_still_says_what_happened(monkeypatch, tmp_path):
+    p, ctx = _wired(monkeypatch, tmp_path, [_rule(cond="on", own=False), _rule(cond="off", own=False)])
+    p.deviceUpdated(Dev(on=False, name="Hall Table Lamp"), Dev(on=True, ui="on", name="Hall Table Lamp"))
+    p.deviceUpdated(Dev(on=True, ui="on", name="Hall Table Lamp"), Dev(on=False, name="Hall Table Lamp"))
+    assert _texts(ctx) == ["Hall turned on", "Hall turned off"]
+
+
 def test_nothing_is_sent_on_the_callback_thread(monkeypatch, tmp_path):
     p, ctx = _wired(monkeypatch, tmp_path, [_rule()], email="house@example.com")
     p.deviceUpdated(Dev(on=False), Dev(on=True, ui="on"))
