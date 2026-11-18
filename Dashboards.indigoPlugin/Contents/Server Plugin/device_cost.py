@@ -62,7 +62,8 @@ def cheap_rate(rates_json):
 # the dehumidifier plug 08-11-2026), and counting each of those as a restart
 # added the whole day again every time - 62 kWh for a plug that used 2.4.
 RESTART_FRACTION = 0.5      # the new reading is under half the old one
-RESTART_MIN_KWH = 0.01      # and at least 10 Wh lower
+RESTART_MIN_KWH = 0.01
+PLACEHOLDER_SECONDS = 120   # a new device's 0.0 counter, replaced by its first real report within this long      # and at least 10 Wh lower
 
 
 def is_restart(prev, kwh):
@@ -166,6 +167,7 @@ def counter_slices(rows):
     Each slice is dated by the later reading."""
     out = []
     prev = None
+    first_epoch = None
     for epoch, kwh in rows:
         try:
             kwh = float(kwh)
@@ -176,7 +178,18 @@ def counter_slices(rows):
             continue
         if prev is None:
             prev = kwh
+            first_epoch = epoch
             continue
+        if first_epoch is not None:
+            # A new device is written with a 0.0 counter before its first real
+            # report arrives. That report is the plug's whole count so far, not
+            # energy used since the 0.0, so it is the starting line (found
+            # 18-11-2026: a plug added at midnight read 3.6 kWh "today").
+            placeholder = prev == 0 and epoch - first_epoch <= PLACEHOLDER_SECONDS
+            first_epoch = None
+            if placeholder:
+                prev = kwh
+                continue
         if is_restart(prev, kwh):
             used, prev = kwh, kwh
         elif kwh < prev:

@@ -290,7 +290,9 @@ def test_energy_today_and_week_at_the_cheap_rate(monkeypatch, london):
     today0 = _t.mktime(datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).timetuple())
     rows = [(int(today0 - 3 * 86400), 0.10), (int(today0 - 3 * 86400 + 600), 0.20),   # 0.1 kWh three days ago
             (int(today0 - 600), 0.65), (int(today0 - 60), 0.70),                        # yesterday: 0.70 in all
-            (int(now - 7200), 0.30), (int(now - 3600), 0.02), (int(now - 60), 0.07)]    # today: 0.30, plug restarts, 0.07 more
+            (int(today0 + 0.25 * (now - today0)), 0.30), (int(today0 + 0.5 * (now - today0)), 0.02),
+            (int(today0 + 0.75 * (now - today0)), 0.07)]                                 # today: 0.30, plug restarts, 0.07 more
+    # (today's rows sit between midnight and now, so the test also holds in the first two hours after midnight)
     p._energy_today_rows = lambda plug_id, start: rows
     status, body = energy(p, {"deviceId": 4100})
     assert status == 200 and body["plug"] == {"id": 566451865, "name": "Air Purifier Plug"}

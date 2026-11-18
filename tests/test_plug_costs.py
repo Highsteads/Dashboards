@@ -290,3 +290,13 @@ def test_the_handler_answers_from_the_offpath_pool(monkeypatch):
     assert reply["status"] == 200 and seen == {"key": "plugCosts", "lane": "plugs"}
     p._offpath_get = lambda *a, **k: ("pending", None)
     assert p.handlePlugCosts(action)["status"] == 503
+
+
+def test_a_new_devices_zero_placeholder_is_not_a_slice():
+    C, _ = mods()
+    # Indigo writes 0.0 when the device is created; the plug's real count
+    # (3.6 kWh from before it was added) arrives seconds later.
+    assert C.counter_slices([(1000, 0.0), (1004, 3.6)]) == []
+    assert C.counter_slices([(1000, 0.0), (1004, 3.6), (2000, 3.65)]) == [(2000, pytest.approx(0.05))]
+    # A real counter that starts at 0 and climbs slowly still counts.
+    assert C.counter_slices([(1000, 0.0), (1500, 0.02)]) == [(1500, pytest.approx(0.02))]
