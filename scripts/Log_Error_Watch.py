@@ -10,9 +10,38 @@
 #              one Pushover headline plus a full email, and the state file
 #              doubles as the feed for the Dashboards alerts page.
 #              Errors alert; warnings are recorded and shown but never pushed.
-# Author:      CliveS & Claude Fable 5.2
-# Date:        10-11-2026 09:57 GMT
-# Version:     2.1
+# Author:      CliveS & Claude Opus 5.5
+# Date:        20-11-2026 01:25 GMT
+# Version:     2.2
+#
+# v2.2 (20-11-2026): causes are read back as far as a rule reaches, and an
+#   error a rule excused when it was first seen pages when it comes back with
+#   no excuse. Written for Z-Wave stick sessions, where a house-only rule in
+#   log_error_watch_local.py excuses the line Indigo writes for each command
+#   to a device while its Z-Wave interface is disabled; both changes are
+#   general.
+#   - The lines that can be causes are read from the alert window's start less
+#     the longest EXPLAINED_BY window (CAUSE_READ_MAX_HOURS at most). Errors
+#     still come only from the last LOOKBACK_HOURS. Until now a cause counted
+#     only inside those same 90 minutes, so a rule with a two-hour window
+#     reached about 30 minutes at every phase of the hourly run, and a plugin
+#     restart just before the window excused nothing. Where the buffer reaches
+#     the window but not the older causes (normal for a few hours after a
+#     server start), those come from the dated log files and the window still
+#     comes from the buffer.
+#   - A signature first seen while explained is stored with no alert. Its later
+#     sightings with no excuse were "known" and never paged while they recurred
+#     within a day, so a fault left behind after its cause (an interface left
+#     disabled after a session) said nothing. It now pages as new when it comes
+#     back unexplained with fresh occurrences; a run that sees only occurrences
+#     an earlier run saw, without their cause, still sends nothing. The fact that
+#     a rule excused it is kept in the state file (explained_since_alert) until
+#     an alert for it is delivered, so one run that cannot see the cause (a
+#     buffer cut short, the local rules file unreadable) does not wipe it.
+#     This is general: any EXPLAINED_BY rule, the shipped restart rule too. A
+#     signature already alerted keeps the 24-hour re-alert rule, excused or not,
+#     so a fault left behind inside a day of an earlier alert for the same line
+#     is next reported once that day is up.
 #
 # v2.1 (10-11-2026): the alert is written for a person, and says less often
 #   what he already knows. From CliveS's audit of every notification the house
@@ -174,6 +203,12 @@ RE_ALERT_HOURS = 24
 # How long after a plugin start/stop an IWS failure can still be blamed on
 # the restart. The wedge measures 4m58s; this is that plus slack.
 WEDGE_SECONDS = 310
+
+# The lines that can be causes are read from this far before the alert window:
+# the longest EXPLAINED_BY window, but never more than this. The longest real
+# rule is two hours; the bound only stops a mistyped window turning every run
+# into a read of days of log files.
+CAUSE_READ_MAX_HOURS = 12
 
 # Signatures untouched for this long are dropped from the state file.
 FORGET_DAYS = 30
@@ -717,6 +752,30 @@ def mark_explained(records, rules=None):
     return records
 
 
+def cause_read_seconds(rules, max_hours=None):
+    """How far before the alert window the lines that can be causes are read:
+    the longest window among the EXPLAINED_BY rules, never more than max_hours.
+
+    A rule whose window is not a plain number of seconds, nought or more, is
+    malformed and reaches nothing, as it excuses nothing in mark_explained."""
+    try:
+        cap = float(_cfg("CAUSE_READ_MAX_HOURS", 12) if max_hours is None else max_hours)
+    except (TypeError, ValueError):
+        cap = 12.0
+    longest = 0
+    for rule in rules or []:
+        try:
+            window = rule[4]
+        except (IndexError, KeyError, TypeError):
+            continue
+        if isinstance(window, bool) or not isinstance(window, (int, float)):
+            continue
+        if not 0 <= window < float("inf"):        # also refuses NaN
+            continue
+        longest = max(longest, window)
+    return min(longest, cap * 3600)
+
+
 def mark_self_reported(records, rules=None):
     """Flag error records whose own text says the script that logged them has
     already sent a Pushover about it. Sets rec["explained"] to the rule's label,
@@ -930,6 +989,21 @@ def fresh_count(entry, prev):
     return sum(1 for t in entry.get("times", []) if t > prev_last)
 
 
+def explained_since_alert(prev):
+    """Whether a rule has excused this signature in some run since its last
+    delivered alert, or ever, when it has never been alerted (v2.2).
+
+    Kept from run to run, unlike `explained`, which is one window's verdict: a
+    run that sees only lines the last run explained, without their cause (a
+    buffer cut short, the local rules file unreadable for a run), must not wipe
+    the fact that a rule excused them, or the fault left behind is silent from
+    then on. It can only make the watch page, never keep it quiet, so it is not
+    an exemption. A record written before v2.2 has only `explained`."""
+    if "explained_since_alert" in prev:
+        return bool(prev["explained_since_alert"])
+    return bool(prev.get("explained"))
+
+
 def load_accepted(path, now, expiry_days=ACCEPT_EXPIRY_DAYS):
     """The signatures the triage ledger holds as ACCEPTED and still in force.
 
@@ -966,7 +1040,10 @@ def decide(current, known, now, quiet_hours=QUIET_HOURS,
     """Split this window's signatures into (new, unresolved).
 
     new        — never seen, or last seen longer ago than quiet_hours, or a
-                 previous alert whose delivery failed (pending).
+                 previous alert whose delivery failed (pending), or (v2.2)
+                 never alerted, excused by a rule in some run since it was
+                 first seen, and back now with fresh occurrences no rule
+                 explains.
     unresolved — alerted before, still occurring, and last alerted longer ago
                  than re_alert_hours.
 
@@ -980,6 +1057,14 @@ def decide(current, known, now, quiet_hours=QUIET_HOURS,
 
     Anything seen during the seed run carries no alerted_at and is therefore
     neither: it is the estate's existing background, by definition not news.
+    The exception is a signature a rule has excused (explained_since_alert):
+    it has no alerted_at because a rule excused it, not because it is
+    background, so when it comes back unexplained with fresh occurrences it is
+    new (v2.2). Fresh only: a run that sees again what an earlier run saw,
+    without its cause, sends nothing, and the fact that a rule excused it is
+    kept for the next run. A signature already alerted keeps the re-alert rule
+    below: excused or not, it pages again only once re_alert_hours have passed
+    since that alert.
 
     A signature every occurrence of which was answered by its own source is
     neither either — see mark_recovered. Nor is one the triage ledger holds as
@@ -1026,6 +1111,10 @@ def decide(current, known, now, quiet_hours=QUIET_HOURS,
             new.append(cur)
             continue
         alerted = _parse(prev.get("alerted_at"))
+        if alerted is None and explained_since_alert(prev) and fresh_count(cur, prev) > 0:
+            cur["kind"] = "new"
+            new.append(cur)
+            continue
         if alerted is not None and (now - alerted) > timedelta(hours=re_alert_hours):
             try:
                 since = (int(prev.get("count", 0)) + fresh_count(cur, prev)
@@ -1156,6 +1245,25 @@ def _fetch_from_files(window_start, now):
         day += timedelta(days=1)
     rows.sort(key=lambda r: r["TimeStamp"])
     return rows
+
+
+def _fetch_rows(window_start, read_start, now, fetch_lines):
+    """(rows from read_start on, oldest first; whether the window came from the files).
+
+    The buffer is read first, from read_start. Where it does not reach the alert
+    window, everything comes from the dated files, from read_start, as the window
+    alone did before v2.2. Where it reaches the window but not read_start, the
+    window still comes from the buffer and only the older rows, which can only
+    ever be causes, come from the files. A file that cannot be read gives no
+    rows, so a cause it held excuses nothing: the error pages."""
+    rows, truncated = _fetch_from_buffer(read_start, fetch_lines)
+    if not truncated:
+        return rows, False
+    if not rows or rows[0]["TimeStamp"] > window_start:
+        return _fetch_from_files(read_start, now), True
+    earliest = rows[0]["TimeStamp"]
+    older = [r for r in _fetch_from_files(read_start, earliest) if r["TimeStamp"] < earliest]
+    return older + rows, False
 
 
 # ======================================
@@ -1472,29 +1580,37 @@ def main(dry_run=False, quiet=False):
         log(f"Log Error Watch: {problem}, so its extra rules are not in use this run",
             level="WARNING")
     muted      = combined("MUTED", _cfg("MUTED", []), local)
+    explained_by = combined("EXPLAINED_BY", _cfg("EXPLAINED_BY", []), local)
     window_start = now - timedelta(hours=lookback)
+    # Causes are read back further than alerts (v2.2): as far as the longest
+    # rule window reaches before the window's start.
+    read_start = window_start - timedelta(seconds=cause_read_seconds(explained_by))
 
-    rows, truncated = _fetch_from_buffer(window_start, _cfg("FETCH_LINES", 3000))
-    if truncated:
-        rows = _fetch_from_files(window_start, now)
+    rows, from_files = _fetch_rows(window_start, read_start, now, _cfg("FETCH_LINES", 3000))
+    if from_files:
         # Normal for 1.5 h after every server start (the buffer only reaches
         # back to boot), so INFO — unless the files came back empty too.
         log("Log Error Watch: event-log buffer did not reach back far enough "
             "for the window — read the dated log files instead",
-            level="WARNING" if not rows else "INFO")
+            level="INFO" if any(r["TimeStamp"] >= window_start for r in rows) else "WARNING")
 
     # Recovery is decided BEFORE collapse, because it needs the info rows that
     # collapse throws away — the success line is what proves the retry landed.
     rows = drop_test_rows(rows, tuple(combined("TEST_MARKERS",
                                                _cfg("TEST_MARKERS", TEST_MARKERS), local)))
-    records = mark_recovered(merge_continuations(rows),
-                             combined("RECOVERS", _cfg("RECOVERS", []), local))
+    # The rows before the window are merged on their own, so the window's own
+    # records are exactly what they were before v2.2, and only ever serve as
+    # causes: nothing before the window reaches collapse.
+    cause_records = merge_continuations([r for r in rows if r["TimeStamp"] < window_start])
+    records = mark_recovered(
+        cause_records + merge_continuations([r for r in rows if r["TimeStamp"] >= window_start]),
+        combined("RECOVERS", _cfg("RECOVERS", []), local))
     # Explanation is decided BEFORE collapse for the same reason recovery is:
     # the causing line is an INFO row, and collapse throws those away.
-    records = mark_explained(records, combined("EXPLAINED_BY", _cfg("EXPLAINED_BY", []), local))
+    records = mark_explained(records, explained_by)
     # A line whose own text says its script has already pushed it (v2.1).
     records = mark_self_reported(records, _cfg("SELF_REPORTED", []))
-    current = collapse(records, muted)
+    current = collapse(records[len(cause_records):], muted)
     state = load_state(state_path)
     known = state.get("signatures", {})
     seeding = not state.get("seeded_at")
@@ -1560,6 +1676,14 @@ def main(dry_run=False, quiet=False):
             # sticky. The run after a 500 with no restart behind it flips this
             # back to False and the triage feed picks the signature up again.
             "explained":  bool(entry.get("explained_all")),
+            # Sticky, unlike the two above (v2.2): a rule excused this signature
+            # in some run since its last delivered alert. Set by an explained
+            # run, kept by every other, and cleared below only when an alert for
+            # it is delivered. decide() reads it to page an excused signature
+            # that comes back with fresh lines and no excuse; it never quietens
+            # anything. See explained_since_alert().
+            "explained_since_alert": (bool(entry.get("explained_all"))
+                                      or explained_since_alert(prev)),
             "reason":     entry.get("reason") or "",
             "alerted_at": prev.get("alerted_at"),
             # The running count when the last alert went, so the next one can
@@ -1581,6 +1705,7 @@ def main(dry_run=False, quiet=False):
                 record["alerted_at"] = _fmt(now)
                 record["count_at_alert"] = record["count"]
                 record["pending"] = False      # delivered: nothing left to retry (v1.4)
+                record["explained_since_alert"] = False   # told now (v2.2)
             elif not dry_run:
                 record["pending"] = True
                 record["alerted_at"] = prev.get("alerted_at")

@@ -91,6 +91,18 @@ the Bearer-authed `logErrors` endpoint.
 Credentials come from `IndigoSecrets.py` (`PUSHOVER_USER_TOKEN`,
 `LOG_WATCH_EMAIL` / `DIGEST_EMAIL`) with blank-safe fallbacks.
 
+An error that a rule in `EXPLAINED_BY` accounts for (a web server error just
+after a plugin restart, say) is shown as explained and not sent, but only
+while the line that explains it is really in the log, inside the rule's own
+window. The watch sends what it finds in the last 90 minutes, and reads
+further back for the lines that explain them, as far as the longest rule
+reaches (never more than 12 hours). An error that a rule has explained, and
+that has never been sent, is sent as new when it comes back with nothing to
+explain it, even if that is inside a day; the state file remembers that a rule
+explained it until it is sent. An error already sent keeps the one-a-day rule,
+explained in between or not. Tests for these rules,
+`test_log_error_watch_cause_read.py`, sit beside the script.
+
 Rules that only make sense for your own house go in an optional
 `log_error_watch_local.py` beside the script. It may define `EXPLAINED_BY`,
 `RECOVERS`, `MUTED` and `TEST_MARKERS`, in the same shapes as the script's own

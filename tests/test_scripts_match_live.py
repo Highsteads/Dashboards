@@ -8,10 +8,14 @@
 #              and still carried the Web Server mute removed on 18-Sep-2026,
 #              so a new user got an Alerts page expecting a script they did not
 #              have. Skips honestly where the live folder is absent (CI).
-#              To fix a failure: copy the live file over the repo one.
+#              To fix a failure: copy the live file over the repo one, unless
+#              the repo holds a newer version still to be written live (as
+#              Log_Error_Watch 2.2 was, 20-11-2026): then write the live file
+#              first. 1.1: the failure names both versions and says so.
 # Author:      CliveS & Claude Opus 5.5
-# Date:        23-09-2026
-# Version:     1.0
+# Date:        23-09-2026; 20-11-2026 02:30 GMT both versions in the failure (1.1)
+# Version:     1.1
+import re
 from pathlib import Path
 
 import pytest
@@ -20,6 +24,14 @@ REPO = Path(__file__).resolve().parents[1] / "scripts"
 LIVE = Path("/Library/Application Support/Perceptive Automation/Python Scripts")
 
 SHIPPED = sorted(p.name for p in REPO.glob("*.py") if not p.name.startswith("test_"))
+VERSION_LINE = re.compile(rb"^# Version:\s*(\S+)", re.MULTILINE)
+
+
+def _version(data):
+    """The header's Version (the first such line, read over the whole file, since a header
+    grows with each release), or "no version line" where a file has none."""
+    m = VERSION_LINE.search(data)
+    return m.group(1).decode("ascii", "replace") if m else "no version line"
 
 
 def test_the_shipped_list_is_not_vacuous():
@@ -32,5 +44,9 @@ def test_repo_copy_matches_live(name):
     live = LIVE / name
     if not live.exists():
         pytest.skip(f"{name} is not installed on this machine")
-    assert (REPO / name).read_bytes() == live.read_bytes(), (
-        f"scripts/{name} differs from the live copy — copy the live file into the repo")
+    repo_bytes, live_bytes = (REPO / name).read_bytes(), live.read_bytes()
+    assert repo_bytes == live_bytes, (
+        f"scripts/{name} ({_version(repo_bytes)}) differs from the live copy "
+        f"({_version(live_bytes)}) — the live folder is the owner, so copy the live file into "
+        f"the repo; but if the repo holds a newer version still to be written live, write the "
+        f"live file first and run this again")
