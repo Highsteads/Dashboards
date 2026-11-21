@@ -36,6 +36,8 @@ and typing in a field searches the device list.
 **Scenes.** Every action group with a tick to hide it from the Scenes page, and a per-folder tick
 that hides the whole folder.
 
+**Savings.** What the solar and battery cost, the date they started working, and what the installer's quote promised a year and for payback. All optional; the [Savings page](savings.md) uses them to show how far the system has paid for itself.
+
 **Security.** The guest pairing URL (open it on the guest device), the guest token shown for
 reference, and the control PIN — asked once per session before any command on the listed devices
 (and before the Heating page's boost and force buttons when any heating zone is listed). A

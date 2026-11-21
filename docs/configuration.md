@@ -143,6 +143,7 @@ model can be set in the raw-JSON box.
 |---|---|---|
 | `roomFolders` | list of folder names | Which Indigo device folders become rooms. With nothing set the plugin uses its own defaults, which are one house's folder names and will produce no rooms on yours |
 | `siteName` | string | The name in every page title, the hub heading and the home-screen icon. Default "Dashboards" |
+| `savings` | object | The Savings page's figures, all optional: `systemCost` (pounds), `installDate` (YYYY-MM-DD), `quoteAnnualSaving` (pounds), `quoteAnnualKwh`, `quotePaybackYears`. Set on the Settings page under Savings |
 | `vehicles` | `[{"id": <device>, "label": "Car 12V"}]` | Battery-voltage monitors to list under the Energy page's battery fleet, with a frozen-reading check |
 | `arrayKwp` | number | Your solar array's rating, for the weather page's roof-versus-sky cross-check |
 | `actionWatch` | object | Per-action-group confirmation rules for scene buttons: which device states confirm which action, so no page carries device numbers |

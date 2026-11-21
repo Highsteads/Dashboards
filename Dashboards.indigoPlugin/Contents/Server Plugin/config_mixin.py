@@ -31,6 +31,7 @@ from dash_common import (
     _safe_int_list,
     log,
 )
+from savings_model import clean_savings_settings
 
 _PA_ROOT = "/Library/Application Support/Perceptive Automation"
 # A page-link favourite (3.68.0) names a Dashboards page beside the hub,
@@ -732,6 +733,13 @@ class ConfigMixin:
         sn = cfg.get("siteName")
         if sn is not None:
             clean["siteName"] = str(sn).strip()[:40]
+        # The Savings page's figures (3.71.0): a blank field is dropped, a
+        # value that is not a number or a date is refused with its name.
+        if cfg.get("savings") is not None:
+            sav, sav_err = clean_savings_settings(cfg.get("savings"))
+            if sav_err:
+                return self._evo_reply({"ok": False, "error": sav_err}, status=400)
+            clean["savings"] = sav
         veh = cfg.get("vehicles")
         if veh is not None:
             if not isinstance(veh, list):

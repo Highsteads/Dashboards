@@ -2,13 +2,13 @@
 
 **Your house on a screen — energy, cameras, heating, every room, and the whole day replayed.**
 
-**Version:** 3.70.3 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
+**Version:** 3.71.0 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
 
-**[Read the full guide](https://highsteads.github.io/Dashboards/)** — setting up, a page of notes for every one of the 23 pages, and what to do when something goes wrong.
+**[Read the full guide](https://highsteads.github.io/Dashboards/)** — setting up, a page of notes for every one of the 24 pages, and what to do when something goes wrong.
 
-<img src="https://img.shields.io/badge/version-3.70.3-5856d6" alt="Version 3.70.3">
+<img src="https://img.shields.io/badge/version-3.71.0-5856d6" alt="Version 3.71.0">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
-<img src="https://img.shields.io/badge/pages-23-0a84ff" alt="23 pages">
+<img src="https://img.shields.io/badge/pages-24-0a84ff" alt="24 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
 
 <img src="docs/screenshots/index.png" width="860" alt="The hub — whether anything needs a look, who is home, the heating, the battery and a strip of named camera pictures">
@@ -53,7 +53,7 @@ It needs Indigo 2025.2 and nothing else. Each of these adds to it, and a page th
 
 ## The pages
 
-Nineteen pages you use, plus four that hold the whole thing together (the menu, Settings, Setup and Guest). Each one has its own page of notes in the guide.
+Twenty pages you use, plus four that hold the whole thing together (the menu, Settings, Setup and Guest). Each one has its own page of notes in the guide.
 
 | Page | What it is for |
 |---|---|
@@ -65,6 +65,7 @@ Nineteen pages you use, plus four that hold the whole thing together (the menu, 
 | **[Energy](docs/pages/energy.md)** | The solar and battery picture, and when to run the washing. Needs SigenEnergyManager |
 | **[Cost](docs/pages/cost.md)** | What the house costs to run, day by day. Needs SigenEnergyManager |
 | **[Flow](docs/pages/flow.md)** | The house, live, drawn the way the Sigenergy app draws it. Needs SigenEnergyManager |
+| **[Savings](docs/pages/savings.md)** | What the solar and battery have saved, step by step, and how far they have paid for themselves. Needs SigenEnergyManager |
 | **[Plugs](docs/pages/plugs.md)** | What each plug that measures its own energy costs a day, one by one and all together |
 | **[Mains](docs/pages/mains.md)** | Every mains meter and how far each one disagrees with the others |
 | **[Meter](docs/pages/meter.md)** | One meter in detail — its live reading, its rank and its history |
@@ -97,11 +98,11 @@ The [Getting started](https://highsteads.github.io/Dashboards/getting-started.ht
 
 ## What's new
 
+**3.71.0** (21-Nov-2026) - **A new Savings page: what the solar and battery have saved, step by step.** It starts from the bill the house would have had with no solar and no battery on the standard capped tariff, then takes off, one step at a time, what the panels saved, what your tariffs saved, what the battery saved, and what Axle and Octopus paid on top, down to what the electricity really cost. Tap any step to have it explained. Octopus's own bill is used for every day it has billed. The page also shows how much of the house ran on its own sun, the saving week by week beside the solar made, tariff by tariff, where every kWh came from and went, every grid-event payment and free-hour credit, and, once you enter what the system cost on the Settings page, how far it has paid for itself and when it should be paid off, set against what the installer's quote promised. Needs SigenEnergyManager 5.146.0 or later.
+
 **3.70.3** (18-Nov-2026) - **A plug added to Indigo no longer shows its whole count as one day's use.** Indigo writes a new device's energy counter as 0.0 until the plug's first real report arrives a few seconds later. The Plugs page read that jump as energy used, so a plug added at midnight showed 3.6 kWh (55p) for the day. The first real report within two minutes of a zero start is now the starting line, and only what the plug uses after it is counted.
 
 **3.70.2** (10-Nov-2026) - **Dawn viable shows a dash when the battery manager has no answer.** SigenEnergyManager 5.145.2 sends no answer for "will the battery last until dawn" while it is driving an export or filling in a free hour and has no forecast to judge. The Energy page read no answer as No, in red. It now shows a dash, and only a real yes or no gets a word and a colour. The battery pop-up on the Flow page promises it will last only on a real yes. Older versions of SigenEnergyManager are read as before.
-
-**3.70.1** (10-Nov-2026) - **An alert rule with a name of its own says just that.** A rule named "Someone is at the front door" used to arrive as "Someone is at the front door turned on". When a turns on or turns off rule carries a name that is not simply its device's name, the alert is now that name and nothing more. A rule still named after its device reads as before, "Hall Lamp turned on", and a "changes at all" rule still shows the new value. Whether a name is the rule's own is settled when the rule is saved, so renaming the device in Indigo afterwards does not change how its alerts read.
 
 ## Acknowledgements
 

@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta name="indigo-page-name" content="Savings">
+    <meta name="indigo-page-icon" content="money">
+    <meta name="indigo-page-description" content="Savings — what the solar and battery have saved, step by step, and how far they have paid for themselves">
+
+    <!-- iOS / macOS Web App (File → Add to Dock on Mac, Share → Add to Home Screen on iPhone). -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Dashboards">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#5856d6">
+    <link rel="apple-touch-icon" sizes="180x180" href="/public/dashboards/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="/public/dashboards/apple-touch-icon-167.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="/public/dashboards/apple-touch-icon-152.png">
+    <link rel="apple-touch-icon-precomposed" href="/public/dashboards/apple-touch-icon.png">
+    <title>Savings</title>
+    <link rel="stylesheet" href="dashboards-theme.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root { --sel-blue: #0a6cd6; }
+        body {
+            font-family: var(--font-ui);
+            background: var(--bg); color: var(--text);
+            padding: max(80px, calc(72px + env(safe-area-inset-top))) 0 max(32px, env(safe-area-inset-bottom));
+            min-height: 100vh; -webkit-overflow-scrolling: touch;
+        }
+        .bottombar {
+            position: sticky; bottom: 0; z-index: 10;
+            background: var(--card-bg);
+            border-top: 1px solid var(--border);
+            box-shadow: 0 -1px 3px rgba(0,0,0,0.08);
+            padding: 8px max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left));
+            padding-bottom: max(8px, env(safe-area-inset-bottom));
+            margin-top: 16px;
+        }
+        .bottombar-inner {
+            text-align: center; max-width: 900px; margin: 0 auto;
+            font-size: 13px; color: var(--text-secondary); line-height: 1.4;
+        }
+        .container {
+            max-width: 900px; margin: 0 auto;
+            padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
+        }
+        .loading { text-align: center; padding: 60px 20px; color: var(--text-secondary); }
+        .spinner {
+            width: 24px; height: 24px; border: 3px solid var(--off-color);
+            border-top-color: var(--accent); border-radius: 50%;
+            animation: spin 0.8s linear infinite; margin: 0 auto 12px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .card {
+            background: var(--card-bg); border-radius: var(--r-lg); box-shadow: var(--shadow);
+            padding: 14px 16px; margin-top: 16px;
+        }
+        .empty { line-height: 1.5; color: var(--text-secondary); }
+        .empty strong { color: var(--text); }
+        .card-title { font-size: 15px; font-weight: 600; }
+        .note { font-size: 12px; color: var(--text-secondary); margin-top: 8px; line-height: 1.45; }
+        .num { font-variant-numeric: tabular-nums; }
+
+        .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+        .chip {
+            border: 1px solid var(--border); background: var(--card-bg-alt); color: var(--text);
+            border-radius: var(--r-pill); padding: 5px 12px; font: inherit; font-size: 13px; cursor: pointer;
+        }
+        .chip.on { background: var(--sel-blue); border-color: var(--sel-blue); color: #fff; }
+        .chip:focus-visible, .wf-bar:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+        /* ── the headline ── */
+        .hero { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; align-items: end; margin-top: 12px; }
+        .hero-big { font-size: 52px; font-weight: 800; line-height: 1; color: var(--good); letter-spacing: -1px; }
+        .hero-sub { font-size: 14px; color: var(--text-secondary); margin-top: 6px; line-height: 1.4; }
+        .ring-wrap { display: flex; align-items: center; gap: 12px; }
+        .ring-text { font-size: 13px; color: var(--text-secondary); line-height: 1.4; }
+        .ring-text b { color: var(--text); font-size: 22px; display: block; }
+        @media (max-width: 600px) {
+            .hero { grid-template-columns: 1fr; }
+            .hero-big { font-size: 44px; }
+        }
+
+        /* ── the five steps ── */
+        .wf { width: 100%; height: auto; max-height: 320px; margin-top: 10px; display: block; overflow: visible; }
+        .wf-bar { cursor: pointer; }
+        .wf-bar rect { transition: opacity .15s; }
+        .wf-bar.dim rect { opacity: .45; }
+        .wf-label { font-size: 17px; fill: var(--text-secondary); }
+        .wf.narrow .wf-val { font-size: 15px; }
+        .wf-val { font-size: 17px; font-weight: 700; fill: var(--text); font-variant-numeric: tabular-nums; }
+        .wf-explain {
+            margin-top: 10px; background: var(--card-bg-alt); border-radius: var(--r-md); padding: 12px;
+            font-size: 14px; line-height: 1.5; min-height: 72px;
+        }
+        .wf-explain .head { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; margin-bottom: 4px; }
+
+        /* ── tiles ── */
+        .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 16px; }
+        .tile { background: var(--card-bg); border-radius: var(--r-lg); box-shadow: var(--shadow); padding: 14px; min-width: 0; }
+        .tile-k { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-secondary); }
+        .tile-v { font-size: 28px; font-weight: 800; margin-top: 6px; font-variant-numeric: tabular-nums; }
+        .tile-s { font-size: 12px; color: var(--text-secondary); margin-top: 6px; line-height: 1.4; }
+        .bar2 { height: 6px; background: var(--track); border-radius: 3px; margin-top: 8px; overflow: hidden; }
+        .bar2 > i { display: block; height: 100%; border-radius: 3px; }
+        @media (max-width: 640px) { .tiles { grid-template-columns: 1fr; } }
+
+        /* ── payback ── */
+        .pay-track { position: relative; height: 14px; background: var(--track); border-radius: 7px; margin: 12px 0 6px; overflow: hidden; }
+        .pay-fill { position: absolute; inset: 0 auto 0 0; background: var(--good); border-radius: 7px; }
+        .pay-line { font-size: 14px; line-height: 1.5; }
+        .vs { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 14px; }
+        .vs th, .vs td { padding: 7px 4px; border-bottom: 1px solid var(--border-soft); text-align: right; }
+        .vs th:first-child, .vs td:first-child { text-align: left; }
+        .vs th { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-secondary); font-weight: 600; }
+        .better { color: var(--good); }
+        .worse { color: var(--bad); }
+
+        /* ── stacked energy bars ── */
+        .stack { display: flex; height: 22px; border-radius: 6px; overflow: hidden; margin-top: 8px; background: var(--track); }
+        .stack > i { display: block; height: 100%; }
+        .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; font-size: 13px; }
+        .legend span { display: inline-flex; align-items: center; gap: 6px; }
+        .legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+        .sub-head { display: flex; justify-content: space-between; margin-top: 14px; font-size: 14px; font-weight: 600; }
+        .sub-head span:last-child { font-weight: 400; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+
+        .chart-box { position: relative; height: 220px; margin-top: 10px; }
+
+        /* ── tables ── */
+        .tbl { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+        .tbl th, .tbl td { padding: 7px 4px; border-bottom: 1px solid var(--border-soft); text-align: right; font-variant-numeric: tabular-nums; }
+        .tbl th:first-child, .tbl td:first-child { text-align: left; }
+        .tbl th { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-secondary); font-weight: 600; }
+        .tbl td.muted { color: var(--text-secondary); }
+        .more { margin-top: 8px; }
+        @media (max-width: 560px) { .hide-narrow { display: none; } }
+    </style>
+    <link rel="stylesheet" href="dashboards-chrome.css">
+</head>
+<body>
+    <header class="topbar">
+        <div class="hdr-left">
+            <a class="nav-btn" href="index.html">&larr; Home</a>
+        </div>
+        <div class="hdr-center">
+            <h1>Savings</h1>
+            <span class="topbar-status">Updated <span id="ts">—</span></span>
+        </div>
+        <div class="hdr-right">
+            <a class="nav-btn" href="cost.html">Cost &rarr;</a>
+        </div>
+    </header>
+    <div class="container">
+        <div id="content">
+            <div class="loading"><div class="spinner"></div><p>Adding up what the solar and battery have saved…</p></div>
+        </div>
+    </div>
+    <script src="config.js" onerror="window.INDIGO_CONFIG_MISSING=true"></script>
+    <script src="dashboards-auth.js"></script>
+    <script src="dashboards-ui.js"></script>
+    <script src="dashboards-gate.js"></script>
+    <script src="dashboard.js"></script>
+    <script src="chart.umd.min.js"></script>
+    <script src="savings-view.js"></script>
+    <script>
+    "use strict";
+    /* What the solar and battery have saved (3.71.0). The server does every sum
+       (savingsReport, savings_model.py); savings-view.js turns the figures into
+       words and drawings, and this page only wires it up. */
+    const POLL_MS = 15 * 60 * 1000;           // the server keeps its answer 15 minutes
+    let data = null;
+    let period = "all";
+    let step = "nokit";
+    let showAllExtras = false;
+    function pad(n) { return String(n).padStart(2, "0"); }
+
+    if (!IndigoAPI.isConfigured()) {
+        location.href = "index.html";
+    } else {
+        try { period = localStorage.getItem("dash_savings_period") || "all"; } catch (e) { /* private window */ }
+        DashUI.poll(load, POLL_MS);
+    }
+
+    async function load() {
+        try {
+            data = await DashUI.message("savingsReport", {}, { pendingMs: 180000 });
+        } catch (e) {
+            if (!data) {
+                document.getElementById("content").innerHTML =
+                    `<div class="card empty"><strong>Could not work out the savings</strong><br>${DashUI.esc((e && e.message) || String(e))}</div>`;
+            }
+            return;                           // keep the last figures; the next round asks again
+        }
+        const d = new Date((data.at || Date.now() / 1000) * 1000);
+        document.getElementById("ts").textContent = pad(d.getHours()) + ":" + pad(d.getMinutes());
+        render();
+    }
+
+    function render() {
+        const content = document.getElementById("content");
+        if (data && data.empty) {
+            content.innerHTML = `<div class="card empty"><strong>Nothing to add up yet.</strong><br>${DashUI.esc(data.reason || "")}</div>`;
+            return;
+        }
+        const periods = (data && data.periods) || {};
+        if (!periods[period]) period = periods.all ? "all" : Object.keys(periods)[0];
+        content.innerHTML = SavingsView.page(data, period, step, showAllExtras, content.clientWidth < 520);
+        SavingsView.drawWeeks(document.getElementById("weeks-chart"), periods[period]);
+    }
+
+    document.getElementById("content").addEventListener("click", ev => {
+        const p = ev.target.closest("[data-period]");
+        if (p) {
+            period = p.dataset.period;
+            try { localStorage.setItem("dash_savings_period", period); } catch (e) { /* private window */ }
+            render();
+            return;
+        }
+        const s = ev.target.closest("[data-step]");
+        if (s) { step = s.dataset.step; render(); return; }
+        if (ev.target.closest("[data-all-extras]")) { showAllExtras = !showAllExtras; render(); }
+    });
+    // Crossing the phone/desktop width redraws, so the step chart picks its canvas again.
+    let wasNarrow = null;
+    window.addEventListener("resize", () => {
+        const n = document.getElementById("content").clientWidth < 520;
+        if (data && wasNarrow !== null && n !== wasNarrow) render();
+        wasNarrow = n;
+    });
+    document.getElementById("content").addEventListener("keydown", ev => {
+        const s = ev.target.closest("[data-step]");
+        if (s && (ev.key === "Enter" || ev.key === " ")) { ev.preventDefault(); step = s.dataset.step; render(); }
+    });
+    </script>
+    <footer class="bottombar">
+        <div class="bottombar-inner">
+            Against the same house with no solar and no battery, on the standard capped tariff.
+        </div>
+    </footer>
+<script src="a11y.js"></script>
+<script src="standalone-nav.js"></script>
+</body>
+</html>

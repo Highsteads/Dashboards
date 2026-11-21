@@ -17,9 +17,9 @@
 #              browser for live tiles, and a small HTTP server on port 8177
 #              for the WebRTC signalling and the bootstrap routes. Tiles that
 #              are not live poll the snapshots.
-# Author:      CliveS & Claude Fable 5.2 (3.70.1-3.70.2); Claude Opus 5.5 (3.66.0-3.67.0, 3.70.0); Codex GPT-6 (3.65.0); Claude Opus 5.5 (3.63.0); Codex GPT-6 (3.62.0); Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.58.0); Claude Sonnet 5.5 (3.58.1); Claude Opus 5.5 (3.58.2); Claude Sonnet 5.5 (3.58.3, 3.59.0-3.59.1); Claude Opus 5.5 (3.59.3, 3.60.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
-# Date:        18-11-2026 00:22 UK
-# Version:     3.70.3
+# Author:      CliveS & Claude Opus 5.5 (3.71.0); Claude Fable 5.2 (3.70.1-3.70.2); Claude Opus 5.5 (3.66.0-3.67.0, 3.70.0); Codex GPT-6 (3.65.0); Claude Opus 5.5 (3.63.0); Codex GPT-6 (3.62.0); Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.58.0); Claude Sonnet 5.5 (3.58.1); Claude Opus 5.5 (3.58.2); Claude Sonnet 5.5 (3.58.3, 3.59.0-3.59.1); Claude Opus 5.5 (3.59.3, 3.60.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
+# Date:        21-11-2026 18:30 UK
+# Version:     3.71.0
 #
 # Version history: docs/changelog.md (what each release does, for users) and
 # `git log` (why, for developers). The per-version engineering notes that sat
@@ -103,7 +103,7 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION = "3.70.3"
+PLUGIN_VERSION = "3.71.0"
 
 import logging
 from dash_common import (  # noqa: E402
@@ -159,12 +159,13 @@ from insights_mixin import InsightsMixin  # noqa: E402
 from mains_mixin import MainsMixin  # noqa: E402
 from plugs_mixin import PlugsMixin  # noqa: E402
 from publish_mixin import PublishMixin  # noqa: E402
+from savings_mixin import SavingsMixin  # noqa: E402
 from scripts_mixin import ScriptsMixin  # noqa: E402
 
 
 class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
              CarbonMixin, InsightsMixin, MainsMixin, HistoryMixin, AlertsMixin,
-             PlugsMixin, indigo.PluginBase):
+             PlugsMixin, SavingsMixin, indigo.PluginBase):
     cameras       = ()          # the running camera list; __init__ sets it
     swap_out_host = ""
 
@@ -2021,11 +2022,13 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
     # leave Timeline, System Health and the charts "Building..." until it
     # recovered. Two Sigen workers, so a slow status fetch still leaves one for
     # daily and vpp, as the shared pool did in the normal case.
-    OFFPATH_LANES   = {"sigen": 2, "alerts": 1, "plugs": 1}
+    OFFPATH_LANES   = {"sigen": 2, "alerts": 1, "plugs": 1, "savings": 1}
     # 3.47.0: a test alert waits on the Pushover plugin and Indigo's mail
     # server, either of which can hang, so it has a lane of its own too.
     # 3.69.0: the Plugs page's first build reads 30 days for every plug (about
     # a minute), so it has a lane of its own and holds no shared worker.
+    # 3.71.0: the Savings page reads months of half-hourly records and
+    # Octopus's price list, so it has one too.
     # The ONLY time a handler is allowed to wait. Long enough that a healthy
     # producer lands inside it (SigenEnergyManager answers in ~30 ms), short
     # enough that a sick one costs a page one poll instead of the house.

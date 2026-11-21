@@ -182,6 +182,8 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_rtt_estimator.mjs` | Contract test for the estimator inside DashUI.probeRtt — which |
 | `test_save_config.py` | Contract test for Plugin.handleSaveDashboardsConfig — the settings |
 | `test_saving_session_banner.mjs` | Contract test for the Octopus Saving Session banner on the |
+| `test_savings.py` | Contract test for the Savings page (3.71.0): what the solar and |
+| `test_savings_view.mjs` | Node contract test for the Savings page's words and drawing |
 | `test_script_sys_exit.py` | sys.exit() in a companion script raises SystemExit, which is a |
 | `test_script_ticker_handover.py` | v3.31.0 — while the Script Ticker plugin is RUNNING, Dashboards |
 | `test_scripts_match_live.py` | The companion scripts this repo ships in scripts/ must be the |

@@ -190,6 +190,7 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
             main.appendChild(renderCameras());
             main.appendChild(renderRooms());
             main.appendChild(renderScenes());
+            main.appendChild(renderSavings());
             main.appendChild(renderSecurity());
             main.appendChild(renderRawJson());
             // device datalist for manual id lookup
@@ -908,6 +909,38 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
         }
 
         // ── security: guest access + control PIN ─────────────────────────
+        // The Savings page's figures (3.71.0). All optional: without a cost the
+        // page shows what was saved and leaves out how far it has paid back.
+        function renderSavings() {
+            const s = (cfg.savings && typeof cfg.savings === "object") ? cfg.savings : {};
+            const v = k => (s[k] === undefined || s[k] === null) ? "" : esc(String(s[k]));
+            return el(`<section class="card"><h2>Savings</h2>
+                <div class="hint">For the Savings page. What the solar and battery cost, and what the installer's quote promised, so the page can show how far it has paid back and how it compares. Leave any of them blank to leave that part out.</div>
+                <div class="field"><label>What the system cost (pounds, including any VAT)</label>
+                    <input type="number" id="sav-cost" min="0" step="1" value="${v("systemCost")}" placeholder="e.g. 12000"></div>
+                <div class="field"><label>Date it started working</label>
+                    <input type="date" id="sav-install" value="${v("installDate")}"></div>
+                <div class="field"><label>Saving a year the quote promised (pounds)</label>
+                    <input type="number" id="sav-quote-gbp" min="0" step="1" value="${v("quoteAnnualSaving")}"></div>
+                <div class="field"><label>Solar a year the quote promised (kWh)</label>
+                    <input type="number" id="sav-quote-kwh" min="0" step="1" value="${v("quoteAnnualKwh")}"></div>
+                <div class="field"><label>Payback the quote promised (years)</label>
+                    <input type="number" id="sav-quote-years" min="0" step="0.5" value="${v("quotePaybackYears")}"></div>
+            </section>`);
+        }
+
+        function collectSavings(main) {
+            const val = id => { const i = main.querySelector("#" + id); return i ? i.value.trim() : ""; };
+            if (!main.querySelector("#sav-cost")) return undefined;
+            return {
+                systemCost: val("sav-cost"),
+                installDate: val("sav-install"),
+                quoteAnnualSaving: val("sav-quote-gbp"),
+                quoteAnnualKwh: val("sav-quote-kwh"),
+                quotePaybackYears: val("sav-quote-years")
+            };
+        }
+
         function renderSecurity() {
             const card = el(`<section class="card"><h2>Security</h2>
                 <div class="hint"><b>Guest access</b> — open the pairing URL below ON the guest device
@@ -984,11 +1017,13 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
             // below then overwrite their own entries.
             const rfBoxes = Array.from(main.querySelectorAll("#room-folders input.rf"));
             const siteIn = main.querySelector("#site-name-in");
+            const savings = collectSavings(main);
             return {
                 // controlPinSet is derived on load, never a stored key
                 ...Object.fromEntries(Object.entries(cfg || {}).filter(([k]) => k !== "controlPinSet")),
                 ...(rfBoxes.length ? { roomFolders: rfBoxes.filter(b => b.checked).map(b => b.value) } : {}),
                 ...(siteIn ? { siteName: siteIn.value.trim() } : {}),
+                ...(savings ? { savings } : {}),
                 cameras:      cams,
                 mainCameras:  mainCams,
                 swapOutHost:  swap,

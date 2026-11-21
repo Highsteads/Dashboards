@@ -261,6 +261,15 @@
         <CallbackMethod>handlePlugCosts</CallbackMethod>
     </Action>
 
+    <!-- POST /message/com.clives.indigoplugin.dashboards/savingsReport/
+         Body: {} -> what the solar and battery have saved, step by step, for
+         the last month, three months, the year so far and since records
+         began, with payback and the quote's promises (3.71.0). Reads only. -->
+    <Action id="savingsReport" uiPath="hidden">
+        <Name>Savings Report</Name>
+        <CallbackMethod>handleSavingsReport</CallbackMethod>
+    </Action>
+
     <!-- POST /message/com.clives.indigoplugin.dashboards/verifyPin/
          Body: {"pin": "<entered>"} → {"ok": true, "valid": bool}
          Server-side PIN check for the per-tile PIN speed bump (v2.1.0). -->
