@@ -2153,13 +2153,19 @@
 
     // The Savings tile's line (3.71.1): what the solar and battery have saved
     // since records began, from the Savings page's own reply. Null when there
-    // is no usable figure, so the tile keeps its ordinary line.
+    // is no usable figure, so the tile keeps its ordinary line. 3.71.2: with a
+    // system cost set on Settings > Savings, how much of it has come back too.
     function savingsTileNote(reply) {
         const all = reply && reply.periods && reply.periods.all;
         const v = all ? Number(all.saved) : NaN;
         if (!isFinite(v)) return null;
         const pounds = "\u00a3" + String(Math.round(Math.abs(v))).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-        return v >= 0 ? pounds + " saved" : pounds + " behind";
+        const line = v >= 0 ? pounds + " saved" : pounds + " behind";
+        const pct = reply.payback ? Number(reply.payback.pct) : NaN;
+        if (!isFinite(pct) || pct < 0) return line;
+        const pctWords = pct >= 100 ? "paid for itself"
+                       : (pct < 1 ? "under 1%" : Math.min(99, Math.round(pct)) + "%") + " paid back";
+        return line + ", " + pctWords;
     }
 
     // Asked for only while a Savings tile is pinned. The server keeps its

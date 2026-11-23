@@ -4,6 +4,8 @@
 //              THE RULES
 //              1. The line is the "since records began" saving, in whole
 //                 pounds with commas: "£1,848 saved". A loss says "behind".
+//                 With a system cost set, the share paid back follows,
+//                 rounded as the Savings page rounds it, never 100% early (3.71.2).
 //              2. No usable figure leaves the tile's ordinary line.
 //              3. The hub asks only while a Savings tile is pinned, paints any
 //                 tile already on screen, and a figure it has survives the
@@ -71,6 +73,13 @@ for (const fn of ["spokenWhen", "savingsTileNote", "_refreshSavingsTile", "rende
 const note = r => vm.runInContext("savingsTileNote", ctx)(r);
 check("since records began, whole pounds with a comma", note({ periods: { all: { saved: 1848.4 } } }) === "£1,848 saved");
 check("a loss says behind", note({ periods: { all: { saved: -12.6 } } }) === "£13 behind");
+check("with a cost set, the share paid back follows",
+      note({ periods: { all: { saved: 1848.4 } }, payback: { pct: 6.98 } }) === "\u00a31,848 saved, 7% paid back");
+check("rounded as the Savings page rounds it, but never 100% before it is",
+      note({ periods: { all: { saved: 1 } }, payback: { pct: 99.9 } }) === "\u00a31 saved, 99% paid back");
+check("under one per cent says so", note({ periods: { all: { saved: 50 } }, payback: { pct: 0.4 } }) === "\u00a350 saved, under 1% paid back");
+check("all of it back says so", note({ periods: { all: { saved: 30000 } }, payback: { pct: 113.3 } }) === "\u00a330,000 saved, paid for itself");
+check("no cost set, no percentage", note({ periods: { all: { saved: 10 } }, payback: null }) === "\u00a310 saved");
 check("no figure, no line", note(null) === null && note({ periods: {} }) === null
       && note({ periods: { all: { saved: "x" } } }) === null);
 
