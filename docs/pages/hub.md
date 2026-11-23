@@ -34,7 +34,8 @@ the energy plugin has one coming, a VPP or Saving Session pill.
 device or runs a scene, a device tile flips at once, then checks with the device a few seconds later
 and puts itself right, with a note, if the command went nowhere), a reading (shows a device state,
 it is a display, not a button), a door tile (shows
-the door's state and acts on it), a room shortcut or a group.
+the door's state and acts on it), a room shortcut, a group, or a link to another page. A link to the
+[Savings page](savings.md) shows the amount saved since records began, such as "£1,848 saved".
 
 **Camera strip.** Up to four cameras marked "main", four across on a wide screen and two by two
 on a phone. Each has a visible name and a status such as **Live**, **Picture 3s old** or

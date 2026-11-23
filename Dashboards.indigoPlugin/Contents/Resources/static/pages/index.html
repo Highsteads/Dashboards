@@ -682,6 +682,11 @@
             _refreshSigen();
             setInterval(_refreshSigen, 30 * 1000);
         }
+        // 3.71.1: the Savings tile's figure, also SigenEnergyManager data.
+        if (!_sigenOff) {
+            _refreshSavingsTile();
+            setInterval(_refreshSavingsTile, 15 * 60 * 1000);
+        }
         // The grid-carbon poll (v2.30.0) was removed in v2.66.0 along with its
         // chip: nothing on this page reads it now, so it was a request every 5
         // minutes for a value nobody looked at. The Carbon PAGE is untouched
@@ -2143,7 +2148,37 @@
         "cameras.html":      ["Cameras", "Open page"],
         "heating.html":      ["Heating", "Open page"],
         "timeline.html":     ["Timeline", "Open page"],
+        "savings.html":      ["Savings", "Open page"],
     };
+
+    // The Savings tile's line (3.71.1): what the solar and battery have saved
+    // since records began, from the Savings page's own reply. Null when there
+    // is no usable figure, so the tile keeps its ordinary line.
+    function savingsTileNote(reply) {
+        const all = reply && reply.periods && reply.periods.all;
+        const v = all ? Number(all.saved) : NaN;
+        if (!isFinite(v)) return null;
+        const pounds = "\u00a3" + String(Math.round(Math.abs(v))).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        return v >= 0 ? pounds + " saved" : pounds + " behind";
+    }
+
+    // Asked for only while a Savings tile is pinned. The server keeps its
+    // answer 15 minutes, so this costs one cached reply a quarter hour; until
+    // the first figure arrives it asks again after a minute (the first build
+    // can take longer than the short wait).
+    async function _refreshSavingsTile() {
+        const favs = (window.INDIGO_CONFIG || {}).favourites || [];
+        if (!favs.some(f => f && f.type === "page" && String(f.page) === "savings.html")) return;
+        if (document.hidden) return;
+        const note = savingsTileNote(await _msg("savingsReport", {}, { pendingMs: 3000 }));
+        if (!note) {
+            if (!(window.__FAV_PAGE_LIVE || {})["savings.html"]) setTimeout(_refreshSavingsTile, 60 * 1000);
+            return;
+        }
+        window.__FAV_PAGE_LIVE = Object.assign({}, window.__FAV_PAGE_LIVE, { "savings.html": note });
+        document.querySelectorAll('a.fav-pagelink[href="savings.html"] .fav-state')
+            .forEach(el => { el.textContent = note; });
+    }
 
     // A hub navigation card whose page is pinned as a favourite is hidden, and
     // the row goes with it once every card in it is hidden. Unpin it and the
@@ -2182,7 +2217,9 @@
                 const page = String(f.page || "");
                 if (!page) return "";
                 const pname = f.label || FAV_PAGE_NOTES[page]?.[0] || page.replace(/\.html.*$/, "");
-                const pnote = FAV_PAGE_NOTES[page]?.[1] || "Open page";
+                // A live line where the hub has one (3.71.1: the Savings tile
+                // carries the amount saved), else the page's usual line.
+                const pnote = (window.__FAV_PAGE_LIVE || {})[page] || FAV_PAGE_NOTES[page]?.[1] || "Open page";
                 return `<a class="fav-tile fav-roomlink fav-pagelink" data-fav-type="page" data-fav-readonly="1"
                            href="${escapeAttr(page)}">
                     <span class="fav-name">${escapeAttr(pname)}</span>
