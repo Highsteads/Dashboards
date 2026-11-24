@@ -15,7 +15,8 @@
  *                zone.render(d, opts) / zone.bump(id, dir) and the helpers
  * Author:      CliveS & Claude Opus 5.5
  * Date:        23-09-2026
- * Version:     1.2 (only the last setpoint press checks; honest message); 1.1 (pressDevice)
+ * Version:     1.3 (a run of setpoint taps sends one command; a gateway that is offline
+ *              is said at once); 1.2 (only the last setpoint press checks); 1.1 (pressDevice)
  */
 (function (root) {
   'use strict';
@@ -195,6 +196,7 @@
   var SETPOINT_MAX = 28;
   var PENDING_MS   = 305000;   // bound confirmation waiting; RAMSES retries for five minutes
   var READBACK_MS  = 5000;
+  var SEND_DELAY_MS = 1200;    // a run of taps settles before one command is sent
   var TRV_STALE_MS = 3 * 3600 * 1000;   // flag a TRV unheard for more than 3 hours
   var pending = {};          // device id -> { v, t }
   var notices = {};          // inline feedback, never an opaque tile overlay
@@ -289,7 +291,8 @@
         '<div class="setpoint">' +
           '<button class="setpoint-btn" onclick="DashTile.zone.bump(' + d.id + ', -1)" aria-label="Lower ' + name + ' setpoint"' + dis + '>−</button>' +
           '<div><div class="setpoint-label">Setpoint</div>' +
-            '<div class="setpoint-val" id="sp-' + d.id + '" aria-live="polite" aria-atomic="true" data-sp="' + (actualSp == null ? '' : actualSp) + '">' +
+            '<div class="setpoint-val" id="sp-' + d.id + '" aria-live="polite" aria-atomic="true" data-sp="' + (actualSp == null ? '' : actualSp) +
+              '" data-gw="' + esc(String(s.gatewayStatus == null ? '' : s.gatewayStatus).toLowerCase()) + '">' +
             (sp == null ? '—' : sp.toFixed(1)) + '°</div></div>' +
           '<button class="setpoint-btn" onclick="DashTile.zone.bump(' + d.id + ', 1)" aria-label="Raise ' + name + ' setpoint"' + dis + '>+</button>' +
         '</div>' +
@@ -307,7 +310,18 @@
      Only the LAST press on a radiator checks (v3.41.1). Every press used to
      check its own value 2.5 s later, so four quick taps from 8 to 12 had the
      first one find 12 where it expected 9 and report the change as refused
-     — when the radiator had taken all four. Live-found on an iPhone. */
+     — when the radiator had taken all four. Live-found on an iPhone.
+
+     Only the last press SENDS, too (v3.71.4). Each tap used to go out as its
+     own command, so a climb from 12 to 22 put 13, 17, 21 and 22 on the
+     heating radio one after another, each resent while unconfirmed. The
+     tile shows every tap at once, and one command leaves SEND_DELAY_MS
+     after the last of them.
+
+     A zone whose gateway is offline is not sent to at all: the heating
+     plugin would refuse it, and the tile used to wait five minutes to say
+     so. gatewayStatus is RAMSES ESP's state; a zone without it is sent as
+     before. */
   function bump(id, dir) {
     var el = root.document && root.document.getElementById('sp-' + id);
     if (!el || !api) return Promise.resolve(false);
@@ -317,16 +331,30 @@
     var next = base % 1 === 0 ? base + dir : (dir > 0 ? Math.ceil(base) : Math.floor(base));
     next = Math.max(SETPOINT_MIN, Math.min(SETPOINT_MAX, next));
     if (next === base) return Promise.resolve(false);          // at the clamp: nothing to send
-    pending[id] = { v: next, t: Date.now() };
     var mine = presses[id] = (presses[id] || 0) + 1;
-    el.textContent = next.toFixed(0) + '°';
     function note(text) {
       if (presses[id] !== mine) return;
       notices[id] = text;
       var node = root.document.getElementById('zone-note-' + id);
       if (node) node.textContent = text;
     }
+    if (el.dataset.gw === 'offline') {
+      delete pending[id];
+      el.textContent = actual.toFixed(1) + '°';
+      note('Not sent. The heating gateway is offline or cannot hear the heating controller, ' +
+           'so the radiator would not get it.');
+      return Promise.resolve(false);
+    }
+    pending[id] = { v: next, t: Date.now() };
+    el.textContent = next.toFixed(0) + '°';
     note('Waiting for ' + next.toFixed(0) + ' degrees to be confirmed.');
+    root.setTimeout(function () {
+      if (presses[id] !== mine) return;      // a later tap took over: it sends, not this one
+      return send();
+    }, SEND_DELAY_MS);
+    return Promise.resolve(true);
+
+    function send() {
     return Promise.resolve(api.setHeatSetpoint(id, next)).then(function () {
       var attempts = 0;
       function check() {
@@ -351,7 +379,7 @@
           live.textContent = got == null || !isFinite(got) ? '—' : got.toFixed(1) + '°';
           note('Not confirmed after five minutes.' + (got == null || !isFinite(got) ?
             ' The current target is unavailable.' : ' The controller still reports ' + got.toFixed(1) + ' degrees.') +
-            ' A heating rule may have changed it.');
+            ' The controller may not have received it, or a heating rule changed it.');
         }).catch(function () {
           if (presses[id] !== mine) return;
           if (attempts < 60) { root.setTimeout(check, READBACK_MS); return; }
@@ -369,6 +397,7 @@
       note('Not sent: ' + String(error && error.message || 'connection failed'));
       return false;
     });
+    }
   }
 
   root.DashTile = {

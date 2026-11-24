@@ -101,30 +101,32 @@ console.log("\na setpoint step is read back");
     T.bind({ setHeatSetpoint: async (id, v) => { sent.push(v); }, getDevice: async () => ({ setpointHeat: reported }) });
     els["sp-5"] = { dataset: { sp: "20" }, textContent: "20.0°" };
     await T.zone.bump(5, 1);
-    checkEq("steps by a whole degree", sent[0], 21);
     checkEq("shows it at once", els["sp-5"].textContent, "21°");
+    checkEq("but nothing is sent while the taps may still be coming", sent.length, 0);
     await T.zone.bump(5, 1);
-    checkEq("a second tap chains from the pending value", sent[1], 22);
+    checkEq("a second tap chains from the pending value", els["sp-5"].textContent, "22°");
     await flush();
+    checkEq("v3.71.4: a run of taps sends one command, the last", JSON.stringify(sent), "[22]");
     check("the plugin kept 20, so the tile says 20 again", els["sp-5"].textContent === "20.0°");
     check("and says why", /Not confirmed/.test(T.zone._notices[5]) && notes.length === 0);
     els["sp-6"] = { dataset: { sp: "28" }, textContent: "28.0°" };
     checkEq("at the ceiling nothing is sent", await T.zone.bump(6, 1), false);
     els["sp-7"] = { dataset: { sp: "17.5" }, textContent: "17.5°" };
     sent.length = 0; await T.zone.bump(7, 1);
+    await flush();          // the send, and its read-back, fire here
     checkEq("a half degree rounds in the direction tapped", sent[0], 18);
-    await flush();          // let its read-back fire here, not in the next section
 
     // v3.41.1, found on an iPhone: four quick taps from 8 to 12 on a radiator
     // that took every one. The first tap's check used to find 12 where it
     // expected 9 and report the change as refused.
     notes.length = 0;
     let latest = 8;
-    T.bind({ setHeatSetpoint: async (id, v) => { latest = v; }, getDevice: async () => ({ setpointHeat: latest }) });
+    const quick = [];
+    T.bind({ setHeatSetpoint: async (id, v) => { latest = v; quick.push(v); }, getDevice: async () => ({ setpointHeat: latest }) });
     els["sp-11"] = { dataset: { sp: "8" }, textContent: "8.0°" };
     for (let i = 0; i < 4; i++) await T.zone.bump(11, 1);
-    checkEq("four quick taps send 9, 10, 11, 12", latest, 12);
     await flush();
+    checkEq("four quick taps from 8 send 12 and nothing else", JSON.stringify(quick), "[12]");
     check("a radiator that took every tap draws no complaint", !notes.length, JSON.stringify(notes));
     checkEq("and the tile keeps showing 12", els["sp-11"].textContent, "12.0°");
     // One tap the radiator ignores still gets its message, in its own words.
@@ -148,15 +150,35 @@ console.log("\na slow controller reply is not a refusal");
     checkEq("retries until the controller replies",checks,3);
     check("delayed success is confirmed",/Confirmed at 11/.test(T.zone._notices[90]));
     check("confirmed request no longer shadows the device",!T.zone._pending[90]);
+    // A send that fails while a later tap is waiting must not erase the later target.
     let rejectOld;
     T.bind({setHeatSetpoint:()=>new Promise((resolve,reject)=>{rejectOld=reject;}),getDevice:async()=>({setpointHeat:14})});
     els['sp-91']={dataset:{sp:'12'},textContent:'12.0°'};
-    const old=T.zone.bump(91,1);
+    await T.zone.bump(91,1);
+    const oldSend=timers.shift().fn();          // the first tap's command leaves and hangs
     T.bind({setHeatSetpoint:async()=>{},getDevice:async()=>({setpointHeat:14})});
     await T.zone.bump(91,1);
-    rejectOld(new Error('old request failed')); await old;
+    rejectOld(new Error('old request failed')); await oldSend;
     checkEq("an old failure does not erase the newer target",T.zone._pending[91].v,14);
     await flush();
+    check("and the newer target is the one confirmed",/Confirmed at 14/.test(T.zone._notices[91]));
+
+    // v3.71.4: a zone whose gateway is offline is told so at once, and nothing is sent.
+    const gone=[];
+    T.bind({setHeatSetpoint:async(id,v)=>{gone.push(v);},getDevice:async()=>({setpointHeat:12})});
+    els['sp-92']={dataset:{sp:'12',gw:'offline'},textContent:'12.0°'};
+    checkEq("an offline gateway refuses the tap",await T.zone.bump(92,1),false);
+    await flush();
+    checkEq("nothing is sent through it",gone.length,0);
+    check("the tile says why, in a sentence",/^Not sent\. The heating gateway is offline or cannot hear/.test(T.zone._notices[92])&&/\.$/.test(T.zone._notices[92]));
+    checkEq("and still shows the real target",els['sp-92'].textContent,"12.0°");
+    check("no pending value is left to shadow the device",!T.zone._pending[92]);
+    const gwHtml=T.zone.render({id:93,name:'Hall',states:{temperatureInput1:18,setpointHeat:14,gatewayStatus:'offline'}});
+    check("the tile carries the gateway's status for the tap to read",/data-gw="offline"/.test(gwHtml));
+    check("a zone with no such state carries none",/data-gw=""/.test(T.zone.render({id:94,name:'Hall',states:{temperatureInput1:18,setpointHeat:14}})));
+    els['sp-95']={dataset:{sp:'12',gw:'online'},textContent:'12.0°'};
+    await T.zone.bump(95,1); await flush();
+    checkEq("an online gateway is sent to as before",JSON.stringify(gone),"[13]");
     const html=T.zone.render({id:91,name:'Hall',states:{temperatureInput1:18,setpointHeat:14}},{history:true});
     check("zone has a real keyboard-accessible history link",html.includes('href="heating.html?zone=91"'));
 }

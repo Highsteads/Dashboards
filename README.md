@@ -2,11 +2,11 @@
 
 **Your house on a screen — energy, cameras, heating, every room, and the whole day replayed.**
 
-**Version:** 3.71.3 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
+**Version:** 3.71.4 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
 
 **[Read the full guide](https://highsteads.github.io/Dashboards/)** — setting up, a page of notes for every one of the 24 pages, and what to do when something goes wrong.
 
-<img src="https://img.shields.io/badge/version-3.71.3-5856d6" alt="Version 3.71.3">
+<img src="https://img.shields.io/badge/version-3.71.4-5856d6" alt="Version 3.71.4">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-24-0a84ff" alt="24 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
@@ -98,11 +98,11 @@ The [Getting started](https://highsteads.github.io/Dashboards/getting-started.ht
 
 ## What's new
 
+**3.71.4** (24-Nov-2026) - **Tapping a radiator up or down sends one command, and a heating gateway that is offline is said at once.** Each tap of + or − on a heating tile used to go out as its own command, so a climb from 12 to 22 degrees put four or five commands on the heating radio one after another. The tile still shows every tap straight away, and now sends a single command a moment after the last one. If the room's RAMSES ESP gateway is offline, or cannot hear the Evohome controller (RAMSES ESP 1.19.0), the tile says so on the first tap and sends nothing, where it used to wait five minutes before saying the change was not confirmed.
+
 **3.71.3** (24-Nov-2026) - **The hub's Savings tile turns green once the system has paid for itself.** On the day the saving covers what the system cost, the tile fills green and reads "paid for itself". Until then it looks as it always has.
 
 **3.71.2** (23-Nov-2026) - **The hub's Savings tile shows how much of the system has paid for itself.** With the system's cost set on the Settings page, the tile reads, for example, "£1,848 saved, 7% paid back", rounded as the Savings page rounds it and never 100% until it is. Without a cost it shows the saving alone, as before.
-
-**3.71.1** (23-Nov-2026) - **A Savings tile on the hub shows the amount saved.** Pin the Savings page as a favourite and its tile reads, for example, "£1,848 saved" since records began, instead of "Open page". The hub asks for the figure only while the tile is pinned, every 15 minutes, from the answer the Savings page already keeps.
 
 ## Acknowledgements
 
