@@ -183,6 +183,29 @@ console.log("\na slow controller reply is not a refusal");
     check("zone has a real keyboard-accessible history link",html.includes('href="heating.html?zone=91"'));
 }
 
+console.log("\na room held by hand says until when (v3.72.0)");
+{
+    const Z = T.zone;
+    const at = (h, m) => { const d = new Date(); d.setHours(h, m, 0, 0); return d.getTime(); };
+    checkEq("a time as a person says it", Z.clockWords(at(14, 5)), "2:05pm");
+    checkEq("on the hour", Z.clockWords(at(9, 0)), "9am");
+    checkEq("noon and midnight by name", Z.clockWords(at(12, 0)) + " " + Z.clockWords(at(0, 0)), "noon midnight");
+    checkEq("the small hours", Z.clockWords(at(0, 30)), "12:30am");
+    const soon = Date.now() + 40 * 60 * 1000;
+    Z.setHolds([{ id: 21, room: "En Suite", until: soon / 1000 }, { id: 22, room: "Bathroom", until: null },
+                { id: 23, room: "Over", until: (Date.now() - 1000) / 1000 }, { id: "x", until: 5 }, null]);
+    const zone = id => Z.render({ id, name: "Room", states: { temperatureInput1: 18, setpointHeat: 22 } });
+    check("the tile says until when", zone(21).includes('<span class="zone-hold">set by hand, held until ' + Z.clockWords(soon) + '</span>'));
+    check("a permanent one says so without a time", zone(22).includes("set by hand, held until it is changed"));
+    check("a hold that has run out says nothing", !/zone-hold/.test(zone(23)));
+    check("a room that is not held says nothing", !/zone-hold/.test(zone(24)));
+    check("no value dump", !/[|=]\s*\d/.test(Z.holdText(21)));
+    Z.setHolds([]);
+    check("an empty list clears every hold", !/zone-hold/.test(zone(21)) && !/zone-hold/.test(zone(22)));
+    Z.setHolds([{ id: 21, until: soon / 1000 }]); Z.setHolds(undefined);
+    check("and so does no list at all", Z.holdText(21) === "");
+}
+
 console.log("\na device tile pressed on the hub (v3.41.0)");
 {
     const notes = [];

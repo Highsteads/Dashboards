@@ -2,11 +2,11 @@
 
 **Your house on a screen — energy, cameras, heating, every room, and the whole day replayed.**
 
-**Version:** 3.71.4 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
+**Version:** 3.72.0 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
 
 **[Read the full guide](https://highsteads.github.io/Dashboards/)** — setting up, a page of notes for every one of the 24 pages, and what to do when something goes wrong.
 
-<img src="https://img.shields.io/badge/version-3.71.4-5856d6" alt="Version 3.71.4">
+<img src="https://img.shields.io/badge/version-3.72.0-5856d6" alt="Version 3.72.0">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-24-0a84ff" alt="24 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
@@ -98,11 +98,11 @@ The [Getting started](https://highsteads.github.io/Dashboards/getting-started.ht
 
 ## What's new
 
+**3.72.0** (24-Nov-2026) - **A radiator you have set by hand says until when it will be held.** Set a room's temperature from a dashboard, the Home app or the Indigo client and its tile on the Heating page and on the room's own page now reads, for example, "set by hand, held until 2:05pm". After that the heating controller puts the room back on its plan. A room set permanently at the Evohome controller reads "set by hand, held until it is changed". Needs EvoHome Heating Controller 1.29.0; with an older one the tiles are as before.
+
 **3.71.4** (24-Nov-2026) - **Tapping a radiator up or down sends one command, and a heating gateway that is offline is said at once.** Each tap of + or − on a heating tile used to go out as its own command, so a climb from 12 to 22 degrees put four or five commands on the heating radio one after another. The tile still shows every tap straight away, and now sends a single command a moment after the last one. If the room's RAMSES ESP gateway is offline, or cannot hear the Evohome controller (RAMSES ESP 1.19.0), the tile says so on the first tap and sends nothing, where it used to wait five minutes before saying the change was not confirmed.
 
 **3.71.3** (24-Nov-2026) - **The hub's Savings tile turns green once the system has paid for itself.** On the day the saving covers what the system cost, the tile fills green and reads "paid for itself". Until then it looks as it always has.
-
-**3.71.2** (23-Nov-2026) - **The hub's Savings tile shows how much of the system has paid for itself.** With the system's cost set on the Settings page, the tile reads, for example, "£1,848 saved, 7% paid back", rounded as the Savings page rounds it and never 100% until it is. Without a cost it shows the saving alone, as before.
 
 ## Acknowledgements
 

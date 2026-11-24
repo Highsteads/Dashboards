@@ -696,6 +696,16 @@
     async function start() {
         indigo = new IndigoAPI();
         DashTile.bind(indigo);
+        // Rooms held by hand, and until when, for the radiator tiles (3.72.0). The
+        // heating controller may not be installed: any failure simply shows no holds.
+        DashUI.poll(async function () {
+            try {
+                const status = await DashUI.message("evoHomeStatus", {});
+                DashTile.zone.setHolds(status && status.ok === true ? status.handHolds : []);
+            } catch (_) {
+                DashTile.zone.setHolds([]);
+            }
+        }, 15000);
         // Three consecutive refusals, not one, before the key is forgotten;
         // a reflector refusal is shown, never counted (DashUI.authStrikes).
         const auth = DashUI.authStrikes();

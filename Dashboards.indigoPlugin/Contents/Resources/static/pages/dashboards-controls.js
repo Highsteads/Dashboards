@@ -15,8 +15,8 @@
  *                zone.render(d, opts) / zone.bump(id, dir) and the helpers
  * Author:      CliveS & Claude Opus 5.5
  * Date:        23-09-2026
- * Version:     1.3 (a run of setpoint taps sends one command; a gateway that is offline
- *              is said at once); 1.2 (only the last setpoint press checks); 1.1 (pressDevice)
+ * Version:     1.4 (a room held by hand says until when); 1.3 (a run of setpoint taps
+ *              sends one command; a gateway that is offline is said at once); 1.2 (only the last setpoint press checks); 1.1 (pressDevice)
  */
 (function (root) {
   'use strict';
@@ -201,6 +201,36 @@
   var pending = {};          // device id -> { v, t }
   var notices = {};          // inline feedback, never an opaque tile overlay
   var presses = {};          // device id -> how many presses so far (see bump)
+  var holds = {};            // device id -> { until: ms, or null for a permanent one }
+
+  /* Rooms the heating controller is leaving alone because somebody set them
+     by hand (v3.72.0), from the evoHomeStatus reply's handHolds. The page
+     hands the list over each time it has one; an empty or missing list
+     clears it, so a hold that was cancelled does not linger on the tile. */
+  function setHolds(list) {
+    var next = {};
+    (Array.isArray(list) ? list : []).forEach(function (h) {
+      if (!h || !isFinite(Number(h.id))) return;
+      var until = h.until == null ? null : Number(h.until) * 1000;
+      if (until !== null && !isFinite(until)) return;
+      next[Number(h.id)] = { until: until };
+    });
+    holds = next;
+  }
+  /* "2:05pm", "noon", "midnight": a time as a person says it. */
+  function clockWords(ms) {
+    var d = new Date(ms), h = d.getHours(), m = d.getMinutes();
+    if (h === 0 && m === 0) return 'midnight';
+    if (h === 12 && m === 0) return 'noon';
+    return (h % 12 || 12) + (m ? ':' + (m < 10 ? '0' : '') + m : '') + (h < 12 ? 'am' : 'pm');
+  }
+  function holdText(id) {
+    var h = holds[id];
+    if (!h) return '';
+    if (h.until === null) return 'set by hand, held until it is changed';
+    if (h.until <= Date.now()) return '';
+    return 'set by hand, held until ' + clockWords(h.until);
+  }
 
   function currentTemp(d) {
     var s = d.states || {};
@@ -265,6 +295,8 @@
     // so it is only worth saying when it is Off.
     var status = /off/i.test(d.hvacMode || '') ? 'Off' : (hot ? 'Calling for heat' : 'Not calling for heat');
     var meta = [esc(status)];
+    var held = holdText(d.id);
+    if (held) meta.push('<span class="zone-hold">' + esc(held) + '</span>');
     if (isFinite(humidity)) meta.push(esc(humidity.toFixed(0) + '% RH'));
     if (!isNaN(valve) && valve > 0) meta.push(esc('valve ' + valve.toFixed(0) + '%'));
     var ls = lastSeen(d);
@@ -413,6 +445,9 @@
     zone: {
       render: renderZone,
       bump: bump,
+      setHolds: setHolds,
+      holdText: holdText,
+      clockWords: clockWords,
       currentTemp: currentTemp,
       setpoint: setpoint,
       heating: heating,

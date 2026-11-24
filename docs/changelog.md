@@ -9,6 +9,8 @@ Every release, newest first. The three most recent also appear under **What's ne
 [README](https://github.com/Highsteads/Dashboards#whats-new). This page is the whole record.
 Dates are day-month-year.
 
+**3.72.0** (24-Nov-2026) - **A radiator you have set by hand says until when it will be held.** Set a room's temperature from a dashboard, the Home app or the Indigo client and its tile on the Heating page and on the room's own page now reads, for example, "set by hand, held until 2:05pm". After that the heating controller puts the room back on its plan. A room set permanently at the Evohome controller reads "set by hand, held until it is changed". Needs EvoHome Heating Controller 1.29.0; with an older one the tiles are as before.
+
 **3.71.4** (24-Nov-2026) - **Tapping a radiator up or down sends one command, and a heating gateway that is offline is said at once.** Each tap of + or − on a heating tile used to go out as its own command, so a climb from 12 to 22 degrees put four or five commands on the heating radio one after another. The tile still shows every tap straight away, and now sends a single command a moment after the last one. If the room's RAMSES ESP gateway is offline, or cannot hear the Evohome controller (RAMSES ESP 1.19.0), the tile says so on the first tap and sends nothing, where it used to wait five minutes before saying the change was not confirmed.
 
 **3.71.3** (24-Nov-2026) - **The hub's Savings tile turns green once the system has paid for itself.** On the day the saving covers what the system cost, the tile fills green and reads "paid for itself". Until then it looks as it always has.

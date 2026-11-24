@@ -26,7 +26,7 @@ def test_saved_timers_survive_reload(tmp_path, monkeypatch, offset):
                  summer_force_active=True, summer_force_expiry=expiry,
                  private_field="never returned")
     assert p._read_evo_timers() == {"boostExpiry": stamp, "boostHours": 2,
-                                    "boostRooms": [], "summerExpiry": stamp}
+                                    "boostRooms": [], "handHolds": [], "summerExpiry": stamp}
 
 
 def test_expiry_and_cancellation(tmp_path, monkeypatch):
@@ -34,7 +34,7 @@ def test_expiry_and_cancellation(tmp_path, monkeypatch):
                     timed_boost_hours=1, timed_boost_expiry="2020-01-01T12:00:00+00:00",
                     summer_force_active=False)
     assert p._read_evo_timers() == {"boostExpiry": None, "boostHours": 0,
-                                    "boostRooms": [], "summerExpiry": None}
+                                    "boostRooms": [], "handHolds": [], "summerExpiry": None}
     path.write_text(json.dumps({"timed_boost_active": False, "summer_force_active": False}))
     assert p._read_evo_timers()["boostExpiry"] is None
 
@@ -94,3 +94,29 @@ def test_no_boost_rooms_once_the_boost_has_ended(tmp_path, monkeypatch):
                  timed_boost_expiry="2020-01-01T12:00:00+00:00",
                  timed_boost_outcome={"9": {"room": "Dining Room", "target": 22, "requested": 22}})
     assert p._read_evo_timers()["boostRooms"] == []
+
+
+def test_hand_holds_are_passed_on_checked(tmp_path, monkeypatch):
+    """3.72.0: rooms held by hand, from EvoHomeControl 1.29.0's hand_holds. Only a
+    well-formed entry that has not run out is passed on, and nothing else from it."""
+    now = 1_800_000_000.0
+    monkeypatch.setattr(load_plugin_module().time, "time", lambda: now)
+    p, path = saved(tmp_path, monkeypatch, timed_boost_active=False, summer_force_active=False,
+                    hand_holds={
+                        "7":  {"room": "En Suite", "until": now + 1800, "secret": "never returned"},
+                        "3":  {"room": "Bathroom", "until": None},
+                        "5":  {"room": "Run out", "until": now - 1},
+                        "6":  {"room": "Rubbish", "until": "soon"},
+                        "x":  {"room": "Bad id", "until": now + 60},
+                        "8":  "not a dict",
+                        "9":  {"room": "Flag", "until": True},
+                    })
+    assert p._read_evo_timers()["handHolds"] == [
+        {"id": 3, "room": "Bathroom", "until": None},
+        {"id": 7, "room": "En Suite", "until": now + 1800},
+    ]
+    path.write_text(json.dumps({"timed_boost_active": False, "summer_force_active": False,
+                                "hand_holds": ["not", "a", "dict"]}))
+    assert p._read_evo_timers()["handHolds"] == []
+    path.write_text(json.dumps({"timed_boost_active": False, "summer_force_active": False}))
+    assert p._read_evo_timers()["handHolds"] == [], "an older heating controller saves none"

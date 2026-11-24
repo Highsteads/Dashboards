@@ -459,6 +459,11 @@
         list.hidden = rooms.length === 0;
         if (list.innerHTML !== html) list.innerHTML = html;
     }
+    // The same reply says which rooms are held by hand and until when (3.72.0);
+    // the tiles show it on their next draw. No reply, no holds shown.
+    function _setHolds(list) {
+        if (typeof DashTile !== "undefined" && DashTile.zone && DashTile.zone.setHolds) DashTile.zone.setHolds(list);
+    }
     async function refreshEvoTimers() {
         if ((window.INDIGO_CONFIG || {}).heatingControls !== true) return;
         try {
@@ -466,8 +471,10 @@
             if (!status || status.ok !== true || !Number.isFinite(status.serverNow)) throw new Error("No timer status");
             _evoTimers = status;
             _evoTimersAt = Date.now();
+            _setHolds(status.handHolds);
         } catch (_) {
             _evoTimers = null;
+            _setHolds([]);
         }
         renderEvoTimers();
     }

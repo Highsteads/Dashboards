@@ -17,9 +17,9 @@
 #              browser for live tiles, and a small HTTP server on port 8177
 #              for the WebRTC signalling and the bootstrap routes. Tiles that
 #              are not live poll the snapshots.
-# Author:      CliveS & Claude Fable 5.2 (3.71.4); Claude Opus 5.5 (3.71.0-3.71.3); Claude Fable 5.2 (3.70.1-3.70.2); Claude Opus 5.5 (3.66.0-3.67.0, 3.70.0); Codex GPT-6 (3.65.0); Claude Opus 5.5 (3.63.0); Codex GPT-6 (3.62.0); Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.58.0); Claude Sonnet 5.5 (3.58.1); Claude Opus 5.5 (3.58.2); Claude Sonnet 5.5 (3.58.3, 3.59.0-3.59.1); Claude Opus 5.5 (3.59.3, 3.60.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
-# Date:        24-11-2026 13:21 UK
-# Version:     3.71.4
+# Author:      CliveS & Claude Fable 5.2 (3.71.4-3.72.0); Claude Opus 5.5 (3.71.0-3.71.3); Claude Fable 5.2 (3.70.1-3.70.2); Claude Opus 5.5 (3.66.0-3.67.0, 3.70.0); Codex GPT-6 (3.65.0); Claude Opus 5.5 (3.63.0); Codex GPT-6 (3.62.0); Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.58.0); Claude Sonnet 5.5 (3.58.1); Claude Opus 5.5 (3.58.2); Claude Sonnet 5.5 (3.58.3, 3.59.0-3.59.1); Claude Opus 5.5 (3.59.3, 3.60.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
+# Date:        24-11-2026 13:53 UK
+# Version:     3.72.0
 #
 # Version history: docs/changelog.md (what each release does, for users) and
 # `git log` (why, for developers). The per-version engineering notes that sat
@@ -103,7 +103,7 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION = "3.71.4"
+PLUGIN_VERSION = "3.72.0"
 
 import logging
 from dash_common import (  # noqa: E402
@@ -1910,7 +1910,35 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
             raise ValueError("Heating boost duration is unknown")
         return {"boostExpiry": boost, "boostHours": hours if boost else 0,
                 "boostRooms": self._evo_boost_rooms(saved) if boost else [],
+                "handHolds": self._evo_hand_holds(saved, now),
                 "summerExpiry": expiry("summer_force")}
+
+    @staticmethod
+    def _evo_hand_holds(saved, now):
+        """Rooms the heating controller is leaving alone because somebody set them by
+        hand, and until when (EvoHomeControl 1.29.0 and later; older versions save
+        nothing and this is empty). "until" is seconds since the epoch, or None for a
+        permanent setting made at the Evohome controller. A hold that has already run
+        out, or an entry that is not as expected, is dropped rather than shown."""
+        raw = saved.get("hand_holds")
+        holds = []
+        if not isinstance(raw, dict):
+            return holds
+        for key, entry in raw.items():
+            if not isinstance(entry, dict):
+                continue
+            try:
+                until = entry.get("until")
+                if until is not None:
+                    until = float(until)
+                    if isinstance(entry.get("until"), bool) or until != until or until <= now:
+                        continue
+                holds.append({"id": int(key), "room": str(entry.get("room") or "")[:40],
+                              "until": until})
+            except (TypeError, ValueError):
+                continue
+        holds.sort(key=lambda h: h["room"])
+        return holds
 
     @staticmethod
     def _evo_boost_rooms(saved):
