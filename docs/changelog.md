@@ -9,6 +9,8 @@ Every release, newest first. The three most recent also appear under **What's ne
 [README](https://github.com/Highsteads/Dashboards#whats-new). This page is the whole record.
 Dates are day-month-year.
 
+**3.71.3** (24-Nov-2026) - **The hub's Savings tile turns green once the system has paid for itself.** On the day the saving covers what the system cost, the tile fills green and reads "paid for itself". Until then it looks as it always has.
+
 **3.71.2** (23-Nov-2026) - **The hub's Savings tile shows how much of the system has paid for itself.** With the system's cost set on the Settings page, the tile reads, for example, "£1,848 saved, 7% paid back", rounded as the Savings page rounds it and never 100% until it is. Without a cost it shows the saving alone, as before.
 
 **3.71.1** (23-Nov-2026) - **A Savings tile on the hub shows the amount saved.** Pin the Savings page as a favourite and its tile reads, for example, "£1,848 saved" since records began, instead of "Open page". The hub asks for the figure only while the tile is pinned, every 15 minutes, from the answer the Savings page already keeps.

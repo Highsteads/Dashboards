@@ -2,11 +2,11 @@
 
 **Your house on a screen — energy, cameras, heating, every room, and the whole day replayed.**
 
-**Version:** 3.71.2 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
+**Version:** 3.71.3 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
 
 **[Read the full guide](https://highsteads.github.io/Dashboards/)** — setting up, a page of notes for every one of the 24 pages, and what to do when something goes wrong.
 
-<img src="https://img.shields.io/badge/version-3.71.2-5856d6" alt="Version 3.71.2">
+<img src="https://img.shields.io/badge/version-3.71.3-5856d6" alt="Version 3.71.3">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-24-0a84ff" alt="24 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
@@ -98,11 +98,11 @@ The [Getting started](https://highsteads.github.io/Dashboards/getting-started.ht
 
 ## What's new
 
+**3.71.3** (24-Nov-2026) - **The hub's Savings tile turns green once the system has paid for itself.** On the day the saving covers what the system cost, the tile fills green and reads "paid for itself". Until then it looks as it always has.
+
 **3.71.2** (23-Nov-2026) - **The hub's Savings tile shows how much of the system has paid for itself.** With the system's cost set on the Settings page, the tile reads, for example, "£1,848 saved, 7% paid back", rounded as the Savings page rounds it and never 100% until it is. Without a cost it shows the saving alone, as before.
 
 **3.71.1** (23-Nov-2026) - **A Savings tile on the hub shows the amount saved.** Pin the Savings page as a favourite and its tile reads, for example, "£1,848 saved" since records began, instead of "Open page". The hub asks for the figure only while the tile is pinned, every 15 minutes, from the answer the Savings page already keeps.
-
-**3.71.0** (21-Nov-2026) - **A new Savings page: what the solar and battery have saved, step by step.** It starts from the bill the house would have had with no solar and no battery on the standard capped tariff, then takes off, one step at a time, what the panels saved, what your tariffs saved, what the battery saved, and what Axle and Octopus paid on top, down to what the electricity really cost. Tap any step to have it explained. Octopus's own bill is used for every day it has billed. The page also shows how much of the house ran on its own sun, the saving week by week beside the solar made, tariff by tariff, where every kWh came from and went, every grid-event payment and free-hour credit, and, once you enter what the system cost on the Settings page, how far it has paid for itself and when it should be paid off, set against what the installer's quote promised. Needs SigenEnergyManager 5.146.0 or later.
 
 ## Acknowledgements
 

@@ -170,6 +170,11 @@
         /* v2.77.0 — reading tiles: optional value colour bands (red below
            badBelow, amber below warnBelow, green otherwise). No bands
            configured = the plain tile, unchanged. */
+        /* 3.71.3 — the Savings tile goes green once the system has paid for
+           itself. One green in both schemes, dark enough for white words
+           (5.8 to 1), as the door's blue is one blue in both. */
+        .fav-tile.fav-paidoff { background: #267347; border-color: #267347; }
+        .fav-tile.fav-paidoff .fav-name, .fav-tile.fav-paidoff .fav-state { color: #fff; font-weight: 600; }
         .fav-state.val.fav-val-good { color: var(--on-color); }
         .fav-state.val.fav-val-warn { color: var(--warn); }
         .fav-state.val.fav-val-bad  { color: var(--bad); }
@@ -2168,6 +2173,14 @@
         return line + ", " + pctWords;
     }
 
+    // 3.71.3: true once the saving has covered the system's cost, which turns
+    // the tile green. The same test as the words above, so the two never
+    // disagree: green exactly when the tile says "paid for itself".
+    function savingsPaidOff(reply) {
+        const pct = reply && reply.payback ? Number(reply.payback.pct) : NaN;
+        return savingsTileNote(reply) !== null && isFinite(pct) && pct >= 100;
+    }
+
     // Asked for only while a Savings tile is pinned. The server keeps its
     // answer 15 minutes, so this costs one cached reply a quarter hour; until
     // the first figure arrives it asks again after a minute (the first build
@@ -2176,14 +2189,21 @@
         const favs = (window.INDIGO_CONFIG || {}).favourites || [];
         if (!favs.some(f => f && f.type === "page" && String(f.page) === "savings.html")) return;
         if (document.hidden) return;
-        const note = savingsTileNote(await _msg("savingsReport", {}, { pendingMs: 3000 }));
+        const reply = await _msg("savingsReport", {}, { pendingMs: 3000 });
+        const note = savingsTileNote(reply);
         if (!note) {
             if (!(window.__FAV_PAGE_LIVE || {})["savings.html"]) setTimeout(_refreshSavingsTile, 60 * 1000);
             return;
         }
+        const paid = savingsPaidOff(reply);
         window.__FAV_PAGE_LIVE = Object.assign({}, window.__FAV_PAGE_LIVE, { "savings.html": note });
+        window.__FAV_PAGE_GREEN = Object.assign({}, window.__FAV_PAGE_GREEN, { "savings.html": paid });
         document.querySelectorAll('a.fav-pagelink[href="savings.html"] .fav-state')
-            .forEach(el => { el.textContent = note; });
+            .forEach(el => {
+                el.textContent = note;
+                const tile = el.closest && el.closest("a.fav-pagelink");
+                if (tile) tile.classList.toggle("fav-paidoff", paid);
+            });
     }
 
     // A hub navigation card whose page is pinned as a favourite is hidden, and
@@ -2226,7 +2246,8 @@
                 // A live line where the hub has one (3.71.1: the Savings tile
                 // carries the amount saved), else the page's usual line.
                 const pnote = (window.__FAV_PAGE_LIVE || {})[page] || FAV_PAGE_NOTES[page]?.[1] || "Open page";
-                return `<a class="fav-tile fav-roomlink fav-pagelink" data-fav-type="page" data-fav-readonly="1"
+                const pgreen = (window.__FAV_PAGE_GREEN || {})[page] ? " fav-paidoff" : "";
+                return `<a class="fav-tile fav-roomlink fav-pagelink${pgreen}" data-fav-type="page" data-fav-readonly="1"
                            href="${escapeAttr(page)}">
                     <span class="fav-name">${escapeAttr(pname)}</span>
                     <span class="fav-state">${escapeAttr(pnote)}</span></a>`;

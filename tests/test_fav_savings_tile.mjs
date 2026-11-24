@@ -11,6 +11,8 @@
 //                 tile already on screen, and a figure it has survives the
 //                 next redraw of the favourites.
 //              4. It is asked for only when SigenEnergyManager is present.
+//              5. The tile turns green exactly when it says "paid for itself",
+//                 on screen at once and after a redraw, and back if it stops (3.71.3).
 // Author:      CliveS & Claude Opus 5.5
 // Date:        23-11-2026
 // Version:     1.0
@@ -45,7 +47,9 @@ function extract(s, name, kind) {
 console.log("hub — the Savings tile");
 
 const host = { id: "favourites", innerHTML: "", style: { display: "" } };
-const painted = [{ textContent: "Open page" }];
+const tileClasses = new Set();
+const tileEl = { classList: { toggle: (c, on) => { if (on) tileClasses.add(c); else tileClasses.delete(c); } } };
+const painted = [{ textContent: "Open page", closest: () => tileEl }];
 let asked = 0;
 let reply = { periods: { all: { saved: 1848.4 } } };
 const timers = [];
@@ -65,7 +69,7 @@ const ctx = vm.createContext({
     setTimeout: (fn, ms) => { timers.push(ms); },
 });
 vm.runInContext(extract(src, "FAV_PAGE_NOTES", "const"), ctx);
-for (const fn of ["spokenWhen", "savingsTileNote", "_refreshSavingsTile", "renderFavouritesCard"]) {
+for (const fn of ["spokenWhen", "savingsTileNote", "savingsPaidOff", "_refreshSavingsTile", "renderFavouritesCard"]) {
     vm.runInContext(extract(src, fn), ctx);
 }
 
@@ -83,6 +87,17 @@ check("no cost set, no percentage", note({ periods: { all: { saved: 10 } }, payb
 check("no figure, no line", note(null) === null && note({ periods: {} }) === null
       && note({ periods: { all: { saved: "x" } } }) === null);
 
+// 5: green exactly when it says paid for itself
+const green = r => vm.runInContext("savingsPaidOff", ctx)(r);
+check("paid for itself is green", green({ periods: { all: { saved: 30000 } }, payback: { pct: 100 } }) === true);
+check("99.9% is not green", green({ periods: { all: { saved: 1 } }, payback: { pct: 99.9 } }) === false);
+check("no cost set is not green", green({ periods: { all: { saved: 10 } }, payback: null }) === false);
+check("no figure is not green", green(null) === false && green({ periods: {}, payback: { pct: 150 } }) === false);
+for (const p of [0, 0.4, 6.98, 99.4, 99.9, 100, 113.3]) {
+    const r = { periods: { all: { saved: 100 } }, payback: { pct: p } };
+    check(`green and the words agree at ${p}%`, green(r) === note(r).endsWith("paid for itself"));
+}
+
 // 3: before any figure the tile reads as usual
 vm.runInContext("renderFavouritesCard([])", ctx);
 check("before a figure the tile says Open page", host.innerHTML.includes(">Open page<"));
@@ -92,6 +107,21 @@ check("asked once", asked === 1);
 check("the tile on screen is painted at once", painted[0].textContent === "£1,848 saved");
 vm.runInContext("renderFavouritesCard([])", ctx);
 check("and the figure survives the next redraw", host.innerHTML.includes("£1,848 saved"));
+
+check("not paid off, not green", !tileClasses.has("fav-paidoff") && !host.innerHTML.includes("fav-paidoff"));
+
+// paid off: green on screen at once and after a redraw
+reply = { periods: { all: { saved: 30000 } }, payback: { pct: 113.3 } };
+await vm.runInContext("_refreshSavingsTile()", ctx);
+check("paid off turns the tile on screen green", tileClasses.has("fav-paidoff"));
+vm.runInContext("renderFavouritesCard([])", ctx);
+check("and it stays green after a redraw", host.innerHTML.includes("fav-pagelink fav-paidoff"));
+reply = { periods: { all: { saved: 1848.4 } }, payback: { pct: 6.98 } };
+await vm.runInContext("_refreshSavingsTile()", ctx);
+vm.runInContext("renderFavouritesCard([])", ctx);
+check("and back to plain if it stops being true", !tileClasses.has("fav-paidoff") && !host.innerHTML.includes("fav-paidoff"));
+check("the green is one fixed colour with white words",
+      /\.fav-tile\.fav-paidoff\s*\{\s*background:\s*#267347;/.test(src) && /\.fav-tile\.fav-paidoff \.fav-state\s*\{\s*color:\s*#fff/.test(src));
 
 // no figure yet: try again in a minute
 reply = null;
