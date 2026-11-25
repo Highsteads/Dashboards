@@ -845,7 +845,9 @@
             html += '<div class="grid">' + motion.map(renderMotion).join("") + '</div>';
         }
 
-        if (sensors.length) {
+        // Sensors get a row of their own only in a room with no window or
+        // door contacts; otherwise they sit on the windows row (3.73.2).
+        if (sensors.length && !windows.length) {
             html += renderSectionHeader("Sensors");
             html += '<div class="grid">' + sensors.map(renderEnvSensor).join("") + '</div>';
         }
@@ -870,12 +872,7 @@
         // tile shows live Open/Closed state via renderMotion (it uses the
         // device's onState the same way motion sensors do). The section is
         // suppressed only when the room has no contacts at all.
-        if (windows.length) {
-            html += renderSectionHeader("Windows & Doors");
-            // The SECTION decides the wording, not the device name — a PIR
-            // called "Back Door Motion" read Open/Closed in the motion list.
-            html += '<div class="grid">' + windows.map(d => renderMotion(d, { on: "Open", off: "Closed" })).join("") + '</div>';
-        }
+        html += renderWindowsRow(windows, sensors);
 
         // A full rebuild severs a brightness slider mid-drag — skip this
         // render and let the next poll repaint after release (v2.95.3).
@@ -1118,6 +1115,22 @@
     // Continuous-value environment sensor — temperature + humidity (+ battery
     // if reported). Different shape from the binary motion tile; uses a small
     // two-line read-out with the values prominently shown.
+    // The windows and doors row. A room's temperature and humidity sensors
+    // sit on the same row, after the contacts (3.73.2, CliveS: "put the temp
+    // and humidity sensor on the same line as the window sensor"). With no
+    // contacts this is empty and the sensors keep a Sensors row of their own.
+    function renderWindowsRow(windows, sensors) {
+        if (!windows.length) return "";
+        const shared = sensors.length > 0;
+        // The SECTION decides the wording, not the device name — a PIR
+        // called "Back Door Motion" read Open/Closed in the motion list.
+        return renderSectionHeader(shared ? "Windows, Doors & Sensors" : "Windows & Doors")
+            + '<div class="grid">'
+            + windows.map(d => renderMotion(d, { on: "Open", off: "Closed" })).join("")
+            + (shared ? sensors.map(renderEnvSensor).join("") : "")
+            + '</div>';
+    }
+
     // A battery reading worth showing, or null (3.73.1). 0 is not a reading:
     // Zigbee2MQTT Bridge seeds the state to 0 until the sensor first reports
     // (and labels a mains device's 0 "Mains"), so a new sensor read "0%".

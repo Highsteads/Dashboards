@@ -180,6 +180,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_room_door_device.mjs` | Contract test for the ROOM page's state-driven door tile |
 | `test_room_env_battery.mjs` | Contract test for the ROOM page's battery figure on a |
 | `test_room_extras_isolation.py` | One room's roomExtras entry of the wrong shape must cost that |
+| `test_room_windows_row.mjs` | Contract test for the ROOM page's windows row (3.73.2): a |
 | `test_rotate_guest_stills.py` | Plugins > Dashboards > Rotate Guest Link and Camera-Stills |
 | `test_rtt_estimator.mjs` | Contract test for the estimator inside DashUI.probeRtt — which |
 | `test_save_config.py` | Contract test for Plugin.handleSaveDashboardsConfig — the settings |
