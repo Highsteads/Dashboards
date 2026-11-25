@@ -207,8 +207,7 @@
                 ESPHome power monitors that report their own energy.</div>`;
             return;
         }
-        const used = plugs.filter(p => p.month && p.month.kwh);
-        const idle = plugs.filter(p => !(p.month && p.month.kwh));
+        const { used, idle, blank } = splitPlugs(plugs);
         used.sort((a, b) => ((b[sortBy] && b[sortBy].kwh) || 0) - ((a[sortBy] && a[sortBy].kwh) || 0)
                             || a.name.localeCompare(b.name));
         const t = data.totals || {};
@@ -220,9 +219,9 @@
         const row = p => {
             const sub = [p.room, !p.answering ? "not answering" : "", p.since ? "records from " + p.since : ""].filter(Boolean).join(" · ");
             const cells = PERIODS.map(([key]) => {
-                const s = p[key] || {};
-                return `<div class="cell${key === sortBy ? " sorted" : ""}"><div class="cell-val">${s.pence !== null && s.pence !== undefined ? money(s.pence) : "—"}</div>
-                    <div class="cell-sub">${esc(kwh(s.kwh))}</div></div>`;
+                const w = cellWords(p, key);
+                return `<div class="cell${key === sortBy ? " sorted" : ""}"><div class="cell-val">${w.val}</div>
+                    <div class="cell-sub">${esc(w.sub)}</div></div>`;
             }).join("");
             return `<button class="plug${chosen === p.id ? " on" : ""}" data-id="${p.id}" aria-pressed="${chosen === p.id}">
                 <div><div class="plug-name">${esc(p.name)}</div>${sub ? `<div class="plug-sub${!p.answering ? " bad" : ""}">${esc(sub)}</div>` : ""}</div>
@@ -256,8 +255,25 @@
                 <div class="cols" aria-hidden="true"><span>Plug</span>${PERIODS.map(([, l, s]) => `<span><span class="long">${l}</span><span class="short">${s}</span></span>`).join("")}</div>
                 <div class="plugs">${used.map(row).join("")}</div>
                 ${idle.length ? `<div class="unused">Used nothing in the last 30 days: ${esc(listWords(idle.map(p => p.name)))}.</div>` : ""}
+                ${blank.length ? `<div class="unused">No energy on record for: ${esc(listWords(blank.map(p => p.name)))}.</div>` : ""}
             </section>`;
         drawChart(chosenPlug);
+    }
+
+    // Three lists, not two (3.73.4): a plug with nothing on record is not a
+    // plug that used nothing, and was listed as one.
+    function splitPlugs(plugs) {
+        const has = p => !!p.month && p.month.kwh !== null && p.month.kwh !== undefined;
+        return { used:  plugs.filter(p => has(p) && p.month.kwh > 0),
+                 idle:  plugs.filter(p => has(p) && !(p.month.kwh > 0)),
+                 blank: plugs.filter(p => !has(p)) };
+    }
+    // What one cell says. A plug that is not answering has no "today": its
+    // counter is frozen, and "0p, nothing used" was a reading nobody took.
+    function cellWords(p, key) {
+        const s = p[key] || {};
+        if (key === "today" && p.answering === false) return { val: "—", sub: "not answering" };
+        return { val: (s.pence !== null && s.pence !== undefined) ? money(s.pence) : "—", sub: kwh(s.kwh) };
     }
 
     function listWords(names) {

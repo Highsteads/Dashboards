@@ -42,7 +42,11 @@ PLUGS_TTL = 300                 # the page asks every 5 minutes
 PLUGS_WAIT = 0.75
 PLUGS_DAYS = 30                 # today and the 29 days before it
 PLUGS_LEDGER = "plug_costs.json"
-PLUGS_LEDGER_VERSION = 1
+# 2 (3.73.4): the days kept under 1 were worked out before a change of unit
+# and an impossible jump were set aside, and before a failed read stopped
+# being kept as "nothing recorded". A ledger of another version is ignored
+# and every finished day is worked out again from the history.
+PLUGS_LEDGER_VERSION = 2
 PLUGS_SETTLE_S = 15 * 60        # a day is kept only once it is this long over
 RATES_VARIABLE = "elec_rates_today_json"
 
@@ -56,6 +60,25 @@ def day_starts(today, days=PLUGS_DAYS):
         d = today - timedelta(days=back)
         out.append(int(time.mktime(datetime(d.year, d.month, d.day).timetuple())))
     return out
+
+
+def plug_answering(dev):
+    """Can this plug's readings be believed now? The pages' own rule
+    (DashTile.isReachable): no errorState, and none of the ways a plugin says
+    it cannot reach a device. errorState alone was never set by ShellyDirect
+    or ESPHome Bridge, so a Shelly off the network read as answering."""
+    if str(getattr(dev, "errorState", "") or "").strip():
+        return False
+    try:
+        states = dev.states
+        for key in ("deviceOnline", "connected"):
+            if key in states and str(states[key]).strip().lower() == "false":
+                return False
+        if "availability" in states and str(states["availability"]).strip().lower() == "offline":
+            return False
+    except Exception:
+        pass
+    return True
 
 
 def build_report(plugs, starts, rates, now):
@@ -236,24 +259,21 @@ class PlugsMixin:
     def _plug_first_epoch(hist, conn, dev_id):
         """When the plug's history begins, or None."""
         table = f"device_history_{int(dev_id)}"
-        try:
-            row = conn.execute(f'SELECT {hist.epoch()} FROM "{table}" ORDER BY id LIMIT 1').fetchone()
-        except Exception:
-            return None
+        # Raises when the read fails: the caller tells that apart from "no
+        # history", which this used to answer for both.
+        row = conn.execute(f'SELECT {hist.epoch()} FROM "{table}" ORDER BY id LIMIT 1').fetchone()
         return int(row[0]) if row and row[0] is not None else None
 
     @staticmethod
     def _rate_history(hist, conn, var_id, start_epoch):
         """[(epoch, rates json)] written to the rates variable since
-        start_epoch, oldest first. [] when it is not on record."""
+        start_epoch, oldest first. [] when nothing was written. Raises when
+        the read fails, so a failure is not kept as "no price"."""
         table = f"variable_history_{int(var_id)}"
         start_utc = datetime.fromtimestamp(start_epoch, timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
-        try:
-            rows = conn.execute(
-                f'SELECT {hist.epoch()}, value FROM "{table}" WHERE ts >= ? ORDER BY id',
-                (start_utc,)).fetchall()
-        except Exception:
-            return []
+        rows = conn.execute(
+            f'SELECT {hist.epoch()}, value FROM "{table}" WHERE ts >= ? ORDER BY id',
+            (start_utc,)).fetchall()
         return [(int(e), v) for e, v in rows if e is not None and v]
 
     # ---- the producer -----------------------------------------------------
@@ -298,27 +318,36 @@ class PlugsMixin:
                 if need or "rate" not in rec:
                     missing[i] = need
 
+            # A read that FAILS is not an answer (3.73.4). Kept, it stayed
+            # "nothing recorded" or "no price" until the day left the page:
+            # one page load while the database was busy blanked the day.
+            failed = {}                # device id -> why, and "rates" -> why
             rates_by_day = {}
             if conn is not None and rates_var_id is not None and any("rate" not in (days.get(keys[i]) or {}) for i in missing):
-                published = self._rate_history(hist, conn, rates_var_id, starts[min(missing)])
-                for i in missing:
-                    end = starts[i + 1]
-                    rates_by_day[i] = C.rate_for_day(published, starts[i], end)
+                try:
+                    published = self._rate_history(hist, conn, rates_var_id, starts[min(missing)])
+                except Exception as exc:
+                    failed["rates"] = str(exc)
+                else:
+                    for i in missing:
+                        end = starts[i + 1]
+                        rates_by_day[i] = C.rate_for_day(published, starts[i], end)
 
             per_dev = {}
             for dev, (state, col, kind) in meters:
                 need_days = [i for i, need in missing.items() if dev.id in need]
                 first_i = min(need_days) if need_days else len(starts) - 1
                 values = [None] * len(starts)
-                rows = None
+                rows = first = None
                 if conn is not None:
                     try:
                         rows = self._plug_rows(hist, conn, dev.id, col, starts[first_i])
+                        if rows is not None:
+                            first = self._plug_first_epoch(hist, conn, dev.id)
                     except Exception as exc:
-                        self.logger.debug(f"[Plugs] {dev.name}: history read failed ({exc})")
+                        failed[dev.id] = f"{dev.name}: {exc}"
                         rows = None
                 if rows is not None:
-                    first = self._plug_first_epoch(hist, conn, dev.id)
                     got = C.daily_kwh(C.slices_for(rows, kind), starts[first_i:])
                     for j, kwh in enumerate(got):
                         i = first_i + j
@@ -339,6 +368,8 @@ class PlugsMixin:
                 rec = days.setdefault(keys[i], {})
                 rec.setdefault("kwh", {})
                 for dev_id in need:
+                    if dev_id in failed:
+                        continue                  # asked again next time
                     rec["kwh"][str(dev_id)] = per_dev[dev_id][i]
                 if "rate" not in rec and i in rates_by_day:
                     r = rates_by_day[i]
@@ -350,6 +381,15 @@ class PlugsMixin:
                     conn.close()
                 except Exception:
                     pass
+
+        # Said once per run of failures, not every five minutes of an outage.
+        if failed and not getattr(self, "_plugs_read_failed", False):
+            first_why = next(iter(failed.values()))
+            self.logger.warning(
+                f"[Plugs] the history could not be read for {len(failed)} "
+                f"{'thing' if len(failed) == 1 else 'things'} ({first_why}). Nothing is kept for "
+                f"those days until it can be, so the page may show them as not recorded for now.")
+        self._plugs_read_failed = bool(failed)
 
         # Drop days that have fallen off the page.
         for key in list(days):
@@ -381,6 +421,6 @@ class PlugsMixin:
                 else:
                     values.append(per_dev[dev.id][i])
             plugs.append({"id": dev.id, "name": dev.name, "room": self._plug_room(dev),
-                          "answering": not bool(getattr(dev, "errorState", "")),
+                          "answering": plug_answering(dev),
                           "kwh": values})
         return build_report(plugs, starts, rates, now)

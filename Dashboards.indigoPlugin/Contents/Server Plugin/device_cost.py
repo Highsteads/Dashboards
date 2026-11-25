@@ -71,6 +71,34 @@ def is_restart(prev, kwh):
     return kwh < prev * RESTART_FRACTION and prev - kwh >= RESTART_MIN_KWH
 
 
+# No meter on a 100 A supply can pass more than this. A slice above it is not
+# use: it is a reading that came back after a zero, or a count that changed
+# unit, and it becomes the new starting line instead (review 26-11-2026: one
+# such reading booked a plug's whole lifetime total to a single day).
+MAX_KW = 25.0
+CAP_FLOOR_KWH = 0.05
+
+
+def plausible(used, seconds):
+    """False when `used` kWh could not have passed in `seconds`."""
+    try:
+        seconds = max(float(seconds), 60.0)
+    except (TypeError, ValueError):
+        seconds = 60.0
+    return used <= MAX_KW * seconds / 3600.0 + CAP_FLOOR_KWH
+
+
+def rescaled(prev, kwh):
+    """True when a reading is the count before it in another unit: Wh then
+    kWh, or the reverse. A newly paired Zigbee plug reports 3596 and, once
+    it is configured, 3.6: the same energy, and none of it used in between.
+    Read as a restart, the 3.6 was counted as a day's use (24-11-2026)."""
+    if prev <= 0 or kwh <= 0:
+        return False
+    big, small = (prev, kwh) if prev > kwh else (kwh, prev)
+    return abs(big / 1000.0 - small) <= max(0.011, small * 0.005)
+
+
 def kwh_slices(rows):
     """[(epoch, kwh)] used between readings, from [(epoch, energy today)]
     rows in time order. The counter starts again from 0 at local midnight,
@@ -83,6 +111,7 @@ def kwh_slices(rows):
     out = []
     prev = None
     prev_day = None
+    prev_epoch = None
     for epoch, kwh in rows:
         try:
             kwh = float(kwh)
@@ -92,7 +121,7 @@ def kwh_slices(rows):
         if kwh != kwh or kwh < 0:                 # NaN, or nonsense
             continue
         if prev is None:
-            prev, prev_day = kwh, day
+            prev, prev_day, prev_epoch = kwh, day, int(epoch)
             continue
         if day != prev_day or is_restart(prev, kwh):
             used, prev = kwh, kwh
@@ -100,7 +129,16 @@ def kwh_slices(rows):
             used = 0                              # jitter: keep the higher reading
         else:
             used, prev = kwh - prev, kwh
-        prev_day = day
+        # More than the supply could carry since the last reading is not use.
+        # A new day's first reading is energy since midnight, so it is judged
+        # against the time since midnight or the last reading, whichever is longer.
+        since = int(epoch) - prev_epoch
+        if day != prev_day:
+            midnight = datetime(day.year, day.month, day.day).timestamp()
+            since = max(since, int(epoch) - midnight)
+        if used > 0 and not plausible(used, since):
+            used = 0
+        prev_day, prev_epoch = day, int(epoch)
         if used > 0:
             out.append((int(epoch), used))
     return out
@@ -168,6 +206,7 @@ def counter_slices(rows):
     out = []
     prev = None
     first_epoch = None
+    prev_epoch = None
     for epoch, kwh in rows:
         try:
             kwh = float(kwh)
@@ -178,8 +217,9 @@ def counter_slices(rows):
             continue
         if prev is None:
             prev = kwh
-            first_epoch = epoch
+            first_epoch = prev_epoch = epoch
             continue
+        since, prev_epoch = epoch - prev_epoch, epoch
         if first_epoch is not None:
             # A new device is written with a 0.0 counter before its first real
             # report arrives. That report is the plug's whole count so far, not
@@ -190,13 +230,16 @@ def counter_slices(rows):
             if placeholder:
                 prev = kwh
                 continue
+        if rescaled(prev, kwh):
+            prev = kwh                            # the same count in another unit
+            continue
         if is_restart(prev, kwh):
             used, prev = kwh, kwh
         elif kwh < prev:
             used = 0
         else:
             used, prev = kwh - prev, kwh
-        if used > 0:
+        if used > 0 and plausible(used, since):
             out.append((epoch, used))
     return out
 

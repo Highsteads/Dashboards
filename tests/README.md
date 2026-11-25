@@ -162,6 +162,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_pin_redaction.py` | Security contract test for Plugin._parse_lock_code_trigger — the |
 | `test_plug_costs.py` | Contract test for the Plugs page (3.69.0): what every plug that |
 | `test_plugin_config_secure.py` | Every credential field in the Configure dialog is masked |
+| `test_plugs_page.mjs` | The Plugs page must not say "used nothing" where nothing was |
 | `test_poller_auth_and_hidden.mjs` | Contract test for the hub's four side pollers — sigen, string |
 | `test_presence_endpoint.py` | Contract tests for the v2.71.0 presence-data privacy fix — the |
 | `test_presence_gate.py` | System Health shows a presence-gated device as out of contact while |

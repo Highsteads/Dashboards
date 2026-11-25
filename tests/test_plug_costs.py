@@ -300,3 +300,85 @@ def test_a_new_devices_zero_placeholder_is_not_a_slice():
     assert C.counter_slices([(1000, 0.0), (1004, 3.6), (2000, 3.65)]) == [(2000, pytest.approx(0.05))]
     # A real counter that starts at 0 and climbs slowly still counts.
     assert C.counter_slices([(1000, 0.0), (1500, 0.02)]) == [(1500, pytest.approx(0.02))]
+
+
+# ---- review 26-11-2026: readings that are not use, reads that fail ---------
+
+def test_a_count_that_changes_unit_is_a_new_starting_line():
+    C, _ = mods()
+    # Bathroom Combi Boiler Plug, 24-11-2026: Indigo's 0.0, the plug's count in
+    # Wh, then the same count in kWh. The page said 3.78 kWh for 0.18 used.
+    rows = [(0, 0.0), (1, 3596.0), (4, 3.6), (1371, 3.61), (1854, 3.62)]
+    assert C.kwh_between(C.counter_slices(rows), 0) == pytest.approx(0.02)
+    # After a gap long enough that no ceiling could tell.
+    assert C.kwh_between(C.counter_slices([(0, 3596.0), (7200, 3.6), (7300, 3.61)]), 0) == pytest.approx(0.01)
+    # And the other way round.
+    assert C.kwh_between(C.counter_slices([(0, 3.68), (600, 3.69), (7800, 3690.0)]), 0) == pytest.approx(0.01)
+    assert C.rescaled(3596.0, 3.6) and C.rescaled(3.69, 3690.0)
+    assert not C.rescaled(6.95, 0.02) and not C.rescaled(0.0, 3.6)
+
+
+def test_more_than_the_supply_can_carry_is_not_use(london):
+    C, _ = mods()
+    # One zero reading, then the lifetime count again: 3,682 kWh in a minute.
+    rows = [(0, 3682.5), (600, 3682.6), (660, 0.0), (720, 3682.6), (1320, 3682.7)]
+    assert C.kwh_between(C.counter_slices(rows), 0) == pytest.approx(0.2)
+    t = int(time.mktime((2026, 11, 8, 9, 0, 0, 0, 0, -1)))
+    daily = [(t, 0.30), (t + 60, 62.0), (t + 120, 62.01)]
+    assert C.kwh_between(C.kwh_slices(daily), t) == pytest.approx(0.01)
+    assert C.plausible(0.4, 60) and not C.plausible(3.6, 3) and C.plausible(20.0, 3600)
+
+
+def _kept(tmp_path, starts, back=2):
+    path = tmp_path / "plug_costs.json"
+    days = json.load(open(path))["days"] if os.path.exists(path) else {}
+    return days.get(datetime.fromtimestamp(starts[-back]).strftime("%Y-%m-%d")) or {}
+
+
+def test_a_read_that_fails_is_not_kept_as_nothing_recorded(monkeypatch, tmp_path, london):
+    p, M, starts = producer_rig(monkeypatch, tmp_path, date(2026, 11, 8))
+    real = p._plug_rows
+
+    def locked(*_a, **_k):
+        raise sqlite3.OperationalError("database is locked")
+    p._plug_rows = locked
+    out = p._plug_costs()
+    assert out["plugs"][0]["yesterday"]["kwh"] is None
+    assert "7" not in (_kept(tmp_path, starts).get("kwh") or {})
+    p._plug_rows = real
+    again = p._plug_costs()
+    assert again["plugs"][0]["yesterday"]["kwh"] == pytest.approx(1.0, abs=0.002)
+    assert _kept(tmp_path, starts)["kwh"]["7"] == pytest.approx(1.0, abs=0.002)
+
+
+def test_a_rate_read_that_fails_is_not_kept_as_no_price(monkeypatch, tmp_path, london):
+    p, M, starts = producer_rig(monkeypatch, tmp_path, date(2026, 11, 8))
+    real = p._rate_history
+
+    def locked(*_a, **_k):
+        raise sqlite3.OperationalError("database is locked")
+    p._rate_history = locked
+    p._plug_costs()
+    assert "rate" not in _kept(tmp_path, starts)
+    p._rate_history = real
+    p._plug_costs()
+    assert _kept(tmp_path, starts)["rate"][0] == 20.0
+
+
+def test_a_plug_off_the_network_is_not_answering(monkeypatch, tmp_path, london):
+    p, M, _ = producer_rig(monkeypatch, tmp_path, date(2026, 11, 8))
+    assert p._plug_costs()["plugs"][0]["answering"] is True
+    dev = M.indigo.devices[7]
+    for states in ({"deviceOnline": False}, {"deviceOnline": "False"}, {"connected": "false"},
+                   {"availability": "Offline"}):
+        dev.states = dict({"energyKwhToday": 0.401}, **states)
+        assert M.plug_answering(dev) is False, states
+    dev.states = {"energyKwhToday": 0.401, "deviceOnline": True, "availability": "online"}
+    assert M.plug_answering(dev) is True
+    dev.errorState = "offline"
+    assert M.plug_answering(dev) is False
+
+
+def test_an_old_ledger_is_worked_out_again():
+    _, M = mods()
+    assert M.PLUGS_LEDGER_VERSION >= 2          # 1 held days counted before the fixes above
