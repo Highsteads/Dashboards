@@ -111,6 +111,19 @@
     var g2l = Math.min(impLeft, homeLeft); impLeft -= g2l; homeLeft -= g2l;
     var g2b = Math.min(impLeft, chgLeft);  impLeft -= g2b; chgLeft  -= g2b;
 
+    /* The order above lets the battery (and the solar) cover the house before
+       the grid is asked. On a tariff that sells at the peak the truth is the
+       other way round for part of the day: the battery went to the grid and
+       the grid fed the house. Left alone, that showed as import with nowhere
+       to go ("losses") and export with no source ("the counters disagree"),
+       on every such day (review 26-11-2026). Where import and export are both
+       left over, move the matching amount across: it changes which ribbon
+       carries the energy, never a total. */
+    var x = Math.min(impLeft, expLeft, b2l);
+    if (x > 0) { b2l -= x; b2g += x; g2l += x; impLeft -= x; expLeft -= x; }
+    x = Math.min(impLeft, expLeft, s2l);
+    if (x > 0) { s2l -= x; s2g += x; g2l += x; impLeft -= x; expLeft -= x; }
+
     /* Supplied but not matched to a sink — conversion and round-trip losses. */
     var loss = pvLeft + disLeft + impLeft;
     /* Consumed but not matched to a source. Should be ~0; a real figure here
@@ -852,19 +865,30 @@
   function octopusSummary(oct) {
     oct = oct || {};
     var tokens = num(oct.token_balance), points = num(oct.points_balance);
-    var owed = 0, open = 0;
+    // An hour still being measured is OPEN too, with nothing yet known to be
+    // owed. Left out, the card read "Nothing, every free hour is settled"
+    // while one was still being worked out.
+    var owed = 0, open = 0, unknown = 0;
     (oct.free_hour_credits || []).forEach(function (c) {
-      if (['awaiting', 'late', 'short'].indexOf(c.state) >= 0 && num(c.owed_p) != null) {
-        owed += c.owed_p; open += 1;
-      }
+      if (['measuring', 'awaiting', 'late', 'short'].indexOf(c.state) < 0) return;
+      open += 1;
+      if (num(c.owed_p) != null) owed += c.owed_p; else unknown += 1;
     });
     return {
       tokens: tokens,
       hoursLeft: tokens == null ? null : Math.floor(tokens / 2),
       pointsText: points == null ? '\u2014' : penceWords(points / OCTOPOINTS_PER_PENNY),
       points: points,
-      owedP: owed, openClaims: open,
+      owedP: owed, openClaims: open, unknownClaims: unknown,
     };
+  }
+  /* [figure, line under it] for what Octopus owes for free hours. */
+  function owedWords(sum) {
+    sum = sum || {};
+    if (!sum.openClaims) return ['Nothing', 'every free hour is settled'];
+    if (sum.unknownClaims && !sum.owedP) return ['Being worked out', 'waiting for the meter reading'];
+    return [penceWords(sum.owedP) + (sum.unknownClaims ? ' and more being worked out' : ''),
+            'waiting for Octopus to credit it'];
   }
 
   /* One line per Sunday with booked free hours: what Octopus owes and whether
@@ -1145,7 +1169,7 @@
     savingSessions: savingSessions,
     sessionRange: sessionRange,
     penceWords: penceWords, kwhWords: kwhWords, netKwhWords: netKwhWords,
-    sessionHistoryRows: sessionHistoryRows, octopusSummary: octopusSummary,
+    sessionHistoryRows: sessionHistoryRows, octopusSummary: octopusSummary, owedWords: owedWords,
     freeHourCreditLines: freeHourCreditLines,
     dayPattern: dayPattern, dayPatternCaption: dayPatternCaption, hourWords: hourWords,
     sessionEndTime: sessionEndTime,

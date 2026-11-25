@@ -82,6 +82,9 @@
     schedule_import:  'Waiting to charge from the grid',
     start_export:     'Selling to the grid overnight',
     stop_export:      'Just finishing an export',
+    vpp_export:       'Selling to the grid for a grid event',
+    saving_session:   'Selling to the grid for a Saving Session',
+    happy_hour_import: 'Charging from the grid in a free hour',
   };
 
   /* Minimum energy kept back in a power cut (DashCalc.BACKUP_RESERVE_PCT). */

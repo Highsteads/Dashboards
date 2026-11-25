@@ -711,6 +711,9 @@ const ACTION_LABELS = {
   start_export:     'Night Export',
   stop_export:      'Stopping Export',
   solar_overflow:   'Solar Overflow Export',
+  vpp_export:       'Grid Event Export',
+  saving_session:   'Saving Session Export',
+  happy_hour_import: 'Free Hour Charging',
   unknown:          'Unknown'
 };
 const ACTION_CLASS = {
@@ -721,6 +724,9 @@ const ACTION_CLASS = {
   start_import:     'action-import',
   stop_import:      'action-import',
   schedule_import:  'action-schedule',
+  vpp_export:       'action-export',
+  saving_session:   'action-export',
+  happy_hour_import: 'action-import',
   unknown:          'action-unknown'
 };
 
@@ -1184,8 +1190,12 @@ const _liveness = DashUI.liveness({ staleAfterMs: 30000 });
 function update(d) {
   if (d.error) { setText('ts', 'Error: ' + d.error); return; }
   _lastStatus = d;
-  setText('ts', d.timestamp || '—');
-  _liveness.mark();
+  /* With the inverter link down SigenEnergyManager goes on sending its last
+     known readings under a new timestamp. They are not live, so the page is
+     not marked live for them and says why (review 26-11-2026). */
+  const linkDown = !!(d.flags && d.flags.modbus_connected === false);
+  setText('ts', linkDown ? 'Inverter link down, last readings shown' : (d.timestamp || '—'));
+  if (!linkDown) _liveness.mark();
 
   /* Pack size from the plugin (v5.52.0+); the constant is only the fallback. */
   if (d.battery && d.battery.capacity_kwh > 0 && BATTERY_KWH !== d.battery.capacity_kwh) {
@@ -1265,7 +1275,7 @@ function update(d) {
     let modeLabel, modeClass;
     if (vppState && vppState.toLowerCase() !== 'idle') {
       modeLabel = 'VPP ' + vppState.toLowerCase().replace(/_/g, ' ');
-      modeClass = vppState.toLowerCase() === 'vpp_active' ? 'warn' : '';
+      modeClass = vppState.toLowerCase() === 'active' ? 'warn' : '';
     } else {
       modeLabel = ACTION_LABELS[action] || action;
       modeClass = (action === 'self_consumption' || action === 'solar_overflow' || action === 'start_export')
@@ -1378,8 +1388,12 @@ function update(d) {
   const sysVpp = document.getElementById('sys-vpp');
   if (sysVpp) {
     const st = (d.vpp && d.vpp.state) || 'idle';
-    sysVpp.textContent = st === 'idle' ? 'Standby' : st;
-    sysVpp.style.color = (d.vpp && d.vpp.active) ? 'var(--warn)' : '';
+    // "Nothing announced" and "the feed is dead" must not look alike: the
+    // manager sends the feed's health with the answer, and the hub reads it.
+    const feedBad = !!(d.vpp && d.vpp.api_status && d.vpp.api_status !== 'OK');
+    sysVpp.textContent = feedBad ? 'Feed failing' : (st === 'idle' ? 'Standby' : st);
+    sysVpp.title = feedBad ? String(d.vpp.api_status) : '';
+    sysVpp.style.color = (feedBad || (d.vpp && d.vpp.active)) ? 'var(--warn)' : '';
   }
   const sysStorm = document.getElementById('sys-storm');
   if (sysStorm) {
@@ -1446,10 +1460,10 @@ function renderOctopusCard(oct) {
     : sum.tokens + (sum.tokens === 1 ? ' token' : ' tokens') + ', two buy an hour';
   document.getElementById('oct-points').textContent = sum.pointsText;
   const owed = document.getElementById('oct-owed');
-  owed.textContent = sum.openClaims ? DashCalc.penceWords(sum.owedP) : 'Nothing';
+  const owedSays = DashCalc.owedWords(sum);
+  owed.textContent = owedSays[0];
   owed.className = 'mt-val' + (credits.some(c => c.cls === 'warn') ? ' warn' : '');
-  document.getElementById('oct-owed-sub').textContent = sum.openClaims
-    ? 'waiting for Octopus to credit it' : 'every free hour is settled';
+  document.getElementById('oct-owed-sub').textContent = owedSays[1];
 
   document.getElementById('oct-credits').innerHTML = credits.length
     ? '<div class="oct-list"><h3>Free-hour credits</h3>' + credits.map(c =>

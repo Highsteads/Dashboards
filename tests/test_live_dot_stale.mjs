@@ -133,7 +133,10 @@ for (const [page, window] of [["index.html", 30000], ["energy.html", 30000],
 {
     const energy = fs.readFileSync(path.join(PAGES, "energy.html"), "utf8");
     check("energy: an error reply returns before the mark",
-          /if \(d\.error\) \{ setText\('ts', 'Error: ' \+ d\.error\); return; \}[\s\S]{0,120}_liveness\.mark\(\)/.test(energy));
+          /if \(d\.error\) \{ setText\('ts', 'Error: ' \+ d\.error\); return; \}[\s\S]{0,700}_liveness\.mark\(\)/.test(energy));
+    // 3.73.5: and not for readings held over from before the inverter link dropped.
+    check("energy: nor is a reply marked live while the inverter link is down",
+          /if \(!linkDown\) _liveness\.mark\(\);/.test(energy));
     const cost = fs.readFileSync(path.join(PAGES, "cost.html"), "utf8");
     check("cost: an error reply returns before the mark",
           /if \(d && d\.error\) \{ setText\('ts', 'Error: ' \+ d\.error\); return; \}[\s\S]{0,120}_liveness\.mark\(\)/.test(cost));

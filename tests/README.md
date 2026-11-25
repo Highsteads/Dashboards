@@ -85,6 +85,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_energy_dawn_viable.mjs` | Node contract test for how the Energy page and the Flow page's |
 | `test_energy_palette.py` | The five semantic energy colours (3.42.0). They were re-stepped |
 | `test_energy_soc.mjs` | Node contract test for energy.html's handling of an UNKNOWN |
+| `test_energy_truth.mjs` | The Energy page says what was measured (3.73.5, review |
 | `test_escape_helpers.mjs` | DashUI.esc escapes all five characters that matter, DashUI.ago |
 | `test_event_log_quiet.py` | The Indigo event log is shared by every plugin on the server and |
 | `test_fav_device_label.mjs` | Contract test for the label on a plain on/off device favourite |
