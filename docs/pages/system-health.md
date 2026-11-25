@@ -15,7 +15,9 @@ server-side, so it works away from home too.
 
 **Verdict banner.** A headline — "Needs attention" or the healthy equivalent — with the host name,
 Indigo version and uptime, then a pill per finding. The banner is the summary the rest of the page
-justifies.
+justifies. A check that failed or could not measure is a finding of its own, such as "Memory could
+not be measured", so the banner never says healthy over a check that did not run (3.73.5). The memory
+verdict is macOS's own pressure level where it gives one.
 
 **Four tiles.** Disk with free space and a bar, memory with a plain word rather than a number plus
 swap in use, one-minute load against the core count, and plugins running out of the total with a

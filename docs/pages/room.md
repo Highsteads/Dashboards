@@ -39,7 +39,7 @@ toggle, and an active card carries a coloured edge, so what is actually on reads
 **Plugs & sockets.** Plugs from the room extras, a toggle each, with no bulk button — a freezer or a
 router could be on one.
 
-**Motion.** Presence and motion sensors, each with its state and how long ago it changed, and a dot
+**Motion.** Presence and motion sensors, each with its state and when it was last heard from (a Zigbee sensor says "heard 40m ago") or, for a sensor that does not say, when its record last changed, and a dot
 rather than a switch — these are readings, not controls. A sensor that is detecting pulses gently.
 
 **Appliances.** A power meter paired with an ApplianceMonitor cycle device: live watts, Idle /

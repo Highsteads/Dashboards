@@ -77,3 +77,6 @@ Read it, switch the calendar year, and follow the link back to the Energy page. 
 - Solar benefit compares against a grid-only counterfactual with the standing charge included, so
   it is not the same figure as "money saved" on any other page. The definitions note is there
   because the four money numbers on this page are all subtly different.
+- The two parts under the day's saving add up to it. On a day the battery was filled from the grid the
+  first part is negative and is named "More import than a grid-only day" (from 3.73.5; it used to be
+  shown as nought).

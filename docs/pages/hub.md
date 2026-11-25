@@ -120,3 +120,5 @@ control anything at all.
   old JavaScript after an upgrade.
 
 On screens up to 600 pixels wide, Favourites uses three columns for controls, readings and room shortcuts. Names wrap, and the camera layout is unchanged.
+- A favourite, door or lock tile whose device is disabled in Indigo, in error or not answering says so
+  and takes no press (from 3.73.4). A forecast file more than three hours old is not shown (3.73.5).

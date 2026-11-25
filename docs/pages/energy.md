@@ -134,3 +134,6 @@ mode and boost buttons.
   unusual sky is the forecast being wrong rather than the array underperforming.
 - The manager's reasoning line is worth reading before wondering why the battery is doing what it
   is doing. It says which of the plugin's rules is currently in charge.
+- Today's energy flow is a best fit from the day's totals. On a day the battery sold at the peak and the
+  grid fed the house, the diagram shows both (from 3.73.5): it used to put that energy down as losses
+  and say the counters disagreed. With the inverter link down the page says so and is not marked live.

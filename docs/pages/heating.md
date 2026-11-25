@@ -40,7 +40,7 @@ warmest with its name, and the outside temperature. A coloured edge on the strip
 anything is calling.
 
 **Zone grid.** One card per zone: the name, the current temperature large, a setpoint stepper with
-minus and plus, the heat-demand status, and how long ago the zone was last heard from. A zone at an unusual
+minus and plus, the heat-demand status, and how long ago its temperature was measured (a zone that only says when it was last heard from shows that instead). A zone that is disabled in Indigo, in error, not answering or behind an offline heating gateway says so, greyed, and claims no call for heat. A zone at an unusual
 temperature is coloured — blue when cold, amber when warm — so the grid reads at a glance.
 
 **Footer.** Last update and the refresh cadence.
@@ -74,7 +74,9 @@ Zone readings and timer status refresh every three seconds. The countdown ticks 
 - A setpoint change is read back repeatedly after being sent. A stopped heating plugin swallows the command
   without an error, so the tile would otherwise show the new number as if it had landed when
   nothing moved.
-- "Last heard" is the honest clock for a battery radiator valve. One that has not spoken for hours
+- "Measured" is the honest clock for a battery radiator valve: it is when the valve last reported a
+  temperature, which a change of setpoint does not move (from 3.73.5; it used to be when the valve was
+  last heard from at all). One that has not reported for hours
   is a valve to go and look at, whatever its temperature reads.
 
 ## A room's heating history
