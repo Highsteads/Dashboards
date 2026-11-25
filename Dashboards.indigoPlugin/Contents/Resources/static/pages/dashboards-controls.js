@@ -15,7 +15,8 @@
  *                zone.render(d, opts) / zone.bump(id, dir) and the helpers
  * Author:      CliveS & Claude Opus 5.5
  * Date:        23-09-2026
- * Version:     1.5 (one "cannot be believed" rule, not answering included; the zone tile uses it;
+ * Version:     1.6 (a zone's temperature is as old as its last temperature report; seed zeros are
+ *              no reading; no demand state, no "Not calling"; notes expire); 1.5 (one "cannot be believed" rule, not answering included; the zone tile uses it;
  *              server times read in the server's zone); 1.4 (a room held by hand says until when); 1.3 (a run of setpoint taps
  *              sends one command; a gateway that is offline is said at once); 1.2 (only the last setpoint press checks); 1.1 (pressDevice)
  */
@@ -205,6 +206,9 @@
   var TRV_STALE_MS = 3 * 3600 * 1000;   // flag a TRV unheard for more than 3 hours
   var pending = {};          // device id -> { v, t }
   var notices = {};          // inline feedback, never an opaque tile overlay
+  var noticeAt = {};         // device id -> when its note was written
+  var NOTE_KEEP_MS = 120000; // a settled note goes after this (3.73.5): "Confirmed at 21
+                             // degrees" used to stay for good, long after the setting changed
   var presses = {};          // device id -> how many presses so far (see bump)
   var holds = {};            // device id -> { until: ms, or null for a permanent one }
 
@@ -239,6 +243,9 @@
 
   function currentTemp(d) {
     var s = d.states || {};
+    // A RAMSES zone that has never reported a temperature holds the 0.0 it
+    // was created with. That is not a reading (3.73.5).
+    if (neverMeasured(s)) return null;
     var cand = [s.temperatureInput1, s.temperature, d.displayStateValRaw];
     for (var i = 0; i < cand.length; i++) {
       var n = parseFloat(cand[i]);
@@ -247,17 +254,32 @@
     return null;
   }
   function setpoint(d) {
+    var seeded = neverMeasured(d.states || {});
     if (d.setpointHeat != null) {
       var own = parseFloat(d.setpointHeat);
-      if (!isNaN(own)) return own;      // "n/a" is no setpoint, not NaN degrees
+      if (!isNaN(own) && !(seeded && own <= 0)) return own;   // "n/a" is no setpoint; nor is a seed 0
     }
+    if (seeded && !(parseFloat((d.states || {}).setpointHeat) > 0)) return null;
     var n = parseFloat((d.states || {}).setpointHeat);
     return isNaN(n) ? null : n;
+  }
+  /* RAMSES ESP creates a zone with temperature 0.0, setpoint 0.0 and
+     temperatureSeenEpoch 0, and fills them in as the valve reports. */
+  function neverMeasured(s) {
+    return ('temperatureSeenEpoch' in s) && !(Number(s.temperatureSeenEpoch) > 0);
   }
   /* Heating = the valve is open, or the zone says it is calling for heat
      and really is below its setpoint. The call-for-heat flag is read from
      the states first and the device second: the room page's old copy read
      only the second and missed it on every RAMSES zone. */
+  /* Can this zone say whether it is calling for heat? A Z-Wave floor
+     thermostat reports neither a valve nor a call-for-heat state, and was told
+     "Not calling for heat" while it heated (3.73.5). */
+  function knowsDemand(d) {
+    var s = d.states || {};
+    return s.hvacHeaterIsOn !== undefined || d.hvacHeaterIsOn !== undefined
+        || ('valve-position' in s) || ('valvePosition' in s);
+  }
   function heating(d) {
     var s = d.states || {};
     var valve = parseFloat(s['valve-position'] || s.valvePosition || 0);
@@ -283,6 +305,28 @@
     var t = (root.DashUI && root.DashUI.serverTime) ? root.DashUI.serverTime(v)
                                                     : Date.parse(String(v).replace(' ', 'T'));
     return isNaN(t) ? null : t;
+  }
+  /* When the zone's TEMPERATURE was last reported, in ms: 0 for never, null
+     when the zone does not say. RAMSES ESP keeps temperatureSeenEpoch for
+     exactly this. lastSeen also moves on setpoint and mode reports, so a
+     valve whose sensor had died kept a frozen temperature looking fresh. */
+  function tempSeen(d) {
+    var s = d.states || {};
+    if ('temperatureSeenEpoch' in s) {
+      var e = Number(s.temperatureSeenEpoch);
+      return (isFinite(e) && e > 0) ? e * 1000 : 0;
+    }
+    return lastSeen(d);
+  }
+  /* Is the zone's temperature too old to count? Unheard for TRV_STALE_MS, or
+     called silent by the heating plugin. A zone that gives no time is never
+     stale: absence is not evidence. */
+  function stale(d, now) {
+    var s = d.states || {};
+    if (String(s.trvStatus || '').toLowerCase() === 'silent') return true;
+    var t = tempSeen(d);
+    if (t == null || t === 0) return false;
+    return ((now == null ? Date.now() : now) - t) > TRV_STALE_MS;
   }
   function shownSetpoint(d) {
     var p = pending[d.id];
@@ -315,18 +359,29 @@
                : why === 'error' ? 'The device reports an error'
                : why ? 'Not answering'
                : gwOff ? 'Heating gateway offline'
-               : /off/i.test(d.hvacMode || '') ? 'Off' : (hot ? 'Calling for heat' : 'Not calling for heat');
-    var meta = [esc(status)];
+               : /off/i.test(d.hvacMode || '') ? 'Off'
+               : !knowsDemand(d) ? ''
+               : (hot ? 'Calling for heat' : 'Not calling for heat');
+    var meta = status ? [esc(status)] : [];
     var held = holdText(d.id);
     if (held) meta.push('<span class="zone-hold">' + esc(held) + '</span>');
     if (isFinite(humidity)) meta.push(esc(humidity.toFixed(0) + '% RH'));
     if (!isNaN(valve) && valve > 0) meta.push(esc('valve ' + valve.toFixed(0) + '%'));
-    var ls = lastSeen(d);
-    if (ls != null) {
-      var stale = (Date.now() - ls) > TRV_STALE_MS;
+    var ls = tempSeen(d);
+    if (ls != null && ls > 0) {
+      var old = stale(d);
       var ago = root.DashUI && root.DashUI.ago ? root.DashUI.ago(Date.now() - ls) : '';
-      meta.push('<span class="trv-age' + (stale ? ' stale' : '') + '">' + (stale ? icon('warn') + ' ' : '') +
-                'heard ' + esc(ago) + '</span>');
+      // "measured" where the zone says when its temperature came in, "heard"
+      // where it only says when anything did.
+      meta.push('<span class="trv-age' + (old ? ' stale' : '') + '">' + (old ? icon('warn') + ' ' : '') +
+                (('temperatureSeenEpoch' in s) ? 'measured ' : 'heard ') + esc(ago) + '</span>');
+    } else if (stale(d)) {
+      meta.push('<span class="trv-age stale">' + icon('warn') + ' valve silent</span>');
+    }
+    // A settled note goes once it is old: nothing else ever removed one.
+    if (notices[d.id] && !pending[d.id] && (Date.now() - (noticeAt[d.id] || 0)) > NOTE_KEEP_MS) {
+      delete notices[d.id];
+      delete noticeAt[d.id];
     }
     // Buttons go for a zone Indigo will not command. Behind an offline
     // gateway they stay: the press explains itself in a sentence (bump).
@@ -391,6 +446,7 @@
     function note(text) {
       if (presses[id] !== mine) return;
       notices[id] = text;
+      noticeAt[id] = Date.now();
       var node = root.document.getElementById('zone-note-' + id);
       if (node) node.textContent = text;
     }
@@ -477,6 +533,10 @@
       heating: heating,
       tempClass: tempClass,
       lastSeen: lastSeen,
+      tempSeen: tempSeen,
+      stale: stale,
+      knowsDemand: knowsDemand,
+      NOTE_KEEP_MS: NOTE_KEEP_MS,
       TRV_STALE_MS: TRV_STALE_MS,
       SETPOINT_MIN: SETPOINT_MIN,
       SETPOINT_MAX: SETPOINT_MAX,

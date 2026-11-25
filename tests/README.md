@@ -115,6 +115,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_heating_history.py` | Sparse heating history, query bounds and recorded reasons. |
 | `test_heating_timers.mjs` |  |
 | `test_heating_timers.py` | Heating timers use persisted, offset-aware expiries, never button press times.""" |
+| `test_heating_truth.mjs` | The heating tiles and summary say only what is measured |
 | `test_history_db.py` | Contract tests for history_db.py — the SQL Logger artefact |
 | `test_history_pk_range.py` | Contract test for the PK-range window helpers — the mechanism |
 | `test_history_query.py` | Contract test for Plugin._history_query against a fixture SQL |

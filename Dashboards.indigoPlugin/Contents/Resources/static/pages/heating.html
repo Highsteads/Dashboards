@@ -312,15 +312,18 @@
     // true demand signal), average house temp, coldest/warmest room, outside
     // temp (Ecowitt), and a watchdog line for any TRV gone quiet on the radio.
     function houseSummaryCard(zones, devices) {
-        const calling = zones.filter(d => {
-            const v = (d.states || {}).hvacHeaterIsOn; return v === true || v === "true";
-        }).length;
         // The headline figures come only from zones that are enabled, not in
         // error and heard on the radio in the last 3 h. A TRV gone quiet keeps
         // its last reading for ever, and averaging it in presented an hours-old
         // (or months-old) temperature as the house now.
-        const isStale = d => { const ls = getLastSeen(d); return ls != null && (Date.now() - ls) > TRV_STALE_MS; };
+        // Stale by when the TEMPERATURE last came in (DashTile.zone.stale), not
+        // by lastSeen, which a setpoint report keeps moving (3.73.5).
+        const isStale = d => DashTile.zone.stale(d);
         const live = zones.filter(d => !DashTile.unknownReason(d) && !isStale(d));
+        // Counted over the live zones, by the tile's own rule, so the number
+        // matches the lit tiles. It used to count every zone's kept flag,
+        // disabled and silent ones included.
+        const calling = live.filter(d => DashTile.zone.heating(d)).length;
         const excluded = zones.length - live.length;
         const temps = live.map(getCurrentTemp).filter(t => t != null);
         const avg = temps.length ? temps.reduce((a, b) => a + b, 0) / temps.length : null;
@@ -437,7 +440,11 @@
     // somebody set by hand during the boost shows the radiator's own setting, never
     // the heating controller's last request, which is out of date by then (3.73.0).
     // Shown only while a boost is running.
-    function _deg(v) { return Number.isInteger(v) ? String(v) : v.toFixed(1); }
+    function _deg(v) {
+        const n = Number(v);
+        if (v == null || v === "" || !isFinite(n)) return "—";      // never throws: one bad entry stopped the page drawing
+        return Number.isInteger(n) ? String(n) : n.toFixed(1);
+    }
     function _clockWords(ms) {
         const d = new Date(ms), h = d.getHours(), m = d.getMinutes();
         if (h === 0 && m === 0) return "midnight";
@@ -455,7 +462,9 @@
             const end = r.until == null ? "until it is changed" : `until ${_clockWords(r.until * 1000)}`;
             return ["held", `${name}: ${set}, so the boost leaves it alone ${end}.`];
         }
-        if (r.held) return ["held", `${name}: not boosted, set to ${_deg(r.requested)} degrees because ${escapeHtml(r.held)}.`];
+        if (r.held) return ["held", r.requested == null
+            ? `${name}: not boosted because ${escapeHtml(r.held)}.`
+            : `${name}: not boosted, set to ${_deg(r.requested)} degrees because ${escapeHtml(r.held)}.`];
         if (r.requested == null) return ["wait", `${name}: waiting for the heating controller's next check.`];
         if (sp != null && Math.abs(sp - r.requested) < 0.26)
             return ["ok", `${name}: set to ${_deg(r.requested)} degrees until ${until}, confirmed by Evohome.`];

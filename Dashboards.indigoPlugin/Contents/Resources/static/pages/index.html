@@ -2605,7 +2605,11 @@
                 home: (d.states || {}).presence === "home",
             }))
             .sort((a, b) => a.name.localeCompare(b.name));
-        const heating = devices.filter(d => d.enabled !== false && asBool((d.states || {}).hvacHeaterIsOn)).length;
+        // The radiator tile's own rule, over zones that can be believed: the
+        // chip counted a kept flag on errored and silent zones too (3.73.5).
+        const zoneRule = (typeof DashTile !== "undefined" && DashTile.zone && DashTile.zone.stale) ? DashTile.zone : null;
+        const heating = devices.filter(d => !favNotLive(d) && asBool((d.states || {}).hvacHeaterIsOn)
+                                            && (!zoneRule || (zoneRule.heating(d) && !zoneRule.stale(d)))).length;
         let lowBatt = 0, errors = 0;
         const lowNames = [], errNames = [];
         for (const d of devices) {
