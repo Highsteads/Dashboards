@@ -49,7 +49,7 @@
 .zone-meta .trv-age.stale { color: var(--warn); font-weight: 600; }
 /* A tile whose device is disabled or in error shows its last reading as a
    dash and the reason, so it reads as out of service, not as live. */
-.light-card.unknown, .env-card.unknown, .appliance-card.unknown, .motion-card.unknown { opacity: 0.6; }
+.light-card.unknown, .env-card.unknown, .appliance-card.unknown, .motion-card.unknown, .zone.unknown { opacity: 0.6; }
 .light-card.unknown .toggle { cursor: not-allowed; }
 
 /* Heating history links cover the tile without covering its controls. */

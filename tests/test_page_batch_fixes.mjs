@@ -99,7 +99,7 @@ console.log("\nroom tiles: a disabled or errored device is not shown as live");
     vm.createContext(box);
     vm.runInContext(read("dashboards-action.js"), box);
     vm.runInContext(read("dashboards-controls.js"), box);
-    vm.runInContext(["batteryPercent", "renderLight", "renderEnvSensor", "renderAppliance", "renderMotion"].map(n => extractFn(src, n)).join("\n")
+    vm.runInContext(["batteryPercent", "renderLight", "renderEnvSensor", "renderAppliance", "tileAge", "renderMotion"].map(n => extractFn(src, n)).join("\n")
         + "\nglobalThis.__R = { renderLight, renderEnvSensor, renderAppliance, renderMotion };", box);
     const R = box.__R;
     const light = R.renderLight({ id: 3, name: "Lamp", class: "Relay", enabled: false, onState: true, states: {} });
@@ -117,7 +117,7 @@ console.log("\nroom tiles: a disabled or errored device is not shown as live");
 
 console.log("\nhub energy diagram: still when Sigen is not live");
 {
-    const ctx = { Date, String, isFinite };
+    const ctx = { Date, String, isFinite, DashUI: { serverTime: v => Date.parse(v || "") } };
     vm.createContext(ctx);
     const src = read("index.html");
     vm.runInContext("const SIGEN_API_STALE_MS = 120000; const SIGEN_DEVICE_STALE_MS = 15 * 60000;\n"

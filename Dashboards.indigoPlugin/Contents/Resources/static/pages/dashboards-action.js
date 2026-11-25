@@ -317,7 +317,10 @@
       var id = Number(m.id);
       var d = (byId && typeof byId.get === 'function' && isFinite(id)) ? byId.get(id) : null;
       if (!d) continue;
-      var on = truthy(d.onState);
+      // A member that is disabled, in error or not answering holds a frozen
+      // state: it is unknown, whatever it last said (3.73.4).
+      var frozen = root.DashTile && root.DashTile.unknownReason && root.DashTile.unknownReason(d);
+      var on = frozen ? null : truthy(d.onState);
       // A member whose state does not resolve to a boolean is UNKNOWN, and
       // must not pad the total: "3 of 4 on" told the reader the fourth was
       // off when the honest answer was that nobody knew (v2.95.4).

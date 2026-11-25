@@ -1336,7 +1336,7 @@
         if (sigen.enabled === false) return "the Sigen device is disabled in Indigo";
         if (String(sigen.errorState || "").trim()) return "the Sigen device is reporting an error";
         if (sigenAt && nowMs - sigenAt > SIGEN_API_STALE_MS) return "SigenEnergyManager is not answering";
-        const lc = Date.parse(sigen.lastChanged || "");
+        const lc = DashUI.serverTime(sigen.lastChanged);
         if (isFinite(lc) && nowMs - lc > SIGEN_DEVICE_STALE_MS) return "the Sigen readings have stopped changing";
         return "";
     }
@@ -1407,7 +1407,7 @@
         const flowEl  = document.getElementById("hub-flow");
         if (flowEl) flowEl.style.opacity = notLive ? "0.45" : "";
         const staleRow = notLive
-            ? `<div class="row"><span class="key">Not live</span><span class="val muted">${escapeAttr(notLive)}${sigen.lastChanged ? ", last change " + escapeAttr(DashUI.ago(sigen.lastChanged)) + " ago" : ""}</span></div>`
+            ? `<div class="row"><span class="key">Not live</span><span class="val muted">${escapeAttr(notLive)}${sigen.lastChanged ? ", last change " + escapeAttr(DashUI.ago(sigen.lastChanged)) : ""}</span></div>`
             : "";
         if (_energyFlow) {
             // Same sub-lines the energy page shows, so the two read alike.
@@ -2054,6 +2054,18 @@
         if (el.innerHTML !== html) el.innerHTML = html;
     }
 
+    /* Why a hub tile cannot show a device as live, said as a tile says it
+       ("" when it can): the room page's own rule, DashTile.unknownReason.
+       Until 3.73.4 the hub knew only "disabled", so the Qashqai 12V tile
+       went on showing the last voltage in its green band while the car was
+       away, and the Front Door read "Locked" over a lock in error. */
+    function favNotLive(d) {
+        if (!d) return "";
+        const why = (typeof DashTile !== "undefined" && DashTile.unknownReason) ? DashTile.unknownReason(d)
+                  : (d.enabled === false ? "disabled" : String(d.errorState || "").trim() ? "error" : "");
+        return why ? why.charAt(0).toUpperCase() + why.slice(1) : "";
+    }
+
     function renderAlertsCard(devices) {
         const el = document.getElementById("alerts-strip");
         if (!el) return;
@@ -2071,11 +2083,10 @@
         // Readable = enabled, no errorState, a real boolean. Anything else is
         // UNKNOWN, and "All 12 closed" must never be asserted over a sensor
         // that cannot report (v2.95.3).
-        const readable = contacts.filter(d => d.enabled !== false && !(d.errorState || "").trim()
-                                           && typeof d.onState === "boolean");
+        const readable = contacts.filter(d => !favNotLive(d) && typeof d.onState === "boolean");
         const unreadable = contacts.length - readable.length;
         const open = readable.filter(d => DashAction.truthy(d.onState) === true)
-                             .sort((a, b) => (Date.parse(b.lastChanged || 0) || 0) - (Date.parse(a.lastChanged || 0) || 0));
+                             .sort((a, b) => (DashUI.serverTime(b.lastChanged) || 0) - (DashUI.serverTime(a.lastChanged) || 0));
         // No sensors, or none that can report, is never an all-clear: the
         // green tick belongs only to a real count of closed contacts.
         if (!contacts.length) {
@@ -2275,13 +2286,19 @@
                 let t = { key: "unknown", label: "—", intent: null };
                 if (f.lockId) {
                     const lk = byId.get(Number(f.lockId));
-                    const contactRaw = (d && d.states) ? d.states[f.state || "onOffState"] : undefined;
-                    const lockRaw = (lk && lk.states) ? lk.states.onOffState : undefined;
+                    // A frozen contact or lock is unknown, whatever it last
+                    // said: the tile names the reason and offers no press.
+                    const dWhy = favNotLive(d), lWhy = favNotLive(lk);
+                    const contactRaw = (!dWhy && d && d.states) ? d.states[f.state || "onOffState"] : undefined;
+                    const lockRaw = (!lWhy && lk && lk.states) ? lk.states.onOffState : undefined;
                     if (window.DashAction && DashAction.lockTile) t = DashAction.lockTile(contactRaw, lockRaw);
+                    if (t.key === "unknown" && (dWhy || lWhy)) t = { key: "unknown", label: dWhy || lWhy, intent: null };
                 } else {
-                    const raw = (d && d.states) ? d.states[f.state || "doorState"] : undefined;
+                    const dWhy = favNotLive(d);
+                    const raw = (!dWhy && d && d.states) ? d.states[f.state || "doorState"] : undefined;
                     const dirRaw = (d && d.states) ? d.states[f.directionState || "direction"] : undefined;
-                    if (window.DashAction && DashAction.doorTileRemembered) t = DashAction.doorTileRemembered(did, raw, dirRaw);
+                    if (dWhy) t = { key: "unknown", label: dWhy, intent: null };
+                    else if (window.DashAction && DashAction.doorTileRemembered) t = DashAction.doorTileRemembered(did, raw, dirRaw);
                 }
                 const dname = f.label || (d && d.name) || "Door";
                 return `<button class="fav-tile fav-door fav-door-${t.key}" data-fav-type="door" data-fav-id="${escapeAttr(f.id)}" data-door-intent="${t.intent || ""}" data-dsh-act-key="door:${escapeAttr(f.id)}">
@@ -2312,8 +2329,9 @@
                           : (st[f.state] != null ? st[f.state] : null);
                 // A disabled device's reading is frozen at whenever it stopped:
                 // say so rather than show a months-old value as current.
-                const rdead = !!(d && d.enabled === false);
-                const valTxt = rdead ? "Disabled"
+                const rwhy = favNotLive(d);
+                const rdead = !!rwhy;
+                const valTxt = rdead ? rwhy
                              : (raw == null || raw === "") ? "—" : (spokenWhen(raw) || String(raw));
                 const rname = f.label || (d && d.name) || ("#" + f.id);
                 // v2.77.0: optional colour bands. Compared against the RAW
@@ -2321,7 +2339,10 @@
                 // number). An unreadable value gets no colour, not a guess.
                 let valCls = "";
                 const wb = Number(f.warnBelow), bb = Number(f.badBelow);
-                const num = Number(st[f.state]);
+                // An empty state is not zero: Number("") is 0, which painted
+                // a red dash on a tile with nothing to show.
+                const rawNum = st[f.state];
+                const num = (rawNum == null || rawNum === "") ? NaN : Number(rawNum);
                 if (!rdead && Number.isFinite(num) && (Number.isFinite(wb) || Number.isFinite(bb))) {
                     if (Number.isFinite(bb) && num < bb) valCls = " fav-val-bad";
                     else if (Number.isFinite(wb) && num < wb) valCls = " fav-val-warn";
@@ -2340,12 +2361,14 @@
             // the field looked broken. With no label the live name still shows,
             // so an untouched favourite keeps following Indigo renames.
             const name = f.label || (d && d.name) || ("#" + f.id);
-            const st = d ? DashAction.truthy(d.onState) : null;
+            // A disabled, errored or unanswering device's state is frozen and
+            // a tap would be swallowed; a device with no boolean state cannot
+            // be "Off" (v2.95.3, widened 3.73.4).
+            const dwhy = favNotLive(d);
+            const dead = !!dwhy;
+            const st = (d && !dead) ? DashAction.truthy(d.onState) : null;
             const on = st === true;
-            // A disabled device's state is frozen and a tap would be swallowed;
-            // a device with no boolean state cannot be "Off" (v2.95.3).
-            const dead = !!(d && d.enabled === false);
-            const stateTxt = !d ? "—" : dead ? "Disabled"
+            const stateTxt = !d ? "—" : dead ? dwhy
                            : (st === true ? "On" : st === false ? "Off" : "—");
             return `<button class="fav-tile${on ? " on" : ""}${dead ? " off-line" : ""}" data-fav-type="device" data-fav-id="${escapeAttr(f.id)}" data-fav-dead="${dead ? 1 : 0}" data-dsh-act-key="device:${escapeAttr(f.id)}">
                 <span class="fav-name">${escapeAttr(name)}</span>

@@ -973,6 +973,12 @@
   function localStamp(text) {
     var m = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/.exec(String(text || '').trim());
     if (!m) return null;
+    // In the SERVER's zone where the page can tell (3.73.4): abroad, the
+    // charger always read "No recent report".
+    if (typeof DashUI !== 'undefined' && DashUI && DashUI.serverTime) {
+      var t = DashUI.serverTime(m[0]);
+      return isNaN(t) ? null : t;
+    }
     return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]).getTime();
   }
 

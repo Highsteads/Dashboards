@@ -60,7 +60,7 @@ await section(async () => {
     vm.createContext(ctx);
     vm.runInContext("let ROOMS = null;\n" + (src.match(/let _roomsAt = 0, _roomsFails = 0;/) || [""])[0] + "\n"
         + extractFn(src, "loadRooms") + "\n" + extractFn(src, "maybeRetryRooms") + "\n"
-        + extractFn(src, "renderAlertsCard")
+        + extractFn(src, "favNotLive") + "\n" + extractFn(src, "renderAlertsCard")
         + "\nglobalThis.__h = { loadRooms, maybeRetryRooms, renderAlertsCard, rooms: () => ROOMS, setRooms: r => { ROOMS = r; } };", ctx);
     const H = ctx.__h;
     await H.loadRooms();
@@ -109,7 +109,7 @@ await section(async () => {
     };
     vm.createContext(ctx);
     vm.runInContext((src.match(/const asBool = [^\n]+\n/) || [""])[0] + "let DEVCOUNTS = null;\n"
-        + extractFn(src, "spokenWhen") + "\n" + extractFn(src, "hidePinnedNavCards") + "\n" + extractFn(src, "renderFavouritesCard") + "\n" + extractFn(src, "renderHousePulse")
+        + extractFn(src, "spokenWhen") + "\n" + extractFn(src, "hidePinnedNavCards") + "\n" + extractFn(src, "favNotLive") + "\n" + extractFn(src, "renderFavouritesCard") + "\n" + extractFn(src, "renderHousePulse")
         + "\nglobalThis.__h = { renderFavouritesCard, renderHousePulse };", ctx);
     ctx.window.INDIGO_CONFIG.favourites = [{ type: "device", id: 5, state: "voltage", label: "Mains", warnBelow: 230 }];
     ctx.__h.renderFavouritesCard([{ id: 5, name: "Meter", enabled: false, states: { voltage: 241.3 } }]);
@@ -193,7 +193,7 @@ await section(async () => {
     vm.createContext(box);
     vm.runInContext(read("dashboards-action.js"), box);
     vm.runInContext(read("dashboards-controls.js"), box);
-    vm.runInContext(["renderLight", "renderMotion", "focusSelector"].map(n => extractFn(src, n)).join("\n")
+    vm.runInContext(["renderLight", "tileAge", "renderMotion", "focusSelector"].map(n => extractFn(src, n)).join("\n")
         + "\nglobalThis.__R = { renderLight, renderMotion, focusSelector };", box);
     const R = box.__R;
     const h = R.renderLight({ id: 3, name: "Hall <Lamp>", class: "Dimmer", enabled: true, onState: true, brightness: 40, states: {} });
@@ -385,6 +385,7 @@ await section(async () => {
     const ctx = { console, Date, Math, String, parseFloat, isFinite, isNaN, JSON, Object, window: {} };
     ctx.window = ctx;
     ctx.document = { getElementById: () => null, createElement: () => ({ style: {} }), head: { appendChild() {} } };
+    ctx.DashUI = ctx.DashUI || { serverTime: v => Date.parse(String(v || "").replace(" ", "T")) };
     vm.createContext(ctx);
     vm.runInContext(read("dashboards-action.js"), ctx);
     vm.runInContext(read("dashboards-controls.js"), ctx);
@@ -464,6 +465,7 @@ console.log("\n[77] Weather: 'Solar now' and 'Roof vs sky' only from a live inve
 await section(async () => {
     const src = code("ecowitt.html");
     const ctx = { Date, String, parseFloat, isFinite, isNaN, Math, escapeHtml: esc, ARRAY_KWP: 14,
+                  DashUI: { serverTime: v => Date.parse(String(v || "").replace(" ", "T")) },
                   num: (s, k) => (s[k] == null ? null : Number(s[k])), uvLabel: u => String(u),
                   weatherCard: (id, t, head, rows) => rows.map(r => r.join(": ")).join(" | ") };
     vm.createContext(ctx);

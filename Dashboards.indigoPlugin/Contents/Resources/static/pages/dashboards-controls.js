@@ -15,7 +15,8 @@
  *                zone.render(d, opts) / zone.bump(id, dir) and the helpers
  * Author:      CliveS & Claude Opus 5.5
  * Date:        23-09-2026
- * Version:     1.4 (a room held by hand says until when); 1.3 (a run of setpoint taps
+ * Version:     1.5 (one "cannot be believed" rule, not answering included; the zone tile uses it;
+ *              server times read in the server's zone); 1.4 (a room held by hand says until when); 1.3 (a run of setpoint taps
  *              sends one command; a gateway that is offline is said at once); 1.2 (only the last setpoint press checks); 1.1 (pressDevice)
  */
 (function (root) {
@@ -62,13 +63,17 @@
     return true;
   }
 
-  /* Why a tile cannot show a device as live: 'disabled', 'error', or ''.
-     The room page's motion tile had this rule; light, sensor and appliance
-     tiles painted a disabled device's frozen state as current. */
+  /* Why a tile cannot show a device as live: 'disabled', 'error',
+     'not answering', or ''. The room page's motion tile had this rule; light,
+     sensor and appliance tiles painted a disabled device's frozen state as
+     current. 3.73.4 adds 'not answering': a Shelly that has dropped off the
+     network keeps its last on/off and watts with an EMPTY errorState, so
+     isReachable had to be part of the one rule every tile asks. */
   function unknownReason(d) {
     if (!d) return 'no reading';
     if (d.enabled === false) return 'disabled';
     if (String(d.errorState || '').trim()) return 'error';
+    if (!isReachable(d)) return 'not answering';
     return '';
   }
 
@@ -242,7 +247,10 @@
     return null;
   }
   function setpoint(d) {
-    if (d.setpointHeat != null) return parseFloat(d.setpointHeat);
+    if (d.setpointHeat != null) {
+      var own = parseFloat(d.setpointHeat);
+      if (!isNaN(own)) return own;      // "n/a" is no setpoint, not NaN degrees
+    }
     var n = parseFloat((d.states || {}).setpointHeat);
     return isNaN(n) ? null : n;
   }
@@ -270,7 +278,10 @@
   function lastSeen(d) {
     var v = (d.states || {}).lastSeen;
     if (!v) return null;
-    var t = Date.parse(String(v).replace(' ', 'T'));
+    // Read in the SERVER's zone (DashUI.serverTime): read in the browser's,
+    // every valve looked eleven hours silent from Australia.
+    var t = (root.DashUI && root.DashUI.serverTime) ? root.DashUI.serverTime(v)
+                                                    : Date.parse(String(v).replace(' ', 'T'));
     return isNaN(t) ? null : t;
   }
   function shownSetpoint(d) {
@@ -287,13 +298,24 @@
   function renderZone(d, opts) {
     opts = opts || {};
     var cur = currentTemp(d), actualSp = setpoint(d), sp = shownSetpoint(d);
-    var hot = heating(d);
     var s = d.states || {};
+    // A zone that cannot be believed says so (3.73.4). Its last temperature
+    // stays, greyed, but it claims no call for heat: a disabled valve, one in
+    // error or one whose gateway has gone was drawn as live, flame and all.
+    var why = unknownReason(d);
+    var gwOff = !why && (String(s.gatewayStatus == null ? '' : s.gatewayStatus).toLowerCase() === 'offline'
+                         || String(s.online == null ? '' : s.online).toLowerCase() === 'false');
+    var notLive = !!why || gwOff;
+    var hot = !notLive && heating(d);
     var valve = parseFloat(s['valve-position'] || s.valvePosition || 0);
     var humidity = parseFloat(s.humidityInput1);
     // hvacMode is the system's heat/off setting, "Heat" on every RAMSES zone,
     // so it is only worth saying when it is Off.
-    var status = /off/i.test(d.hvacMode || '') ? 'Off' : (hot ? 'Calling for heat' : 'Not calling for heat');
+    var status = why === 'disabled' ? 'Disabled in Indigo'
+               : why === 'error' ? 'The device reports an error'
+               : why ? 'Not answering'
+               : gwOff ? 'Heating gateway offline'
+               : /off/i.test(d.hvacMode || '') ? 'Off' : (hot ? 'Calling for heat' : 'Not calling for heat');
     var meta = [esc(status)];
     var held = holdText(d.id);
     if (held) meta.push('<span class="zone-hold">' + esc(held) + '</span>');
@@ -306,13 +328,15 @@
       meta.push('<span class="trv-age' + (stale ? ' stale' : '') + '">' + (stale ? icon('warn') + ' ' : '') +
                 'heard ' + esc(ago) + '</span>');
     }
-    var dis = sp == null ? ' disabled' : '';
+    // Buttons go for a zone Indigo will not command. Behind an offline
+    // gateway they stay: the press explains itself in a sentence (bump).
+    var dis = (sp == null || why) ? ' disabled' : '';
     var name = esc(opts.name != null ? opts.name : d.name);
     var info = opts.info
       ? '<button class="info-btn" aria-label="Details for ' + name + '" onclick="event.stopPropagation(); openDeviceDetails(' + d.id + ')">&#9432;</button>'
       : '';
     return '' +
-      '<div class="zone' + (hot ? ' heating' : '') + '" data-dsh-act-key="device:' + d.id + '">' +
+      '<div class="zone' + (hot ? ' heating' : '') + (notLive ? ' unknown' : '') + '" data-dsh-act-key="device:' + d.id + '">' +
         '<div class="zone-head">' +
           '<div class="name-row"><div class="zone-name">' + (opts.history ?
             '<a class="zone-history-link" href="heating.html?zone=' + Number(d.id) + '">' + name + '</a>' : name) + '</div>' + info + '</div>' +

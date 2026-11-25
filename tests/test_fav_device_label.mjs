@@ -70,6 +70,7 @@ const ctx = vm.createContext({
 });
 vm.runInContext(extractFn(src, "spokenWhen"), ctx);   // v3.23.0 helper the reading tile calls
 vm.runInContext(extractFn(src, "hidePinnedNavCards"), ctx);   // 3.68.0 helper the renderer calls
+vm.runInContext(extractFn(src, "favNotLive"), ctx);           // 3.73.4 helper the renderer calls
 vm.runInContext(extractFn(src, "renderFavouritesCard"), ctx);
 
 function render(favs, devices) {

@@ -184,6 +184,7 @@ ctx.DashAction.repaint = () => {};
 vm.runInContext("const _doorLast = new Map();", ctx);
 vm.runInContext(extractFn(pageSrc, "spokenWhen"), ctx);   // v3.23.0 helper the reading tile calls
 vm.runInContext(extractFn(pageSrc, "hidePinnedNavCards"), ctx);   // 3.68.0 helper the renderer calls
+vm.runInContext(extractFn(pageSrc, "favNotLive"), ctx);           // 3.73.4 helper the renderer calls
 vm.runInContext(extractFn(pageSrc, "renderFavouritesCard"), ctx);
 
 function render(favs, devices) {

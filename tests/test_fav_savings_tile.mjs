@@ -64,7 +64,7 @@ const ctx = vm.createContext({
     escapeAttr: s => String(s == null ? "" : s).replace(/&/g, "&amp;")
         .replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"),
     DashAction: { repaint: () => {}, truthy: v => v === true },
-    hidePinnedNavCards: () => {},
+    hidePinnedNavCards: () => {}, favNotLive: () => "",
     _msg: async (name) => { asked++; return name === "savingsReport" ? reply : null; },
     setTimeout: (fn, ms) => { timers.push(ms); },
 });

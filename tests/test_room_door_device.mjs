@@ -53,6 +53,8 @@ const ctx = vm.createContext({ console });
 // The real DashAction — doorTile() is the decision this tile rests on, so the
 // test must use the shipped one, not a stand-in that could drift from it.
 vm.runInContext(fs.readFileSync(ACTION, "utf8"), ctx);
+// And the real DashTile: the tile asks it whether the door device can be believed (3.73.4).
+vm.runInContext(fs.readFileSync(ACTION.replace("dashboards-action.js", "dashboards-controls.js"), "utf8"), ctx);
 vm.runInContext("var window = this; var escapeHtml = s => String(s == null ? '' : s)" +
                 ".replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')" +
                 ".replace(/\"/g,'&quot;');", ctx);

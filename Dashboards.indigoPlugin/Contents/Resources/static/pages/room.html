@@ -755,8 +755,10 @@
         const windows   = devices.filter(d => WINDOW_IDS.has(d.id)).sort(bySection("windows"));
         const sensors   = devices.filter(d => SENSOR_IDS.has(d.id)).sort(bySection("sensors"));
 
-        const tvOnCount = tv.filter(d => DashTile.isOn(d.onState)).length;
-        const tvAllOn   = tv.length > 0 && tvOnCount === tv.length;
+        // A frozen device (disabled, in error, not answering) decides nothing.
+        const tvLive    = tv.filter(decides);
+        const tvOnCount = tvLive.filter(d => DashTile.isOn(d.onState)).length;
+        const tvAllOn   = tvLive.length > 0 && tvOnCount === tvLive.length;
 
         let html = "";
 
@@ -796,7 +798,7 @@
             // fire's permanently-"off" belief meant this never once read
             // "All Off" while the fire was lit from its handset — so the one
             // press that would have turned it off was never on offer.
-            const readable    = others.filter(d => !OPEN_LOOP_IDS.has(d.id));
+            const readable    = others.filter(d => !OPEN_LOOP_IDS.has(d.id) && decides(d));
             const allOthersOn = readable.length > 0 && readable.every(d => DashTile.isOn(d.onState));
             const lbl = allOthersOn ? "All Off" : "All On";
             html += renderSectionHeader(
@@ -842,7 +844,10 @@
 
         if (motion.length) {
             html += renderSectionHeader("Motion");
-            html += '<div class="grid">' + motion.map(renderMotion).join("") + '</div>';
+            // d => renderMotion(d), never renderMotion itself: Array.map hands the
+            // INDEX on as the second argument, which renderMotion takes as its
+            // wording, so every motion tile after the first had no state word.
+            html += '<div class="grid">' + motion.map(d => renderMotion(d)).join("") + '</div>';
         }
 
         // Sensors get a row of their own only in a room with no window or
@@ -995,7 +1000,7 @@
                     </div>
                     <label class="toggle" onclick="event.stopPropagation()">
                         <input type="checkbox" data-id="${d.id}" aria-label="${escapeHtml(prettyLightName(d.name))}" ${onState ? 'checked' : ''}
-                               ${why ? `disabled aria-disabled="true" title="${why === "disabled" ? "Disabled in Indigo" : "The device reports an error"}"` : ""}
+                               ${why ? `disabled aria-disabled="true" title="${why === "disabled" ? "Disabled in Indigo" : why === "error" ? "The device reports an error" : "The device is not answering"}"` : ""}
                                onchange="DashTile.toggle(this)">
                         <span class="slider"></span>
                     </label>
@@ -1087,6 +1092,16 @@
         return { on: "Motion", off: "Clear" };
     }
 
+    // The age a sensor tile shows. Indigo's lastChanged moves on ANY state
+    // write (a battery or link report, a bridge-wide refresh), so a window
+    // closed for days read "Closed · 3m ago". A device that says when it was
+    // last heard (Zigbee2MQTT's lastSeen) shows that instead, and says "heard".
+    function tileAge(d) {
+        const seen = (d.states || {}).lastSeen;
+        if (seen && isFinite(DashUI.serverTime(seen))) return "heard " + formatWhen(seen);
+        return formatWhen(d.lastChanged);
+    }
+
     // Three-valued (v2.95.3): true, false, or UNKNOWN. A window contact that
     // never reported, is disabled for a battery change, or whose plugin has
     // stopped used to paint a confident "Closed" — the None == False trap.
@@ -1105,7 +1120,7 @@
                                 onclick="event.stopPropagation(); openDeviceDetails(${d.id})">&#9432;</button>
                     </div>
                     <div class="motion-state">
-                        ${escapeHtml(stateTxt)} · ${escapeHtml(formatWhen(d.lastChanged))}
+                        ${escapeHtml(stateTxt)} · ${escapeHtml(tileAge(d))}
                     </div>
                 </div>
                 <div class="motion-dot"></div>
@@ -1443,12 +1458,16 @@
     function renderStateDoorTile(door, devices, compact) {
         const did = Number(door.deviceId);
         const d   = devices.find(x => x.id === did);
-        const raw = (d && d.states) ? d.states[door.state || "doorState"] : undefined;
-        let t = { key: "unknown", label: "—", intent: null };
+        // A door device that is disabled, in error or missing holds a frozen
+        // state: the tile says why and offers nothing (3.73.4). It used to
+        // read "Closed, Press to Open" from whatever the device last said.
+        const why = DashTile.unknownReason(d);
+        const raw = (!why && d && d.states) ? d.states[door.state || "doorState"] : undefined;
+        let t = { key: "unknown", label: why ? why.charAt(0).toUpperCase() + why.slice(1) : "—", intent: null };
         // One memory of each door's last settled state, shared with the hub
         // (v3.41.0), so "moving" can be named Opening… or Closing….
         const dirRaw = (d && d.states) ? d.states[door.directionState || "direction"] : undefined;
-        if (window.DashAction && DashAction.doorTileRemembered) t = DashAction.doorTileRemembered(did, raw, dirRaw);
+        if (!why && window.DashAction && DashAction.doorTileRemembered) t = DashAction.doorTileRemembered(did, raw, dirRaw);
 
         const label  = door.label || (d && d.name) || "Door";
         const action = t.intent === "open"  ? "Press to Open"
@@ -1894,6 +1913,10 @@
         }
     }
 
+    // May this device help decide an All On / All Off button? Not when its
+    // state is frozen: disabled, in error or not answering (3.73.4).
+    function decides(d) { return !!d && !DashTile.unknownReason(d); }
+
     async function toggleLights() {
         // Smart toggle: if every READABLE non-main light is on, turn ALL off.
         // Otherwise turn ALL on. Decided from the rendered DOM so the action
@@ -1906,7 +1929,7 @@
         // so a configured light missing from the feed flipped "All Off" into
         // turning everything on.
         const feed = (typeof window !== "undefined" && Array.isArray(window.__lastDevices)) ? window.__lastDevices : null;
-        const present = feed ? deciders.map(id => feed.find(d => d.id === id)).filter(Boolean) : [];
+        const present = feed ? deciders.map(id => feed.find(d => d.id === id)).filter(decides) : [];
         const allOn = feed
             ? (present.length > 0 && present.every(d => DashTile.isOn(d.onState)))
             : (deciders.length > 0 && deciders.every(id => {      // no feed yet: the rendered toggles
@@ -1942,13 +1965,18 @@
     }
 
     async function toggleTv() {
-        // Smart toggle: if any TV device is on, turn ALL off; else turn ALL on.
-        // Decide based on the latest rendered DOM toggle state (matches what the user sees).
+        // Smart toggle: if any believable TV device is on, turn ALL off; else
+        // turn ALL on. Decided from the feed by the label's own rule (decides):
+        // read from the DOM, a disabled set drawn unchecked while frozen "on"
+        // made the button say All Off and switch everything on (3.73.4).
         const ids = Array.from(TV_IDS);
-        const anyOn = ids.some(id => {
-            const cb = document.querySelector(`.toggle input[data-id="${id}"]`);
-            return cb && cb.checked;
-        });
+        const feed = (typeof window !== "undefined" && Array.isArray(window.__lastDevices)) ? window.__lastDevices : null;
+        const anyOn = feed
+            ? feed.some(d => TV_IDS.has(d.id) && decides(d) && DashTile.isOn(d.onState))
+            : ids.some(id => {
+                const cb = document.querySelector(`.toggle input[data-id="${id}"]`);
+                return cb && cb.checked;
+            });
         const fn = anyOn ? "turnOff" : "turnOn";
         await sendToAll("room:tv", ids, fn);
     }

@@ -16,6 +16,7 @@ except ImportError:
 import json
 import os
 import shutil
+import time
 
 from dash_common import (
     CAMERA_POLL_SECONDS,
@@ -223,7 +224,31 @@ class PublishMixin:
             # page asks for it only where it exists, rather than 404ing (which
             # IWS logs) on every room view of every other install.
             "catalog":         self._catalog_published(),
+            # 3.73.4: Indigo's times carry no zone, and a page read them in
+            # the browser's. The zone name where this Mac gives one, and the
+            # offset now for a browser that cannot use it. Here, with the
+            # flags, so the tick rewrites config.js when the clocks change.
+            "serverTz":           self._server_zone()[0],
+            "serverUtcOffsetMin": self._server_zone()[1],
         }
+
+    @staticmethod
+    def _server_zone():
+        """(IANA zone name or "", minutes east of UTC now or None) for this
+        Mac. The name comes from where /etc/localtime points; a Mac that
+        does not say gets "" and the pages use the offset alone."""
+        try:
+            off = int(time.localtime().tm_gmtoff // 60)
+        except Exception:
+            off = None
+        name = ""
+        try:
+            real = os.path.realpath("/etc/localtime")
+            if "/zoneinfo/" in real:
+                name = real.split("/zoneinfo/", 1)[1].strip("/")
+        except Exception:
+            name = ""
+        return name, off
 
     def _catalog_published(self):
         """True when a catalog.json sits in the public dashboards folder."""

@@ -72,7 +72,7 @@ const ctx = vm.createContext({
     DashAction: { repaint: () => {}, truthy: v => v === true },
 });
 vm.runInContext(extractConst(src, "FAV_PAGE_NOTES"), ctx);
-for (const fn of ["spokenWhen", "hidePinnedNavCards", "renderFavouritesCard"]) vm.runInContext(extractFn(src, fn), ctx);
+for (const fn of ["spokenWhen", "hidePinnedNavCards", "favNotLive", "renderFavouritesCard"]) vm.runInContext(extractFn(src, fn), ctx);
 vm.runInContext("renderFavouritesCard([{ id: 1, name: 'Car', states: { voltage: 12.7 } }])", ctx);
 const html = host.innerHTML;
 const mainRow = html.slice(0, html.indexOf("fav-grid-rooms"));

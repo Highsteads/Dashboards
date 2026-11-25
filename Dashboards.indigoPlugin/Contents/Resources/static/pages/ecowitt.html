@@ -584,7 +584,7 @@
         const w = parseFloat((dev.states || {}).pvPowerWatts);
         if (dev.enabled === false) return { w: null, why: "the inverter device is disabled" };
         if (String(dev.errorState || "").trim()) return { w: null, why: "the inverter reports an error" };
-        const at = Date.parse(String(dev.lastSuccessfulComm || "").replace(" ", "T"));
+        const at = DashUI.serverTime(dev.lastSuccessfulComm);
         if (isFinite(at) && nowMs - at > SIGEN_STALE_MS) return { w: null, why: "no reading from the inverter lately" };
         return isNaN(w) ? null : { w, why: "" };
     }

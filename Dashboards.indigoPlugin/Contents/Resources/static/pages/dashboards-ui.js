@@ -45,6 +45,49 @@
     return String(t == null ? '' : t).replace(/[&<>"']/g, function (c) { return ESC_MAP[c]; });
   }
 
+  /* A time from the Indigo server, as epoch milliseconds (3.73.4). Indigo
+     sends "2026-11-25T23:12:32" and its plugins "2026-11-25 23:12:32": the
+     server's own wall clock with no zone. Date.parse reads that in the
+     BROWSER's zone, so from a phone in Sydney every age was eleven hours
+     out, every radiator read as not heard for hours and the hub's energy
+     card went "Not live". config.js now carries the server's zone name
+     (serverTz) and its offset now (serverUtcOffsetMin); the zone is used
+     where the browser knows it, so a time from the other side of a clock
+     change is right too. With neither (an older plugin) the browser's own
+     reading stands, as before. A time that names its zone is left alone.
+     Returns NaN for anything that is not a time. */
+  var _zoneFmt = {};
+  function zoneOffsetMin(zone, utcMs) {
+    try {
+      var f = _zoneFmt[zone] || (_zoneFmt[zone] = new Intl.DateTimeFormat('en-GB', {
+        timeZone: zone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+      var p = {};
+      f.formatToParts(new Date(utcMs)).forEach(function (x) { p[x.type] = x.value; });
+      var wall = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute, +p.second);
+      return Math.round((wall - Math.floor(utcMs / 1000) * 1000) / 60000);
+    } catch (e) { return null; }
+  }
+  function serverTime(v) {
+    if (v == null || v === '') return NaN;
+    if (typeof v === 'number') return v;
+    var s = String(v).trim();
+    var m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?$/.exec(s);
+    if (!m) return Date.parse(s);
+    var cfg = root.INDIGO_CONFIG || {};
+    var wall = Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0));
+    var off = null;
+    if (cfg.serverTz && typeof Intl !== 'undefined') {
+      off = zoneOffsetMin(cfg.serverTz, wall);
+      if (off != null) off = zoneOffsetMin(cfg.serverTz, wall - off * 60000);
+    }
+    if (off == null && typeof cfg.serverUtcOffsetMin === 'number' && isFinite(cfg.serverUtcOffsetMin)) {
+      off = cfg.serverUtcOffsetMin;
+    }
+    if (off == null) return Date.parse(s.replace(' ', 'T'));
+    return wall - off * 60000;
+  }
+
   /* How long ago, said ONE way (v3.28.0). Five page-local copies disagreed:
      some rounded (1 h 40 m read "2h ago" on a room page) and some rounded
      down (the same age read "1h ago" on Heating). Now every figure rounds
@@ -61,7 +104,7 @@
     if (typeof when === 'number') {
       ms = when;
     } else {
-      var t = Date.parse(when || '');
+      var t = serverTime(when);
       if (isNaN(t)) return (o.bad != null) ? o.bad : (when ? String(when) : '');
       ms = now - t;
     }
@@ -1680,6 +1723,7 @@
     cssVar: cssVar,
     esc: esc,
     ago: ago,
+    serverTime: serverTime,
     setText: setText,
     tweenNumber: tweenNumber,
     reducedMotion: reducedMotion,

@@ -192,6 +192,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_scripts_match_live.py` | The companion scripts this repo ships in scripts/ must be the |
 | `test_security.py` | Regression tests for the /public credential-leak fixes. The |
 | `test_self_suff_reason.mjs` | v3.40.0. A low self-sufficiency figure on a day the grid |
+| `test_server_zone.py` | config.js tells the pages which zone the server's clock is in |
 | `test_settings_door_passthrough.mjs` | Contract test for the Settings page carrying a room door it |
 | `test_settings_fav_passthrough.mjs` | Contract test for the settings editor carrying favourites it |
 | `test_settings_other_camera.mjs` | The Settings page's camera table and the "other" make (3.52.0). |
@@ -215,6 +216,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_tap_guard.mjs` | Contract test for the tap guard and press feedback in |
 | `test_test_index.py` | tests/README.md lists every test file (v3.25.0). It had fallen |
 | `test_tick_script.py` | The shared companion-script runner (v2.95.2) and the poller's |
+| `test_tiles_not_live.mjs` | A tile must not show a reading nobody has measured (3.73.4). |
 | `test_timeline.py` | Contract test for the timeline-replay helpers (v2.40.0): |
 | `test_timeline_carry.py` | The Timeline page's "state at the start of the day" query must |
 | `test_timeline_clock_change.py` | On the two clock-change days the Timeline and the solar hours |
