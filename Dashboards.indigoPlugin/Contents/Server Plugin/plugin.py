@@ -2595,7 +2595,10 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
             elif src == "Application" and low.startswith("started plugin"):
                 cat = "system"          # one clean line per restart, not the full 5-line lifecycle
             if cat and not self._ACTIVITY_TRACE_RE.search(msg):
-                disp = (msg[:self._ACTIVITY_MAX_MSG - 1] + "…") if len(msg) > self._ACTIVITY_MAX_MSG else msg
+                # A lock's log line can carry a door code ("Setting PIN ..."),
+                # and nothing scrubbed the Diary (review 26-11-2026).
+                shown = self._scrub_codes(msg) if cat == "lock" else msg
+                disp = (shown[:self._ACTIVITY_MAX_MSG - 1] + "…") if len(shown) > self._ACTIVITY_MAX_MSG else shown
                 # Collapse repeats the same way alerts do: digits normalised in
                 # the KEY only, so "Door locked manually [Node: 44]" three times
                 # is one row with a count rather than three identical rows.
@@ -2633,6 +2636,29 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
             lbl = ""
         return {"person": m.group(1).strip(), "slot": int(m.group(2)), "label": lbl}
 
+    @staticmethod
+    def _scrub_codes(msg):
+        """A lock's log line with any door code masked. Four or more digits
+        in a row are masked anywhere; beside the word PIN or code, three or
+        more are. Node and user numbers ("Node: 44", "user 3") are left."""
+        text = str(msg or "")
+        text = re.sub(r"\d{4,}", "****", text)
+        if re.search(r"\b(pin|code)s?\b", text, re.I):
+            text = re.sub(r"\d{3,}", "***", text)
+        return text
+
+    @classmethod
+    def _safe_automation_name(cls, name):
+        """A trigger's name as the browser may see it. A door-code trigger
+        ("Lock <person> Front Door Unlock Code (<slot>) <label>") is rebuilt
+        from its parsed parts, so a code kept in the label is dropped here as
+        it is in the roster. The switched-off list used to send the raw name."""
+        info = cls._parse_lock_code_trigger(name)
+        if not info:
+            return name
+        label = f" {info['label']}" if info["label"] else ""
+        return f"Lock {info['person']} Front Door Unlock Code ({info['slot']}){label}"
+
     def _activity_automation(self):
         """Schedules due next, the error-watch triggers, what's switched off,
         and the per-person door-code roster (parsed from trigger names)."""
@@ -2662,7 +2688,7 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
             trig_total += 1
             if not t.enabled:
                 trig_off += 1
-                disabled.append({"name": t.name, "kind": "trigger"})
+                disabled.append({"name": self._safe_automation_name(t.name), "kind": "trigger"})
                 continue
             if (getattr(t, "pluginTypeId", "") or "") == "eventLogError":
                 watchers.append({"name": t.name})

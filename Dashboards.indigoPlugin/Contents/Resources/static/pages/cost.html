@@ -317,7 +317,7 @@ h1 .dsh-icon {width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;
       </div>
       <div class="split-key">
         <span data-help-title="Import avoided" data-help="Units the house used that came from solar or the battery instead of the grid, valued at today's unit rate.">
-          <i style="background:var(--solar)"></i>Import avoided<b id="key-avoided">&#8212;</b>
+          <i style="background:var(--solar)"></i><span id="key-avoided-label">Import avoided</span><b id="key-avoided">&#8212;</b>
         </span>
         <span data-help-title="Export earned" data-help="Units sent to the grid today, valued at the export rate.">
           <i style="background:var(--chart-export)"></i>Export earned<b id="key-export">&#8212;</b>
@@ -457,7 +457,7 @@ h1 .dsh-icon {width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;
   <!-- totals -->
   <div class="sec-label">Totals</div>
   <section class="card">
-    <h2 data-help-title="Period totals" data-help="Roll-ups over rolling 7 days, this calendar month and rolling 365 days. Every historical day is valued at its own saved rate. The row is a sum you can check by eye: solar benefit = grid-only − elec bill + export earned.">Period totals <span class="h2sub">and per-day average</span></h2>
+    <h2 data-help-title="Period totals" data-help="Roll-ups over rolling 7 days, this calendar month and rolling 365 days. Every historical day is valued at its own saved rate. Solar benefit is about grid-only − elec bill + export earned; it can differ by pence, because the bill is Octopus's figure and the benefit comes from the house's own meter.">Period totals <span class="h2sub">and per-day average</span></h2>
     <div class="table-scroll">
     <table class="period-table">
       <thead><tr>
@@ -468,7 +468,7 @@ h1 .dsh-icon {width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;
     </table>
     </div>
     <div class="note">
-      <strong>Solar benefit = Grid-only &minus; Elec bill + Export earned.</strong>
+      <strong>Solar benefit is about Grid-only &minus; Elec bill + Export earned.</strong> It can be a few pence out on a row, because the bill column is Octopus's own figure and the benefit is worked from the house's own meter.
       &ldquo;Grid-only&rdquo; is what the same usage would have cost with no solar behind it, standing charge included.
       &ldquo;Elec bill&rdquo; is the actual whole-house electric cost, unit plus standing.
       &ldquo;Net grid&rdquo; is export earnings minus import unit cost.
@@ -598,6 +598,25 @@ function _wireHelpTips() {
 }
 
 /* ── hero ── */
+
+/* The two halves of today's saving (3.73.5): import not bought, and export
+   earned. The first is grid-only cost less import paid, and it goes NEGATIVE
+   on a day the battery was filled from the grid (most Flux days). It used to
+   be clamped at nought, so the page showed "Import avoided £0.00" and
+   "Export earned £3.11" under a headline of £1.85. Now it carries its sign
+   and a name that fits, and the bar is drawn only when both halves are
+   positive. Returns {avoided, earned, label, bars: [pct, pct]}. */
+function savingSplit(t) {
+  t = t || {};
+  const avoided = (t.no_solar_cost_gbp != null && t.import_cost_gbp != null)
+    ? t.no_solar_cost_gbp - t.import_cost_gbp : null;
+  const earned = t.export_revenue_gbp != null ? t.export_revenue_gbp : null;
+  const neg = avoided != null && avoided < 0;
+  const tot = (avoided || 0) + (earned || 0);
+  const bars = (!neg && !(earned < 0) && tot > 0) ? [(avoided || 0) / tot * 100, (earned || 0) / tot * 100] : [0, 0];
+  return { avoided, earned, label: neg ? "More import than a grid-only day" : "Import avoided", bars };
+}
+
 function renderHero(econ) {
   const t = (econ && econ.today) || {};
   const heroEl = document.getElementById('hero-benefit');
@@ -611,20 +630,13 @@ function renderHero(econ) {
   }
 
   /* The saving has two halves worth seeing apart: the import you did not have
-     to buy, and what the export brought in. */
-  const avoided = (t.no_solar_cost_gbp != null && t.import_cost_gbp != null)
-    ? Math.max(0, t.no_solar_cost_gbp - t.import_cost_gbp) : null;
-  const earned = t.export_revenue_gbp;
-  setText('key-avoided', gbp(avoided));
-  setText('key-export', gbp(earned));
-  const tot = (avoided || 0) + (earned || 0);
-  if (tot > 0) {
-    setBar('split-avoided', (avoided || 0) / tot * 100);
-    setBar('split-export', (earned || 0) / tot * 100);
-  } else {
-    setBar('split-avoided', 0);
-    setBar('split-export', 0);
-  }
+     to buy, and what the export brought in. (See savingSplit.) */
+  const s = savingSplit(t);
+  setText('key-avoided-label', s.label);
+  setText('key-avoided', s.avoided != null && s.avoided < 0 ? gbp(s.avoided, { signed: true }) : gbp(s.avoided));
+  setText('key-export', gbp(s.earned));
+  setBar('split-avoided', s.bars[0]);
+  setBar('split-export', s.bars[1]);
 
   setText('hero-import', gbp(t.import_cost_gbp));
   setText('hero-nosolar', gbp(t.no_solar_cost_gbp));

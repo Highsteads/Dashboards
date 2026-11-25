@@ -178,6 +178,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_release_versions.py` | Keep every user-visible Dashboards version declaration in lock-step. |
 | `test_repo_notes_size.py` | The repo's CLAUDE.md holds CURRENT facts only. It had grown to |
 | `test_review_2026_10_02.py` | Three faults from the independent review of 3.58.1, each one a |
+| `test_review_2026_11_26.py` | Server-side fixes from the 25/26-Nov-2026 deep review that have |
 | `test_room_camera_keyboard.mjs` | A room page's camera card works from the keyboard (3.46.0). |
 | `test_room_door_device.mjs` | Contract test for the ROOM page's state-driven door tile |
 | `test_room_env_battery.mjs` | Contract test for the ROOM page's battery figure on a |
@@ -216,6 +217,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_streams_health_always.py` | streams.json is the only carrier of _cameraHealth, and it was |
 | `test_sync_pages.py` | _sync_pages_to_public — the startup copy of the bundle's pages |
 | `test_system_health_census.py` | System Health (review 24-09-2026): |
+| `test_system_health_truth.mjs` | The System page must not say "All systems healthy" over a |
 | `test_tap_guard.mjs` | Contract test for the tap guard and press feedback in |
 | `test_test_index.py` | tests/README.md lists every test file (v3.25.0). It had fallen |
 | `test_tick_script.py` | The shared companion-script runner (v2.95.2) and the poller's |

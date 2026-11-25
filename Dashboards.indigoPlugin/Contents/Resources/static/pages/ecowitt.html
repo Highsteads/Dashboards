@@ -521,7 +521,7 @@
         const pu = pressUnit(s);
         return weatherCard(d.id, "Indoor", head, [
             h  != null ? ["Humidity", h.toFixed(0) + " %"]    : null,
-            pr != null ? ["Pressure", (pu === "hPa" ? pr.toFixed(0) : pr.toFixed(2)) + " " + pu] : null,
+            pr != null ? ["Pressure", (pu === "hPa" ? pr.toFixed(0) : pr.toFixed(2)) + " " + escapeHtml(pu)] : null,
         ].filter(Boolean));
     }
 

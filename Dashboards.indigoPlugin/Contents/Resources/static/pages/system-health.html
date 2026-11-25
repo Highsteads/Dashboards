@@ -274,13 +274,66 @@ function ditem(name, plugin, value) {
     return `<div class="ditem"><div class="dn"><b>${esc(name)}</b><span>${esc(plugin)}</span></div><div class="dv">${value}</div></div>`;
 }
 
+// The headline: what is wrong, what could not be checked, and the verdict.
+// A check that FAILED or could not measure is an issue of its own (3.73.5).
+// A failed collector arrives as {error: ...} and an unmeasured memory figure
+// as pressure "unknown"; the page read neither, so it said "All systems
+// healthy" and printed four green OK chips over checks that never ran.
+// Returns {issues: [[class, label, "missed" or ""]], worst, verdict, okChecks}.
+function healthIssues(d) {
+    const mac = d.mac || {}, dev = d.devices || {}, svc = d.services || {};
+    const disk = mac.disk || {}, ram = mac.ram || {}, load = mac.load || [];
+    const cores = mac.cores || 0;
+    const l1 = load.length ? load[0] : null;
+    const diskCls = disk.used_pct != null ? band(disk.used_pct, 80, 90) : "";
+    const ramCls  = ram.pressure === "high" ? "bad" : ram.pressure === "elevated" ? "warn" : "";
+    const loadCls = (l1 != null && cores) ? band(l1 / cores, 0.7, 1.0) : "";
+    const errs = dev.in_error || [], lb = dev.low_battery || [], plugins = dev.by_plugin || [];
+    const crashed = plugins.filter(p => p.running === false && p.pluginEnabled !== false).length;
+    const issues = [], okChecks = [];
+    const missed = (icon, label) => issues.push(["warn", `${I(icon)} ${label}`, "missed"]);
+    if (mac.error) {
+        missed("gear", "The Mac's own figures could not be read");
+    } else {
+        if (disk.used_pct == null) missed("disk", "Disk could not be measured");
+        else if (diskCls) issues.push([diskCls, `${I("disk")} Disk ${num(disk.used_pct,0)}% full`, ""]);
+        else okChecks.push("Disk");
+        if (!ram.pressure || ram.pressure === "unknown") missed("memory", "Memory could not be measured");
+        else if (ramCls) issues.push([ramCls, `${I("memory")} Memory pressure ${esc(ram.pressure)}`, ""]);
+        else okChecks.push("Memory");
+        if (l1 == null || !cores) missed("gear", "Load could not be measured");
+        else if (loadCls) issues.push([loadCls, `${I("gear")} Load ${num(l1,2)} on ${cores} cores`, ""]);
+        else okChecks.push("Load");
+    }
+    if (dev.error || dev.total == null) {
+        missed("plug", "Devices could not be checked");
+    } else {
+        if (errs.length) issues.push(["bad", `${I("warn")} ${errs.length} device${errs.length===1?"":"s"} in error`, ""]);
+        if (lb.length)   issues.push(["warn", `${I("battery")} ${lb.length} low batter${lb.length===1?"y":"ies"}`, ""]);
+        // A crashed plugin freezes every device it owns, so it belongs in the
+        // headline, not only in the gauge further down. Disabled is a
+        // choice and stays out.
+        if (crashed)     issues.push(["bad", `${I("plug")} ${crashed} plugin${crashed===1?"":"s"} not running`, ""]);
+        if (!errs.length && !lb.length && !crashed) okChecks.push("Devices");
+    }
+    if (svc.error) missed("camera", "The dashboard services could not be checked");
+    else if (svc.cameras && (!svc.go2rtc || !svc.proxy))
+        issues.push(["warn", `${I("camera")} Camera service down`, ""]);
+    const worst = issues.some(i => i[0] === "bad") ? "bad" : issues.length ? "warn" : "good";
+    const verdict = worst === "good" ? "All systems healthy"
+                  : worst === "bad" ? "Needs attention"
+                  : issues.every(i => i[2] === "missed") ? "Some checks could not be made"
+                  : "Mostly healthy — worth a look";
+    return { issues, worst, verdict, okChecks };
+}
+
 function render(d) {
     const mac = d.mac || {}, st = d.storage || {}, dev = d.devices || {}, svc = d.services || {};
     const disk = mac.disk || {}, ram = mac.ram || {}, load = mac.load || [];
     let html = "";
 
     // ── Verdict hero: one glance = is anything wrong? ──────────────────
-    const diskCls = band(disk.used_pct || 0, 80, 90);
+    const diskCls = disk.used_pct != null ? band(disk.used_pct, 80, 90) : "";
     const ramCls  = ram.pressure === "high" ? "bad" : ram.pressure === "elevated" ? "warn" : "";
     const cores   = mac.cores || 0;
     const l1      = load.length ? load[0] : null;
@@ -294,22 +347,7 @@ function render(d) {
     const crashed  = plugins.filter(p => p.running === false && p.pluginEnabled !== false).length;
     const disabled = plugins.filter(p => p.pluginEnabled === false).length;
 
-    const issues = [];   // [cls, label, anchor]
-    if (diskCls)      issues.push([diskCls, `${I("disk")} Disk ${num(disk.used_pct,0)}% full`]);
-    if (ramCls)       issues.push([ramCls, `${I("memory")} Memory pressure ${esc(ram.pressure)}`]);
-    if (loadCls)      issues.push([loadCls, `${I("gear")} Load ${num(l1,2)} on ${cores} cores`]);
-    if (errs.length)  issues.push(["bad", `${I("warn")} ${errs.length} device${errs.length===1?"":"s"} in error`]);
-    if (lb.length)    issues.push(["warn", `${I("battery")} ${lb.length} low batter${lb.length===1?"y":"ies"}`]);
-    // A crashed plugin freezes every device it owns, so it belongs in the
-    // headline, not only in the gauge further down. Disabled is a
-    // choice and stays out.
-    if (crashed)      issues.push(["bad", `${I("plug")} ${crashed} plugin${crashed===1?"":"s"} not running`]);
-    if (svc.cameras && (!svc.go2rtc || !svc.proxy))
-                      issues.push(["warn", `${I("camera")} Camera service down`]);
-    const worst = issues.some(i => i[0] === "bad") ? "bad" : issues.length ? "warn" : "good";
-    const verdict = worst === "good" ? "All systems healthy"
-                  : worst === "warn" ? "Mostly healthy — worth a look"
-                  : "Needs attention";
+    const { issues, worst, verdict, okChecks } = healthIssues(d);
     const heroIcon = I(worst === "good" ? "check" : worst === "warn" ? "warn" : "alert");
     html += `<section class="card hero">
         <div class="hero-top">
@@ -322,7 +360,7 @@ function render(d) {
         <div class="hero-chips">${
             issues.length
                 ? issues.map(i => `<span class="chip ${i[0]}">${i[1]}</span>`).join("")
-                : `<span class="chip good">${I("disk")} Disk OK</span><span class="chip good">${I("memory")} Memory OK</span><span class="chip good">${I("gear")} Load OK</span><span class="chip good">${I("plug")} Devices OK</span>`
+                : okChecks.map(c => `<span class="chip good">${I({ Disk: "disk", Memory: "memory", Load: "gear", Devices: "plug" }[c])} ${c} OK</span>`).join("")
         }</div>
     </section>`;
 
@@ -364,9 +402,10 @@ function render(d) {
     let ramNote = "App + wired + compressed memory.";
     const macGb = num(ram.total_gb, 0);        // not a literal "8 GB" — this page is published
     if (ram.swap_used_mb != null) {
-        const swCls = ram.swap_used_mb >= 1500 ? "bad" : ram.swap_used_mb >= 400 ? "warn" : "good";
-        ramNote += ` Swap <b class="${swCls}">${num(ram.swap_used_mb/1024,2)} GB</b> of ${num((ram.swap_total_mb||0)/1024,1)} GB in use`;
-        ramNote += ram.swap_used_mb >= 400 ? ` — the real pressure signal on a ${macGb} GB Mac.` : ".";
+        // Coloured by the verdict the server gives (macOS's own where it has
+        // one), not by figures chosen for an 8 GB Mac.
+        const swCls = ramCls || "good";
+        ramNote += ` Swap <b class="${swCls}">${num(ram.swap_used_mb/1024,2)} GB</b> of ${num((ram.swap_total_mb||0)/1024,1)} GB in use on a ${macGb} GB Mac.`;
     }
     html += meter("Memory", `${num(ram.used_gb)} / ${num(ram.total_gb)} GB · ${num(ram.used_pct,0)}%`,
         ram.used_pct, ramCls, ramNote);

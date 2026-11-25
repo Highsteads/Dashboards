@@ -106,6 +106,34 @@ class HealthMixin:
                 out[key] = {"error": str(exc)}
         return out
 
+    @staticmethod
+    def _memory_pressure(ram, level):
+        """normal / elevated / high / unknown for the Memory gauge.
+
+        macOS's own verdict where it gives one (kern.memorystatus_vm_pressure_level:
+        1 normal, 2 warning, 4 critical). The old rule judged swap against
+        fixed figures chosen for an 8 GB Mac mini (400 MB elevated, 1.5 GB
+        high), so the 64 GB server read "elevated" with 1.1 GB of swap and
+        half its memory free (review 26-11-2026). Without a verdict from macOS
+        the swap figures are scaled to the memory fitted. Nothing measured is
+        "unknown", never "normal"."""
+        if "used_pct" not in ram:
+            return "unknown"
+        if level == 4:
+            return "high"
+        if level == 2:
+            return "elevated"
+        if level == 1:
+            return "normal"
+        total_mb = float(ram.get("total_gb") or 8) * 1024
+        up = ram.get("used_pct", 0)
+        swu = ram.get("swap_used_mb", 0)
+        if swu >= max(1500, total_mb * 0.18) or up >= 92:
+            return "high"
+        if swu >= max(400, total_mb * 0.05) or up >= 82:
+            return "elevated"
+        return "normal"
+
     def _service_health(self):
         """This plugin's own background services (v2.33.0) — the page can then
         say whether the camera pipeline is actually alive, not just assumed."""
@@ -171,16 +199,21 @@ class HealthMixin:
             total = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
             vm = _sh(["/usr/bin/vm_stat"])
             m = re.search(r"page size of (\d+) bytes", vm)
-            psize = int(m.group(1)) if m else 4096
 
             def _pg(label):
                 mm = re.search(rf"{re.escape(label)}:\s+(\d+)\.", vm)
-                return int(mm.group(1)) if mm else 0
+                return int(mm.group(1)) if mm else None
 
             # "Memory Used" as Activity Monitor reports it: app (active) +
             # wired + compressed. Free/inactive/speculative are reclaimable.
-            used = (_pg("Pages active") + _pg("Pages wired down")
-                    + _pg("Pages occupied by compressor")) * psize
+            counts = [_pg("Pages active"), _pg("Pages wired down"),
+                      _pg("Pages occupied by compressor")]
+            if not m or any(c is None for c in counts):
+                # vm_stat gave nothing usable (it times out on a starved Mac).
+                # That is "not measured", which used to be worked through as
+                # 0 GB used, 0%, and a verdict of "normal" (review 26-11-2026).
+                raise ValueError("vm_stat gave no page counts")
+            used = sum(counts) * int(m.group(1))
             # RAM in binary GiB (2**30) — the convention the hardware is sold
             # in. The old decimal /1e9 made an 8 GB Mac mini report "8.6 GB
             # total". Disk stays decimal (matches Finder/Apple SSD specs).
@@ -198,21 +231,16 @@ class HealthMixin:
             if su:
                 ram["swap_used_mb"] = round(float(su.group(1)))
         except Exception:
-            pass
-        # Memory-pressure verdict. On an 8 GB Mac, heavy swap is the real
-        # signal — a high used_pct alone is normal for macOS.
-        up = ram.get("used_pct", 0)
-        swu = ram.get("swap_used_mb", 0)
-        if "used_pct" not in ram:
-            # The measurement itself failed (vm_stat/sysctl timed out — which
-            # is exactly what a starved Mac does). Unknown, never 'normal'.
-            ram["pressure"] = "unknown"
-        elif swu >= 1500 or up >= 92:
-            ram["pressure"] = "high"
-        elif swu >= 400 or up >= 82:
-            ram["pressure"] = "elevated"
-        else:
-            ram["pressure"] = "normal"
+            try:
+                ram = {"total_gb": round(os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / 2**30, 1)}
+            except Exception:
+                ram = {}
+        level = None
+        try:
+            level = int(_sh(["/usr/sbin/sysctl", "-n", "kern.memorystatus_vm_pressure_level"]))
+        except (TypeError, ValueError):
+            level = None
+        ram["pressure"] = self._memory_pressure(ram, level)
         out["ram"] = ram
 
         out["uptime_text"] = ""
