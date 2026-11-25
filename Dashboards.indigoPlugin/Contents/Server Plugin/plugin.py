@@ -19,7 +19,7 @@
 #              are not live poll the snapshots.
 # Author:      CliveS & Claude Fable 5.2 (3.71.4-3.72.0); Claude Opus 5.5 (3.71.0-3.71.3); Claude Fable 5.2 (3.70.1-3.70.2); Claude Opus 5.5 (3.66.0-3.67.0, 3.70.0); Codex GPT-6 (3.65.0); Claude Opus 5.5 (3.63.0); Codex GPT-6 (3.62.0); Claude Opus 5 (3.17.0-3.20.0, 3.23.0); Claude Opus 5.5 (3.23.1-3.58.0); Claude Sonnet 5.5 (3.58.1); Claude Opus 5.5 (3.58.2); Claude Sonnet 5.5 (3.58.3, 3.59.0-3.59.1); Claude Opus 5.5 (3.59.3, 3.60.0); Claude Fable 5.1 (3.12.0-3.13.0); Claude Sonnet 5 (2.99.2); Claude Fable 5 (2.79.0); Claude Opus 5 (2.80-2.81, 2.84.0)
 # Date:        24-11-2026 13:53 UK
-# Version:     3.72.0
+# Version:     3.73.0
 #
 # Version history: docs/changelog.md (what each release does, for users) and
 # `git log` (why, for developers). The per-version engineering notes that sat
@@ -103,7 +103,7 @@ except ImportError:
 # ============================================================
 
 PLUGIN_ID         = "com.clives.indigoplugin.dashboards"
-PLUGIN_VERSION = "3.72.0"
+PLUGIN_VERSION = "3.73.0"
 
 import logging
 from dash_common import (  # noqa: E402
@@ -1956,12 +1956,20 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
                 continue
             try:
                 req = entry.get("requested")
+                # byHand and until: EvoHomeControl 1.30.0 and later, for a room somebody
+                # set by hand during the boost. Only a real True counts, and a hold end
+                # that is not a number is "until it is changed" rather than a guess.
+                until = entry.get("until")
+                if isinstance(until, bool) or not isinstance(until, (int, float)) or until != until:
+                    until = None
                 rooms.append({
                     "id":        int(key),
                     "room":      str(entry.get("room") or "")[:40],
                     "target":    float(entry["target"]),
                     "requested": None if req is None else float(req),
                     "held":      str(entry.get("held") or "")[:120],
+                    "byHand":    entry.get("by_hand") is True,
+                    "until":     None if until is None else float(until),
                 })
             except (KeyError, TypeError, ValueError):
                 continue

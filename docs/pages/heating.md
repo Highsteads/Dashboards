@@ -25,11 +25,15 @@ the summer bypass can be active together. These are the controller's saved timer
 survive a page reload. If their status cannot be read, the page says so. A red button means
 the timer is active, not that a radiator must be heating.
 
-While a boost runs, a line for each boosted room says how it is doing: the temperature confirmed by
-Evohome, sent and waiting for Evohome to confirm, waiting for the heating controller's next check
-(usually a second or two), or kept lower and why, such as an open window, away mode or a room
-that is already warm. Confirmed means the radiator's own setpoint now matches what was sent.
-The lines need EvoHomeControl 1.26.0 or later (3.70.0).
+While a boost runs, a line for each boosted room says what it is set to: set to 22 degrees until
+the time the boost ends and confirmed by Evohome, sent and waiting for Evohome to confirm, or
+waiting for the heating controller's next check (usually a second or two). Confirmed means the
+radiator's own setpoint now matches what was sent. When every room has its boost, one line at
+the top says so. A room you set by hand during the boost shows the radiator's own setting and
+when the boost will leave it alone until. A room that is not boosted says so and why: an open
+window or outside door, away mode, or the Conservatory's sliding door being shut. The lines
+need EvoHomeControl 1.26.0 or later, and 1.30.0 or later for a boost that holds every room at
+22 degrees for the whole time (3.73.0).
 
 **Summary strip.** Zones calling for heat, the house average, the coldest zone with its name, the
 warmest with its name, and the outside temperature. A coloured edge on the strip reflects whether

@@ -131,6 +131,7 @@
         .boost-rooms li.ok   { color: var(--on-color); }
         .boost-rooms li.wait { color: var(--text-secondary); }
         .boost-rooms li.held { color: var(--warn); }
+        .boost-rooms li.all  { font-weight: 600; }
         .control-card p { font-size: 12px; line-height: 1.5; color: var(--text-secondary); margin-top: 8px; }
         .control-card .ctrl-h2 { margin-top: 14px; }
         .ctrl-btn.primary.timer-active { background: #b42318; border-color: #b42318; color: #fff; }
@@ -194,7 +195,7 @@
                 <button class="ctrl-btn cancel" onclick="callEvoAction('cancelForcedHeating', this)">Cancel override</button>
                 <button class="ctrl-btn status" onclick="callEvoAction('showSummerStatus', this)">Write status to the log</button>
             </div>
-            <p>Boost sets the boosted rooms to 22 degrees. The Conservatory is boosted only while its sliding door is open. The summer override allows normal scheduled heating; it does not keep the radiators on.</p>
+            <p>Boost holds the boosted rooms at 22 degrees for the whole time. Only an open window or outside door, Away, or the Conservatory's sliding door being shut stops a room being boosted. The summer override allows normal scheduled heating; it does not keep the radiators on.</p>
             <p id="evo-timer-status" role="status">Checking active timers...</p>
             <ul id="evo-boost-rooms" class="boost-rooms" aria-live="polite" hidden></ul>
             <div class="ctrl-toast" id="evo-toast"></div>
@@ -429,19 +430,35 @@
             : "Timer status unavailable. Active overrides may still be running.";
         renderBoostRooms();
     }
-    // Each boosted room in words (3.70.0): what the heating controller asked for at
-    // its last check, whether Evohome has confirmed it (the radiator's own setpoint,
-    // which RAMSES ESP sets only once the controller reports it back), or why the
-    // room was given less. Shown only while a boost is running.
+    // Each boosted room in words (3.70.0): what the radiator is set to and until
+    // when, whether Evohome has confirmed it (the radiator's own setpoint, which
+    // RAMSES ESP sets only once the controller reports it back), or, for the few
+    // things that still stop a boost, that the room is not boosted and why. A room
+    // somebody set by hand during the boost shows the radiator's own setting, never
+    // the heating controller's last request, which is out of date by then (3.73.0).
+    // Shown only while a boost is running.
     function _deg(v) { return Number.isInteger(v) ? String(v) : v.toFixed(1); }
-    function boostRoomLine(r) {
+    function _clockWords(ms) {
+        const d = new Date(ms), h = d.getHours(), m = d.getMinutes();
+        if (h === 0 && m === 0) return "midnight";
+        if (h === 12 && m === 0) return "noon";
+        return (h % 12 || 12) + (m ? ":" + _pad(m) : "") + (h < 12 ? "am" : "pm");
+    }
+    const _COUNT_WORDS = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"];
+    function boostRoomLine(r, until) {
         const name = escapeHtml(r.room);
-        if (r.held) return ["held", `${name}: kept at ${_deg(r.requested)} degrees because ${escapeHtml(r.held)}.`];
-        if (r.requested == null) return ["wait", `${name}: waiting for the heating controller's next check.`];
         const dev = _zoneById.get(r.id);
         const sp = dev ? DashTile.zone.setpoint(dev) : null;
+        if (r.byHand) {
+            const now = sp != null ? sp : r.requested;
+            const set = now == null ? "set by hand" : `set to ${_deg(now)} degrees by hand`;
+            const end = r.until == null ? "until it is changed" : `until ${_clockWords(r.until * 1000)}`;
+            return ["held", `${name}: ${set}, so the boost leaves it alone ${end}.`];
+        }
+        if (r.held) return ["held", `${name}: not boosted, set to ${_deg(r.requested)} degrees because ${escapeHtml(r.held)}.`];
+        if (r.requested == null) return ["wait", `${name}: waiting for the heating controller's next check.`];
         if (sp != null && Math.abs(sp - r.requested) < 0.26)
-            return ["ok", `${name}: ${_deg(r.requested)} degrees, confirmed by Evohome.`];
+            return ["ok", `${name}: set to ${_deg(r.requested)} degrees until ${until}, confirmed by Evohome.`];
         return ["wait", `${name}: ${_deg(r.requested)} degrees sent, waiting for Evohome to confirm.`];
     }
     function renderBoostRooms() {
@@ -449,10 +466,16 @@
         if (!list) return;
         const fresh = _evoTimers && (Date.now() - _evoTimersAt) / 1000 < 15;
         const rooms = fresh && _evoTimers.boostExpiry ? (_evoTimers.boostRooms || []) : [];
-        const html = rooms.map(r => {
-            const [cls, text] = boostRoomLine(r);
-            return `<li class="${cls}">${text}</li>`;
-        }).join("");
+        const until = rooms.length ? _clockWords(_evoTimers.boostExpiry * 1000) : "";
+        const lines = rooms.map(r => boostRoomLine(r, until));
+        let html = lines.map(([cls, text]) => `<li class="${cls}">${text}</li>`).join("");
+        // The answer first, when it is the simple one: every room has its boost.
+        const target = rooms.length ? rooms[0].target : null;
+        if (rooms.length > 1 && lines.every(l => l[0] === "ok") && rooms.every(r => r.target === target && r.requested === target)) {
+            const count = _COUNT_WORDS[rooms.length] || String(rooms.length);
+            html = `<li class="ok all">All ${count} boosted rooms are set to ${_deg(target)} degrees until ${until}, confirmed by Evohome.</li>`
+                 + lines.map(([cls, text]) => `<li class="${cls}">${text}</li>`).join("");
+        }
         // Runs every second with the countdown, so stale status hides the lines as it
         // does the red buttons; the list is only rewritten when it changes, so a
         // screen reader is not told the same thing every second.

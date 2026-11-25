@@ -84,7 +84,8 @@ def test_boost_rooms_passed_on_checked_and_sorted(tmp_path, monkeypatch):
     rooms = p._read_evo_timers()["boostRooms"]
     assert [r["room"] for r in rooms] == ["Dining Room", "Hall Kitchen", "Living Room Front"]
     assert rooms[0] == {"id": 9, "room": "Dining Room", "target": 22.0, "requested": 16.0,
-                        "held": "it is already warm from the sun or the rest of the house"}
+                        "held": "it is already warm from the sun or the rest of the house",
+                        "byHand": False, "until": None}
     assert rooms[1]["requested"] is None
     assert "secret" not in rooms[2]
 
@@ -120,3 +121,24 @@ def test_hand_holds_are_passed_on_checked(tmp_path, monkeypatch):
     assert p._read_evo_timers()["handHolds"] == []
     path.write_text(json.dumps({"timed_boost_active": False, "summer_force_active": False}))
     assert p._read_evo_timers()["handHolds"] == [], "an older heating controller saves none"
+
+
+def test_a_room_set_by_hand_during_a_boost_is_passed_on(tmp_path, monkeypatch):
+    """3.73.0: EvoHomeControl 1.30.0 marks a room set by hand during the boost, with the
+    radiator's own setting and when the hold ends. Only a real True and a real number
+    are passed on."""
+    expiry = "2999-01-01T12:00:00+00:00"
+    outcome = {
+        "2": {"room": "Conservatory", "target": 22.0, "requested": 20.0,
+              "held": "it was set by hand", "by_hand": True, "until": 1795615348.0},
+        "9": {"room": "Dining Room", "target": 22.0, "requested": 21.0,
+              "held": "it was set by hand", "by_hand": "yes", "until": "soon"},
+        "3": {"room": "Hall Kitchen", "target": 22.0, "requested": 22.0, "held": "",
+              "by_hand": True, "until": True},
+    }
+    p, _ = saved(tmp_path, monkeypatch, timed_boost_active=True, timed_boost_hours=1,
+                 timed_boost_expiry=expiry, timed_boost_outcome=outcome)
+    rooms = {r["room"]: r for r in p._read_evo_timers()["boostRooms"]}
+    assert (rooms["Conservatory"]["byHand"], rooms["Conservatory"]["until"]) == (True, 1795615348.0)
+    assert (rooms["Dining Room"]["byHand"], rooms["Dining Room"]["until"]) == (False, None)
+    assert (rooms["Hall Kitchen"]["byHand"], rooms["Hall Kitchen"]["until"]) == (True, None)
