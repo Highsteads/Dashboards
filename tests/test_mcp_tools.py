@@ -430,3 +430,18 @@ def test_effective_config_uses_the_running_list_in_legacy_mode(monkeypatch, tmp_
     running = [{"host": "10.0.0.5", "name": "Front", "vendor": "dahua"}]
     p, _, _ = make_plugin(monkeypatch, tmp_path, store=None, running=running)
     assert [c["host"] for c in p._effective_config()["cameras"]] == ["10.0.0.5"]
+
+
+def test_set_camera_keeps_a_typed_address_when_the_make_is_only_repeated(monkeypatch, tmp_path):
+    """Review 26-11-2026: 'a vendor argument was given' was read as 'the make
+    changed', so repeating the make a camera already had removed the stream
+    address typed for it."""
+    store = {"cameras": [{"host": "10.0.0.5", "name": "Front", "vendor": "other",
+                          "rtsp": "rtsp://10.0.0.5:554/stream1"}], "mainCameras": []}
+    p, state, _ = make_plugin(monkeypatch, tmp_path, store=store, running=store["cameras"])
+    out = call(p, "set_camera", host="10.0.0.5", name="Front Door", vendor="other")
+    assert out["status"] == "ok", out
+    assert state["store"]["cameras"][0]["rtsp"] == "rtsp://10.0.0.5:554/stream1"
+    out = call(p, "set_camera", host="10.0.0.5", vendor="dahua")
+    assert out["status"] == "ok", out
+    assert "rtsp" not in state["store"]["cameras"][0], "a new make drops the old make's address"

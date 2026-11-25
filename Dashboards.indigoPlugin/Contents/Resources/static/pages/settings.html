@@ -235,7 +235,7 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
             const known = (selType === "device" || selType === "door") ? DEVICES.some(d => d.id === selId)
                         : selType === "scene" ? GROUPS.some(g => g.id === selId) : true;
             const missing = (selType && selId && !known)
-                ? `<option value="${esc(selType)}:${esc(String(selId))}" selected>(not found: ${esc(selType)} #${esc(String(selId))} — pick another, or it stays as is)</option>` : "";
+                ? `<option value="${esc(selType)}:${esc(String(selId))}" selected data-missing="1">(not found: ${esc(selType)} #${esc(String(selId))} — pick another, or it stays as is)</option>` : "";
             // Page links (3.68.0): a tile that opens another Dashboards page.
             // Once saved it comes back as a pass-through row, like a room.
             const pageOpts = FAV_PAGES.map(([href, name]) =>
@@ -253,10 +253,17 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
             ["timeline.html", "Timeline"],
         ];
         // Door rows: the action-group pickers for each direction.
+        // An id the list cannot show any more (the action group or lock was
+        // deleted in Indigo) stays selected under its number (3.73.4). The
+        // picker used to fall to its blank option, and collectFavourites then
+        // dropped the whole door favourite on the next Save, whatever it was for.
         function doorActionOptions(selId) {
             const opts = GROUPS.map(g =>
                 `<option value="${g.id}"${Number(selId) === g.id ? " selected" : ""}>${esc(g.name)}</option>`).join("");
-            return `<option value="">&mdash; action &mdash;</option>${opts}`;
+            const n = Number(selId);
+            const missing = (selId != null && selId !== "" && isFinite(n) && !GROUPS.some(g => g.id === n))
+                ? `<option value="${esc(String(n))}" selected>(not found: action #${esc(String(n))} — it stays as is)</option>` : "";
+            return `<option value="">&mdash; action &mdash;</option>${missing}${opts}`;
         }
         // Optional lock device (v2.77.0): choosing one makes the row a
         // LOCK-flavoured door (Locked / Unlocked / Open from lock + contact,
@@ -264,7 +271,10 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
         function doorLockOptions(selId) {
             const opts = DEVICES.map(d =>
                 `<option value="${d.id}"${Number(selId) === d.id ? " selected" : ""}>${esc(d.name)}</option>`).join("");
-            return `<option value="">&mdash; no lock (open/close door) &mdash;</option>${opts}`;
+            const n = Number(selId);
+            const missing = (selId != null && selId !== "" && isFinite(n) && !DEVICES.some(d => d.id === n))
+                ? `<option value="${esc(String(n))}" selected>(not found: device #${esc(String(n))} — it stays as is)</option>` : "";
+            return `<option value="">&mdash; no lock (open/close door) &mdash;</option>${missing}${opts}`;
         }
         // Reading favourites (v2.19.0): fetch a device's live states so the row
         // can offer a "reading" dropdown (voltage / temperature / SOC / …).
@@ -461,8 +471,10 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
                     // have no live-name fallback on the hub). A DEVICE keeps
                     // no baked-in label: the hub shows its live name, so it
                     // follows renames instead of freezing today's.
+                    // Never from the "(not found ...)" option: that text is
+                    // the picker's warning, not the scene's name.
                     const opt = r.querySelector(".fav-pick").selectedOptions[0];
-                    label = opt ? opt.text.trim() : "";
+                    label = (opt && !(opt.dataset && opt.dataset.missing)) ? opt.text.trim() : "";
                 }
                 if (label) item.label = label;
                 const reading = r.querySelector(".fav-reading");
@@ -723,9 +735,28 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
             card.querySelector("#room-add").addEventListener("click", () => {
                 const name = prompt("Room name (must match the room page name exactly, e.g. Living Room):");
                 if (!name) return;
-                list.appendChild(roomPanel(name.trim(), {}));
+                // One panel a room (3.73.4): a second, blank panel for a room
+                // that already had one won at Save and wiped that room's lists.
+                const want = name.trim();
+                const have = findRoomPanel(list, want);
+                if (have) {
+                    have.open = true;
+                    if (have.scrollIntoView) have.scrollIntoView({ block: "center" });
+                    msg(`${have.dataset.room} already has overrides: they are open now.`, true);
+                    return;
+                }
+                list.appendChild(roomPanel(want, {}));
             });
             return card;
+        }
+
+        // The panel a room already has, whatever the case it was typed in.
+        function findRoomPanel(list, name) {
+            const want = String(name || "").trim().toLowerCase();
+            for (const d of list.querySelectorAll("details.room")) {
+                if (String(d.dataset.room || "").trim().toLowerCase() === want) return d;
+            }
+            return null;
         }
 
         function roomPanel(name, ex) {
@@ -761,17 +792,20 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
                     <div style="display:grid; grid-template-columns: 1fr 1fr 90px; gap:8px;">
                         <div><label>Label</label><input type="text" class="d-label" value="${esc(door.label || "")}"></div>
                         <div><label>Status contact ID</label><input type="text" class="d-contact" list="devlist" value="${esc(String(door.statusContactId || ""))}"></div>
-                        <div><label>Pulse ms</label><input type="number" class="d-pulse" value="${esc(String(door.pulseMs || 2000))}"></div>
+                        <div><label>Pulse ms</label><input type="number" class="d-pulse" value="${esc(String(door.pulseMs || 1500))}"></div>
                     </div>
                     <label style="margin-top:8px">Relay IDs (pulsed on tap)</label>
                     <input type="text" class="d-relays" list="devlist" value="${esc(idsToStr(door.relayIds))}">
                     <div class="names"></div>
                     <label style="margin-top:8px; display:flex; gap:8px; align-items:center; font-weight:400;">
-                        <input type="checkbox" class="d-openon" ${door.openWhenContactOnState !== false ? "checked" : ""}>
+                        <input type="checkbox" class="d-openon" ${door.openWhenContactOnState === true ? "checked" : ""}>
                         Contact ON means door OPEN
                     </label>
                     <div style="margin-top:8px"><button class="btn danger d-del">Remove door</button></div>
                 </div>`);
+                // The stored door rides on the row (3.73.4), so doorFromRow can
+                // tell a key that was stored from one the form only assumed.
+                r.dataset.orig = JSON.stringify(door || {});
                 bindNames(r.querySelector(".d-relays"), r.querySelector(".names"));
                 r.querySelector(".d-del").addEventListener("click", () => r.remove());
                 return r;
@@ -842,14 +876,28 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
             const relayBox = r.querySelector(".d-relays");
             const relays = relayBox ? strToIds(relayBox.value) : [];
             if (!label && !relays.length) return null;
+            // A pulse door starts from what was stored (3.73.4). pulseMs and
+            // openWhenContactOnState are optional, and the room page reads a
+            // missing one as 1500 ms and "off means open". This form used to
+            // write its own defaults for both (2000 ms, "on means open"), so
+            // any Save turned such a door's Open and Closed round. They are
+            // written now only when stored already or changed here, and a key
+            // this page does not draw stays as it was.
+            let base = {};
+            if (r.dataset && r.dataset.orig) {
+                try { base = JSON.parse(r.dataset.orig) || {}; } catch (_) { base = {}; }
+                if (typeof base !== "object" || Array.isArray(base)) base = {};
+            }
+            const door = Object.assign({}, base, { label, relayIds: relays });
             const pulseBox = r.querySelector(".d-pulse");
-            const door = { label, relayIds: relays,
-                           pulseMs: (pulseBox && parseInt(pulseBox.value, 10)) || 2000 };
+            const pulse = (pulseBox && parseInt(pulseBox.value, 10)) || 1500;
+            if ("pulseMs" in base || pulse !== 1500) door.pulseMs = pulse;
             const contactBox = r.querySelector(".d-contact");
             const contact = contactBox ? parseInt(contactBox.value, 10) : NaN;
-            if (!isNaN(contact)) door.statusContactId = contact;
+            if (!isNaN(contact)) door.statusContactId = contact; else delete door.statusContactId;
             const openBox = r.querySelector(".d-openon");
-            door.openWhenContactOnState = openBox ? openBox.checked : true;
+            const openOn = !!(openBox && openBox.checked);
+            if ("openWhenContactOnState" in base || openOn) door.openWhenContactOnState = openOn;
             return door;
         }
 
@@ -1013,7 +1061,7 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
         // ── raw JSON escape hatch ────────────────────────────────────────
         function renderRawJson() {
             const card = el(`<section class="card"><h2>Raw JSON</h2>
-                <div class="hint">The full config as it will be saved. "From form" refreshes this view from the editors above; "Apply to form" parses the JSON and rebuilds the editors from it (for anything the forms don't cover).</div>
+                <div class="hint">The full config as the editors above hold it. "From form" refreshes this view from them; "Apply to form" parses the JSON and rebuilds the editors from it (for anything the forms don't cover). Save writes what the editors hold, so after editing here press <b>Apply to form</b> first: Save refuses while this box has changes that have not been applied.</div>
                 <textarea id="raw-json" spellcheck="false"></textarea>
                 <div style="margin-top:8px; display:flex; gap:10px;">
                     <button class="btn" id="raw-from">From form</button>
@@ -1021,8 +1069,10 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
                 </div></section>`);
             const ta = card.querySelector("#raw-json");
             ta.value = JSON.stringify(cfg, null, 2);
+            window._rawWritten = ta.value;
             card.querySelector("#raw-from").addEventListener("click", () => {
                 ta.value = JSON.stringify(collectAll(), null, 2);
+                window._rawWritten = ta.value;
             });
             card.querySelector("#raw-apply").addEventListener("click", () => {
                 // Parse and render into a candidate FIRST (v2.95.3). Assigning
@@ -1041,6 +1091,13 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
                 }
             });
             return card;
+        }
+
+        // True when the Raw JSON box holds text the page did not put there:
+        // typed in and not applied. Save never read the box, so that text was
+        // thrown away and the page still said "Saved" (3.73.4).
+        function rawUnapplied(ta) {
+            return !!ta && typeof window._rawWritten === "string" && ta.value !== window._rawWritten;
         }
 
         // ── collect + save ───────────────────────────────────────────────
@@ -1141,6 +1198,10 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
             // dashboards_config.json with nothing. Refuse until a good load.
             if (!window._loadedOk) {
                 msg("Not saving — settings never loaded. Tap Reload first.", false);
+                return;
+            }
+            if (rawUnapplied(document.getElementById("raw-json"))) {
+                msg("Not saved: the Raw JSON box has changes that are not in the editors. Press Apply to form first, or Reload to drop them.", false);
                 return;
             }
             try {

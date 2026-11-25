@@ -77,11 +77,13 @@ const pulse = fields => row({ ".d-label": { value: "Side Gate" }, ".d-relays": {
                               ".d-pulse": { value: "1500" }, ".d-contact": { value: "33" },
                               ".d-openon": { checked: false }, ...fields });
 got = collect(pulse({}));
-checkOk(same(got, { label: "Side Gate", relayIds: [11, 12], pulseMs: 1500, statusContactId: 33,
-                    openWhenContactOnState: false }), "every field is read", JSON.stringify(got));
+// 1500 ms and "off means open" are what the room page assumes when a door
+// stores neither, so a new door at those values stores neither (3.73.4).
+checkOk(same(got, { label: "Side Gate", relayIds: [11, 12], statusContactId: 33 }),
+        "every field is read, and the room page's own defaults are not written", JSON.stringify(got));
 
 got = collect(pulse({ ".d-pulse": { value: "" }, ".d-contact": { value: "" } }));
-checkOk(got.pulseMs === 2000 && !("statusContactId" in got), "a blank pulse falls back to 2000 and a blank contact is left out");
+checkOk(!("pulseMs" in got) && !("statusContactId" in got), "a blank pulse is left to the room page's default and a blank contact is left out", JSON.stringify(got));
 
 ctx.__r = row({ ".d-label": { value: "" }, ".d-relays": { value: "" }, ".d-pulse": { value: "2000" },
                 ".d-contact": { value: "" }, ".d-openon": { checked: true } });

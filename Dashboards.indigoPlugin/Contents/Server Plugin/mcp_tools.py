@@ -396,6 +396,7 @@ def tool_set_camera(plugin, args):
         action = "added"
     else:
         cam = cameras[idx]
+        previous_vendor = str(cam.get("vendor") or "").lower()
         if name:
             cam["name"] = name
         if vendor:
@@ -405,9 +406,11 @@ def tool_set_camera(plugin, args):
         cam["stream"] = stream
     if rtsp:
         cam["rtsp"] = rtsp
-    elif vendor:
+    elif vendor and action == "updated" and str(vendor).lower() != previous_vendor:
         # A new make without a new address: its standard address applies, so
-        # an address typed for the old make must not carry over.
+        # an address typed for the old make must not carry over. Only when
+        # the make really changes: repeating the make a camera already has
+        # used to remove its typed address (review 26-11-2026).
         cam.pop("rtsp", None)
     if rooms is not None:
         if rooms:

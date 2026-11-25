@@ -945,8 +945,15 @@ class ConfigMixin:
         # Normalise BOTH sides through _parse_cameras before comparing —
         # the raw client dicts differ from the normalised self.cameras list in key
         # order/optional keys, so an unchanged save read as "restart needed".
-        camera_restart    = (_parse_cameras(clean["cameras"]) != _parse_cameras(old_cams)
-                             or (clean["swapOutHost"] or "") != (self.swap_out_host or ""))
+        # The swap-out host is compared as it takes effect: blank means the
+        # last camera, which is what the running plugin already holds
+        # (__init__). Compared raw, every save of an install left at the
+        # default said "restart needed" (review 26-11-2026).
+        saved_cams        = _parse_cameras(clean["cameras"])
+        effective_swap    = clean["swapOutHost"] or (saved_cams[-1]["host"] if saved_cams else "")
+        running_cams      = _parse_cameras(old_cams)
+        running_swap      = (self.swap_out_host or "") or (running_cams[-1]["host"] if running_cams else "")
+        camera_restart    = (saved_cams != running_cams or effective_swap != running_swap)
         try:
             self._write_config_js()
             self._build_rooms_json()

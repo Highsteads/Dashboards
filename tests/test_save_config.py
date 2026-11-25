@@ -416,3 +416,76 @@ def test_page_favourites_keep_known_pages_and_drop_links_off_the_site():
         {"type": "page", "page": "flow.html", "label": "Sigenergy"},
         {"type": "page", "page": "menu.html?g=rooms"},
     ]
+
+
+# ---- review 26-11-2026 ------------------------------------------------------
+
+FULL_STORE = {
+    "actionWatch": {"780532115": {"title": "Garage", "timeoutSec": 30, "zz": 1,
+                                  "rules": [{"phase": "done", "text": "Closed", "when": {"state": "closed"}}]}},
+    "arrayKwp": 14.25,
+    "cameras": [{"host": "10.0.0.5", "name": "Front", "vendor": "dahua", "room": "Hall", "stream": "main"},
+                {"host": "10.0.0.6", "name": "Drive", "vendor": "dahua", "room": ["Drive", "Garage"]}],
+    "customLinks": [{"title": "MQTT", "url": "http://10.0.0.2:4000/", "desc": "broker", "icon": "bolt"}],
+    "favourites": [
+        {"type": "door", "id": 7, "label": "Front Door", "lockId": 8, "openAction": 1},
+        {"type": "door", "id": 9, "label": "Garage", "openAction": 2, "closeAction": 3},
+        {"type": "device", "id": 5, "label": "Qashqai 12V", "state": "voltage", "warnBelow": 12.2, "badBelow": 11.8},
+        {"type": "device", "id": 6},
+        {"type": "scene", "id": 4, "label": "Movie"},
+        {"type": "group", "label": "Lamps", "devices": [{"id": 1, "onLevel": 100}, {"id": 2, "openLoop": True}]},
+        {"type": "room", "room": "Living Room"},
+        {"type": "page", "page": "savings.html", "label": "Savings"},
+    ],
+    "hiddenScenes": ["folder:Test", "123"],
+    "mainCameras": ["10.0.0.5"],
+    "pinRequired": [7, 8],
+    "roomExtras": {
+        "Garage": {"doors": [{"label": "Garage Door", "deviceId": 9, "openAction": 2, "closeAction": 3}],
+                   "include": {"motion": [1], "sensors": [2]}, "hideDeviceIds": [3], "plugs": [4], "zz": {"a": 1}},
+        "Living Room": {"mainLight": [1], "openLoop": [2], "tv": [3, 4], "fire": [5],
+                        "sortOrder": {"lights": [6]}, "appliances": [{"label": "Washer", "monitorId": 1, "cycleId": 2}]},
+    },
+    "roomFolders": ["Garage", "Living Room"],
+    "savings": {"systemCost": 26470, "installDate": "2026-03-12", "quoteAnnualSaving": 2352,
+                "quoteAnnualKwh": 9112, "quotePaybackYears": 12},
+    "siteName": "Highsteads",
+    "swapOutHost": "10.0.0.6",
+    "vehicles": [{"id": 5, "label": "Qashqai"}],
+    "futureKey": {"kept": True},
+}
+
+
+def test_an_unchanged_save_keeps_every_stored_key():
+    """What the Settings page posts after a load with nothing changed is the
+    store itself (proved on the live page 25-11-2026). The server must hand
+    back the same store: every known key as it was, every unknown one too,
+    and the keys a browser never sees carried over from the running plugin."""
+    import copy
+    p, cap = make_plugin()
+    p.control_pin = "4321"
+    p.cfg_store = dict(copy.deepcopy(FULL_STORE), controlPin="4321", stillsToken="ab" * 16,
+                       alertRules=[{"id": "r1", "name": "Door"}], alertRulesRev=3, alertsActive=True,
+                       alertEmail="", _savedAt=1.0)
+    want = dict(copy.deepcopy(p.cfg_store))
+    want.pop("_savedAt")
+    sent = dict(copy.deepcopy(FULL_STORE), controlPin="")          # blank keeps the PIN
+    body, status = save(p, sent)
+    assert status == 200 and body["ok"] is True, body
+    kept = dict(cap["clean"])
+    assert kept == want
+    assert json.dumps(kept, sort_keys=True) == json.dumps(want, sort_keys=True)      # types too
+
+
+def test_a_swap_out_left_at_its_default_needs_no_restart():
+    """Blank means the last camera, which is what the running plugin holds;
+    comparing "" with that host said "restart needed" on every save."""
+    p, _ = make_plugin()
+    cams = [{"host": "10.0.0.5", "name": "Front", "vendor": "dahua", "room": "", "stream": "sub2"},
+            {"host": "10.0.0.6", "name": "Drive", "vendor": "dahua", "room": "", "stream": "sub2"}]
+    p.cameras = cams
+    p.swap_out_host = "10.0.0.6"                 # what __init__ makes of a blank setting
+    body, status = save(p, {"cameras": [dict(c) for c in cams], "swapOutHost": ""})
+    assert status == 200 and body["cameraRestartNeeded"] is False
+    body, _ = save(p, {"cameras": [dict(c) for c in cams], "swapOutHost": "10.0.0.5"})
+    assert body["cameraRestartNeeded"] is True

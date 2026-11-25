@@ -197,6 +197,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_settings_door_passthrough.mjs` | Contract test for the Settings page carrying a room door it |
 | `test_settings_fav_passthrough.mjs` | Contract test for the settings editor carrying favourites it |
 | `test_settings_other_camera.mjs` | The Settings page's camera table and the "other" make (3.52.0). |
+| `test_settings_save_keeps.mjs` | A Settings Save must not change what it was not asked to |
 | `test_shared_ui_present.mjs` | Every user-facing page must load dashboards-ui.js (v2.97.0). |
 | `test_shutdown_budget.py` | shutdown() must not wait on the snapshot pool. Until 2.95.1 |
 | `test_shutdown_setup_links.py` | A one-time setup link is a /public file holding the API key. |
