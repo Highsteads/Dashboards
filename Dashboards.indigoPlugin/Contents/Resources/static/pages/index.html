@@ -1705,10 +1705,22 @@
     // cadence by _refreshOwm). Plugin's weather thread writes weather.json
     // hourly; we fetch it every 10 minutes which is plenty.
     window.__OWM_DATA = null;
+    /* The forecast file, or null when it is too old to show (3.73.5). The
+       plugin writes it hourly and never withdraws it, so with the weather
+       key removed, or the service failing, the hub went on showing a
+       days-old "today" as today's. _writeTs is the plugin's own stamp; a
+       file without one (an older plugin) is shown as before. */
+    const WEATHER_MAX_AGE_S = 3 * 3600;
+    function freshWeather(j, nowMs) {
+        if (!j || typeof j !== "object") return null;
+        const at = Number(j._writeTs);
+        if (isFinite(at) && at > 0 && nowMs / 1000 - at > WEATHER_MAX_AGE_S) return null;
+        return j;
+    }
     async function _refreshOwm() {
         try {
             const r = await fetch("weather.json?t=" + Date.now(), { cache: "no-store" });
-            if (r.ok) window.__OWM_DATA = await r.json();
+            if (r.ok) window.__OWM_DATA = freshWeather(await r.json(), Date.now());
         } catch (_) { /* OWM is optional — never blocks the page */ }
     }
 

@@ -537,6 +537,12 @@ class HistoryMixin:
         if not soc:
             return None
         pv_sel = f', avg(CAST("{pv}" AS REAL))' if pv else ", NULL"
+        # A row counts when it carries EITHER reading. The SQL Logger writes
+        # only the states that changed, so most solar rows have no battery
+        # figure; filtering on the battery alone threw them away and the solar
+        # trace was drawn from the few rows where both happened to change
+        # (review 28-10 and 26-11-2026). avg() skips the NULLs of each.
+        has_reading = f'("{soc}" IS NOT NULL OR "{pv}" IS NOT NULL)' if pv else f'"{soc}" IS NOT NULL'
         # The inverter is the largest table in the DB — this is the single
         # worst offender for the lock-the-logger-out scan. PK-range it.
         lo, hi = self._pk_window(hist, conn, table, start_utc, end_utc)
@@ -544,7 +550,7 @@ class HistoryMixin:
         rows = conn.execute(
             f'SELECT (({hist.epoch()} - {start_epoch}) / 300) AS b5, '
             f'       avg(CAST("{soc}" AS REAL)){pv_sel} '
-            f'FROM "{table}" WHERE ts >= ? AND ts < ? AND "{soc}" IS NOT NULL'
+            f'FROM "{table}" WHERE ts >= ? AND ts < ? AND {has_reading}'
             f'{pk_sql} '
             f'GROUP BY b5 ORDER BY b5', (start_utc, end_utc, *pk_args)).fetchall()
         # On the clock (see _clock_of). Time must only run forwards along a

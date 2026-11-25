@@ -106,9 +106,17 @@
      whose communication is disabled, or whose plugin has stopped, swallows
      the command without an error — the switch used to stay flipped for ever.
      `undo(actual)` puts the control back to what the device really says. */
+  var toggleSeq = {};        // device id -> presses so far: only the LAST one is judged
   function confirmFromDevice(a, id, expected, undo) {
+    // On then off inside four seconds: the first press's check found the
+    // device off, where it expected on, and raised "No confirmation" over a
+    // device that had done both (review 26-11-2026). The brightness slider
+    // and the heating tile already judge only their last press.
+    var seq = toggleSeq[id] = (toggleSeq[id] || 0) + 1;
     root.setTimeout(function () {
+      if (toggleSeq[id] !== seq) return;
       Promise.resolve(a.getDevice(id)).then(function (d) {
+        if (toggleSeq[id] !== seq) return;
         if (d && typeof d.onState === 'boolean' && d.onState !== expected) {
           undo(d.onState);
           try { if (root.DashAction) root.DashAction.note('device:' + id, 'timeout', 'No confirmation — check it'); } catch (_) {}

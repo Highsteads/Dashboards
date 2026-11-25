@@ -180,6 +180,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_repo_notes_size.py` | The repo's CLAUDE.md holds CURRENT facts only. It had grown to |
 | `test_review_2026_10_02.py` | Three faults from the independent review of 3.58.1, each one a |
 | `test_review_2026_11_26.py` | Server-side fixes from the 25/26-Nov-2026 deep review that have |
+| `test_review_small_pages.mjs` | Small page faults from the 25/26-Nov-2026 review (3.73.5): |
 | `test_room_camera_keyboard.mjs` | A room page's camera card works from the keyboard (3.46.0). |
 | `test_room_door_device.mjs` | Contract test for the ROOM page's state-driven door tile |
 | `test_room_env_battery.mjs` | Contract test for the ROOM page's battery figure on a |

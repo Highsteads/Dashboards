@@ -117,6 +117,8 @@
 
     const esc = s => DashUI.esc(s);   // v3.25.0: one shared escape
 
+    // "1 light", "3 lights": the room tiles said "1 lights".
+    function countWords(n, one) { return n + " " + one + (n === 1 ? "" : "s"); }
     function tile(href, title, desc, cls, icon) {
         const ic = (window.DashIcons && DashIcons.has(icon)) ? DashIcons.svg(icon) : "";
         return `<a class="card ${cls ? "card-" + cls : ""}" href="${esc(href)}">
@@ -141,10 +143,12 @@
 
     async function roomTiles() {
         let rooms = {};
+        let failed = "";            // a read that failed is not "no rooms"
         try {
             const r = await fetch("rooms.json?t=" + Date.now(), { cache: "no-store" });
             if (r.ok) rooms = (await r.json()).rooms || {};
-        } catch (_) { /* fall through to the empty note */ }
+            else failed = "the server answered " + r.status;
+        } catch (e) { failed = (e && e.message) || "no answer"; }
         // Living Room first, then the rest alphabetically (v2.97.0) — it is
         // the room opened most and a strict alphabet put it sixth.
         const FIRST = ["living room"];
@@ -152,14 +156,16 @@
         const names = Object.keys(rooms).sort((a, b) =>
             (rank(a) - rank(b)) || a.localeCompare(b));
         if (!names.length) {
-            return `<div class="menu-empty">No rooms found — check your Indigo device folders.</div>`;
+            return failed
+                ? `<div class="menu-empty">Could not load the room list (${failed}). Reload the page to try again.</div>`
+                : `<div class="menu-empty">No rooms found — check your Indigo device folders.</div>`;
         }
         return names.map(n => {
             const s = rooms[n] || {};
             const bits = [];
-            if ((s.lights || []).length)  bits.push((s.lights).length + " lights");
+            if ((s.lights || []).length)  bits.push(countWords((s.lights).length, "light"));
             if ((s.motion || []).length)  bits.push("motion");
-            if ((s.windows || []).length) bits.push((s.windows).length + " windows");
+            if ((s.windows || []).length) bits.push(countWords((s.windows).length, "window"));
             return tile("room.html?room=" + encodeURIComponent(n), n,
                         esc(bits.join(" \u00b7 ") || "\u2014"), "room", roomIcon(n));
         }).join("");

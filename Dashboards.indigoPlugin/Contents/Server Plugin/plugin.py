@@ -108,6 +108,7 @@ PLUGIN_VERSION = "3.73.4"
 import logging
 from dash_common import (  # noqa: E402
     as_bool,
+    _safe_int_list,
     CAMERA_POLL_SECONDS,
     CHARGER_BOOST_MAX_KWH,
     CHARGER_BOOST_MODES,
@@ -220,7 +221,11 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         self.cameras = self._vet_cameras(_parse_cameras(store.get("cameras") or []))
         # Default swap-out = last entry in the list (the cam most likely to be
         # safe to drop from the live pool), unless Settings names one.
-        swap_pref = (store.get("swapOutHost") or "").strip()
+        # Coerced, not trusted (review 26-11-2026): a hand edit that made any
+        # of these the wrong type raised here, in __init__, and the plugin did
+        # not start. The wrong type reads as not set.
+        _swap = store.get("swapOutHost")
+        swap_pref = _swap.strip() if isinstance(_swap, str) else ""
         self.swap_out_host = swap_pref if swap_pref else (
             self.cameras[-1]["host"] if self.cameras else "")
 
@@ -231,14 +236,16 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         if self.cam_login_hosts is None:
             self._record_camera_login_hosts([c["host"] for c in self.cameras], "first start")
 
-        self.main_cameras = list(store.get("mainCameras") or [])
+        _main = store.get("mainCameras")
+        self.main_cameras = [h for h in _main if isinstance(h, str)] if isinstance(_main, (list, tuple)) else []
         extras = store.get("roomExtras")
         self.room_extras = extras if isinstance(extras, dict) else {}
 
         # Guest tier (v2.1.0): read-only token + per-tile PIN policy.
         self.guest_token  = self._load_guest_token()
         self.control_pin  = str(store.get("controlPin") or "")
-        self.pin_required = list(store.get("pinRequired") or [])
+        _pins = store.get("pinRequired")
+        self.pin_required = _safe_int_list(_pins) if isinstance(_pins, (list, tuple)) else []
         # Bootstrap key auto-seed (v2.36.0). On, it hands the full API key to
         # any private-source browser on first visit — a visitor's phone on the
         # Wi-Fi in a private tab included. Off, /bootstrap 403s and devices
@@ -2332,6 +2339,8 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
 
         # Only forward the handful of numeric params the data API accepts.
         query = payload.get("query") or {}
+        if not isinstance(query, dict):       # a number or true raised on "in": a bare IWS 500
+            return self._evo_reply({"error": "query must be an object"}, status=400)
         qs = {}
         for k in ("hours", "days", "year"):
             if k in query:

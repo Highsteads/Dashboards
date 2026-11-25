@@ -698,8 +698,15 @@ def payback(cost, saved_so_far, annual, install, today):
     if annual and annual > 0:
         left = max(cost - saved_so_far, 0.0)
         years_left = left / annual
-        out["yearsTotal"] = round(cost / annual, 1)
-        out["paidOffDate"] = (today + timedelta(days=round(years_left * 365.25))).isoformat()
+        # Past any date a calendar holds there is no payback date to give. A
+        # tiny yearly saving used to raise OverflowError here, and the whole
+        # Savings reply failed with it (review 26-11-2026).
+        if years_left <= 200:
+            out["yearsTotal"] = round(cost / annual, 1)
+            try:
+                out["paidOffDate"] = (today + timedelta(days=round(years_left * 365.25))).isoformat()
+            except (OverflowError, ValueError):
+                out.pop("yearsTotal", None)
         if install:
             try:
                 out["yearsFromInstall"] = round(

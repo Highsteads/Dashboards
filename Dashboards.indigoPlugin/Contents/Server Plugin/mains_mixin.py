@@ -267,9 +267,14 @@ class MainsMixin:
         """First of `names` the device actually carries, as a float, else None."""
         for n in names:
             if n in states:
+                raw = states[n]
+                if isinstance(raw, bool):         # True is not 1.0 watts
+                    continue
                 try:
-                    v = float(states[n])
+                    v = float(raw)
                 except (TypeError, ValueError):
+                    continue
+                if not math.isfinite(v):          # NaN made the whole Mains reply invalid JSON
                     continue
                 return v
         return None

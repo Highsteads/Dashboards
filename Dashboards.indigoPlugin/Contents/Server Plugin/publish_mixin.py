@@ -13,6 +13,7 @@ try:
 except ImportError:
     pass
 
+import filecmp
 import json
 import os
 import shutil
@@ -129,7 +130,10 @@ class PublishMixin:
                 need = True
                 if os.path.exists(dp):
                     ss = os.stat(sp); ds = os.stat(dp)
-                    need = (ss.st_size != ds.st_size) or (ss.st_mtime > ds.st_mtime)
+                    # By content, not by date (review 28-10 and 26-11-2026): a
+                    # page of the same size with an OLDER date (a downgrade,
+                    # a bundle restored from a backup) was never republished.
+                    need = (ss.st_size != ds.st_size) or not filecmp.cmp(sp, dp, shallow=False)
                 if need:
                     self._copy_atomic(sp, dp)
                     copied += 1
@@ -299,6 +303,23 @@ class PublishMixin:
         self._write_config_js()
         return True
 
+    @staticmethod
+    def _vehicles_for_page(vehicles):
+        """[{id, label}] from the stored vehicles, leaving out any entry whose
+        id is not a whole number. int() decides, inside a try: the old test
+        (lstrip("-").isdigit()) passed "--5" and digits int() refuses, and the
+        raise stopped the plugin starting (review 26-11-2026)."""
+        out = []
+        for v in (vehicles if isinstance(vehicles, list) else []):
+            if not isinstance(v, dict) or isinstance(v.get("id"), bool):
+                continue
+            try:
+                vid = int(str(v.get("id")).strip())
+            except (TypeError, ValueError):
+                continue
+            out.append({"id": vid, "label": (str(v.get("label") or "").strip() or "Vehicle")[:40]})
+        return out
+
     def _write_config_js(self):
         """Write window.INDIGO_CONFIG and INDIGO_CONFIG_SOURCE to config.js.
         Pages load this (then dashboards-auth.js) before their inline IndigoAPI
@@ -343,10 +364,7 @@ class PublishMixin:
         store = getattr(self, "cfg_store", None) or {}
         cfg["siteName"] = (str(store.get("siteName") or "").strip() or "Dashboards")[:40]
         vehicles = store.get("vehicles")
-        cfg["vehicles"] = [
-            {"id": int(v["id"]), "label": (str(v.get("label") or "").strip() or "Vehicle")[:40]}
-            for v in (vehicles if isinstance(vehicles, list) else [])
-            if isinstance(v, dict) and str(v.get("id", "")).lstrip("-").isdigit()]
+        cfg["vehicles"] = self._vehicles_for_page(vehicles)
         # Optional-plugin flags (v3.13.0): heatingControls (the heating page's
         # boost/force panel is wired to EvoHomeControl's action ids) and
         # sigenAvailable (Energy, Cost, Laundry and the hub's Energy card). ONE
