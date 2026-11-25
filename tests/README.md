@@ -192,6 +192,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_scripts_match_live.py` | The companion scripts this repo ships in scripts/ must be the |
 | `test_security.py` | Regression tests for the /public credential-leak fixes. The |
 | `test_self_suff_reason.mjs` | v3.40.0. A low self-sufficiency figure on a day the grid |
+| `test_settings_door_passthrough.mjs` | Contract test for the Settings page carrying a room door it |
 | `test_settings_fav_passthrough.mjs` | Contract test for the settings editor carrying favourites it |
 | `test_settings_other_camera.mjs` | The Settings page's camera table and the "other" make (3.52.0). |
 | `test_shared_ui_present.mjs` | Every user-facing page must load dashboards-ui.js (v2.97.0). |

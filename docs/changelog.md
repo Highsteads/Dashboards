@@ -9,6 +9,8 @@ Every release, newest first. The three most recent also appear under **What's ne
 [README](https://github.com/Highsteads/Dashboards#whats-new). This page is the whole record.
 Dates are day-month-year.
 
+**3.73.3** (25-Nov-2026) - **Saving Settings no longer breaks a room's garage door tile.** A door tile that follows a door device, such as one from the Garage Door plugin, lost its device every time Settings was saved, and the room page then showed "Not set up". Settings now keeps such a door as it is and lets you change only its label. If your tile already reads "Not set up", the door has to be set again.
+
 **3.73.2** (25-Nov-2026) - **A room's temperature and humidity sensor sits beside its window and door tiles.** On a room page the sensor had a row to itself. It now shares the windows row, under the heading "Windows, Doors & Sensors". A room with no window or door sensors keeps a Sensors row.
 
 **3.73.1** (25-Nov-2026) - **A sensor that has not yet reported its battery no longer reads "0%".** A room page showed "0%" beside a temperature and humidity sensor that had never sent a battery reading, and its details listed "Battery 0%". Both now show a battery figure only once the sensor has sent one.

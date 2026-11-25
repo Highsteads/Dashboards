@@ -741,6 +741,22 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
             body.appendChild(el(`<div class="subhead">Doors (pulse control)</div>`));
             const doorsWrap = el(`<div class="doors"></div>`);
             function doorRow(door) {
+                // A door that reads a door device (deviceId, open and close
+                // actions) has no relay or contact to edit here. The row
+                // carries it whole and offers only its label (3.73.3): the
+                // pulse form used to rebuild it from its own fields on every
+                // Save, which dropped the device and left the room tile
+                // reading "Not set up".
+                if (door && door.deviceId) {
+                    const s = el(`<div class="field" style="border:1px solid var(--border); border-radius:8px; padding:8px;">
+                        <div><label>Label</label><input type="text" class="d-label" value="${esc(door.label || "")}"></div>
+                        <div class="names">Follows door device ${esc(String(door.deviceId))}; opens with action ${esc(String(door.openAction || "none"))} and closes with action ${esc(String(door.closeAction || "none"))}.</div>
+                        <div style="margin-top:8px"><button class="btn danger d-del">Remove door</button></div>
+                    </div>`);
+                    s.dataset.raw = JSON.stringify(door);
+                    s.querySelector(".d-del").addEventListener("click", () => s.remove());
+                    return s;
+                }
                 const r = el(`<div class="field" style="border:1px solid var(--border); border-radius:8px; padding:8px;">
                     <div style="display:grid; grid-template-columns: 1fr 1fr 90px; gap:8px;">
                         <div><label>Label</label><input type="text" class="d-label" value="${esc(door.label || "")}"></div>
@@ -809,6 +825,34 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
             return d;
         }
 
+        // One door row back into its stored form, or null for an empty row.
+        // A row that carries a whole door (dataset.raw: a door that follows a
+        // door device) is returned as it was stored, with only its label
+        // taken from the form. A form must carry what it cannot draw.
+        function doorFromRow(r) {
+            const label = r.querySelector(".d-label").value.trim();
+            if (r.dataset && r.dataset.raw) {
+                let kept = null;
+                try { kept = JSON.parse(r.dataset.raw); } catch (_) { kept = null; }
+                if (kept && typeof kept === "object" && !Array.isArray(kept)) {
+                    if (label) kept.label = label;
+                    return kept;
+                }
+            }
+            const relayBox = r.querySelector(".d-relays");
+            const relays = relayBox ? strToIds(relayBox.value) : [];
+            if (!label && !relays.length) return null;
+            const pulseBox = r.querySelector(".d-pulse");
+            const door = { label, relayIds: relays,
+                           pulseMs: (pulseBox && parseInt(pulseBox.value, 10)) || 2000 };
+            const contactBox = r.querySelector(".d-contact");
+            const contact = contactBox ? parseInt(contactBox.value, 10) : NaN;
+            if (!isNaN(contact)) door.statusContactId = contact;
+            const openBox = r.querySelector(".d-openon");
+            door.openWhenContactOnState = openBox ? openBox.checked : true;
+            return door;
+        }
+
         function collectRooms(root) {
             // ROUND-TRIP SAFETY (v2.32.0): start each room from its ORIGINAL
             // stored config and only overwrite the fields this form edits.
@@ -826,15 +870,8 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
                 };
                 const doors = [];
                 d.querySelectorAll(".doors > .field").forEach(r => {
-                    const label = r.querySelector(".d-label").value.trim();
-                    const relays = strToIds(r.querySelector(".d-relays").value);
-                    if (!label && !relays.length) return;
-                    const door = { label, relayIds: relays,
-                                   pulseMs: parseInt(r.querySelector(".d-pulse").value, 10) || 2000 };
-                    const contact = parseInt(r.querySelector(".d-contact").value, 10);
-                    if (!isNaN(contact)) door.statusContactId = contact;
-                    door.openWhenContactOnState = r.querySelector(".d-openon").checked;
-                    doors.push(door);
+                    const door = doorFromRow(r);
+                    if (door) doors.push(door);
                 });
                 setOrDelete(ex, "doors", doors, doors.length);
                 const apps = [];

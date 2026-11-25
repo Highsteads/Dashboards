@@ -31,7 +31,8 @@ says so.
 **Rooms.** Which Indigo device folders become rooms, and per-room overrides. Device sections —
 lights, motion, windows, radiators — are classified automatically from folders and names, this is
 where you correct that. Each room shows what it currently resolves to ("1 doors · 0 appliances"),
-and typing in a field searches the device list.
+and typing in a field searches the device list. A door that follows a door device, such as one from the
+Garage Door plugin, shows only its label here, and saving leaves the rest of it as it was.
 
 **Scenes.** Every action group with a tick to hide it from the Scenes page, and a per-folder tick
 that hides the whole folder.
