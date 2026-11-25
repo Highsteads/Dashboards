@@ -2,11 +2,11 @@
 
 **Your house on a screen — energy, cameras, heating, every room, and the whole day replayed.**
 
-**Version:** 3.73.3 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
+**Version:** 3.73.4 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
 
 **[Read the full guide](https://highsteads.github.io/Dashboards/)** — setting up, a page of notes for every one of the 24 pages, and what to do when something goes wrong.
 
-<img src="https://img.shields.io/badge/version-3.73.3-5856d6" alt="Version 3.73.3">
+<img src="https://img.shields.io/badge/version-3.73.4-5856d6" alt="Version 3.73.4">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-24-0a84ff" alt="24 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
@@ -98,11 +98,11 @@ The [Getting started](https://highsteads.github.io/Dashboards/getting-started.ht
 
 ## What's new
 
+**3.73.4** (25-Nov-2026) - **Tiles stop showing a reading nobody has taken, and Settings stops changing what it was not asked to.** This release comes from a review of the whole plugin. On a room page every motion tile after the first had lost its state word, and they all say Clear or Motion again. A device that is switched off in Indigo, reports an error or has stopped answering now says so on room tiles, the hub's favourites, door and lock tiles and heating tiles. Several of them went on showing its last state as though it were live: a Shelly plug that had dropped off the network read "On", and a lock in error read "Locked". A window or motion tile for a Zigbee sensor now says when the sensor was last heard ("Closed · heard 40m ago") in place of a time that moved whenever anything at all was written to it. Times are read in the server's own time zone, so the pages are right when you look at them from abroad, where every radiator used to read as silent for hours. On the Plugs page a newly paired plug no longer has its whole lifetime count charged to its first day, a plug that is not answering shows no figure for today, and a plug with nothing on record is listed apart from one that used nothing. The stored daily figures are worked out again once, which makes the first load of that page slower. In Settings, a Save no longer turns round the Open and Closed of a pulse door stored without its optional fields, no longer deletes a door favourite whose action group has gone from Indigo, refuses while the Raw JSON box holds changes you have not applied, and will not give a room a second, blank set of overrides.
+
 **3.73.3** (25-Nov-2026) - **Saving Settings no longer breaks a room's garage door tile.** A door tile that follows a door device, such as one from the Garage Door plugin, lost its device every time Settings was saved, and the room page then showed "Not set up". Settings now keeps such a door as it is and lets you change only its label. If your tile already reads "Not set up", the door has to be set again.
 
 **3.73.2** (25-Nov-2026) - **A room's temperature and humidity sensor sits beside its window and door tiles.** On a room page the sensor had a row to itself. It now shares the windows row, under the heading "Windows, Doors & Sensors". A room with no window or door sensors keeps a Sensors row.
-
-**3.73.1** (25-Nov-2026) - **A sensor that has not yet reported its battery no longer reads "0%".** A room page showed "0%" beside a temperature and humidity sensor that had never sent a battery reading, and its details listed "Battery 0%". Both now show a battery figure only once the sensor has sent one.
 
 ## Acknowledgements
 

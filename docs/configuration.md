@@ -70,8 +70,9 @@ where it writes.
 - **Security.** The guest pairing URL and token, and the control PIN — asked once per session
   before any command on the listed devices. It is a speed bump for shared and family devices, not a
   security boundary, and the page says so.
-- **Raw JSON.** The whole configuration as it will be saved, with *From form* to regenerate it and
-  *Apply to form* to parse it back. The escape hatch for anything the forms do not model.
+- **Raw JSON.** The whole configuration as the editors hold it, with *From form* to regenerate it and
+  *Apply to form* to parse it back. The escape hatch for anything the forms do not model. Press
+  *Apply to form* after editing it: Save refuses while the box holds changes that are not applied.
 
 Save checks that the plugin is actually up first: this is the page most likely to be opened straight
 after a restart, and a save landing on a restarting plugin used to stall the web server.

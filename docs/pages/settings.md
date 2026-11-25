@@ -46,9 +46,10 @@ speed bump for shared and family devices rather than a security boundary. The PI
 you type and is not offered to the browser's form memory. Leave it blank to keep the current PIN, or
 tick *Remove the PIN* to take it away. Below it, the list of PIN-protected device ids.
 
-**Raw JSON.** The whole configuration as it will be saved, with *From form* to regenerate it from
-the editors above and *Apply to form* to parse it back. The escape hatch for anything the forms do
-not cover.
+**Raw JSON.** The whole configuration as the editors above hold it, with *From form* to regenerate
+it from them and *Apply to form* to parse it back. The escape hatch for anything the forms do not
+cover. Save writes what the editors hold, so press *Apply to form* after editing here: from 3.73.4
+Save refuses while the box holds changes that have not been applied, where it used to drop them.
 
 **Save bar.** Fixed to the bottom: Reload and Save.
 
