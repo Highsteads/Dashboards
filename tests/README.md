@@ -178,6 +178,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_review_2026_10_02.py` | Three faults from the independent review of 3.58.1, each one a |
 | `test_room_camera_keyboard.mjs` | A room page's camera card works from the keyboard (3.46.0). |
 | `test_room_door_device.mjs` | Contract test for the ROOM page's state-driven door tile |
+| `test_room_env_battery.mjs` | Contract test for the ROOM page's battery figure on a |
 | `test_room_extras_isolation.py` | One room's roomExtras entry of the wrong shape must cost that |
 | `test_rotate_guest_stills.py` | Plugins > Dashboards > Rotate Guest Link and Camera-Stills |
 | `test_rtt_estimator.mjs` | Contract test for the estimator inside DashUI.probeRtt — which |

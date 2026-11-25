@@ -99,7 +99,7 @@ console.log("\nroom tiles: a disabled or errored device is not shown as live");
     vm.createContext(box);
     vm.runInContext(read("dashboards-action.js"), box);
     vm.runInContext(read("dashboards-controls.js"), box);
-    vm.runInContext(["renderLight", "renderEnvSensor", "renderAppliance", "renderMotion"].map(n => extractFn(src, n)).join("\n")
+    vm.runInContext(["batteryPercent", "renderLight", "renderEnvSensor", "renderAppliance", "renderMotion"].map(n => extractFn(src, n)).join("\n")
         + "\nglobalThis.__R = { renderLight, renderEnvSensor, renderAppliance, renderMotion };", box);
     const R = box.__R;
     const light = R.renderLight({ id: 3, name: "Lamp", class: "Relay", enabled: false, onState: true, states: {} });

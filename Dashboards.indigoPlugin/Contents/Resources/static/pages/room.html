@@ -1118,14 +1118,23 @@
     // Continuous-value environment sensor — temperature + humidity (+ battery
     // if reported). Different shape from the binary motion tile; uses a small
     // two-line read-out with the values prominently shown.
+    // A battery reading worth showing, or null (3.73.1). 0 is not a reading:
+    // Zigbee2MQTT Bridge seeds the state to 0 until the sensor first reports
+    // (and labels a mains device's 0 "Mains"), so a new sensor read "0%".
+    // The hub's low-battery count leaves 0 out for the same reason.
+    function batteryPercent(s) {
+        const n = parseFloat((s || {}).battery);
+        return isFinite(n) && n > 0 ? Math.round(n) : null;
+    }
+
     function renderEnvSensor(d) {
         const s = d.states || {};
         const temp = parseFloat(s.temperature);
         const hum  = parseFloat(s.humidity);
-        const batt = parseInt(s.battery);
+        const batt = batteryPercent(s);
         const volt = parseFloat(s.voltage);
         const humStr  = isFinite(hum)  ? `${hum.toFixed(0)}%`   : null;
-        const battStr = isFinite(batt) && batt < 100 ? `· ${I("battery")} ${batt}%` : "";
+        const battStr = batt != null && batt < 100 ? `· ${I("battery")} ${batt}%` : "";
         // Primary read-out: temperature for an environment sensor, or voltage
         // for a voltage-only monitor (e.g. a Shelly UNI ADC watching a 12 V
         // car battery — it reports `voltage` / `voltage.ui` and no temp+humidity).
@@ -1743,7 +1752,7 @@
             if (d.hvacHeaterIsOn != null) out += _detailRow("Heater on", d.hvacHeaterIsOn ? "Yes" : "No");
         } else if (/Sensor/.test(cls)) {
             out += _detailGroup("Sensor");
-            if (s.battery != null)     out += _detailRow("Battery", s.battery + "%");
+            if (batteryPercent(s) != null) out += _detailRow("Battery", batteryPercent(s) + "%");
             if (d.batteryLevel != null) out += _detailRow("Battery level", d.batteryLevel + "%");
             if (s.linkQuality != null) out += _detailRow("Link quality", s.linkQuality + " / 255");
             if (s.temperature != null) out += _detailRow("Temperature", s.temperature + " °C");
