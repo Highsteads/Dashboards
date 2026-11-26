@@ -572,11 +572,17 @@
           if (!r || !r.ok) throw new Error('HTTP ' + (r && r.status));
           return r.blob();
         })
-        .then(function (b) { return (b && b.size) || 0; });
+        .then(function (b) { return (b && b.size) || 0; })
+        // One camera with no still on disk must not void the round: it made
+        // the whole measurement fail, and "not measured" switched live video
+        // off for every camera on the page (3.73.7).
+        .catch(function () { return null; });
     })).then(function (sizes) {
       if (timer) clearTimeout(timer);
+      var got = sizes.filter(function (n) { return n !== null; });
+      if (got.length < Math.min(2, urls.length)) throw new Error('too few stills answered');
       var bytes = 0;
-      sizes.forEach(function (n) { bytes += n; });
+      got.forEach(function (n) { bytes += n; });
       return { bytes: bytes, ms: Math.max(clock() - t0, 0.001) };
     }, function (e) { if (timer) clearTimeout(timer); throw e; });
   }
@@ -693,6 +699,7 @@
     POOR_FPS: POOR_FPS,
     // the bandwidth decision
     measure: measure,
+    _round: _round,                  // for the tests
     decide: decide,
     forget: forget,
     cached: cached,

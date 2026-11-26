@@ -1341,6 +1341,17 @@
         return "";
     }
 
+    /* Today's saving, with its sign (3.73.7). On a day the battery was filled
+       from the grid the figure is negative, and it was printed in green under
+       "Solar saved" as though it were a saving. */
+    function benefitRow(m) {
+        if (!m || m.benefit == null || !isFinite(Number(m.benefit))) return "";
+        const v = Number(m.benefit);
+        return v < 0
+            ? `<div class="row"><span class="key">Behind a grid-only day</span><span class="val warn">£${Math.abs(v).toFixed(2)}</span></div>`
+            : `<div class="row"><span class="key">Solar saved</span><span class="val ok">£${v.toFixed(2)}</span></div>`;
+    }
+
     function renderEnergyCard(devices) {
         const el = document.getElementById("energy-detail");
         if (!el) return;
@@ -1372,7 +1383,7 @@
         const gridCls   = grid <  0 ? "ok"     : (grid > 50 ? "warn" : "");
         // Sigen economics/self-suff/optimiser (slow-changing, from the cached API)
         const m = _sigenMoney();
-        const benefitStr = (m && m.benefit != null) ? "£" + Number(m.benefit).toFixed(2) : null;
+        const benefitStr = (m && m.benefit != null) ? "£" + Number(m.benefit).toFixed(2) : null;   // only "is there a figure" now: benefitRow draws it
         const ssStr      = (m && m.selfSuff != null)
             ? Number(m.selfSuff).toFixed(0) + "%" + (m.selfSuffWhy ? ` <span class="muted" title="${escapeAttr(m.selfSuffWhy.long)}">· ${escapeAttr(m.selfSuffWhy.short)}</span>` : "")
             : null;
@@ -1452,7 +1463,7 @@
                 ${actionStr ? `<div class="row"><span class="key">Now</span><span class="val">${escapeAttr(actionStr)}</span></div>` : ""}
                 ${vppRow}
                 ${ssRow}
-                ${benefitStr ? `<div class="row"><span class="key">Solar saved</span><span class="val ok">${benefitStr}</span></div>` : ""}
+                ${benefitRow(m)}
                 ${vppMoneyRow}
                 ${ssStr ? `<div class="row"><span class="key">Self-sufficient</span><span class="val">${ssStr}</span></div>` : ""}`;
             return;
@@ -1470,7 +1481,7 @@
             <div class="row"><span class="key">Exported</span><span class="val ok">${expToday.toFixed(1)} kWh</span></div>
             <div class="row"><span class="key">Imported</span><span class="val ${impToday > 1 ? 'warn' : ''}">${impToday.toFixed(2)} kWh</span></div>
             ${(benefitStr || ssStr || rateStr || vppMoneyRow) ? `<h3 style="margin-top:10px">Today's money</h3>` : ""}
-            ${benefitStr ? `<div class="row"><span class="key">Solar saved</span><span class="val ok">${benefitStr}</span></div>` : ""}
+            ${benefitRow(m)}
             ${vppMoneyRow}
             ${ssStr ? `<div class="row"><span class="key">Self-sufficient</span><span class="val">${ssStr}</span></div>` : ""}
             ${rateStr ? `<div class="row"><span class="key">Import rate</span><span class="val">${rateStr}</span></div>` : ""}`;

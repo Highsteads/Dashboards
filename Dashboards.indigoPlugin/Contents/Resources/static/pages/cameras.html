@@ -1930,7 +1930,10 @@
                            + `${bw ? `, ${bw.mbps} Mbit/s` : ""}${why} — `
                            + `${before[0]} -> ${after[0]}, ${after[1]} live`
                            + `${after[2] ? ", webrtc focus" : ""}`);
-                relayoutAll();
+                // Not in a hidden tab (3.73.7): a measurement that finished
+                // after the page was put in the background started live
+                // streams nobody was watching. Coming back lays it out.
+                if (typeof document === "undefined" || !document.hidden) relayoutAll();
             }
             renderPolicy(ms);
         }).catch(() => { /* keep the current policy */ })

@@ -1595,6 +1595,11 @@
           var first = lastTs === null;
           lastTs = ts; seenAt = now;
           if (first && now - ts * 1000 > CAM_HEALTH_FIRST_READ_SKEW_MS) {
+            // Stale until the file is WRITTEN again (3.73.7). With seenAt left
+            // at now, the second read of the same old file passed as "written
+            // within the last minute", so a page opened after the writer had
+            // stopped showed "stale" once and then health OK.
+            seenAt = now - limit - 1;
             return { state: 'stale', health: null };
           }
         } else if (now - seenAt > limit) {
