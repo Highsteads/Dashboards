@@ -157,6 +157,7 @@ from dash_util import as_bool01  # noqa: E402
 from health_mixin import HealthMixin  # noqa: E402
 from history_mixin import HistoryMixin  # noqa: E402
 from insights_mixin import InsightsMixin  # noqa: E402
+import open_since  # noqa: E402
 from mains_mixin import MainsMixin  # noqa: E402
 from plugs_mixin import PlugsMixin  # noqa: E402
 from publish_mixin import PublishMixin  # noqa: E402
@@ -620,6 +621,10 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         # both windows first and then both doors, not Left-Outside-Right-
         # Sliding interleaved).
         self._sort_room_sections(rooms)
+        try:
+            self._open_since_follow(rooms)       # 3.74.0: which sensors to time
+        except Exception as exc:
+            self.logger.debug(f"[Open] could not follow the contact sensors: {exc}")
 
         payload = {
             "_writeTs": time.time(),
@@ -1151,6 +1156,20 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         # endpoint so they refetch only what actually changed.
         self._dev_changes  = {}                              # dev id -> epoch
         self._dev_deleted  = {}                              # dev id -> epoch
+        # 3.74.0: when each window and door was opened (open_since.py). Read
+        # here, before the stamp file is written again: its last time says
+        # how long the plugin was away, and so whether the kept times can
+        # still be believed.
+        self._open_since = open_since.OpenSince()
+        self._open_ids = set()
+        self._open_trusted = False
+        try:
+            self._open_since.load(self._open_since_path())
+            with open(self._stamp_path(), encoding="utf-8") as _f:
+                _last = float(json.load(_f).get("ts") or 0)
+            self._open_trusted = 0 <= (time.time() - _last) < open_since.TRUST_GAP_SECONDS
+        except Exception:
+            self._open_trusted = False
         indigo.devices.subscribeToChanges()
         # 3.47.0: the alert rules fire from the plugin, with no page open. The
         # recent firings are read back first, so a restart does not lose them;
@@ -1232,6 +1251,12 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
 
     def shutdown(self):
         self._freeze_stamp()          # idempotent belt-and-braces
+        # The open times first: a small local write, done before anything
+        # that can take time, so a restart keeps them (3.74.0).
+        try:
+            self._open_since.save(self._open_since_path())
+        except Exception:
+            pass
         # Quiesce: stay alive while gated pages notice the sentinel and stop
         # polling — see STAMP_QUIESCE_SECONDS. Must run BEFORE any teardown.
         time.sleep(STAMP_QUIESCE_SECONDS)
@@ -1285,6 +1310,14 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
             return
         self._dev_changes[new_dev.id] = time.time()
         self._stamp_note_change()
+        # 3.74.0: a window or door opening or closing. In memory only; the
+        # sweep saves it. Never raises into Indigo's callback.
+        try:
+            if new_dev.id in self._open_ids:
+                self._open_since.note(new_dev.id, getattr(orig_dev, "onState", None),
+                                      getattr(new_dev, "onState", None), time.time())
+        except Exception:
+            pass
         # 3.47.0: the alert rules are judged here (alerts_mixin.py). In memory
         # only, and it never raises; the sending happens on its own thread.
         self._alert_device_changed(orig_dev, new_dev)
@@ -1644,13 +1677,63 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         # refetch too: the page used to have to notice the restart itself.
         if (since <= 0 or (now - since) > self.CHANGED_SINCE_STALE_S
                 or since < float(getattr(self, "_boot_ts", 0) or 0)):
-            return {"ok": True, "now": now, "full": True}
+            return {"ok": True, "now": now, "full": True, "openSince": self._open_since_reply()}
         # list() snapshots guard against concurrent ledger writes mid-iteration.
         changed = [i for i, ts in list(self._dev_changes.items()) if ts > since]
         deleted = [i for i, ts in list(self._dev_deleted.items()) if ts > since]
         if len(changed) > self.CHANGED_SINCE_MAX_IDS:
-            return {"ok": True, "now": now, "full": True}
-        return {"ok": True, "now": now, "changed": changed, "deleted": deleted}
+            return {"ok": True, "now": now, "full": True, "openSince": self._open_since_reply()}
+        return {"ok": True, "now": now, "changed": changed, "deleted": deleted,
+                "openSince": self._open_since_reply()}
+
+    # ── When each window and door was opened (3.74.0) ───────────────────────
+    def _open_since_path(self):
+        d = os.path.join(indigo.server.getInstallFolderPath(), "Preferences", "Plugins", self.pluginId)
+        os.makedirs(d, exist_ok=True)
+        return os.path.join(d, "open_since.json")
+
+    def _open_since_reply(self):
+        """{"<id>": epoch} for the pages. {} before the first look at the
+        devices: a time kept from before a restart is not shown until it has
+        been checked against what the sensor says now."""
+        tracker = getattr(self, "_open_since", None)
+        if tracker is None or not tracker.reconciled:
+            return {}
+        return tracker.reply()
+
+    def _open_since_follow(self, rooms):
+        """Follow the contact sensors the room pages list as windows and doors,
+        and on the first call square the kept times with the real states.
+        Called whenever the rooms map is built (every 30 s)."""
+        tracker = getattr(self, "_open_since", None)
+        if tracker is None:
+            return
+        ids = set()
+        for room in (rooms or {}).values():
+            for dev_id in (room.get("windows") or []):
+                try:
+                    ids.add(int(dev_id))
+                except (TypeError, ValueError):
+                    continue
+        self._open_ids = ids
+        if not tracker.reconciled:
+            states = {}
+            for dev_id in ids:
+                try:
+                    dev = indigo.devices[dev_id]
+                    on = getattr(dev, "onState", None)
+                    states[dev_id] = on if isinstance(on, bool) else None
+                except Exception:
+                    states[dev_id] = None
+            tracker.reconcile(states, bool(getattr(self, "_open_trusted", False)))
+        else:
+            # A sensor taken off the room pages is forgotten.
+            for dev_id in [i for i in tracker.since if i not in ids]:
+                tracker.note(dev_id, True, False, time.time())
+        try:
+            tracker.save(self._open_since_path())
+        except Exception as exc:
+            self.logger.debug(f"[Open] open_since.json not saved: {exc}")
 
     def menuTestHistory(self, valuesDict=None, typeId=None):
         """Check the configured SQL Logger backend and report what it found.
@@ -3293,12 +3376,21 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         if pid:
             try:
                 owner = indigo.server.getPlugin(pid)
-                # Fail OPEN on an unknown id: getPlugin() reads all-False for a
-                # typo, and a typo must never be what refuses a command.
-                if owner.isInstalled() and not owner.isRunning():
+                # Not installed is a refusal too (3.74.0, CliveS). The id is
+                # read off the device, so it is no typo: it names a plugin
+                # that has been removed, and Indigo swallows a command to its
+                # device as it does for a stopped one. It used to be reported
+                # as done. Every device in a healthy install, Indigo's own
+                # Z-Wave and virtual devices included, names an installed
+                # plugin (checked on 26-Nov-2026: 24 of 24 here).
+                if not owner.isInstalled():
+                    return ("its plugin is no longer installed, so nothing can act on "
+                            "the command"), 503
+                if not owner.isRunning():
                     disp = getattr(owner, "pluginDisplayName", "") or pid
                     return f"{disp} is not running — the command would be swallowed", 503
             except Exception:
+                # The question could not be asked: that alone refuses nothing.
                 pass
         return None, None
 

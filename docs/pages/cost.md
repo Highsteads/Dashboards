@@ -74,6 +74,9 @@ Read it, switch the calendar year, and follow the link back to the Energy page. 
   settled day will not.
 - "Short — export missed the bill" means the day's export earnings did not cover the whole-house
   bill, which on a flat export rate is a statement about the weather rather than the tariff.
+- "Grid-only" is the house's own use priced half hour by half hour at the rate in force when it was
+  used (SigenEnergyManager 5.148.0 and later; earlier days keep the figure they were recorded with
+  unless the half-hour record and the published prices still cover them).
 - Solar benefit compares against a grid-only counterfactual with the standing charge included, so
   it is not the same figure as "money saved" on any other page. The definitions note is there
   because the four money numbers on this page are all subtly different.

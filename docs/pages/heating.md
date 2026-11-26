@@ -36,7 +36,9 @@ need EvoHomeControl 1.26.0 or later, and 1.30.0 or later for a boost that holds 
 22 degrees for the whole time (3.73.0).
 
 **Summary strip.** Zones calling for heat, the house average, the coldest zone with its name, the
-warmest with its name, and the outside temperature. A coloured edge on the strip reflects whether
+warmest with its name, and the outside temperature. A thermostat ticked on the Settings page as not
+measuring a room's air (an underfloor probe) is left out of the average, coldest and warmest
+(3.74.0). A coloured edge on the strip reflects whether
 anything is calling.
 
 **Zone grid.** One card per zone: the name, the current temperature large, a setpoint stepper with

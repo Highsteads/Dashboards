@@ -535,7 +535,7 @@ h1 .dsh-icon {width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;
       <div class="mtile" data-help-title="Net grid" data-help="Export earnings minus import cost — energy only, before the standing charge and gas. The Cost page's &ldquo;Net after bill&rdquo; is the same day measured against the whole bill, so the two figures differ.">
         <div class="mt-lab">Net grid</div><div class="mt-val" id="eco-net">&#8212;</div><div class="mt-sub">energy only</div>
       </div>
-      <div class="mtile" data-help-title="Grid-only" data-help="What today's usage would have cost drawn entirely from the grid, at today's unit rate.">
+      <div class="mtile" data-help-title="Grid-only" data-help="What today's usage would have cost drawn entirely from the grid, each half hour at the price in force when the house used it. On a flat tariff that is the one unit rate.">
         <div class="mt-lab">Grid-only would&#8217;ve cost</div><div class="mt-val" id="eco-nosolar">&#8212;</div><div class="mt-sub">same usage, no solar</div>
       </div>
     </div>
@@ -1282,6 +1282,11 @@ function update(d) {
     if (vppState && vppState.toLowerCase() !== 'idle') {
       modeLabel = 'VPP ' + vppState.toLowerCase().replace(/_/g, ' ');
       modeClass = vppState.toLowerCase() === 'active' ? 'warn' : '';
+    } else if (DashUI.fluxDoing && DashUI.fluxDoing(d)) {
+      // The Flux controller has the inverter (3.74.0): say what IT is doing.
+      const fx = DashUI.fluxDoing(d);
+      modeLabel = fx.label;
+      modeClass = fx.cls;
     } else {
       modeLabel = ACTION_LABELS[action] || action;
       modeClass = (action === 'self_consumption' || action === 'solar_overflow' || action === 'start_export')
@@ -1351,7 +1356,9 @@ function update(d) {
   /* decision */
   const action = (d.decision && d.decision.action) || 'unknown';
   const badge = document.getElementById('action-badge');
-  badge.textContent = ACTION_LABELS[action] || action;
+  // The same rule as the chip: Flux's own word while it holds the inverter.
+  const fxNow = DashUI.fluxDoing ? DashUI.fluxDoing(d) : null;
+  badge.textContent = fxNow ? fxNow.label : (ACTION_LABELS[action] || action);
   badge.className = 'action-badge ' + (ACTION_CLASS[action] || 'action-unknown');
   if (d.decision) {
     const dawnEl = document.getElementById('dec-dawn');
@@ -1359,7 +1366,7 @@ function update(d) {
     dawnEl.textContent = dawn.text;
     dawnEl.className = dawn.cls;
     setText('dec-soc-dawn', d.decision.soc_at_dawn_kwh != null ? d.decision.soc_at_dawn_kwh.toFixed(1) + ' kWh' : '—');
-    setText('dec-reason', d.decision.reason || '—');
+    setText('dec-reason', (fxNow && fxNow.status) ? 'Flux: ' + fxNow.status : (d.decision.reason || '—'));
   }
   renderDecisionTrace(d);
 
@@ -1726,7 +1733,8 @@ function renderDecisionTrace(d) {
   if (battery != null) parts.push('battery ' + (battery >= 0 ? 'charging ' : 'discharging ') + fmtKw(Math.abs(battery)));
   if (grid != null) parts.push(grid >= 0 ? 'grid import ' + fmtKw(grid) : 'grid export ' + fmtKw(Math.abs(grid)));
   const action = d.decision && d.decision.action;
-  const prefix = action ? (ACTION_LABELS[action] || action) + ': ' : 'Live flow: ';
+  const fxFlow = DashUI.fluxDoing ? DashUI.fluxDoing(d) : null;
+  const prefix = fxFlow ? fxFlow.label + ': ' : action ? (ACTION_LABELS[action] || action) + ': ' : 'Live flow: ';
   el.textContent = parts.length ? prefix + parts.join(' · ') + '.' : 'Live flow is not available yet.';
 }
 

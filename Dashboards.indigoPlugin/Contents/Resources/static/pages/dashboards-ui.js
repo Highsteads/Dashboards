@@ -113,6 +113,52 @@
              min: d.getUTCHours() * 60 + d.getUTCMinutes(), known: true };
   }
 
+  /* What the Flux controller is doing, while it holds the inverter (3.74.0,
+     with SigenEnergyManager 5.148.0, which sends status.flux). The manager's
+     own decision reads "self consumption" all through a Flux charge or
+     sale, so a page that quoted it called a 2am grid charge "the solar is
+     charging it". One answer for every page: null when Flux is not in
+     charge (or the manager is older and sends no flux block), else the
+     words for a chip (label), a sentence (doing) and the chip's colour. */
+  var FLUX_DOING = {
+    charge:       { label: 'Charging from the grid', doing: 'Charging from the grid on the cheap rate', cls: 'warn' },
+    'export':     { label: 'Selling to the grid',    doing: 'Selling to the grid at the peak rate',     cls: 'ok' },
+    hold:         { label: 'Holding its charge',     doing: 'Holding its charge',                       cls: '' },
+    supply_house: { label: 'Running the house',      doing: 'Running the house from the battery',       cls: 'ok' }
+  };
+  function fluxDoing(status) {
+    var f = status && status.flux;
+    if (!f || f.owns !== true) return null;
+    var known = FLUX_DOING[String(f.mode || '')];
+    if (!known) return null;
+    return { label: known.label, doing: known.doing, cls: known.cls, status: String(f.status || '') };
+  }
+
+  /* How long a window or door has been open (3.74.0). Indigo cannot say:
+     its one "last changed" time moves on any state write. The plugin
+     records each opening itself and sends {id: epoch} with every change
+     poll (dashboard.js hands it to noteOpenSince with the server's clock).
+     openFor(id) is the time open in ms, or null when the plugin did not see
+     it open (it started with the window already open). Worked out from the
+     server's clock at the reply plus this device's time since, so a phone
+     whose clock is wrong still gets the right length. */
+  var _openSince = { map: {}, serverNow: 0, at: 0 };
+  function noteOpenSince(map, serverNowS, nowMs) {
+    if (!map || typeof map !== 'object') return;
+    _openSince = { map: map, serverNow: Number(serverNowS) || 0, at: nowMs == null ? Date.now() : nowMs };
+  }
+  function openFor(id, nowMs) {
+    var since = Number(_openSince.map[String(id)]);
+    if (!(since > 0) || !(_openSince.serverNow > 0)) return null;
+    var now = nowMs == null ? Date.now() : nowMs;
+    return Math.max(0, (_openSince.serverNow - since) * 1000 + (now - _openSince.at));
+  }
+  /* "open for 40 minutes", or just "open" when the length is not known. */
+  function openWords(id, nowMs) {
+    var ms = openFor(id, nowMs);
+    return ms == null ? 'open' : 'open for ' + ago(ms, { words: true });
+  }
+
   /* How long ago, said ONE way (v3.28.0). Five page-local copies disagreed:
      some rounded (1 h 40 m read "2h ago" on a room page) and some rounded
      down (the same age read "1h ago" on Heating). Now every figure rounds
@@ -1812,6 +1858,10 @@
     ago: ago,
     serverTime: serverTime,
     serverNow: serverNow,
+    fluxDoing: fluxDoing,
+    noteOpenSince: noteOpenSince,
+    openFor: openFor,
+    openWords: openWords,
     setText: setText,
     tweenNumber: tweenNumber,
     reducedMotion: reducedMotion,

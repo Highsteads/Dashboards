@@ -200,6 +200,18 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
     /* The controller's own figures are a photograph once it stops answering
        (3.73.12): "Internet Online" stayed green through a controller outage.
        Returns '' while live, else the words for the card's sub-heading. */
+    /* Pure: the two speed figures, or dashes when the last test gave none.
+       Failed when UniFi Health says so (speedtestStatus, where it sends
+       one), or when both figures are exactly nought, which no working line
+       measures. */
+    function speedTestWords(s) {
+        s = s || {};
+        const down = num(s.speedtestDown), up = num(s.speedtestUp);
+        const failed = /error|fail/i.test(String(s.speedtestStatus || "")) || (down === 0 && up === 0);
+        return failed ? { down: "—", up: "—", failed: true }
+                      : { down: fmtNum(s.speedtestDown), up: fmtNum(s.speedtestUp), failed: false };
+    }
+
     function controllerStaleNote(d) {
         if (!d) return "";
         const s = d.states || {};
@@ -231,16 +243,20 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
         const lat = num(s.internetLatencyMs);
         const age = num(s.speedtestAgeHours);
         const ageStr = (age === null || age < 0) ? "—" : (age < 1 ? "<1h" : age + "h");
+        // A speed test that failed is not a line running at nought (3.74.0).
+        // The router reports 0 down and 0 up for a test that ended in an
+        // error, and the page printed that as the result.
+        const st = speedTestWords(s);
         const gwMem = num(s.gatewayMem);
         return `
             <div class="summary ${ok ? '' : 'bad'}">
                 <div class="card-title">Internet${s.wanIp ? ' <span class="sub">' + escapeHtml(s.wanIp) + '</span>' : ''}</div>
                 <div class="summary-grid">
                     <div class="metric"><div class="m-val ${ok ? 'good' : 'bad'}">${escapeHtml(ok ? 'Online' : (s.wanStatus || '—'))}</div><div class="m-lab">Status</div></div>
-                    <div class="metric"><div class="m-val">${fmtNum(s.speedtestDown)}</div><div class="m-lab">↓ Mbps</div></div>
-                    <div class="metric"><div class="m-val">${fmtNum(s.speedtestUp)}</div><div class="m-lab">↑ Mbps</div></div>
+                    <div class="metric"><div class="m-val">${st.down}</div><div class="m-lab">↓ Mbps</div></div>
+                    <div class="metric"><div class="m-val">${st.up}</div><div class="m-lab">↑ Mbps</div></div>
                     <div class="metric"><div class="m-val ${latClass(lat)}">${lat === null ? '—' : lat}</div><div class="m-lab">Latency ms</div></div>
-                    <div class="metric"><div class="m-val">${ageStr}</div><div class="m-lab">Tested</div></div>
+                    <div class="metric"><div class="m-val${st.failed ? ' warn' : ''}">${ageStr}</div><div class="m-lab">${st.failed ? 'Last test failed' : 'Tested'}</div></div>
                     <div class="metric"><div class="m-val ${loadClass(gwMem)}">${fmtNum(s.gatewayCpu)}/${fmtNum(s.gatewayMem)}%</div><div class="m-lab">Gateway cpu/mem</div></div>
                 </div>
             </div>`;

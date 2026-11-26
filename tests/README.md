@@ -76,6 +76,8 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_dash_poll.mjs` | Contract test for DashUI.poll (v3.28.0): one polling loop for |
 | `test_dash_tile.mjs` | One tile system (v3.37.0). Runs the shipped dashboards-controls.js |
 | `test_day_patterns.mjs` | Node contract test for DashCalc.dayPattern / dayPatternCaption / |
+| `test_decisions_2026_11_26.mjs` | The page side of CliveS's answers to the deep review's |
+| `test_decisions_2026_11_26.py` | The server side of CliveS's answers to the deep review's |
 | `test_diagnostic_banner.py` | Every diagnostic menu dumps the SAME banner, extras included |
 | `test_docs_site.py` | The documentation site (docs/, GitHub Pages) and the README |
 | `test_door_tile.mjs` | Contract test for the hub's state-driven door favourite — |

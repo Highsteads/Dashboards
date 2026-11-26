@@ -1115,7 +1115,12 @@
         const why = DashTile.unknownReason(d) || (on === null ? "no reading" : "");
         const active = !why && on === true;
         const w = wording || _motionWording(d);
-        const stateTxt = why ? `— · ${why}` : (active ? w.on : w.off);
+        // An open window or door says for how long (3.74.0), from the
+        // plugin's own record of when it opened; plain "Open" when the
+        // plugin did not see it open.
+        const openMs = (active && w.on === "Open" && DashUI.openFor) ? DashUI.openFor(d.id) : null;
+        const stateTxt = why ? `— · ${why}`
+            : (active ? (openMs != null ? `Open for ${DashUI.ago(openMs, { words: true })}` : w.on) : w.off);
         return `
             <div class="motion-card ${active ? 'active' : ''}${why ? ' unknown' : ''}">
                 <div class="motion-info">

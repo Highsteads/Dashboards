@@ -60,7 +60,7 @@ await section(async () => {
     vm.createContext(ctx);
     vm.runInContext("let ROOMS = null;\n" + (src.match(/let _roomsAt = 0, _roomsFails = 0;/) || [""])[0] + "\n"
         + extractFn(src, "loadRooms") + "\n" + extractFn(src, "maybeRetryRooms") + "\n"
-        + extractFn(src, "favNotLive") + "\n" + extractFn(src, "renderAlertsCard")
+        + extractFn(src, "favNotLive") + "\n" + extractFn(src, "contactsNote") + "\n" + extractFn(src, "renderAlertsCard")
         + "\nglobalThis.__h = { loadRooms, maybeRetryRooms, renderAlertsCard, rooms: () => ROOMS, setRooms: r => { ROOMS = r; } };", ctx);
     const H = ctx.__h;
     await H.loadRooms();
@@ -89,7 +89,9 @@ await section(async () => {
     check("no contacts set up says so, without a tick", /No door or window sensors set up/.test(host.innerHTML) && !/data-n="check"/.test(host.innerHTML));
     H.setRooms({ rooms: { Hall: { windows: [1, 2] } } });
     H.renderAlertsCard([{ id: 1, name: "Door", enabled: true, onState: false }, { id: 2, name: "W", enabled: true, onState: null, errorState: "x" }]);
-    check("a real count keeps the green line", /data-n="check"/.test(host.innerHTML) && /All 1 closed · 1 unreadable/.test(host.innerHTML));
+    // 3.74.0: the sensor left out of the count has a line of its own, in words.
+    check("a real count keeps the green line", /data-n="check"/.test(host.innerHTML) && /All 1 closed</.test(host.innerHTML)
+          && /1 sensor cannot be read\. Not counted above\./.test(host.innerHTML), host.innerHTML);
 });
 
 // ── [61] disabled devices on the hub ───────────────────────────────────────

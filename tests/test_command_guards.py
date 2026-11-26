@@ -41,10 +41,33 @@ def test_stopped_owner_is_refused_503(monkeypatch):
     assert status == 503 and "MagicHome" in reason
 
 
-def test_unknown_owner_id_fails_open(monkeypatch):
+def test_a_device_whose_plugin_is_not_installed_is_refused(monkeypatch):
+    """3.74.0 (CliveS: "Refuse and say why"). The id is read off the device, so
+    it names a plugin that has been removed; Indigo swallows the command, and
+    it used to be reported as done. This test pinned the old answer."""
     plugin = load_plugin_module(); p = bare_plugin()
     monkeypatch.setattr(plugin.indigo.server, "getPlugin", lambda pid: _owner(False, False))
-    dev = SimpleNamespace(enabled=True, pluginId="typo", name="Lamp")
+    dev = SimpleNamespace(enabled=True, pluginId="com.example.removed", name="Lamp")
+    reason, status = p._device_command_blocked(dev)
+    assert status == 503 and "no longer installed" in reason
+
+
+def test_a_builtin_device_with_no_plugin_id_is_never_refused(monkeypatch):
+    plugin = load_plugin_module(); p = bare_plugin()
+    asked = []
+    monkeypatch.setattr(plugin.indigo.server, "getPlugin", lambda pid: asked.append(pid) or _owner(False, False))
+    dev = SimpleNamespace(enabled=True, pluginId="", name="Lamp")
+    assert p._device_command_blocked(dev) == (None, None)
+    assert asked == [], "nothing is asked about a device that names no plugin"
+
+
+def test_a_question_that_cannot_be_asked_refuses_nothing(monkeypatch):
+    plugin = load_plugin_module(); p = bare_plugin()
+
+    def boom(pid):
+        raise RuntimeError("server busy")
+    monkeypatch.setattr(plugin.indigo.server, "getPlugin", boom)
+    dev = SimpleNamespace(enabled=True, pluginId="com.example.any", name="Lamp")
     assert p._device_command_blocked(dev) == (None, None)
 
 

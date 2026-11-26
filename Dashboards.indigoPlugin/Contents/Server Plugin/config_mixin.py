@@ -29,6 +29,7 @@ from dash_common import (
     _parse_cameras,
     camera_problem,
     _safe_int_list,
+    clean_contact_silent,
     log,
 )
 from savings_model import clean_savings_settings
@@ -530,9 +531,10 @@ class ConfigMixin:
                 folder_names = {f.id: f.name for f in indigo.devices.folders}
             except Exception:
                 folder_names = {}
+            all_devs = list(indigo.devices)
             devices = [{"id": d.id, "name": d.name,
                         "folder": folder_names.get(d.folderId, "")}
-                       for d in indigo.devices]
+                       for d in all_devs]
             # Full action-group list (UNfiltered — scenes.json excludes hidden
             # entries, so the editor needs this to be able to un-hide them).
             ag_folders = {}
@@ -549,6 +551,9 @@ class ConfigMixin:
                 "ok":           True,
                 "source":       "store",
                 "config":       self._redact_pin(self._effective_config()),
+                # 3.74.0: sent back with a save (see handleSaveDashboardsConfig).
+                "rev":          self._config_rev(),
+                "thermostats":  self._thermostats_for_settings(all_devs),
                 "devices":      sorted(devices, key=lambda x: x["name"].lower()),
                 "actionGroups": sorted(action_groups,
                                        key=lambda x: (x["folder"].lower(), x["name"].lower())),
@@ -586,7 +591,39 @@ class ConfigMixin:
         cfg = payload.get("config")
         if not isinstance(cfg, dict):
             return self._evo_reply({"ok": False, "error": "config must be an object"}, status=400)
+        # A Settings tab opened before somebody else's save used to write its
+        # older view over that save without a word (3.74.0). The page is given
+        # the store's revision when it loads and sends it back; a different
+        # one, or none (a page from before this check), is refused, and the
+        # reader is told to reload. Nothing is written.
+        if str(payload.get("rev", "<none>")) != self._config_rev():
+            return self._evo_reply(
+                {"ok": False, "stale": True,
+                 "error": "the settings have changed since this page was opened, so nothing "
+                          "was saved. Press Reload to see them as they are now, then make "
+                          "your change again"}, status=409)
         return self._apply_config(cfg)
+
+    def _config_rev(self):
+        """The settings store's revision: the time it was last written, as
+        text ("" for a store never saved). What a Settings page must send back
+        with a save, so an old tab cannot overwrite a newer save."""
+        saved = (getattr(self, "cfg_store", None) or {}).get("_savedAt")
+        return "" if saved is None else repr(saved)
+
+    @staticmethod
+    def _thermostats_for_settings(devices):
+        """[{id, name}] for the devices the Heating page draws as zones: the
+        ones with a heat setpoint. For the Settings card's floor-probe ticks."""
+        out = []
+        for d in devices:
+            try:
+                states = d.states
+                if "setpointHeat" in states or "setpoint" in states:
+                    out.append({"id": d.id, "name": d.name})
+            except Exception:
+                continue
+        return sorted(out, key=lambda x: x["name"].lower())
 
     def _apply_config(self, cfg):
         """_apply_config_checked, with any fault it did not foresee answered as
@@ -733,6 +770,18 @@ class ConfigMixin:
         sn = cfg.get("siteName")
         if sn is not None:
             clean["siteName"] = str(sn).strip()[:40]
+        # 3.74.0: see publish_mixin. Cleaned here so a bad value is refused
+        # with its name instead of being stored and quietly read as a default.
+        nrt = cfg.get("notRoomTemp")
+        if nrt is not None:
+            if not isinstance(nrt, list):
+                return self._evo_reply({"ok": False, "error": "notRoomTemp must be a list of device ids"}, status=400)
+            clean["notRoomTemp"] = sorted(set(_safe_int_list(nrt)))
+        if cfg.get("contactSilent") is not None:
+            silent, silent_err = clean_contact_silent(cfg.get("contactSilent"))
+            if silent_err:
+                return self._evo_reply({"ok": False, "error": silent_err}, status=400)
+            clean["contactSilent"] = silent
         # The Savings page's figures (3.71.0): a blank field is dropped, a
         # value that is not a number or a date is refused with its name.
         if cfg.get("savings") is not None:

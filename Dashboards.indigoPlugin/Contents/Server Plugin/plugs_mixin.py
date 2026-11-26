@@ -131,11 +131,15 @@ def build_report(plugs, starts, rates, now):
         out_plugs.append({
             "id": p["id"], "name": p["name"], "room": p.get("room") or "",
             "answering": bool(p.get("answering", True)),
+            # 3.74.0: one row for every plug that has since been disabled or
+            # deleted, so the totals for past days do not change when it goes.
+            "removed": bool(p.get("removed")),
+            "names": list(p.get("names") or []),
             **spans(kwhs, pences),
             "since": since,
             "days": [{"kwh": k, "pence": c} for k, c in zip(kwhs, pences)],
         })
-    out_plugs.sort(key=lambda x: (-(x["month"]["kwh"] or 0), x["name"].lower()))
+    out_plugs.sort(key=lambda x: (x["removed"], -(x["month"]["kwh"] or 0), x["name"].lower()))
     totals = spans(tot_k, tot_p)
     today_rate = rates[-1] if rates else None
     return {
@@ -148,6 +152,39 @@ def build_report(plugs, starts, rates, now):
         "rate": {"pence": round(today_rate[0], 2), "words": C.rate_words(today_rate)} if today_rate else None,
         "unpricedDays": sum(1 for r in rates if not r),
     }
+
+
+def removed_plugs_row(days, keys, live_ids, names):
+    """One plug row for the energy of plugs that are no longer listed, or None.
+
+    A plug that is disabled or deleted stops being asked about, and its past
+    days used to drop out of the 7-day and 30-day totals the moment it went
+    (3.74.0). The finished days already kept for it are added up here under
+    one row. Today is not in it: a plug that is gone records nothing today.
+
+    days: the ledger's {day key: {"kwh": {"<id>": kWh or None}}}.
+    keys: the page's day keys, oldest first, today last.
+    live_ids: the ids of the plugs listed now.
+    names: {"<id>": name} as last seen."""
+    live = {str(i) for i in live_ids}
+    values = [None] * len(keys)
+    seen = set()
+    for i, key in enumerate(keys[:-1]):
+        kept = ((days.get(key) or {}).get("kwh") or {})
+        for dev_id, kwh in kept.items():
+            if dev_id in live or kwh is None:
+                continue
+            try:
+                kwh = float(kwh)
+            except (TypeError, ValueError):
+                continue
+            values[i] = round((values[i] or 0) + kwh, 4)
+            seen.add(dev_id)
+    if not seen:
+        return None
+    known = sorted(str(names.get(d)) for d in seen if names.get(d))
+    return {"id": 0, "name": "Plugs since removed", "room": "", "answering": True,
+            "removed": True, "names": known, "kwh": values}
 
 
 class PlugsMixin:
@@ -423,4 +460,23 @@ class PlugsMixin:
             plugs.append({"id": dev.id, "name": dev.name, "room": self._plug_room(dev),
                           "answering": plug_answering(dev),
                           "kwh": values})
+        # The names are kept beside the days, so a plug can still be named
+        # once it has gone. Saved only when one is new or has changed.
+        names = ledger.setdefault("names", {})
+        renamed = False
+        for dev, _meter in meters:
+            if names.get(str(dev.id)) != dev.name:
+                names[str(dev.id)] = dev.name
+                renamed = True
+        gone = removed_plugs_row(days, keys, {dev.id for dev, _m in meters}, names)
+        if gone:
+            plugs.append(gone)
+        for dev_id in [k for k in names if k not in {str(d.id) for d, _m in meters}
+                       and not any(k in ((days.get(key) or {}).get("kwh") or {}) for key in keys)]:
+            del names[dev_id]                      # gone, and off the page: forget it
+            renamed = True
+        # Only beside kept days: with no day kept there is nothing a name
+        # could be needed for, and without the history nothing is kept at all.
+        if renamed and not changed and days:
+            self._plug_ledger_save(ledger)
         return build_report(plugs, starts, rates, now)

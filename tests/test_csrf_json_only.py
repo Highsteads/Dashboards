@@ -51,7 +51,7 @@ def _save_plugin():
     return p
 
 
-BODY = json.dumps({"config": {"siteName": "Pwned"}})
+BODY = json.dumps({"config": {"siteName": "Pwned"}, "rev": ""})   # rev: a never-saved store's (3.74.0)
 
 
 @pytest.mark.parametrize("ctype", [

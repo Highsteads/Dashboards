@@ -328,11 +328,19 @@
         // matches the lit tiles. It used to count every zone's kept flag,
         // disabled and silent ones included.
         const calling = live.filter(d => DashTile.zone.heating(d)).length;
+        // A thermostat ticked in Settings as not measuring a room's air (an
+        // underfloor probe) keeps its tile and its call for heat, but is
+        // left out of the three figures about the rooms (3.74.0, CliveS):
+        // a tiled floor at 8 degrees was the house's "Coldest" every night
+        // and pulled the average down.
+        const cfgNow = (typeof window !== "undefined" && window.INDIGO_CONFIG) || {};
+        const notRoom = new Set((cfgNow.notRoomTemp || []).map(Number));
+        const air = live.filter(d => !notRoom.has(Number(d.id)));
         const excluded = zones.length - live.length;
-        const temps = live.map(getCurrentTemp).filter(t => t != null);
+        const temps = air.map(getCurrentTemp).filter(t => t != null);
         const avg = temps.length ? temps.reduce((a, b) => a + b, 0) / temps.length : null;
         let coldest = null, warmest = null;
-        for (const d of live) {
+        for (const d of air) {
             const t = getCurrentTemp(d); if (t == null) continue;
             if (!coldest || t < coldest.t) coldest = { t, n: cleanZoneName(d.name) };
             if (!warmest || t > warmest.t) warmest = { t, n: cleanZoneName(d.name) };

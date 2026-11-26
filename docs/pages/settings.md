@@ -37,6 +37,11 @@ Garage Door plugin, shows only its label here, and saving leaves the rest of it 
 **Scenes.** Every action group with a tick to hide it from the Scenes page, and a per-folder tick
 that hides the whole folder.
 
+**Heating and sensors.** A tick for any thermostat that does not measure a room's air, such as an
+underfloor probe: it keeps its tile and is left out of the Heating page's house average, coldest and
+warmest. And the number of hours a window or door sensor may go unheard before the pages stop
+counting its last state (25 unless you change it; 0 switches the check off). Added in 3.74.0.
+
 **Savings.** What the solar and battery cost, the date they started working, and what the installer's quote promised a year and for payback. All optional; the [Savings page](savings.md) uses them to show how far the system has paid for itself.
 
 **Security.** The guest pairing URL (open it on the guest device), the guest token shown for
@@ -71,6 +76,9 @@ opened right after a restart.
 
 ## Worth knowing
 
+- If the settings were saved somewhere else after you opened this page (another tab, another
+  device), Save refuses and says so, where it used to write your older copy over the newer one.
+  Press Reload, then make your change again (3.74.0).
 - The page shows what is *saved*, not what is running. Reopen it after adding a camera and the new
   camera is in the list, whether or not the plugin has restarted yet.
 - Room overrides are the fix for a device the classifier put in the wrong section. Read the resolved

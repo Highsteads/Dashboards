@@ -39,7 +39,9 @@ def make_plugin():
 
 
 def save(p, cfg):
-    reply = p.handleSaveDashboardsConfig(FakeAction(json.dumps({"config": cfg})))
+    # rev: the store's revision, which a Settings page sends back with a save
+    # since 3.74.0 (test_settings_revision.py covers the refusal).
+    reply = p.handleSaveDashboardsConfig(FakeAction(json.dumps({"config": cfg, "rev": p._config_rev()})))
     return json.loads(reply["content"]), reply["status"]
 
 
@@ -180,7 +182,7 @@ def test_unknown_store_keys_preserved():
 
 def test_non_object_config_rejected():
     p, _ = make_plugin()
-    reply = p.handleSaveDashboardsConfig(FakeAction(json.dumps({"config": "nope"})))
+    reply = p.handleSaveDashboardsConfig(FakeAction(json.dumps({"config": "nope", "rev": ""})))
     body = json.loads(reply["content"])
     assert reply["status"] == 400 and body["ok"] is False
 
@@ -301,6 +303,10 @@ def test_vehicles_keep_good_rows_and_drop_bad_ones():
 # ── Review 24-09-2026 [48]: malformed values are named 400s, never bare 500s ──
 
 def _raw_save(p, raw):
+    # The raw body is sent as written, with the revision a page would add.
+    raw = raw.rstrip()
+    if raw.endswith("}") and '"rev"' not in raw:
+        raw = raw[:-1] + ', "rev": ' + json.dumps(p._config_rev()) + "}"
     reply = p.handleSaveDashboardsConfig(FakeAction(raw))
     return json.loads(reply["content"]), reply["status"]
 

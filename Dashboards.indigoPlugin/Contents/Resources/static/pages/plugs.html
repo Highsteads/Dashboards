@@ -223,7 +223,11 @@
         const unpriced = data.unpricedDays
             ? ` ${data.unpricedDays === 1 ? "One day has" : data.unpricedDays + " days have"} no published rate on record, so ${data.unpricedDays === 1 ? "its" : "their"} energy is not in the money totals.` : "";
         const row = p => {
-            const sub = [p.room, !p.answering ? "not answering" : "", p.since ? "records from " + p.since : ""].filter(Boolean).join(" · ");
+            // A plug that has since been disabled or deleted (3.74.0): its
+            // past days are still counted, under one row that says whose they were.
+            const sub = p.removed
+                ? ((p.names && p.names.length) ? "disabled or deleted since: " + listWords(p.names) : "disabled or deleted since, so nothing new is recorded")
+                : [p.room, !p.answering ? "not answering" : "", p.since ? "records from " + p.since : ""].filter(Boolean).join(" · ");
             const cells = PERIODS.map(([key]) => {
                 const w = cellWords(p, key);
                 return `<div class="cell${key === sortBy ? " sorted" : ""}"><div class="cell-val">${w.val}</div>
@@ -278,6 +282,7 @@
     // counter is frozen, and "0p, nothing used" was a reading nobody took.
     function cellWords(p, key) {
         const s = p[key] || {};
+        if (key === "today" && p.removed) return { val: "—", sub: "" };
         if (key === "today" && p.answering === false) return { val: "—", sub: "not answering" };
         return { val: (s.pence !== null && s.pence !== undefined) ? money(s.pence) : "—", sub: kwh(s.kwh) };
     }

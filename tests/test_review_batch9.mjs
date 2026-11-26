@@ -168,7 +168,7 @@ console.log("\nWi-Fi: an access point that has dropped, a controller that is not
                 fmtNum: v => (v == null || v === "" ? "—" : String(v)), num: v => (v == null || v === "" ? null : Number(v)),
                 latClass: () => "", loadClass: () => "" };
     vm.createContext(c);
-    vm.runInContext(extractFn(src, "controllerStaleNote") + extractFn(src, "staleSub") + extractFn(src, "renderInternet")
+    vm.runInContext(extractFn(src, "speedTestWords") + extractFn(src, "controllerStaleNote") + extractFn(src, "staleSub") + extractFn(src, "renderInternet")
         + "\nglobalThis.N = controllerStaleNote; globalThis.I = renderInternet;", c);
     const ctl = (st, extra) => Object.assign({ enabled: true, errorState: "", lastChanged: "x",
         states: Object.assign({ status: "Connected", wanStatus: "ok", speedtestDown: 900 }, st) }, extra);

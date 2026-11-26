@@ -53,7 +53,10 @@ is set. It is confirmed the same way, by the charger reporting the boost, and a 
 shows its size. A boost only runs in Eco or Eco+, so in Fast or Stopped the amounts are off and
 the card says why.
 
-**Money.** Saved today from solar and battery against what a grid-only day would have cost, with
+**Money.** Saved today from solar and battery against what a grid-only day would have cost (from
+SigenEnergyManager 5.148.0, the house's use priced half hour by half hour at the rate in force when it
+was used; before that it was priced at the average rate of what was bought, which on a tariff with a
+cheap window made the saving look about half what it was), with
 import paid, export earned and net grid, and a link across to the [Cost](cost.md) page for the full
 breakdown. Energy only: standing charges and gas live on the Cost page.
 

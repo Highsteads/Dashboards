@@ -108,7 +108,8 @@ The same fields are on the Settings page's Cameras card, which is the easier way
 
 Optional, per room. A room with nothing here still shows its lights, motion sensors and contact
 sensors automatically. The extras unlock the other tile types. Keyed by room name (the Indigo device
-folder). The Settings page's Rooms card edits all of this.
+folder). The Settings page's Rooms card edits most of this. `fire`, `openLoop`, `mainLight` and the
+`motion` list under `include` have no editor: set them in the raw-JSON box at the foot of the page.
 
 - **`doors`** — a pulse-door tile. Each entry has a `label`, one or more `relayIds` to pulse
   momentarily (garage openers, gate controllers), a `pulseMs` duration, and optionally a
@@ -145,7 +146,9 @@ model can be set in the raw-JSON box.
 | `roomFolders` | list of folder names | Which Indigo device folders become rooms. With nothing set the plugin uses its own defaults, which are one house's folder names and will produce no rooms on yours |
 | `siteName` | string | The name in every page title, the hub heading and the home-screen icon. Default "Dashboards" |
 | `savings` | object | The Savings page's figures, all optional: `systemCost` (pounds), `installDate` (YYYY-MM-DD), `quoteAnnualSaving` (pounds), `quoteAnnualKwh`, `quotePaybackYears`. Set on the Settings page under Savings |
-| `vehicles` | `[{"id": <device>, "label": "Car 12V"}]` | Battery-voltage monitors to list under the Energy page's battery fleet, with a frozen-reading check |
+| `vehicles` | `[{"id": <device>, "label": "Car 12V"}]` | Battery-voltage monitors to list under the Energy page's battery fleet, with a frozen-reading check. There is no editor for this one: set it in the raw-JSON box |
+| `notRoomTemp` | list of device ids | Thermostats that do not measure a room's air, such as an underfloor probe. Each keeps its tile on the Heating page and is left out of the house average, coldest and warmest. Ticked on the Settings page under Heating and sensors. Added in 3.74.0 |
+| `contactSilent` | `{"hours": 25, "byDevice": {"<id>": 4}}` | How long a window or door sensor may go unheard before its last state stops counting: the hub then says it has not been heard from and leaves it out of "All closed", and its tile is greyed. `hours` is for every sensor (25 unless you change it, which is what Zigbee2MQTT itself waits; 0 switches the check off) and is on the Settings page under Heating and sensors. `byDevice` gives one sensor a limit of its own and is raw JSON only. Only sensors that say when they were last heard are checked. Added in 3.74.0 |
 | `arrayKwp` | number | Your solar array's rating, for the weather page's roof-versus-sky cross-check |
 | `actionWatch` | object | Per-action-group confirmation rules for scene buttons: which device states confirm which action, so no page carries device numbers |
 | `stillsIdleMinutes` | number, default 5 | How often, in minutes, a camera that no page is showing still gets a picture taken, 0 to 60. Those pictures keep camera health and the hub's "camera offline" warning working with no page open. 0 takes none, so the warning only covers cameras on screen. Cameras a page is showing always get a picture every two seconds. Added in 3.48.0 |

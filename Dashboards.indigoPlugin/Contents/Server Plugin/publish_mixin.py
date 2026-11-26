@@ -29,6 +29,8 @@ from dash_common import (
     PROXY_PORT,
     PAGES_SOURCE_DIR,
     PUBLIC_SUBDIR,
+    _safe_int_list,
+    clean_contact_silent,
     log,
 )
 from dash_util import live_pool_size
@@ -365,6 +367,14 @@ class PublishMixin:
         cfg["siteName"] = (str(store.get("siteName") or "").strip() or "Dashboards")[:40]
         vehicles = store.get("vehicles")
         cfg["vehicles"] = self._vehicles_for_page(vehicles)
+        # 3.74.0: thermostats that do not measure a room's air (an underfloor
+        # probe), left out of the Heating page's average, coldest and warmest;
+        # and how long a window or door sensor may go unheard. Ids and hours,
+        # nothing secret. A bad stored value reads as the default here: this
+        # runs in startup(), where a raise would stop the plugin starting.
+        nrt = store.get("notRoomTemp")
+        cfg["notRoomTemp"] = _safe_int_list(nrt) if isinstance(nrt, list) else []
+        cfg["contactSilent"] = clean_contact_silent(store.get("contactSilent"))[0]
         # Optional-plugin flags (v3.13.0): heatingControls (the heating page's
         # boost/force panel is wired to EvoHomeControl's action ids) and
         # sigenAvailable (Energy, Cost, Laundry and the hub's Energy card). ONE

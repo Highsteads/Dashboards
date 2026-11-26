@@ -1514,7 +1514,9 @@
             const diff = Number(m.tomorrowP) - Number(m.rateP);
             if (Math.abs(diff) >= 0.05) rateStr += diff > 0 ? " · ▲ tmrw" : " · ▼ tmrw";
         }
-        const actionStr  = (m && m.action) ? (HUB_ACTION_LABELS[m.action] || m.action) : null;
+        // Flux's own word while it holds the inverter (3.74.0, DashUI.fluxDoing).
+        const fxHub = (window.DashUI && DashUI.fluxDoing) ? DashUI.fluxDoing(_sigen()) : null;
+        const actionStr  = fxHub ? fxHub.label : (m && m.action) ? (HUB_ACTION_LABELS[m.action] || m.action) : null;
         // The diagram is shown at EVERY width. It used to be desktop-only on
         // the theory that a four-node diagram would not read at phone width —
         // but the cards stack in portrait, so the card is FULL width there
@@ -1663,7 +1665,9 @@
             ? (life != null ? ` · £${Number(life).toFixed(2)} lifetime` : "")
             : " lifetime";
         const tail = e.events_pending ? ` · ${e.events_pending} pending` : "";
-        return `<div class="row"><span class="key">VPP earned</span>`
+        // The figure is the month's, and it sits under "Today's money"
+        // (3.74.0): the row says which.
+        return `<div class="row"><span class="key">${mtd != null ? "VPP earned this month" : "VPP earned"}</span>`
              + `<span class="val ok">${main}${note}${tail}</span></div>`;
     }
     /* Every booked free-hour stretch, not only the soonest: 11:00-12:00 and
@@ -2220,6 +2224,28 @@
         return why ? why.charAt(0).toUpperCase() + why.slice(1) : "";
     }
 
+    /* Pure: what to say about the sensors left out of the count (3.74.0).
+       A sensor not heard from for longer than its limit is named, with how
+       long, where "1 unreadable" used to be all that was said; a sensor
+       silent for most of a day used to be counted as closed. '' when every
+       sensor was counted. */
+    function contactsNote(contacts, readable, nowMs) {
+        const left = contacts.filter(d => readable.indexOf(d) < 0);
+        if (!left.length) return "";
+        const silentFor = d => (typeof DashTile !== "undefined" && DashTile.silentHours) ? DashTile.silentHours(d, nowMs) : 0;
+        const silent = left.filter(d => silentFor(d) > 0);
+        const other = left.length - silent.length;
+        const parts = [];
+        if (silent.length === 1) {
+            const h = Math.floor(silentFor(silent[0]));
+            parts.push(`${silent[0].name} has not been heard from for ${h} ${h === 1 ? "hour" : "hours"}`);
+        } else if (silent.length > 1) {
+            parts.push(`${silent.length} sensors have not been heard from`);
+        }
+        if (other) parts.push(`${other} ${other === 1 ? "sensor cannot" : "sensors cannot"} be read`);
+        return parts.join(", and ") + ". Not counted above.";
+    }
+
     function renderAlertsCard(devices) {
         const el = document.getElementById("alerts-strip");
         if (!el) return;
@@ -2239,8 +2265,11 @@
         // that cannot report (v2.95.3).
         const readable = contacts.filter(d => !favNotLive(d) && typeof d.onState === "boolean");
         const unreadable = contacts.length - readable.length;
+        const note = contactsNote(contacts, readable, Date.now());
+        // Longest open first; one the plugin did not see open goes last.
+        const openMs = d => { const ms = (window.DashUI && DashUI.openFor) ? DashUI.openFor(d.id) : null; return ms == null ? -1 : ms; };
         const open = readable.filter(d => DashAction.truthy(d.onState) === true)
-                             .sort((a, b) => (DashUI.serverTime(b.lastChanged) || 0) - (DashUI.serverTime(a.lastChanged) || 0));
+                             .sort((a, b) => openMs(b) - openMs(a));
         // No sensors, or none that can report, is never an all-clear: the
         // green tick belongs only to a real count of closed contacts.
         if (!contacts.length) {
@@ -2255,15 +2284,17 @@
         }
         if (!open.length) {
             el.innerHTML = `<h3>Doors & Windows</h3>
-                <div class="row"><span class="ok">${DashIcons.svg("check")} All ${readable.length} closed${unreadable ? ` · ${unreadable} unreadable` : ""}</span></div>`;
+                <div class="row"><span class="ok">${DashIcons.svg("check")} All ${readable.length} closed</span></div>
+                ${note ? `<div class="row"><span class="warn">${escapeAttr(note)}</span></div>` : ""}`;
             return;
         }
         const items = open.map(d => `
             <div class="alert-open">
                 <span class="name">${escapeAttr(d.name)}</span>
-                <span class="when warn">${escapeAttr(relTime(d.lastChanged))}</span>
+                <span class="when warn">${escapeAttr((window.DashUI && DashUI.openWords) ? DashUI.openWords(d.id) : "open")}</span>
             </div>`).join("");
-        el.innerHTML = `<h3>Doors & Windows · ${open.length} open</h3>${items}`;
+        el.innerHTML = `<h3>Doors & Windows · ${open.length} open</h3>${items}`
+            + (note ? `<div class="row"><span class="warn">${escapeAttr(note)}</span></div>` : "");
     }
 
     // ── Favourites (v2.10.0): one-tap tiles at the top of the hub ─────

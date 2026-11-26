@@ -304,6 +304,11 @@ class IndigoAPI {
         // tell DashUI.linkClass so every page slows its pictures down, even
         // where the address bar shows a name the classifier does not know.
         if (resp && resp.via === "reflector") window.__DASH_VIA = "reflector";
+        // 3.74.0: when each open window and door was opened, which only the
+        // plugin knows. It rides on this reply, so it costs no request.
+        if (resp && resp.ok && resp.openSince && window.DashUI && window.DashUI.noteOpenSince) {
+            window.DashUI.noteOpenSince(resp.openSince, resp.now);
+        }
         const mustFull = !resp || !resp.ok || resp.full || !s.devices
             || (Date.now() - s.lastFull > _FULL_REFRESH_MS);
         if (mustFull) return this._fullDeviceFetch(resp && resp.ok ? resp.now : 0);

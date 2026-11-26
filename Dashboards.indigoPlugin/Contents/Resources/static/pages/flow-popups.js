@@ -101,8 +101,14 @@
 
     // What it is doing, and how hard. Charging while it runs the house on
     // its own can only be the solar.
-    var doing = DOING[dec.action] || (dec.action ? 'The manager says ' + quoted(dec.action) : 'No word from the manager');
+    // While the Flux controller holds the inverter the manager's decision
+    // is not what is happening (3.74.0): it reads "self consumption" through
+    // a 2am grid charge, which this then called the solar charging it.
+    var flux = (root.DashUI && root.DashUI.fluxDoing) ? root.DashUI.fluxDoing(s) : null;
+    var doing = flux ? flux.doing
+      : (DOING[dec.action] || (dec.action ? 'The manager says ' + quoted(dec.action) : 'No word from the manager'));
     var flow = w === null ? ''
+      : flux ? (w > 25 ? ', taking ' + power(w) : w < -25 ? ', giving ' + power(w) : ', resting')
       : w > 25 ? (dec.action === 'self_consumption' ? ', and the solar is charging it at ' : ', charging at ') + power(w)
       : w < -25 ? ', supplying ' + power(w) : ', resting';
     lines.push({ key: 'doing', text: doing + flow + '.' });

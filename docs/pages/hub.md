@@ -72,8 +72,11 @@ shows no figures.
 
 **Menu / Rooms.** Two cards: one opens the [Menu](menu.md), the other its list of rooms.
 
-**Doors & windows.** Everything currently open, most recent first, with how long it has been that
-way.
+**Doors & windows.** Everything currently open, longest open first, with how long it has been open
+("open for 40 minutes"). The plugin times each opening itself from 3.74.0, because Indigo keeps no
+time for it; one that was already open when the plugin started says only "open". A sensor that
+cannot be read, or has not been heard from for longer than its limit (see
+[`contactSilent`](../configuration.md)), is named underneath and left out of the count.
 
 **Footer.** Last update, the poll cadence, and a *Reset connection* link that clears the stored API
 key from this browser.

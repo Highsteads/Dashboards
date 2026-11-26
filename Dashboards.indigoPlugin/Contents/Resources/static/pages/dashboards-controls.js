@@ -75,7 +75,32 @@
     if (d.enabled === false) return 'disabled';
     if (String(d.errorState || '').trim()) return 'error';
     if (!isReachable(d)) return 'not answering';
+    if (silentHours(d) > 0) return 'not heard from';
     return '';
+  }
+
+  /* A window or door sensor that has stopped reporting keeps its last state
+     for good, and a frozen "Closed" passes every other test here (3.74.0).
+     One that says when it was last heard (Zigbee2MQTT's lastSeen) and has
+     not been heard for longer than its limit is unknown. The limit is the
+     install's (config.js contactSilent: hours for every sensor, byDevice for
+     one that checks in more often; 0 is off). Returns the hours of silence
+     when over the limit, else 0. Contact sensors only: other devices keep
+     other rhythms, and nobody has measured those. */
+  function isContact(d) { return /contact/i.test(String((d && d.deviceTypeId) || '')); }
+  function silentHours(d, nowMs) {
+    if (!d || !isContact(d)) return 0;
+    var c = (root.INDIGO_CONFIG || {}).contactSilent;
+    if (!c || typeof c !== 'object') return 0;
+    var own = c.byDevice && c.byDevice[String(d.id)];
+    var limit = Number(own != null ? own : c.hours);
+    if (!isFinite(limit) || limit <= 0) return 0;
+    var seen = (d.states || {}).lastSeen;
+    if (!seen || !(root.DashUI && root.DashUI.serverTime)) return 0;
+    var at = root.DashUI.serverTime(seen);
+    if (!isFinite(at)) return 0;
+    var hrs = ((nowMs == null ? Date.now() : nowMs) - at) / 3600000;
+    return hrs > limit ? hrs : 0;
   }
 
   /* ---- toggle and brightness ------------------------------------------ */
@@ -547,6 +572,7 @@
     isOn: isOn,
     isReachable: isReachable,
     unknownReason: unknownReason,
+    silentHours: silentHours,
     toggle: toggle,
     pressDevice: pressDevice,
     slide: slide,

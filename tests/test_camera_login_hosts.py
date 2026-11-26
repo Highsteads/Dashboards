@@ -163,7 +163,7 @@ def test_the_settings_save_says_which_cameras_are_not_approved(monkeypatch):
     class A:
         props = {"request_body": json.dumps({"config": {"cameras": [
             {"host": "10.0.0.5", "name": "Front", "vendor": "dahua"},
-            {"host": "10.0.0.66", "name": "Drive", "vendor": "dahua"}]}}),
+            {"host": "10.0.0.66", "name": "Drive", "vendor": "dahua"}]}, "rev": ""}),
             "headers": {"Content-Type": "application/json"}}
     reply = p.handleSaveDashboardsConfig(A())
     body = json.loads(reply["content"])

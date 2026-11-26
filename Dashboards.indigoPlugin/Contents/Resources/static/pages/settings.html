@@ -190,6 +190,7 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
             main.appendChild(renderCameras());
             main.appendChild(renderRooms());
             main.appendChild(renderScenes());
+            main.appendChild(renderHeatingSensors());
             main.appendChild(renderSavings());
             main.appendChild(renderSecurity());
             main.appendChild(renderRawJson());
@@ -993,6 +994,47 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
             return out;
         }
 
+        // ── heating and sensors (3.74.0) ─────────────────────────────────
+        // Two settings: which thermostats do not measure a room's air, and
+        // how long a window or door sensor may go unheard before its last
+        // state stops counting.
+        function renderHeatingSensors() {
+            const not = new Set((cfg.notRoomTemp || []).map(Number));
+            const cs = (cfg.contactSilent && typeof cfg.contactSilent === "object") ? cfg.contactSilent : {};
+            const hours = (cs.hours === undefined || cs.hours === null) ? "" : String(cs.hours);
+            const card = el(`<section class="card"><h2>Heating and sensors</h2>
+                <div class="hint">Tick any thermostat that does not measure a room's air, such as an underfloor probe.
+                    It keeps its tile, and is left out of the Heating page's house average, coldest and warmest.</div>
+                <div class="scene-items" id="notroom-list"></div>
+                <div class="field"><label for="silent-hours">A window or door sensor not heard from for this many hours is shown as "not heard from" (0 switches the check off; blank is 25)</label>
+                    <input type="number" id="silent-hours" min="0" max="720" step="1" inputmode="numeric" value="${esc(hours)}">
+                </div>
+                <div class="hint">Only sensors that say when they were last heard are checked (Zigbee2MQTT's do). A sensor that
+                    checks in more often can have a shorter limit of its own, under <code>contactSilent.byDevice</code> in the raw JSON.</div>
+            </section>`);
+            const list = card.querySelector("#notroom-list");
+            const rows = (window._thermostats || []).slice();
+            // A ticked id that is no longer a thermostat is still drawn, so a
+            // save cannot drop it without the reader seeing it go.
+            not.forEach(id => { if (!rows.some(t => Number(t.id) === id)) rows.push({ id, name: DEVNAMES[id] || ("Device " + id + " (not a thermostat now)") }); });
+            if (!rows.length) list.appendChild(el(`<div class="hint">No thermostats found.</div>`));
+            rows.forEach(t => list.appendChild(el(`<label><input type="checkbox" class="nr-item"
+                data-id="${Number(t.id)}" ${not.has(Number(t.id)) ? "checked" : ""}> ${esc(t.name)}</label>`)));
+            return card;
+        }
+        // null when the card is not on the page (so the stored values ride
+        // through untouched), else the two keys as the form has them.
+        function collectHeatingSensors(root) {
+            const input = root.querySelector("#silent-hours");
+            if (!input) return null;
+            const ids = Array.from(root.querySelectorAll(".nr-item:checked")).map(cb => Number(cb.dataset.id)).filter(n => !isNaN(n));
+            const kept = (cfg.contactSilent && typeof cfg.contactSilent === "object") ? cfg.contactSilent : {};
+            const silent = Object.assign({}, kept);
+            const raw = input.value.trim();
+            if (raw === "") delete silent.hours; else silent.hours = Number(raw);
+            return { notRoomTemp: ids, contactSilent: silent };
+        }
+
         // ── security: guest access + control PIN ─────────────────────────
         // The Savings page's figures (3.71.0). All optional: without a cost the
         // page shows what was saved and leaves out how far it has paid back.
@@ -1112,12 +1154,14 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
             const rfBoxes = Array.from(main.querySelectorAll("#room-folders input.rf"));
             const siteIn = main.querySelector("#site-name-in");
             const savings = collectSavings(main);
+            const heatSens = collectHeatingSensors(main);
             return {
                 // controlPinSet is derived on load, never a stored key
                 ...Object.fromEntries(Object.entries(cfg || {}).filter(([k]) => k !== "controlPinSet")),
                 ...(rfBoxes.length ? { roomFolders: rfBoxes.filter(b => b.checked).map(b => b.value) } : {}),
                 ...(siteIn ? { siteName: siteIn.value.trim() } : {}),
                 ...(savings ? { savings } : {}),
+                ...(heatSens || {}),
                 cameras:      cams,
                 mainCameras:  mainCams,
                 swapOutHost:  swap,
@@ -1207,7 +1251,7 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
             try {
                 cfg = collectAll();
                 msg("Saving…", true);
-                const res = await api("saveDashboardsConfig", { config: cfg });
+                const res = await api("saveDashboardsConfig", { config: cfg, rev: window._cfgRev });
                 window._cfgSource = "store";
                 // Re-read what the server KEPT (v2.95.3): it drops malformed
                 // favourites, rejects bad links and truncates labels, and the
@@ -1250,6 +1294,10 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
                 DEVICES.forEach(d => { DEVNAMES[d.id] = d.name; });
                 GROUPS = res.actionGroups || [];
                 window._guestToken = res.guestToken || "";
+                // 3.74.0: the store's revision, sent back with a save so a tab
+                // opened before a newer save is refused instead of overwriting it.
+                window._cfgRev = (typeof res.rev === "string") ? res.rev : "";
+                window._thermostats = Array.isArray(res.thermostats) ? res.thermostats : [];
                 window._camLoginHosts = Array.isArray(res.cameraLoginHosts) ? res.cameraLoginHosts : null;
                 window._camOwnLoginHosts = Array.isArray(res.cameraOwnLoginHosts) ? res.cameraOwnLoginHosts : [];
                 window._camMakes = Array.isArray(res.cameraMakes) ? res.cameraMakes : null;

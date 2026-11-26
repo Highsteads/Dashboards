@@ -48,7 +48,7 @@ Running / Door open, and last-cycle stats.
 **Heating.** The room's radiator zones with the current temperature large, a setpoint stepper, and
 the valve state. The same control as the Heating page, scoped to this room.
 
-**Windows & doors.** Contact sensors with their state and how long they have been that way.
+**Windows & doors.** Contact sensors with their state. An open one says for how long ("Open for 12 minutes") from the plugin's own record of when it opened (3.74.0); a sensor not heard from for longer than its limit reads "not heard from".
 
 **Doors.** A pulse-door tile for a garage opener or a gate: press it and the button takes over,
 counts the seconds, and holds until the contact sensor confirms the door moved. Red standing open,

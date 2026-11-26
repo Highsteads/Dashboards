@@ -188,6 +188,57 @@ STAMP_CHANGE_WRITE_GAP  = 1.0     # min gap between deviceUpdated-driven writes
 # covers the stale-verdict window plus the request itself, with margin.
 STAMP_QUIESCE_SECONDS   = 4.0
 
+# How long a window or door sensor may go unheard before its last state stops
+# counting (3.74.0). 25 hours is what zigbee2mqtt itself waits before it calls
+# a battery device offline, so no healthy sensor trips it; a house that knows
+# its sensors' rhythm sets less. 0 switches the check off.
+CONTACT_SILENT_HOURS_DEFAULT = 25
+CONTACT_SILENT_HOURS_MAX = 24 * 30
+
+
+def clean_contact_silent(raw):
+    """({"hours": h, "byDevice": {"<id>": h}}, error). The store's
+    contactSilent key, cleaned for the pages: `hours` for every sensor,
+    `byDevice` for one that checks in more often. A missing or empty value is
+    the default; a bad one is named, never guessed at."""
+    out = {"hours": CONTACT_SILENT_HOURS_DEFAULT, "byDevice": {}}
+    if raw is None or raw == {}:
+        return out, ""
+    if not isinstance(raw, dict):
+        return out, "contactSilent must be an object"
+
+    def hours(v, what):
+        if isinstance(v, bool):
+            return None, f"{what} must be a number of hours"
+        try:
+            h = float(v)
+        except (TypeError, ValueError):
+            return None, f"{what} must be a number of hours"
+        if h != h or h < 0 or h > CONTACT_SILENT_HOURS_MAX:
+            return None, f"{what} must be between 0 and {CONTACT_SILENT_HOURS_MAX} hours"
+        return (int(h) if h == int(h) else round(h, 2)), ""
+
+    if raw.get("hours") is not None and raw.get("hours") != "":
+        h, err = hours(raw.get("hours"), "contactSilent.hours")
+        if err:
+            return out, err
+        out["hours"] = h
+    by = raw.get("byDevice")
+    if by is not None:
+        if not isinstance(by, dict):
+            return out, "contactSilent.byDevice must be an object of device id to hours"
+        for k, v in by.items():
+            try:
+                dev_id = int(str(k).strip())
+            except (TypeError, ValueError):
+                return out, f"contactSilent.byDevice: {k!r} is not a device id"
+            h, err = hours(v, f"contactSilent.byDevice[{dev_id}]")
+            if err:
+                return out, err
+            out["byDevice"][str(dev_id)] = h
+    return out, ""
+
+
 def _safe_int_list(values):
     """Coerce a list to ints, dropping anything unconvertible. The old inline
     guard (`lstrip("-").isdigit()`) passed "--5" and int() then raised, 500ing
