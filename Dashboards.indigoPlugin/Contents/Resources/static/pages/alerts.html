@@ -253,11 +253,16 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
     }
 
     // ── the plugin's view ────────────────────────────────────────────────
+    let _loadFailed = false;
     async function load() {
         try {
             view = await DashUI.message("alertRules", {});
             paint();
+            // The plugin has answered: a "could not be asked" line from an
+            // earlier failure must not stay up over the rules it now shows.
+            if (_loadFailed) { _loadFailed = false; say("rules-msg", ""); }
         } catch (e) {
+            _loadFailed = true;
             say("rules-msg", "The plugin could not be asked for the rules (" + e.message + ").", true);
             if (!view) $("rules").innerHTML = "";
         }
@@ -275,6 +280,9 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
                 await load();
                 say("rules-msg", e.message, true);
             } else {
+                // Put every control back to what is stored: a tick that was
+                // not saved must not go on showing as though it were.
+                try { paint(); } catch (_) { /* nothing to draw yet */ }
                 say("rules-msg", "Not saved: " + e.message, true);
             }
             return false;

@@ -767,6 +767,10 @@ class AlertsMixin:
                 dev = indigo.devices[rule.get("id")]
                 if not getattr(dev, "enabled", True):
                     return "disabled", "disabled", dev.name
+                # A device in error holds its last value, not a present one
+                # (review 26-11-2026): say so beside it.
+                if str(getattr(dev, "errorState", "") or "").strip():
+                    return "ok", f"not answering, last {device_text(device_now(dev))}", dev.name
                 return "ok", device_text(device_now(dev)), dev.name
             var = indigo.variables[rule.get("id")]
             return "ok", js_str(var.value), var.name

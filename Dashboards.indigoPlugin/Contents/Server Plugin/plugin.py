@@ -1629,7 +1629,11 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         (server epoch). Full refetch when the client is new, stale, or the
         change set is large; else the changed + deleted ids since then."""
         now = time.time() if now is None else now
-        if since <= 0 or (now - since) > self.CHANGED_SINCE_STALE_S:
+        # A cursor from before this plugin run asks about changes this run
+        # never saw (the ledger starts empty at each start), so it gets a full
+        # refetch too: the page used to have to notice the restart itself.
+        if (since <= 0 or (now - since) > self.CHANGED_SINCE_STALE_S
+                or since < float(getattr(self, "_boot_ts", 0) or 0)):
             return {"ok": True, "now": now, "full": True}
         # list() snapshots guard against concurrent ledger writes mid-iteration.
         changed = [i for i, ts in list(self._dev_changes.items()) if ts > since]

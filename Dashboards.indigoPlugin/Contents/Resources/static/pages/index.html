@@ -1015,6 +1015,11 @@
         // A hidden page holds no live camera stream; showing it again asks
         // again (a fresh reading is reused, an old one re-measured).
         if (document.hidden) { _hubStopAllLive(); return; }
+        // The Sigen reading is not asked for while hidden, so its time stood
+        // still, and on return the energy card read "SigenEnergyManager is not
+        // answering" with every flow at nought until the next poll, up to half
+        // a minute later (3.73.10). Ask at once.
+        try { _refreshSigen(); } catch (_) { /* optional */ }
         loadSummary();
         if (_heavyStarted) { _refreshInsights(); _refreshLogWatch(); _refreshCamHealth(); }
         _hubDecide();

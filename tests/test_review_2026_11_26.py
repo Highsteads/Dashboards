@@ -175,3 +175,27 @@ def test_the_worker_joins_share_one_second():
     from conftest import plugin_source
     src = plugin_source()
     assert "t.join(timeout=max(0.0, deadline - time.time()))" in src
+
+
+def test_an_alert_rules_device_in_error_is_said_to_be_not_answering(monkeypatch):
+    import types
+    load_plugin_module()
+    import alerts_mixin
+    dev = types.SimpleNamespace(id=5, name="Front Door Lock", enabled=True, errorState="no ack",
+                                onState=True, states={"onOffState": True}, displayStateValUi="locked")
+    monkeypatch.setattr(alerts_mixin, "indigo", types.SimpleNamespace(devices={5: dev}, variables={}), raising=False)
+    state, now_text, name = bare_plugin()._alert_target({"kind": "device", "id": 5})
+    assert state == "ok" and name == "Front Door Lock"
+    assert now_text.startswith("not answering, last ")
+    dev.errorState = ""
+    assert not bare_plugin()._alert_target({"kind": "device", "id": 5})[1].startswith("not answering")
+
+
+def test_a_cursor_from_before_this_run_gets_a_full_refetch():
+    load_plugin_module()
+    p = bare_plugin()
+    p._dev_changes, p._dev_deleted = {}, {}
+    p._boot_ts = 1000.0
+    assert p._changed_since_payload(990.0, now=1010.0).get("full") is True        # from the run before
+    later = p._changed_since_payload(1005.0, now=1010.0)
+    assert later.get("full") is None and later["changed"] == [] and later["deleted"] == []
