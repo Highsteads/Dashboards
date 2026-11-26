@@ -459,20 +459,47 @@
     function boostRoomLine(r, until) {
         const name = escapeHtml(r.room);
         const dev = _zoneById.get(r.id);
-        const sp = dev ? DashTile.zone.setpoint(dev) : null;
+        // The radiator's own setting counts only while the radiator can be
+        // heard (3.73.13): a disabled one, one in error or one behind a dead
+        // gateway keeps its last setting, and that was read as "confirmed".
+        const heard = !!dev && !DashTile.zone.notLive(dev);
+        const sp = heard ? DashTile.zone.setpoint(dev) : null;
+        const same = sp != null && r.requested != null && Math.abs(sp - r.requested) < 0.26;
         if (r.byHand) {
             const now = sp != null ? sp : r.requested;
             const set = now == null ? "set by hand" : `set to ${_deg(now)} degrees by hand`;
+            // A hold that has run out is not quoted as still running.
+            if (r.holdEnded) return ["held", `${name}: ${set}. Its hold has ended, so the next heating check takes it back.`];
             const end = r.until == null ? "until it is changed" : `until ${_clockWords(r.until * 1000)}`;
             return ["held", `${name}: ${set}, so the boost leaves it alone ${end}.`];
         }
-        if (r.held) return ["held", r.requested == null
-            ? `${name}: not boosted because ${escapeHtml(r.held)}.`
-            : `${name}: not boosted, set to ${_deg(r.requested)} degrees because ${escapeHtml(r.held)}.`];
+        if (r.held) {
+            if (r.requested == null) return ["held", `${name}: not boosted because ${escapeHtml(r.held)}.`];
+            // "set to" only when the radiator says so itself; until then it
+            // is what was sent, as on the lines below.
+            if (same) return ["held", `${name}: not boosted, set to ${_deg(r.requested)} degrees because ${escapeHtml(r.held)}.`];
+            return ["held", `${name}: not boosted. ${_deg(r.requested)} degrees sent because ${escapeHtml(r.held)}, `
+                + (dev && !heard ? "but the radiator cannot be heard, so it is not confirmed."
+                   : `waiting for Evohome to confirm${sp != null ? ` (the radiator still says ${_deg(sp)})` : ""}.`)];
+        }
         if (r.requested == null) return ["wait", `${name}: waiting for the heating controller's next check.`];
-        if (sp != null && Math.abs(sp - r.requested) < 0.26)
+        if (same)
             return ["ok", `${name}: set to ${_deg(r.requested)} degrees until ${until}, confirmed by Evohome.`];
+        if (dev && !heard)
+            return ["wait", `${name}: ${_deg(r.requested)} degrees sent, but the radiator cannot be heard, so it is not confirmed.`];
         return ["wait", `${name}: ${_deg(r.requested)} degrees sent, waiting for Evohome to confirm.`];
+    }
+    /* How old the lines are (3.73.13). The heating plugin writes them at each
+       check, every five minutes. When the newest is more than twelve minutes
+       old its checks have stalled, and the lines are the position then, not
+       now. Returns '' or the sentence that says so. Pure. */
+    const BOOST_LINES_OLD_S = 12 * 60;
+    function boostLinesAge(rooms, nowS) {
+        const at = (rooms || []).map(r => Number(r.at)).filter(t => isFinite(t) && t > 0);
+        if (!at.length) return "";
+        const newest = Math.max.apply(null, at);
+        if (nowS - newest <= BOOST_LINES_OLD_S) return "";
+        return `As of the heating check at ${_clockWords(newest * 1000)}; there has been none since.`;
     }
     function renderBoostRooms() {
         const list = document.getElementById("evo-boost-rooms");
@@ -482,9 +509,11 @@
         const until = rooms.length ? _clockWords(_evoTimers.boostExpiry * 1000) : "";
         const lines = rooms.map(r => boostRoomLine(r, until));
         let html = lines.map(([cls, text]) => `<li class="${cls}">${text}</li>`).join("");
+        const aged = boostLinesAge(rooms, Date.now() / 1000);
+        if (aged) html = `<li class="wait">${escapeHtml(aged)}</li>` + html;
         // The answer first, when it is the simple one: every room has its boost.
         const target = rooms.length ? rooms[0].target : null;
-        if (rooms.length > 1 && lines.every(l => l[0] === "ok") && rooms.every(r => r.target === target && r.requested === target)) {
+        if (!aged && rooms.length > 1 && lines.every(l => l[0] === "ok") && rooms.every(r => r.target === target && r.requested === target)) {
             const count = _COUNT_WORDS[rooms.length] || String(rooms.length);
             html = `<li class="ok all">All ${count} boosted rooms are set to ${_deg(target)} degrees until ${until}, confirmed by Evohome.</li>`
                  + lines.map(([cls, text]) => `<li class="${cls}">${text}</li>`).join("");

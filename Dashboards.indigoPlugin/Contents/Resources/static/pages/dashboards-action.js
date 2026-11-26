@@ -517,12 +517,45 @@
     return m.length > 48 ? m.slice(0, 47) + '…' : m;
   }
 
+  /* Every state a spec's rules look at, as one string, so two device lists
+     can be compared for "has anything this watch cares about changed". */
+  var RULE_GRACE_MS = 5000;
+  function watchedSig(spec, devices) {
+    var byId = new Map();
+    (devices || []).forEach(function (d) { if (d && d.id != null) byId.set(Number(d.id), d); });
+    var out = [];
+    ((spec && Array.isArray(spec.rules)) ? spec.rules : []).forEach(function (r) {
+      (Array.isArray(r && r.when) ? r.when : []).forEach(function (c) {
+        if (!c || c.id == null) return;
+        var raw = stateOf(byId.get(Number(c.id)), c.state);
+        out.push(c.id + ':' + c.state + '=' + (raw === undefined ? '?' : String(raw)));
+      });
+    });
+    return out.join('|');
+  }
+
   /* Advance every live watch against a device list. */
   function advance(devices) {
     var changed = false;
     _watches.forEach(function (st, key) {
       if (st.phase !== 'working') return;
-      var res = evaluate(st.spec, devices, now() - st.startedAt);
+      var elapsed = now() - st.startedAt;
+      var res = evaluate(st.spec, devices, elapsed);
+      /* A RULE that says "it failed" is not believed on the state the device
+         was already in when the button was pressed (3.73.13). Closing a
+         garage door that read Stuck put "Stuck part-way" over the tile at
+         once, from the list that was already on its way, while the door was
+         closing. The first list seen is the baseline; a failure rule settles
+         once the watched states have moved from it, or after a short grace
+         for a device that really has not moved. A confirmation is never
+         held back, and nor is the clock's own timeout. */
+      var sig = watchedSig(st.spec, devices);
+      if (st.baseSig === undefined) st.baseSig = sig;
+      if (sig !== st.baseSig) st.moved = true;       // once moved, back to the same state is news
+      if ((res.phase === 'timeout' || res.phase === 'error') && elapsed < RULE_GRACE_MS
+          && !st.moved && evaluate(st.spec, devices, 0).phase === res.phase) {
+        res = { phase: 'working', text: (st.spec && st.spec.workingText) || 'Working…' };
+      }
       if (res.phase === 'done' || res.phase === 'timeout' || res.phase === 'error') {
         settle(key, res.phase, res.text);
         changed = true;
@@ -565,6 +598,13 @@
     if (!needs) return;
     if (now() - _lastFed < FED_STALE_MS) return;
     if (now() - _lastPoll < POLL_MS) return;
+    // Not from a tab nobody can see (3.73.13). The restart gate answers a
+    // hidden tab from memory without looking, so this timer went on posting
+    // every three seconds on a verdict taken before the tab was hidden, and
+    // a call in flight as the plugin stops is the wedge the gate is there
+    // to prevent. The watch's own clock still runs, and the poll picks up
+    // again when the tab is shown.
+    if (typeof document !== 'undefined' && document.hidden === true) return;
     var a = api();
     if (!a) return;
     _lastPoll = now();

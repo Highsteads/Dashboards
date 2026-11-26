@@ -31,4 +31,16 @@ for(const date of ['2026-03-29T12:00:00Z','2026-10-25T12:00:00Z']){
  const result=plot({start,end,gapSeconds:90000,series:{temperatureinput1:[p(start,18)],setpointheat:[p(start,22)],hvacheaterison:[p(start,1)]}});
  assert.equal(result.calling,86400);
 }
+// 3.73.13: a device with no last-heard column (the floor thermostat, the
+// outdoor sensor) logs only changes. A slab that sat at 14 for eight hours
+// was drawn as three hours of reading and then a hole.
+const floor=plot({start:0,end:40000,gapSeconds:10800,series:{temperature:[p(-100,14),p(30000,14.5)],setpointheat:[p(-100,14)]}});
+assert(floor.temperature.length>0 && floor.temperature.every(q=>q.y!=null),'a steady reading is not a gap');
+assert(floor.target.every(q=>q.y===14),'and its target line is kept');
+assert.equal(floor.heartbeat,false);
+const floorOff=plot({start:0,end:40000,gapSeconds:10800,series:{temperature:[p(-100,14)],gatewaystatus:[p(-100,'online'),p(20000,'offline')]}});
+assert(floorOff.temperature.some(q=>q.x>=20000 && q.y===null),'its gateway going offline still ends the line');
+assert.equal(v.heartbeat,true,'a valve that says when it last reported keeps the three-hour rule');
+assert(/over three hours old/.test(box.HeatingHistory.gapsHelp(true)));
+assert(/only when it changes/.test(box.HeatingHistory.gapsHelp(false)));
 console.log('Heating history: sparse transitions, missing values, outages and both clock changes passed.');

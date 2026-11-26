@@ -26,6 +26,14 @@
     });
     const temperature = [], target = [], call = [], events = [];
     let lastTarget = null;
+    // Does this device record WHEN it last reported (RAMSES ESP's valves do)?
+    // One that does not, the floor thermostat and the outdoor sensor among
+    // them, logs a row only when its reading changes, so the time of its last
+    // row is the last CHANGE. Taking that as the last time it was heard drew a
+    // slab that sat at one temperature overnight as three hours of reading
+    // and then a hole, and called it unavailable (3.73.13). Such a device
+    // holds its last value; only the gateway going offline ends its line.
+    const hasHeartbeat = Object.prototype.hasOwnProperty.call(series, 'temperatureseenepoch');
     Array.from(moments).sort((a,b) => a-b).forEach(t => {
       keys.forEach(k => {
         const points = series[k] || [];
@@ -35,7 +43,8 @@
       const heartbeat = current.temperatureseenepoch;
       const seen = heartbeat ? number(heartbeat.v) : tp ? tp.t : null;
       const gateway = current.gatewaystatus ? String(current.gatewaystatus.v).toLowerCase() : '';
-      const fresh = seen != null && seen <= t + 60 && t - seen < gap && (!gateway || gateway === 'online');
+      const heard = hasHeartbeat ? (seen != null && seen <= t + 60 && t - seen < gap) : !!tp;
+      const fresh = heard && (!gateway || gateway === 'online');
       const temp = fresh && tp ? number(tp.v) : null;
       const sp = current.setpointheat ? number(current.setpointheat.v) : null;
       const hv = fresh && current.hvacheaterison ? number(current.hvacheaterison.v) : null;
@@ -58,7 +67,13 @@
       if (call[i].y != null) known += seconds;
       if (call[i].y === 1) calling += seconds;
     }
-    return {temperature:compact(temperature), target:compact(target), call:compact(call), events, calling, known};
+    return {temperature:compact(temperature), target:compact(target), call:compact(call), events, calling, known, heartbeat:hasHeartbeat};
+  }
+
+  /* What a gap in the line means, which depends on the device. */
+  function gapsHelp(heartbeat) {
+    return heartbeat ? 'Gaps mean readings were unavailable or over three hours old.'
+      : 'This device records a reading only when it changes, so a steady reading is drawn as a level line. A gap means its gateway was offline or nothing had been recorded yet.';
   }
 
   let api, deviceId, chart, deviceList = [], hours = 24, busy = false, generation = 0, mounted = false, outsideId = null;
@@ -94,7 +109,7 @@
       '<div class="heat-chart"><canvas id="heat-chart" role="img" aria-label="Room temperature, target and recorded heating changes"></canvas></div>' +
       '<p class="heat-strip-label">Calling for heat <span>(orange = calling, grey = not calling, stripes = unknown)</span></p>' +
       '<div id="heat-call" class="heat-call" role="img" aria-label="Recorded heat demand"></div>' +
-      '<p id="heat-summary"></p><p class="heat-help">Calling for heat is the thermostat’s reported demand, not a measurement of heat from the radiator. Gaps mean readings were unavailable or over three hours old.</p>' +
+      '<p id="heat-summary"></p><p class="heat-help">Calling for heat is the thermostat’s reported demand, not a measurement of heat from the radiator. <span id="heat-gaps">Gaps mean readings were unavailable or over three hours old.</span></p>' +
       '<details open><summary>What changed</summary><p class="heat-help">Dots mark recorded controller requests. A request is not proof the thermostat received it. Reported target changes are listed separately.</p><p id="heat-reason-status"></p><ol id="heat-events"></ol></details></section>';
     el('heat-now').textContent = summary(d);
     el('heat-room').innerHTML = devices.map(x => '<option value="'+Number(x.id)+'"'+(Number(x.id)===deviceId?' selected':'')+'>'+esc(x.name)+'</option>').join('');
@@ -136,6 +151,7 @@
   }
   function draw() {
     const view = plot(data), wantsOutside = el('heat-outside').checked;
+    if (el('heat-gaps')) el('heat-gaps').textContent = gapsHelp(view.heartbeat);
     const points = view.temperature.filter(p => p.y != null);
     const decisions = data.decisions || {items:[],available:false};
     const markers = (decisions.items || []).map(e => ({x:e.t,y:e.target,reason:e.reason}));
@@ -168,5 +184,5 @@
     el('heat-events').innerHTML = events.length ? events.map(e=>'<li><time>'+esc(stamp(e.t))+'</time> '+esc((e.reported?'Reported ':'Requested ')+e.target.toFixed(1)+'°C — '+e.reason)+'</li>').join('') : '<li>No target changes recorded in this period.</li>';
   }
   function rangeTicks() { return root.innerWidth < 500 ? 4 : 8; }
-  root.HeatingHistory = {plot,mount,setOutside:id=>{outsideId=id;}};
+  root.HeatingHistory = {plot,mount,gapsHelp,setOutside:id=>{outsideId=id;}};
 })(typeof window !== 'undefined' ? window : globalThis);

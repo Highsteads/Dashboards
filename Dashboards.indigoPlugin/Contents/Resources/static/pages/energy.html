@@ -472,7 +472,7 @@ h1 .dsh-icon {width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;
     <div id="sol-strings" style="display:none" data-help-title="Per-string output" data-help="Live power from each string of panels, read from the inverter. Each bar is scaled to that string's own capacity when known (percentage shown), so a small string pulling its weight reads as full even though a big string makes more watts. The daily yield fingerprint is descriptive, not a fault verdict: roof direction and shading legitimately differ."></div>
   </section>
     <section class="card">
-      <h2 data-help-title="Today's energy flow" data-help="Where every kWh went since midnight, Sankey style: solar, battery discharge and grid import on the left; home load, battery charge and grid export on the right. Ribbon width is proportional to energy. Battery split uses the pack's daily charge/discharge counters; the ribbon allocation is a best-fit estimate.">Today&#8217;s energy flow <span class="h2sub">&#8212; since midnight</span></h2>
+      <h2 data-help-title="Today's energy flow" data-help="Where every kWh went since midnight, Sankey style: solar, battery discharge and grid import on the left; home load, battery charge and grid export on the right. Ribbon width is proportional to energy. Battery split uses the pack's daily charge/discharge counters; the ribbon allocation is a best-fit estimate.">Today&#8217;s energy flow <span class="h2sub" id="flow-sub">&#8212; since midnight</span></h2>
       <svg id="sankey-svg" viewBox="0 0 700 320" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Sankey diagram of today's energy flows"></svg>
       <div class="sk-note" id="sk-note"></div>
     </section>
@@ -517,7 +517,7 @@ h1 .dsh-icon {width:.86em;height:.86em;vertical-align:-.08em;margin-right:.12em;
   <!-- ═══ MONEY ═══ -->
   <div class="sec-label">Money</div>
   <section class="card money-card">
-    <h2 data-help-title="Today's saving" data-help="What today would have cost on grid alone, minus what it actually netted: avoided import plus export revenue, at today's rates. The Cost page carries the full bill — electric and gas, unit and standing charges — plus the month position and the roll-ups.">Saved today <span class="h2sub">solar &amp; battery</span></h2>
+    <h2 data-help-title="Today's saving" data-help="What today would have cost on grid alone, minus what it actually netted: avoided import plus export revenue, at today's rates. The Cost page carries the full bill — electric and gas, unit and standing charges — plus the month position and the roll-ups.">Saved today <span class="h2sub" id="saved-sub">solar &amp; battery</span></h2>
     <div class="money-hero">
       <div>
         <div class="eco-rate" id="eco-benefit">&#8212;</div>
@@ -1054,6 +1054,7 @@ function _stringLabels() {
 }
 
 let _solStringHours = null;      // solarStringHours payload {date, hours, site}
+let _solStringAskedAt = 0;       // when a stale payload last made the page ask again
 let _solHoursModel = null;       // last built row model (for the tap detail)
 let _solHoursSig = '';
 
@@ -1063,6 +1064,11 @@ function renderSolarHours() {
   const clk = _serverClock();
   const todayStr = clk.todayStr, nowMin = clk.nowMin;
   const fresh = (_solStringHours && _solStringHours.date === todayStr) ? _solStringHours : null;
+  // Yesterday's payload: drop it and ask again, at most once a minute.
+  if (_solStringHours && !fresh) {
+    _solStringHours = null;
+    if (Date.now() - _solStringAskedAt > 60000) { _solStringAskedAt = Date.now(); refreshStringHours(); }
+  }
   const model = DashCalc.buildSolarHours(fresh && fresh.hours, fresh && fresh.site,
                                          _solSlots, _solStatus.hourly_forecast,
                                          nowMin, todayStr);
@@ -1286,20 +1292,21 @@ function update(d) {
   }
 
   /* hero stat strip */
+  notePartialDay(!!s.partial);
   if (s.self_suff != null) {
     tweenNumber(document.getElementById('hs-ss'), s.self_suff, { decimals: 1, suffix: '%', duration: 700 });
     const bar = document.getElementById('hs-ss-bar');
     if (bar) bar.style.width = Math.min(100, s.self_suff) + '%';
     // A low figure on a grid-charged-battery day says why (v3.40.0).
     const why = DashCalc.selfSuffReason(s);
-    setText('hs-ss-sub', why ? 'today · ' + why.short : 'today');
+    setText('hs-ss-sub', (s.partial ? 'part of today' : 'today') + (why ? ' · ' + why.short : ''));
     const tile = document.getElementById('hs-ss').closest('.hs-tile');
     if (tile) tile.title = why ? why.long : '';
   }
   if (s.pv_kwh != null) {
     tweenNumber(document.getElementById('hs-pv'), s.pv_kwh, { decimals: 1, duration: 700 });
     const fc = d.solar ? d.solar.today_kwh : null;
-    setText('hs-pv-sub', fc ? 'kWh · forecast ' + Math.round(fc) : 'kWh');
+    setText('hs-pv-sub', (s.partial ? 'kWh, part day' : 'kWh') + (fc ? ' · forecast ' + Math.round(fc) : ''));
     const bar = document.getElementById('hs-pv-bar');
     if (bar && fc) bar.style.width = Math.max(0, Math.min(100, (s.pv_kwh / fc) * 100)) + '%';
   }
@@ -1651,12 +1658,36 @@ function renderSolarCard(d) {
    Perth at 17:00 the browser had most of the day's forecast already due while
    London was at 09:00, and every solar verdict was wrong. The status payload
    carries the server's local time; the string-hours payload its date. */
+/* SigenEnergyManager says when it could only count part of today (a counter
+   it had to start after midnight). The totals were shown as the whole day's
+   with nothing to say so (3.73.13). Pure: the words for the two headings. */
+function partialDayWords(partial) {
+  return partial
+    ? { flow: '\u2014 part of today only: the count started after midnight', saved: 'part of today only' }
+    : { flow: '\u2014 since midnight', saved: 'solar & battery' };
+}
+function notePartialDay(partial) {
+  const w = partialDayWords(partial);
+  [['flow-sub', w.flow], ['saved-sub', w.saved]].forEach(function (p) {
+    const el = document.getElementById(p[0]);
+    if (!el) return;
+    if (el.textContent !== p[1]) el.textContent = p[1];
+    el.style.color = partial ? 'var(--warn)' : '';
+  });
+}
+
 function _serverClock() {
   const now = new Date();
   let todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0')
                + '-' + String(now.getDate()).padStart(2, '0');
   let nowMin = now.getHours() * 60 + now.getMinutes();
-  if (_solStringHours && /^\d{4}-\d{2}-\d{2}$/.test(_solStringHours.date || '')) todayStr = _solStringHours.date;
+  // Today's date comes from the house's own clock (3.73.13), never from the
+  // string-hours payload: that payload is the thing the date is used to
+  // judge, so "is this today's?" compared its date with itself and could not
+  // fail. A page left open over midnight went on calling yesterday's kWh
+  // today's, all day if the refresh kept failing.
+  const house = (window.DashUI && DashUI.serverNow) ? DashUI.serverNow() : null;
+  if (house && house.known) { todayStr = house.ymd; nowMin = house.min; }
   else if (Array.isArray(_solSlots) && _solSlots.length) {
     const t = String(_solSlots[_solSlots.length - 1].t || '');
     if (/^\d{4}-\d{2}-\d{2}/.test(t)) todayStr = t.slice(0, 10);

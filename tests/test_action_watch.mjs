@@ -368,6 +368,47 @@ check("a watch nothing confirms times out on its own",
 check("timeout is not dressed up as success",
     btn.classList.contains("dsh-act-done"), false);
 
+console.log("\n== a failure rule is not believed on the state the door was already in (3.73.13) ==");
+{
+    const DOOR = 489580549, CLOSE = 780532115, K = "scene:" + CLOSE;
+    const SPEC = { title: "Garage", timeoutSec: 45, workingText: "Closing…",
+        timeoutText: "No confirmation — check the door",
+        rules: [
+            { when: [{ id: DOOR, state: "doorState", is: "closed" }], phase: "done", text: "Garage closed" },
+            { when: [{ id: DOOR, state: "doorState", is: "stuck" }], phase: "timeout", text: "Stuck part-way — check the door" },
+            { when: [{ id: DOOR, state: "doorState", is: "closing" }], phase: "working", text: "Door closing…" },
+        ] };
+    box.INDIGO_CONFIG = { actionWatch: { [String(CLOSE)]: SPEC } };
+    const door = st => [dev(DOOR, { doorState: st })];
+    const press = async () => {
+        DA.reset(); box.document.body.children = [];
+        const b = makeEl("button"); b.setAttribute("data-dsh-act-key", K); box.document.body.appendChild(b);
+        DA.run({ key: K, actionId: CLOSE, exec: () => Promise.resolve() });
+        await flush();
+        return b;
+    };
+    let b = await press();
+    DA.tick(door("stuck"));                                  // the list that was already on its way
+    check("pressed on a stuck door: not called stuck at once", veilText(b), "Closing…");
+    check("still being watched", DA.pending(K), true);
+    box.advance(2000);
+    DA.tick(door("closing"));
+    check("it moves", veilText(b), "Door closing… 2s");
+    DA.tick(door("stuck"));
+    check("stuck AFTER moving is believed straight away", veilText(b), "Stuck part-way — check the door");
+
+    b = await press();
+    DA.tick(door("stuck"));
+    box.advance(6000);
+    DA.tick(door("stuck"));
+    check("a door that has not moved after the grace is called stuck", veilText(b), "Stuck part-way — check the door");
+
+    b = await press();
+    DA.tick(door("closed"));
+    check("a confirmation is never held back", veilText(b), "Garage closed");
+    box.INDIGO_CONFIG = { actionWatch: { "1463818396": FORCE_OPEN } };
+}
+
 console.log("\n== no watch configured -> honest 'Sent' ==");
 DA.reset();
 box.document.body.children = [];

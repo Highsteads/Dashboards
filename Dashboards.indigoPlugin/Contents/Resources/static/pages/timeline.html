@@ -75,6 +75,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-ui);
 .lane-lab .lane-n{display:block;font-size:10.5px;color:var(--text-muted);font-weight:400}
 .lane-track{position:relative;height:26px;background:var(--track);border-radius: var(--r-sm);overflow:hidden}
 #view-day .seg{position:absolute;top:3px;bottom:3px;border-radius:4px;opacity:.9}
+/* On since more than a week before the day shown: hatched, as a doubt. */
+#view-day .seg.old{opacity:.55;background-image:repeating-linear-gradient(135deg,transparent 0 5px,rgba(0,0,0,.35) 5px 8px)}
 .energy-lane .lane-track{height:64px;background:var(--card-bg-alt)}
 #energy-svg{position:absolute;inset:0;width:100%;height:100%}
 .tl-axis{display:grid;grid-template-columns:96px 1fr;gap:10px;margin-top:4px}
@@ -251,29 +253,60 @@ function pad(n){ return String(n).padStart(2,"0"); }
 function hm(min){ const m=Math.round(Math.max(0,Math.min(1440,min))); return pad(Math.floor(m/60))+":"+pad(m%60); }   // round FIRST — 59.6 used to print "00:60"
 function ymd(d){ return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
 
-let selDate = new Date();
+// The house's date and minute, not this device's (3.73.13): see DashUI.serverNow.
+function houseNow(){
+  if (window.DashUI && DashUI.serverNow) return DashUI.serverNow();
+  const d = new Date();
+  return { ymd: ymd(d), min: d.getHours()*60 + d.getMinutes() };
+}
+// A Date for the house's today, at noon so stepping a day never trips on a clock change.
+function houseToday(){ const p = houseNow().ymd.split("-").map(Number); return new Date(p[0], p[1]-1, p[2], 12); }
+let selDate = houseToday();
 let DAY = null;          // last fetched payload
 let playMin = null;      // current playhead minute (null = end/now)
 
 function dayLabel(d){
-  const today = new Date(); today.setHours(0,0,0,0);
+  const today = houseToday(); today.setHours(0,0,0,0);
   const dd = new Date(d); dd.setHours(0,0,0,0);
   const diff = Math.round((today - dd)/86400000);
   const base = d.toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"});
   return base + (diff===0?" · Today":diff===1?" · Yesterday":"");
 }
 
+/* Pure: what to say about a span that was already running at midnight.
+   {words, old}. old once the last recorded change is over a week before the
+   day shown. */
+const CARRY_OLD_DAYS = 7;
+function carriedSince(dev, span, dayStartS){
+  const since = Number(dev && dev.onSince);
+  if (!(since > 0) || !span || span[0] !== 0 || !(dayStartS > since)) return { words: "", old: false };
+  const when = new Date(since * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  const old = (dayStartS - since) / 86400 > CARRY_OLD_DAYS;
+  return { words: ` · on since ${when}` + (old ? ", nothing recorded since" : ""), old };
+}
+/* Pure: the sentence for a history file that has stopped being written. */
+function historyStaleWords(ageS){
+  const a = Number(ageS);
+  if (!(a > 86400)) return "";
+  const days = Math.floor(a / 86400);
+  return `The history database was last written to ${days} day${days === 1 ? "" : "s"} ago, so nothing after that is shown. The SQL Logger may be recording somewhere else.`;
+}
+
 function render(){
   document.getElementById("dlab").textContent = dayLabel(selDate);
-  document.getElementById("next").disabled = ymd(selDate) >= ymd(new Date());
+  document.getElementById("next").disabled = ymd(selDate) >= houseNow().ymd;
   const body = document.getElementById("tl-body");
   if (!DAY || !DAY.ok){ body.innerHTML = '<div class="empty">No data for this day.</div>'; return; }
 
   const lanes = (DAY.lanes||[]).filter(l => l.devices.length || l.key==="heating");
-  const isToday = ymd(selDate) === ymd(new Date());
-  const nowMin = isToday ? (new Date().getHours()*60 + new Date().getMinutes()) : 1440;
+  const hn = houseNow();
+  const isToday = ymd(selDate) === hn.ymd;
+  const nowMin = isToday ? hn.min : 1440;
+  const dayStartS = new Date(selDate.getFullYear(), selDate.getMonth(), selDate.getDate()).getTime() / 1000;
 
-  let h = '<div class="tl-wrap" id="tlwrap"><div class="tl-lanes" id="tllanes">';
+  const staleDb = historyStaleWords(DAY.historyAgeSeconds);
+  let h = (staleDb ? `<div class="empty" role="status" style="color:var(--warn)">${esc(staleDb)}</div>` : "")
+        + '<div class="tl-wrap" id="tlwrap"><div class="tl-lanes" id="tllanes">';
   for (const lane of lanes){
     let segs = "";
     for (const dev of lane.devices){
@@ -284,7 +317,11 @@ function render(){
         const end = Math.min(s[1], nowMin);
         if (end <= s[0]) continue;
         const x = (s[0]/1440*100), w = ((end-s[0])/1440*100);
-        segs += `<div class="seg" style="left:${x}%;width:${w}%;background:${lane.colour}" title="${esc(dev.name)} ${hm(s[0])}–${isToday && s[1] > nowMin ? "now" : hm(s[1])}"></div>`;
+        // A span the day opened with: say since when, and hatch it once that
+        // is more than a week back, when "on all day" most likely means the
+        // device stopped being recorded while it was on (3.73.13).
+        const since = carriedSince(dev, s, dayStartS);
+        segs += `<div class="seg${since.old ? " old" : ""}" style="left:${x}%;width:${w}%;background:${lane.colour}" title="${esc(dev.name)} ${hm(s[0])}–${isToday && s[1] > nowMin ? "now" : hm(s[1])}${since.words ? esc(since.words) : ""}"></div>`;
       }
     }
     if (!lane.devices.length) segs = `<div class="empty" style="padding-left:8px;line-height:20px">none today</div>`;
@@ -342,8 +379,8 @@ function drawEnergy(){
 
 // The minute it is now when the day shown is today, else null.
 function nowMinIfToday(){
-  const n = new Date();
-  return ymd(selDate) === ymd(n) ? n.getHours()*60 + n.getMinutes() : null;
+  const n = houseNow();
+  return ymd(selDate) === n.ymd ? n.min : null;
 }
 function energyAt(min){
   if (!DAY.energy || !DAY.energy.points.length) return null;
@@ -371,10 +408,11 @@ function setPlayhead(min){
     scrub.style.marginLeft = "0";
   }
   document.getElementById("now-time").textContent = hm(playMin);
-  const isToday = ymd(selDate)===ymd(new Date());
+  const hn = houseNow();
+  const isToday = ymd(selDate)===hn.ymd;
   document.getElementById("now-sub").textContent =
     selDate.toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"})
-    + (isToday && playMin >= (new Date().getHours()*60+new Date().getMinutes())-1 ? " · now" : "");
+    + (isToday && playMin >= hn.min-1 ? " · now" : "");
   const chips = [];
   for (const lane of (DAY.lanes||[])){
     const active = lane.devices.filter(d => d.spans.some(s => playMin>=s[0] && playMin<s[1]));
@@ -442,8 +480,8 @@ async function load(){
 }
 
 document.getElementById("prev").addEventListener("click", ()=>{ selDate.setDate(selDate.getDate()-1); load(); });
-document.getElementById("next").addEventListener("click", ()=>{ if (ymd(selDate) < ymd(new Date())){ selDate.setDate(selDate.getDate()+1); load(); } });
-document.getElementById("today").addEventListener("click", ()=>{ selDate = new Date(); load(); });
+document.getElementById("next").addEventListener("click", ()=>{ if (ymd(selDate) < houseNow().ymd){ selDate.setDate(selDate.getDate()+1); load(); } });
+document.getElementById("today").addEventListener("click", ()=>{ selDate = houseToday(); load(); });
 document.getElementById("now-chips").addEventListener("click", e => {
   const b = e.target.closest(".nc-dev");
   if (b) openChart(parseInt(b.dataset.dev, 10));

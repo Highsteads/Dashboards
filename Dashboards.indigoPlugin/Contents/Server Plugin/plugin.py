@@ -462,12 +462,22 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         # Relay devices need a light keyword in the name to qualify.
         if cls == "RelayDevice" and self._has_word(name, self._LIGHT_WORDS):
             return "light"
+        # A name alone is not enough (3.73.13). The same three tests the window
+        # rule below has always applied: an output is not a sensor, a wall
+        # remote is not a sensor, and a real binary sensor says it has an on
+        # state. Without them a relay named "... Water Heater" was drawn as a
+        # leak sensor that read Wet whenever it was on, and a multisensor's
+        # luminance child with "Motion" in its name as a motion tile. A device
+        # whose TYPE says occupancy needs none of this.
+        named_sensor = (cls not in ("RelayDevice", "DimmerDevice")
+                        and typ not in self._BUTTON_TYPES
+                        and getattr(dev, "supportsOnState", False) is True)
         # Motion / presence sensors — also catches Z-Wave occupancy + radars.
-        if typ in self._OCCUPANCY_TYPES or self._has_word(name, self._MOTION_WORDS):
+        if typ in self._OCCUPANCY_TYPES or (named_sensor and self._has_word(name, self._MOTION_WORDS)):
             return "motion"
         # Water/leak sensors — binary alert state, sharing the motion-style tile
         # but the renderer auto-switches the label wording to Wet / Dry.
-        if self._has_word(name, ("water", "leak")):
+        if named_sensor and self._has_word(name, ("water", "leak")):
             return "motion"
         # Window / door contacts — match by deviceTypeId OR by name keyword so
         # we catch z2mSensor-typed contacts that don't have the explicit
@@ -1660,6 +1670,10 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
             self.logger.error(f"History test FAILED ({hist.backend}) — {detail}")
             return
         self.logger.info(f"History test PASSED — {detail}")
+        # Opening is not the same as being current (3.73.13).
+        stale = hist.stale_note()
+        if stale:
+            self.logger.warning(f"  But {stale}.")
         try:
             with hist.connect() as conn:
                 ids = hist.device_tables(conn)
@@ -1920,7 +1934,7 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         if boost and hours not in (1, 2):
             raise ValueError("Heating boost duration is unknown")
         return {"boostExpiry": boost, "boostHours": hours if boost else 0,
-                "boostRooms": self._evo_boost_rooms(saved) if boost else [],
+                "boostRooms": self._evo_boost_rooms(saved, now) if boost else [],
                 "handHolds": self._evo_hand_holds(saved, now),
                 "summerExpiry": expiry("summer_force")}
 
@@ -1952,12 +1966,17 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         return holds
 
     @staticmethod
-    def _evo_boost_rooms(saved):
+    def _evo_boost_rooms(saved, now=None):
         """What each boosted room was asked for at the last heating check, and why a
         room got less (EvoHomeControl 1.26.0 and later; older versions save nothing
         and this is empty). Only these named fields are passed on, each checked, so
         a malformed entry is dropped rather than shown. Whether the controller has
-        confirmed it is the page's to judge, from the radiator's own setpoint."""
+        confirmed it is the page's to judge, from the radiator's own setpoint.
+
+        3.73.13: `at` (when that check ran, as epoch seconds, None if the entry
+        gives no usable time) is passed on so the page can say how old the lines
+        are, and a by-hand hold whose end has passed is sent as holdEnded with no
+        `until`, where the page used to quote it as still running."""
         raw = saved.get("timed_boost_outcome")
         rooms = []
         if not isinstance(raw, dict):
@@ -1973,6 +1992,16 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
                 until = entry.get("until")
                 if isinstance(until, bool) or not isinstance(until, (int, float)) or until != until:
                     until = None
+                ended = until is not None and now is not None and until <= now
+                if ended:
+                    until = None
+                at = None
+                try:
+                    stamp = datetime.fromisoformat(str(entry.get("at")))
+                    if stamp.tzinfo is not None:      # a wall time with no zone is not guessed at
+                        at = stamp.timestamp()
+                except (TypeError, ValueError):
+                    at = None
                 rooms.append({
                     "id":        int(key),
                     "room":      str(entry.get("room") or "")[:40],
@@ -1981,6 +2010,8 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
                     "held":      str(entry.get("held") or "")[:120],
                     "byHand":    entry.get("by_hand") is True,
                     "until":     None if until is None else float(until),
+                    "holdEnded": bool(ended),
+                    "at":        at,
                 })
             except (KeyError, TypeError, ValueError):
                 continue
@@ -2531,6 +2562,14 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
             with open(path, encoding="utf-8") as fh:
                 payload = json.load(fh)
             payload["ok"] = True
+            # How old the file is (3.73.13), from its own stamp or, failing
+            # that, the file's time. The page was showing a file the watch
+            # stopped writing days ago as "Tonight", with a live now-line.
+            try:
+                built = float(payload.get("_writeTs"))
+            except (TypeError, ValueError):
+                built = os.path.getmtime(path)
+            payload["ageSeconds"] = max(0, int(time.time() - built))
             return self._evo_reply(payload)
         except FileNotFoundError:
             # Not an error — the watch simply has not run (or is not installed).
@@ -3488,8 +3527,24 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
             # the 0.42 kWh its logged readings add up to. kwh_slices counts the
             # energy on both sides of the restart.
             slices = C.kwh_slices(rows)
-            today_kwh = C.kwh_between(slices, today0)
-            week_kwh = round(C.kwh_between(slices, week0), 4)
+            # The first reading in the week has nothing before it to be
+            # measured from, and was dropped: a plug first logged today showed
+            # 0 kWh (3.73.13). It is a day's running total, so it is counted
+            # as the use since that midnight.
+            lead = C.first_reading_slice(rows, week0)
+            if lead:
+                slices = [lead] + slices
+            logged_today = C.kwh_between(slices, today0)
+            week_kwh = C.kwh_between(slices, week0)
+            # Each count can only fall short: the plug's own after a restart,
+            # the logged one after a gap in the logging. So the higher of the
+            # two is today's, where the logged one used to replace the plug's
+            # own even when it was the lower.
+            if today_kwh is None or logged_today >= today_kwh:
+                today_kwh = logged_today
+            else:
+                week_kwh += today_kwh - logged_today
+            week_kwh = round(week_kwh, 4)
             first = rows[0][0]
             since = None
             if first > week0 + 3600:                                  # history starts part-way through the week

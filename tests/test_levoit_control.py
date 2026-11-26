@@ -302,7 +302,9 @@ def test_energy_today_and_week_at_the_cheap_rate(monkeypatch, london):
     assert body["today"] == {"kwh": 0.37, "pence": round(0.37 * 15.473, 2)}
     # Yesterday's first reading after a gap is energy since ITS midnight (0.65),
     # then 0.05 more; three days ago adds 0.1.
-    assert body["week"]["kwh"] == round(0.1 + 0.65 + 0.05 + 0.37, 4)
+    # Since 3.73.13 the week's first reading (0.10, with nothing before it) is
+    # counted too, as the use since its own midnight; it used to be dropped.
+    assert body["week"]["kwh"] == round(0.1 + 0.1 + 0.65 + 0.05 + 0.37, 4)
     assert body["week"]["pence"] == round(body["week"]["kwh"] * 15.473, 2)
     assert body["rate"] == {"pence": 15.47, "words": "15.5p a unit, the 2am to 5am rate"}
 
@@ -348,3 +350,43 @@ def test_energy_action_is_declared_and_the_page_uses_it():
     assert action.get("uiPath") == "hidden" and action.find("CallbackMethod").text == "handleLevoitEnergy"
     html = open(os.path.join(PAGES, "levoit.html"), encoding="utf-8").read()
     assert 'DashUI.message("levoitEnergy"' in html and "function energyBlock(v)" in html
+
+
+def test_a_plug_first_logged_today_does_not_read_nought(monkeypatch, london):
+    """3.73.13: the first reading has nothing before it and was dropped, so a new
+    plug, or one logged again after a gap, showed 0 kWh on its first day."""
+    p = energy_rig(monkeypatch)
+    import time as _t
+    now = _t.time()
+    today0 = _t.mktime(datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).timetuple())
+    mid = int(today0 + 0.5 * (now - today0))
+    p._energy_today_rows = lambda plug_id, start: [(mid, 0.8)]            # the only row there is
+    _, body = energy(p, {"deviceId": 4100})
+    assert body["today"]["kwh"] == 0.8
+    assert body["week"]["kwh"] == 0.8 and body["week"]["since"]
+
+
+def test_the_higher_of_the_two_counts_is_todays(monkeypatch, london):
+    """The logged count can fall short after a gap in the logging, the plug's own
+    after a restart. The logged one used to win even when it was the lower."""
+    p = energy_rig(monkeypatch)
+    import time as _t
+    now = _t.time()
+    today0 = _t.mktime(datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).timetuple())
+    # Logged: 0.02 then 0.03 today (0.03 in all). The plug itself says 0.0705.
+    p._energy_today_rows = lambda plug_id, start: [(int(today0 - 600), 0.5),
+        (int(today0 + 0.4 * (now - today0)), 0.02), (int(today0 + 0.6 * (now - today0)), 0.03)]
+    _, body = energy(p, {"deviceId": 4100})
+    assert body["today"]["kwh"] == 0.0705
+    # Yesterday's one reading (0.5 by ten to midnight) is in the week as well.
+    assert body["week"]["kwh"] == round(0.5 + 0.0705, 4), "and the week is not left short of today"
+
+
+def test_a_first_reading_that_cannot_be_a_days_use_is_left_out():
+    import device_cost as C
+    midnight = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
+    assert C.first_reading_slice([(midnight + 3600, 0.8)], midnight) == (int(midnight + 3600), 0.8)
+    assert C.first_reading_slice([(midnight + 3600, 3682.0)], midnight) is None      # a lifetime total, or Wh
+    assert C.first_reading_slice([(midnight - 600, 0.8)], midnight) is None          # before the window: the starting line
+    assert C.first_reading_slice([(midnight + 3600, 0.0)], midnight) is None
+    assert C.first_reading_slice([], midnight) is None

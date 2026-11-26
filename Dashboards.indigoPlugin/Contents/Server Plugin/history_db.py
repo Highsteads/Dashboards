@@ -326,6 +326,41 @@ class HistoryDB:
         self.logger = logger
 
     # ---- availability -------------------------------------------------
+    STALE_AFTER_SECONDS = 86400
+
+    def source_age_seconds(self, now=None):
+        """Seconds since the SQLite history was last written to, or None.
+
+        A file that exists and opens is not proof the SQL Logger still
+        writes to it: after a move to PostgreSQL the old file passes every
+        check and every chart stops at the day of the move. The logger writes
+        all day, so the newer of the file's and its write-ahead log's
+        modification times is the answer, at the cost of two stat calls.
+        None for PostgreSQL, a missing path, or a file that cannot be read."""
+        if self.backend != SQLITE or not self.sqlite_path:
+            return None
+        newest = None
+        for path in (self.sqlite_path, self.sqlite_path + "-wal"):
+            try:
+                mtime = os.path.getmtime(path)
+            except OSError:
+                continue
+            newest = mtime if newest is None else max(newest, mtime)
+        if newest is None:
+            return None
+        import time as _time
+        return max(0.0, (now if now is not None else _time.time()) - newest)
+
+    def stale_note(self, now=None):
+        """'' while the history is being written, else a sentence saying how
+        long it has not been. For the Test Connection menu and the pages."""
+        age = self.source_age_seconds(now)
+        if age is None or age <= self.STALE_AFTER_SECONDS:
+            return ""
+        days = int(age // 86400)
+        return (f"nothing has been written to it for {days} day{'' if days == 1 else 's'}, "
+                "so the SQL Logger may be recording somewhere else")
+
     def check(self):
         """Return (ok, message). Never raises — for the Test Connection menu."""
         try:

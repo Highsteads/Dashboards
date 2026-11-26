@@ -88,6 +88,31 @@
     return wall - off * 60000;
   }
 
+  /* The house's wall clock: its date and the minute of its day (3.73.13).
+     The Timeline took "today" and "now" from the device in the reader's
+     hand, so a phone in another time zone was shown a day the house had not
+     reached, headed Today. Same zone source as serverTime. known is false
+     when the plugin has not said what zone it is in, and the device's own
+     clock is used. */
+  function serverNow(nowMs) {
+    var now = nowMs == null ? Date.now() : nowMs;
+    var cfg = root.INDIGO_CONFIG || {};
+    var off = null;
+    if (cfg.serverTz && typeof Intl !== 'undefined') off = zoneOffsetMin(cfg.serverTz, now);
+    if (off == null && typeof cfg.serverUtcOffsetMin === 'number' && isFinite(cfg.serverUtcOffsetMin)) {
+      off = cfg.serverUtcOffsetMin;
+    }
+    var p2 = function (n) { return (n < 10 ? '0' : '') + n; };
+    var d = new Date(now);
+    if (off == null) {
+      return { ymd: d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()),
+               min: d.getHours() * 60 + d.getMinutes(), known: false };
+    }
+    d = new Date(now + off * 60000);
+    return { ymd: d.getUTCFullYear() + '-' + p2(d.getUTCMonth() + 1) + '-' + p2(d.getUTCDate()),
+             min: d.getUTCHours() * 60 + d.getUTCMinutes(), known: true };
+  }
+
   /* How long ago, said ONE way (v3.28.0). Five page-local copies disagreed:
      some rounded (1 h 40 m read "2h ago" on a room page) and some rounded
      down (the same age read "1h ago" on Heating). Now every figure rounds
@@ -176,11 +201,21 @@
           img.src = src;
           // One frame later, so the base has painted the new picture before
           // the overlay leaves — otherwise the old frame blinks back.
-          root.requestAnimationFrame(function () {
+          // A page that is showing but not being painted (a covered window,
+          // an embedded pane) never gets the frame callback. The fade then
+          // never ended, _xfading stayed set, and every later frame for that
+          // tile was skipped for as long as the page was open (3.73.12). So
+          // the timer below ends it if the frame callback has not.
+          var ended = false;
+          var end = function () {
+            if (ended) return;
+            ended = true;
             if (top.parentNode) top.parentNode.removeChild(top);
             img._xfading = false;
             resolve(true);
-          });
+          };
+          root.requestAnimationFrame(end);
+          root.setTimeout(end, 120);
         };
         top.addEventListener('transitionend', finish);
         root.setTimeout(finish, XFADE_MS + 150);   // a hidden tab never fires transitionend
@@ -1776,6 +1811,7 @@
     esc: esc,
     ago: ago,
     serverTime: serverTime,
+    serverNow: serverNow,
     setText: setText,
     tweenNumber: tweenNumber,
     reducedMotion: reducedMotion,

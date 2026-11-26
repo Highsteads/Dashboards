@@ -254,9 +254,28 @@ class HistoryMixin:
                     return float(v)
                 except (TypeError, ValueError):
                     return None
+            # The last value recorded BEFORE the window (3.73.13). The SQL
+            # Logger writes a row only when a value changes, so a light left
+            # on for a week has no row in "the last 24 hours" and the chart
+            # said "Nothing recorded". Rowid-bounded both ends, so the seek
+            # can never walk a whole table looking for a value that is not
+            # there: 50,000 rows back and no further.
+            before = None
+            if lo is not None:
+                try:
+                    prev = conn.execute(
+                        f'SELECT {hist.epoch()}, {num} FROM {table} '
+                        f"WHERE id < ? AND id >= ? AND {col} IS NOT NULL AND CAST({col} AS TEXT) != '' "
+                        f'ORDER BY id DESC LIMIT 1',
+                        (int(lo), max(0, int(lo) - 50000))).fetchone()
+                    if prev and _f(prev[1]) is not None:
+                        before = {"t": int(prev[0]), "v": _f(prev[1])}
+                except Exception:
+                    before = None       # the chart is still drawn from what is in range
             return {"ok": True, "deviceId": dev_id, "state": requested,
                     "type": by_name[requested]["type"], "backend": hist.backend,
                     "hours": hours, "bucketSeconds": bucket,
+                    "now": int(datetime.now(timezone.utc).timestamp()), "before": before,
                     "points": [{"t": int(r[0]), "avg": _f(r[1]), "min": _f(r[2]),
                                 "max": _f(r[3]), "n": int(r[4])} for r in rows]}
         finally:
@@ -383,7 +402,7 @@ class HistoryMixin:
                 out.append([round(cs, 1) if cs else 0, ce if ce == 1440 else round(ce, 1)])
         return out
 
-    def _timeline_active_spans(self, hist, conn, dev_id, col, bounds):
+    def _timeline_active_spans(self, hist, conn, dev_id, col, bounds, info=None):
         """Return active spans [[startMin, endMin], ...] (minutes from local
         midnight, 0-1440) for a device's boolean column on the given day.
         `bounds` = (start_epoch, start_utc, end_utc). Filters on the RAW ts
@@ -406,15 +425,23 @@ class HistoryMixin:
         # through a month of days.
         if lo is not None:
             carry = conn.execute(
-                f'SELECT "{col}" FROM "{table}" '
+                f'SELECT "{col}", {hist.epoch()} FROM "{table}" '
                 f'WHERE id < ? AND "{col}" IS NOT NULL '
                 f'ORDER BY id DESC LIMIT 1', (lo,)).fetchone()
         else:
             carry = conn.execute(
-                f'SELECT "{col}" FROM "{table}" '
+                f'SELECT "{col}", {hist.epoch()} FROM "{table}" '
                 f'WHERE "{col}" IS NOT NULL AND ts < ? '
                 f'ORDER BY ts DESC LIMIT 1', (start_utc,)).fetchone()
         state = self._as_bool01(carry[0]) if carry else 0
+        # When the state the day opens with was recorded (3.73.13). A device
+        # that stopped logging while it was on is drawn on from midnight every
+        # day after; the page can now say since when.
+        if state and info is not None:
+            try:
+                info["onSince"] = int(carry[1])
+            except (TypeError, ValueError, IndexError):
+                pass
         rows = conn.execute(
             f'SELECT ({hist.epoch()} - {start_epoch}) / 60.0, "{col}" '
             f'FROM "{table}" '
@@ -499,11 +526,15 @@ class HistoryMixin:
                     real = has_col(dev_id, col)
                     if not real:
                         continue
-                    spans = self._timeline_active_spans(hist, conn, dev_id, real, bounds)
+                    info = {}
+                    spans = self._timeline_active_spans(hist, conn, dev_id, real, bounds, info)
                     if spans:
-                        rows.append({"id": dev_id,
-                                     "name": self._device_name(dev_id),
-                                     "spans": spans})
+                        row = {"id": dev_id,
+                               "name": self._device_name(dev_id),
+                               "spans": spans}
+                        if info.get("onSince") and spans[0][0] == 0:
+                            row["onSince"] = info["onSince"]
+                        rows.append(row)
                 rows.sort(key=lambda x: x["name"].lower())
                 lanes.append({"key": key, "label": label,
                               "colour": colour, "devices": rows})
@@ -511,7 +542,14 @@ class HistoryMixin:
             energy = self._timeline_energy(hist, conn, bounds)
         finally:
             conn.close()
-        return {"ok": True, "date": date_str, "lanes": lanes, "energy": energy}
+        out = {"ok": True, "date": date_str, "lanes": lanes, "energy": energy}
+        # How long since the history file was written to (SQLite only). More
+        # than a day means the SQL Logger is writing somewhere else, and
+        # every lane here stopped at that moment.
+        age = hist.source_age_seconds()
+        if age is not None:
+            out["historyAgeSeconds"] = int(age)
+        return out
 
     def _timeline_energy(self, hist, conn, bounds):
         """Battery SOC + solar-power trace for the day, 5-min samples. Uses the
@@ -789,6 +827,12 @@ class HistoryMixin:
         except ValueError:
             return self._evo_reply(
                 {"ok": False, "error": "date must be YYYY-MM-DD"}, status=400)
+        # A day the house has not reached is refused (3.73.13). It used to be
+        # built: every device that is on now came back on from midnight to
+        # midnight, for a date that had not started here.
+        if date_str > datetime.now().strftime("%Y-%m-%d"):
+            return self._evo_reply(
+                {"ok": False, "error": "that day has not started at the house yet"}, status=400)
         # Off the dispatch path (v3.19.0). Measured at 1707 ms worst of three
         # on 18-09-2026 — the slowest endpoint in the plugin, and every
         # millisecond of it was a stall of everything else IWS was serving.

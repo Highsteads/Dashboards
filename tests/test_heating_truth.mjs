@@ -125,8 +125,37 @@ const heat = read("heating.html");
     let line;
     try { line = ctx.__b({ id: 9, room: "Hall", held: "a window is open", requested: null }, "3pm"); } catch (e) { line = ["threw", String(e)]; }
     checkEq("a blocked room with no figure still gets its line", line, ["held", "Hall: not boosted because a window is open."]);
+    // 3.73.13: "set to" only when the radiator says so itself. Zone 9 is not
+    // one this page knows, so the figure is what was sent.
     checkEq("with a figure it says the figure", ctx.__b({ id: 9, room: "Hall", held: "a window is open", requested: 12 }, "3pm"),
+            ["held", "Hall: not boosted. 12 degrees sent because a window is open, waiting for Evohome to confirm."]);
+    const B = (zone, r) => { vm.runInContext("_zoneById.clear();", ctx); if (zone) { ctx.__z = zone; vm.runInContext("_zoneById.set(__z.id, __z);", ctx); } return ctx.__b(r, "3pm"); };
+    const rad = (sp, extra, st) => z(9, "Hall", Object.assign({ setpointHeat: sp }, st), Object.assign({ setpointHeat: sp }, extra));
+    checkEq("the radiator agrees: set to 12",
+            B(rad(12), { id: 9, room: "Hall", held: "a window is open", requested: 12 }),
             ["held", "Hall: not boosted, set to 12 degrees because a window is open."]);
+    checkEq("the 12 has not reached the radiator, which still says 20",
+            B(rad(20), { id: 9, room: "Hall", held: "a window is open", requested: 12 }),
+            ["held", "Hall: not boosted. 12 degrees sent because a window is open, waiting for Evohome to confirm (the radiator still says 20)."]);
+    checkEq("a boosted radiator that agrees is confirmed",
+            B(rad(22), { id: 9, room: "Hall", held: "", requested: 22 }),
+            ["ok", "Hall: set to 22 degrees until 3pm, confirmed by Evohome."]);
+    checkEq("a disabled radiator's last setting confirms nothing",
+            B(rad(22, { enabled: false }), { id: 9, room: "Hall", held: "", requested: 22 }),
+            ["wait", "Hall: 22 degrees sent, but the radiator cannot be heard, so it is not confirmed."]);
+    checkEq("nor one behind a gateway that has gone",
+            B(rad(22, {}, { gatewayStatus: "offline" }), { id: 9, room: "Hall", held: "", requested: 22 }),
+            ["wait", "Hall: 22 degrees sent, but the radiator cannot be heard, so it is not confirmed."]);
+    checkEq("a by-hand hold that has ended is not quoted as still running",
+            B(rad(19), { id: 9, room: "Hall", byHand: true, holdEnded: true, until: null, requested: 19, held: "it was set by hand" }),
+            ["held", "Hall: set to 19 degrees by hand. Its hold has ended, so the next heating check takes it back."]);
+    vm.runInContext(extractFn(heat, "boostLinesAge").replace(/^/, "const BOOST_LINES_OLD_S = 720;\n") + "\nglobalThis.__age = boostLinesAge;", ctx);
+    const nowS = secs(NOW);
+    checkEq("lines from a check five minutes ago carry no date", ctx.__age([{ at: nowS - 300 }, { at: nowS - 290 }], nowS), "");
+    check("lines from a check forty minutes ago say so",
+          /^As of the heating check at \d{1,2}(:\d\d)?(am|pm)|^As of the heating check at (noon|midnight)/.test(ctx.__age([{ at: nowS - 2400 }], nowS)), ctx.__age([{ at: nowS - 2400 }], nowS));
+    checkEq("an older heating plugin gives no time, and nothing is claimed", ctx.__age([{ at: null }, {}], nowS), "");
+    check("the summary line is not drawn over old lines", /if \(!aged && rooms\.length > 1 && lines\.every/.test(heat));
     checkEq("_deg never throws on a missing number", [vm.runInContext("_deg(null)", ctx), vm.runInContext("_deg('x')", ctx), vm.runInContext("_deg(21.5)", ctx)], ["—", "—", "21.5"]);
 }
 

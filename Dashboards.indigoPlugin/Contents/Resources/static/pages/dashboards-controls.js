@@ -318,6 +318,20 @@
      when the zone does not say. RAMSES ESP keeps temperatureSeenEpoch for
      exactly this. lastSeen also moves on setpoint and mode reports, so a
      valve whose sensor had died kept a frozen temperature looking fresh. */
+  /* The radio gateway this zone is heard through has gone (RAMSES ESP's own
+     states). One rule for the tile and for anything else that asks whether
+     a zone's setpoint can be believed (3.73.13). */
+  function gatewayOff(d) {
+    var s = (d && d.states) || {};
+    return String(s.gatewayStatus == null ? '' : s.gatewayStatus).toLowerCase() === 'offline'
+        || String(s.online == null ? '' : s.online).toLowerCase() === 'false';
+  }
+  /* '' when the zone can be believed, else why not: unknownReason's words,
+     or 'gateway offline'. */
+  function notLiveReason(d) {
+    return unknownReason(d) || (gatewayOff(d) ? 'gateway offline' : '');
+  }
+
   function tempSeen(d) {
     var s = d.states || {};
     if ('temperatureSeenEpoch' in s) {
@@ -355,8 +369,7 @@
     // stays, greyed, but it claims no call for heat: a disabled valve, one in
     // error or one whose gateway has gone was drawn as live, flame and all.
     var why = unknownReason(d);
-    var gwOff = !why && (String(s.gatewayStatus == null ? '' : s.gatewayStatus).toLowerCase() === 'offline'
-                         || String(s.online == null ? '' : s.online).toLowerCase() === 'false');
+    var gwOff = !why && gatewayOff(d);
     var notLive = !!why || gwOff;
     var hot = !notLive && heating(d);
     var valve = parseFloat(s['valve-position'] || s.valvePosition || 0);
@@ -550,6 +563,7 @@
       tempClass: tempClass,
       lastSeen: lastSeen,
       tempSeen: tempSeen,
+      notLive: notLiveReason,
       stale: stale,
       knowsDemand: knowsDemand,
       NOTE_KEEP_MS: NOTE_KEEP_MS,

@@ -30,8 +30,16 @@ CASES = [
     ("relay no light word",   dict(name="Immersion Heater", cls="RelayDevice"), "extras"),
     # Motion / presence — by type or by name.
     ("occupancy type",   dict(name="Landing Sensor", deviceTypeId="z2mOccupancySensor"), "motion"),
-    ("motion by name",   dict(name="Garage PIR", cls="z2mSensor"),            "motion"),
-    ("water leak = motion tile", dict(name="Utility Leak Sensor", cls="z2mSensor"), "motion"),
+    # A real binary sensor says it has an on state; since 3.73.13 the name
+    # alone is not enough (see the three cases after these two).
+    ("motion by name",   dict(name="Garage PIR", cls="z2mSensor", supportsOnState=True), "motion"),
+    ("water leak = motion tile", dict(name="Utility Leak Sensor", cls="z2mSensor", supportsOnState=True), "motion"),
+    ("a relay with a water word is not a leak sensor",
+        dict(name="Utility Water Heater", cls="RelayDevice", supportsOnState=True), "extras"),
+    ("a value sensor with a motion word is not a motion tile",
+        dict(name="Hall Motion Luminance", deviceTypeId="zwValueSensorType"), "extras"),
+    ("a wall remote with a motion word is not a motion tile",
+        dict(name="Landing Motion Remote", deviceTypeId="z2mButton", supportsOnState=True), "extras"),
     # Genuine contacts: boolean onState + type or name keyword.
     ("z2m contact by type", dict(name="Front Door", deviceTypeId="z2mContactSensor",
                                   supportsOnState=True), "window"),

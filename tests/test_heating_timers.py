@@ -85,8 +85,9 @@ def test_boost_rooms_passed_on_checked_and_sorted(tmp_path, monkeypatch):
     assert [r["room"] for r in rooms] == ["Dining Room", "Hall Kitchen", "Living Room Front"]
     assert rooms[0] == {"id": 9, "room": "Dining Room", "target": 22.0, "requested": 16.0,
                         "held": "it is already warm from the sun or the rest of the house",
-                        "byHand": False, "until": None}
+                        "byHand": False, "until": None, "holdEnded": False, "at": None}
     assert rooms[1]["requested"] is None
+    assert rooms[2]["at"] is None, "a time that cannot be read is no time, not a guess"
     assert "secret" not in rooms[2]
 
 
@@ -128,6 +129,10 @@ def test_a_room_set_by_hand_during_a_boost_is_passed_on(tmp_path, monkeypatch):
     radiator's own setting and when the hold ends. Only a real True and a real number
     are passed on."""
     expiry = "2999-01-01T12:00:00+00:00"
+    # The clock is pinned before the hold's end: since 3.73.13 a hold that has
+    # already ended is sent without its `until`, and this fixture's end is a
+    # fixed moment in November 2026.
+    monkeypatch.setattr(load_plugin_module().time, "time", lambda: 1795615000.0)
     outcome = {
         "2": {"room": "Conservatory", "target": 22.0, "requested": 20.0,
               "held": "it was set by hand", "by_hand": True, "until": 1795615348.0},
@@ -142,3 +147,23 @@ def test_a_room_set_by_hand_during_a_boost_is_passed_on(tmp_path, monkeypatch):
     assert (rooms["Conservatory"]["byHand"], rooms["Conservatory"]["until"]) == (True, 1795615348.0)
     assert (rooms["Dining Room"]["byHand"], rooms["Dining Room"]["until"]) == (False, None)
     assert (rooms["Hall Kitchen"]["byHand"], rooms["Hall Kitchen"]["until"]) == (True, None)
+
+
+def test_a_boost_line_carries_when_it_was_written_and_a_hold_that_has_ended(tmp_path, monkeypatch):
+    """3.73.13: the page could not say how old the lines were, and quoted a
+    by-hand hold as lasting "until 3:58pm" after 3:58."""
+    now = 1_800_000_000.0
+    monkeypatch.setattr(load_plugin_module().time, "time", lambda: now)
+    outcome = {
+        "2": {"room": "Conservatory", "target": 22.0, "requested": 20.0, "held": "it was set by hand",
+              "by_hand": True, "until": now - 30, "at": "2027-01-15T08:00:00+00:00"},
+        "3": {"room": "Hall", "target": 22.0, "requested": 21.0, "held": "it was set by hand",
+              "by_hand": True, "until": now + 600, "at": "2027-01-15T08:00:00"},
+    }
+    p, _ = saved(tmp_path, monkeypatch, timed_boost_active=True, timed_boost_hours=1,
+                 timed_boost_expiry="2999-01-01T12:00:00+00:00", timed_boost_outcome=outcome)
+    rooms = {r["room"]: r for r in p._read_evo_timers()["boostRooms"]}
+    assert (rooms["Conservatory"]["holdEnded"], rooms["Conservatory"]["until"]) == (True, None)
+    assert rooms["Conservatory"]["at"] == 1_800_000_000.0
+    assert (rooms["Hall"]["holdEnded"], rooms["Hall"]["until"]) == (False, now + 600)
+    assert rooms["Hall"]["at"] is None, "a wall time with no zone is not guessed at"

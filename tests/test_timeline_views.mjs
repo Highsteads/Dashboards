@@ -109,7 +109,8 @@ console.log("\nChart opens a device from a deep link");
         async getDevices() { calls.push("devices"); return [{ id: 7, name: "Hall Temp", states: { temperature: 1 } }]; }
         async getHistoryStates(id) { calls.push("states:" + id); return { states: ["temperature"], types: {} }; }
         async getHistory(id, st, h) { calls.push("history:" + id + ":" + st + ":" + h);
-            return { points: [{ t: 1, avg: 19.5, min: 19, max: 20 }, { t: 2, avg: 20.25, min: 20, max: 21 }] }; }
+            const now = Math.floor(Date.now() / 1000);       // in the range asked for (3.73.13)
+            return { hours: h, points: [{ t: now - 7200, avg: 19.5, min: 19, max: 20 }, { t: now - 3600, avg: 20.25, min: 20, max: 21 }] }; }
     }`, ctx);
     vm.runInContext(read("timeline-views.js"), ctx);
     const view = ctx.TimelineViews.chart(el, t => statuses.push(t));

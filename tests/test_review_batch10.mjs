@@ -115,4 +115,42 @@ console.log("\nCameras page: data rates");
     check("a new stream starts with no earlier reading", /st\.lastRtcAt      = 0;/.test(cams));
 }
 
+console.log("\na cross-fade on a page that is not being painted");
+{
+    const mkEl = (tag) => ({ tag, style: {}, children: [], parentNode: null, attrs: {}, listeners: {},
+        isConnected: true, className: "",
+        setAttribute(k, v) { this.attrs[k] = v; }, getAttribute(k) { return this.attrs[k] || (k === "src" ? this.src : null); },
+        addEventListener(t, f) { this.listeners[t] = f; },
+        appendChild(n) { n.parentNode = this; this.children.push(n); },
+        removeChild(n) { this.children = this.children.filter(x => x !== n); n.parentNode = null; } });
+    const timers = [];
+    const w = {
+        document: { createElement: mkEl, documentElement: {} },
+        matchMedia: () => ({ matches: false }),
+        getComputedStyle: el => ({ position: el.pos || "static", objectFit: "cover" }),
+        requestAnimationFrame: () => 0,                       // never called back: nothing is painting
+        setTimeout: (f) => { timers.push(f); return timers.length; },
+        Image: function () { const self = this; setTimeout(() => self.onload(), 0);
+                             Object.defineProperty(self, "src", { set(v) { self._s = v; }, get() { return self._s; } }); },
+    };
+    w.window = w;
+    const c = { window: w, self: w, globalThis: w, console, navigator: {}, location: { hostname: "x" } };
+    Object.assign(c, w);
+    vm.createContext(c);
+    vm.runInContext(read("dashboards-ui.js"), c);
+    const DashUI = c.DashUI || w.DashUI;
+    const parent = mkEl("div"); parent.pos = "relative";
+    const img = mkEl("img"); img.src = "old.jpg"; img.attrs.src = "old.jpg"; img.parentElement = parent;
+    img.insertAdjacentElement = (where, n) => { n.parentNode = parent; parent.children.unshift(n); };
+    let result = null;
+    DashUI.swapImage(img, "new.jpg").then(v => { result = v; });
+    await new Promise(r => setTimeout(r, 5));
+    for (let i = 0; i < 4 && timers.length; i++) { const run = timers.splice(0); run.forEach(f => f()); }
+    await new Promise(r => setTimeout(r, 5));
+    checkEq("the swap still finishes", result, true);
+    checkEq("the tile takes the new frame", img.src, "new.jpg");
+    checkEq("and is free to take the next one", !!img._xfading, false);
+    checkEq("with the overlay gone", parent.children.length, 0);
+}
+
 done();

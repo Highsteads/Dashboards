@@ -95,6 +95,22 @@
         document.addEventListener("visibilitychange", onShow);
     }
 
+    // Wait, then read the stamp once more: has it moved from `ts`?
+    const SECOND_LOOK_MS = 2500;
+    let _sleep = ms => new Promise(r => setTimeout(r, ms));
+    async function movedOnSecondLook(ts) {
+        try {
+            await _sleep(SECOND_LOOK_MS);
+            const r = await fetch(STAMP_URL + "?t=" + Date.now(), { cache: "no-store" });
+            if (!r.ok) return false;
+            const j = await r.json();
+            if (!j || typeof j.ts !== "number" || j.state === "stopping") return false;
+            if (j.ts === ts) return false;
+            st.lastTs = j.ts; st.lastAdvance = Date.now(); st.lastLookAt = Date.now();
+            return true;
+        } catch (e) { return false; }
+    }
+
     async function fetchStamp() {
         const ctrl = new AbortController();
         const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
@@ -111,6 +127,8 @@
             }
             if (j.build) maybeReloadForBuild(String(j.build));
             const firstSight = st.lastTs === 0;
+            const prevTs = st.lastTs, prevLook = st.lastLookAt || 0, lookAt = Date.now();
+            st.lastLookAt = lookAt;
             // Any CHANGE is an advance (v2.95.3), not only an increase: a
             // server clock stepped back after an NTP correction made every
             // new stamp read below the last one, and the gate answered
@@ -126,7 +144,25 @@
             // /message/ calls into a dead host.
             // (Only a ts that IS an epoch can be aged — a synthetic counter is
             // not one, and a plugin cannot write a future stamp either.)
-            if (firstSight && j.ts > 1e9 && (Date.now() / 1000 - j.ts) > 300) return noteDown();
+            // Old by THIS device's clock, though, is two things: that, or a
+            // tablet whose clock runs five minutes fast, which was then told
+            // "the plugin is restarting" on every page load (3.73.13). A
+            // second look settles which without trusting either clock: a
+            // live writer has moved the stamp on by then.
+            if (firstSight && j.ts > 1e9 && (Date.now() / 1000 - j.ts) > 300) {
+                return (await movedOnSecondLook(j.ts)) ? noteOk() : noteDown();
+            }
+            // Between two looks, the stamp must have kept up with the clock
+            // (3.73.13). A page that looks every five or fifteen minutes
+            // (Plugs, Savings) used to take ANY change since its last look as
+            // "being written now", so a plugin that died a minute after that
+            // look read ok. Both differences are durations, each on its own
+            // clock, so neither clock need be right. Only for real epoch
+            // stamps, and not when the server's clock was stepped back.
+            if (!firstSight && prevLook > 0 && prevTs > 1e9 && j.ts > 1e9) {
+                const serverGapMs = (j.ts - prevTs) * 1000;
+                if (serverGapMs >= 0 && (lookAt - prevLook) - serverGapMs > STALE_MS) return noteDown();
+            }
             // A live writer advances ts every ~2 s. A frozen value means the
             // plugin died without writing the sentinel (kill -9, crash).
             if (Date.now() - st.lastAdvance > STALE_MS) return noteDown();
@@ -182,7 +218,8 @@
         },
         // Test hook: expose internals so the node suite can drive the clock.
         _state: st,
+        _setSleep(fn) { _sleep = fn; },
         _constants: { FETCH_MS, STALE_MS, BACKOFF_BASE_MS, BACKOFF_MAX_MS,
-                      FETCH_TIMEOUT_MS, NOGATE_RECHECK_MS }
+                      FETCH_TIMEOUT_MS, NOGATE_RECHECK_MS, SECOND_LOOK_MS }
     };
 })();

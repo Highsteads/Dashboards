@@ -30,7 +30,20 @@
     // per room it watches, with a track per sensor, a combined track that
     // turns amber wherever the sensors disagree, a movement strip and a
     // seven-night strip to jump between nights.
+    /* Pure: is the presence file old? Presence_Watch.py writes it every five
+       minutes; three missed runs and it has stopped. {old, words}. */
+    const PRESENCE_OLD_S = 15 * 60;
+    function presenceAge(data) {
+        const age = Number(data && data.ageSeconds);
+        if (!(age > PRESENCE_OLD_S)) return { old: false, words: "" };
+        const g = String((data && data.generatedLocal) || "");
+        const d = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(g) ? new Date(g.slice(0, 16).replace(" ", "T")) : null;
+        const when = d && !isNaN(d) ? d.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" }) + " at " + g.slice(11, 16) : "";
+        return { old: true, words: "Last built " + (when || "some time ago") + "; the presence watch has stopped" };
+    }
+
     function Nights(el, setStatus) {
+        let STALE = false;
         let DATA = null, selDate = null, poller = null;
         el.innerHTML = `
             <section class="card">
@@ -70,6 +83,7 @@
             return `<div class="axis">` + ticks.map(o => `<span>${minToClock(room, o)}</span>`).join("") + `</div>`;
         }
         function nowFutureHtml(night, span) {
+            if (STALE) return "";                 // an old file's "now" is not now
             if (!night.live || night.nowMin == null) return "";
             const l = Math.min(100, pct(night.nowMin, span));
             return `<span class="future" style="left:${l.toFixed(2)}%"></span><span class="nowline" style="left:${l.toFixed(2)}%"></span>`;
@@ -151,7 +165,14 @@
             empty.hidden = true;
             if (!selDate || DATA.dates.indexOf(selDate) < 0) selDate = DATA.dates[0];
             const idx = DATA.dates.indexOf(selDate);
-            $(".n-dlabel").textContent = DATA.labels[selDate] || selDate;
+            // The labels ("Tonight", "Last night") are written by the script
+            // when it runs. Once it has stopped they are wrong, so the night
+            // is named by its date (3.73.13).
+            const age = presenceAge(DATA);
+            STALE = age.old;
+            $(".n-dlabel").textContent = STALE
+                ? new Date(selDate + "T00:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })
+                : (DATA.labels[selDate] || selDate);
             $(".n-dsub").textContent = new Date(selDate + "T00:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" });
             $(".n-next").disabled = idx <= 0;
             $(".n-prev").disabled = idx >= DATA.dates.length - 1;
@@ -159,7 +180,7 @@
             // old page named two rooms of one house and drew nothing else.
             $(".n-rooms").innerHTML = Object.keys(DATA.rooms || {}).map(k => renderRoom(DATA.rooms[k])).join("");
             el.querySelectorAll(".srow").forEach(r => r.addEventListener("click", () => { selDate = r.dataset.date; render(); }));
-            setStatus("Updated " + (DATA.generatedLocal ? DATA.generatedLocal.slice(11, 16) : ""));
+            setStatus(STALE ? age.words : "Updated " + (DATA.generatedLocal ? DATA.generatedLocal.slice(11, 16) : ""));
         }
         $(".n-prev").addEventListener("click", () => { const i = DATA.dates.indexOf(selDate); if (i < DATA.dates.length - 1) { selDate = DATA.dates[i + 1]; render(); } });
         $(".n-next").addEventListener("click", () => { const i = DATA.dates.indexOf(selDate); if (i > 0) { selDate = DATA.dates[i - 1]; render(); } });
@@ -185,6 +206,67 @@
     // ── Chart ──────────────────────────────────────────────────────────
     // Anything the SQL Logger records, over 6 hours to 30 days. The Day view
     // and the Nights view link here with a device already chosen.
+    /* Pure: the points to draw, on a real time axis from the start of the
+       range to now (3.73.13). The SQL Logger records a value only when it
+       changes, so the server also sends the last value from BEFORE the
+       range: it opens the line at the left edge, and the last value is
+       carried to the right edge, because a value that has not changed is
+       still that value. Without those a state that did not change in the
+       range read "Nothing recorded". lastAt is when the newest real value
+       was recorded. */
+    function chartSeries(res, nowS) {
+        const end = Number(res && res.now) > 0 ? Number(res.now) : nowS;
+        const start = end - (Number(res && res.hours) || 24) * 3600;
+        // A point is put at the START of its bucket, which can fall just before
+        // the range, and the server's clock may run a little ahead of this
+        // one: both are kept and drawn at the edge.
+        const slack = (Number(res && res.bucketSeconds) || 0) + 300;
+        const pts = ((res && res.points) || []).filter(p => p && p.t > start - slack && p.t <= end + 300)
+            .map(p => ({ t: Math.min(end, Math.max(start, p.t)), avg: p.avg, min: p.min, max: p.max }));
+        const b = res && res.before;
+        let lastAt = pts.length ? pts[pts.length - 1].t : null;
+        if (b && b.v != null && isFinite(b.v) && (!pts.length || pts[0].t > start)) {
+            pts.unshift({ t: start, avg: b.v, min: b.v, max: b.v });
+            if (lastAt == null) lastAt = Number(b.t) || null;
+        }
+        if (pts.length) {
+            const z = pts[pts.length - 1];
+            if (z.t < end && z.avg != null) pts.push({ t: end, avg: z.avg, min: z.avg, max: z.avg });
+        }
+        return { pts, start, end, lastAt };
+    }
+    /* Pure: the share of the known time a switch spent on, 0 to 1, or null.
+       Each value holds until the next, so it is weighed by how long it held;
+       counting points said a lamp switched on once for six hours and off
+       five times in a minute was on for a sixth of the day. */
+    function onShare(pts) {
+        let on = 0, known = 0;
+        for (let i = 0; i < pts.length - 1; i++) {
+            const dur = pts[i + 1].t - pts[i].t;
+            if (pts[i].avg == null || !isFinite(pts[i].avg) || !(dur > 0)) continue;
+            known += dur;
+            if (pts[i].avg > 0.5) on += dur;
+        }
+        return known ? on / known : null;
+    }
+    /* Pure: tick positions (ms) on round clock times for a range. */
+    function timeTicks(startMs, endMs) {
+        const span = (endMs - startMs) / 3600000, out = [];
+        if (!(span > 0)) return out;
+        if (span <= 48) {
+            const stepH = span <= 6 ? 1 : span <= 12 ? 2 : span <= 24 ? 3 : 6;
+            const d = new Date(startMs); d.setMinutes(0, 0, 0);
+            if (d.getTime() < startMs) d.setHours(d.getHours() + 1);
+            while (d.getHours() % stepH) d.setHours(d.getHours() + 1);
+            for (; d.getTime() <= endMs; d.setHours(d.getHours() + stepH)) out.push(d.getTime());
+        } else {
+            const stepD = span <= 240 ? 1 : 5;
+            const d = new Date(startMs); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + 1);
+            for (; d.getTime() <= endMs; d.setDate(d.getDate() + stepD)) out.push(d.getTime());
+        }
+        return out;
+    }
+
     function Chart_(el, setStatus) {
         el.innerHTML = `
             <section class="card">
@@ -276,15 +358,20 @@
             try { res = await api.getHistory(current.id, current.state, hours); }
             catch (e) { if (seq === drawSeq) setStatus("Query failed: " + e.message); return; }
             if (seq !== drawSeq) return;
-            const pts = res.points || [];
+            // To scale, and from the left edge to now (3.73.13). See chartSeries.
+            const S = chartSeries(res, Date.now() / 1000);
+            const pts = S.pts;
             if (!pts.length) {
                 setStatus((DEVICES.find(d => d.id === current.id) || {}).name || "");
                 noChart("Nothing recorded in this range. Try a longer one.");
                 return;
             }
             $(".c-empty").hidden = true;
-            const labels = pts.map(p => new Date(p.t * 1000));
+            const xy = k => pts.map(p => ({ x: p.t * 1000, y: p[k] }));
             const avg = pts.map(p => p.avg), mins = pts.map(p => p.min), maxs = pts.map(p => p.max);
+            const tickAt = timeTicks(S.start * 1000, S.end * 1000);
+            const clock = d => pad(d.getHours()) + ":" + pad(d.getMinutes());
+            const dayOf = d => d.getDate() + "/" + (d.getMonth() + 1);
             const css = getComputedStyle(document.documentElement);
             const accent = css.getPropertyValue("--accent").trim();
             const muted = css.getPropertyValue("--text-secondary");
@@ -293,23 +380,31 @@
             // step with no min/max band.
             const isBool = (res.type || current.types[current.state]) === "bool";
             const series = isBool
-                ? [{ label: prettyState(current.state), data: avg, borderColor: accent, borderWidth: 2, pointRadius: 0,
+                ? [{ label: prettyState(current.state), data: xy("avg"), borderColor: accent, borderWidth: 2, pointRadius: 0,
                      stepped: "before", fill: true, backgroundColor: accent + "22" }]
-                : [{ label: "max", data: maxs, borderWidth: 0, pointRadius: 0, fill: "+1", backgroundColor: accent + "22" },
-                   { label: "min", data: mins, borderWidth: 0, pointRadius: 0, fill: false },
-                   { label: prettyState(current.state), data: avg, borderColor: accent, borderWidth: 2, pointRadius: 0,
+                : [{ label: "max", data: xy("max"), borderWidth: 0, pointRadius: 0, fill: "+1", backgroundColor: accent + "22" },
+                   { label: "min", data: xy("min"), borderWidth: 0, pointRadius: 0, fill: false },
+                   { label: prettyState(current.state), data: xy("avg"), borderColor: accent, borderWidth: 2, pointRadius: 0,
                      tension: 0.25, fill: false }];
             chart = root.DashUI.chartRender($("canvas"), {
                 type: "line",
-                data: { labels, datasets: series },
+                data: { datasets: series },
                 options: {
                     responsive: true, maintainAspectRatio: false,
                     interaction: { mode: "index", intersect: false },
-                    plugins: { legend: { display: false } },
+                    plugins: { legend: { display: false },
+                               tooltip: { callbacks: { title: items => {
+                                   const d = new Date(items[0].parsed.x);
+                                   return (hours <= 48 ? "" : dayOf(d) + " ") + clock(d); } } } },
                     scales: {
-                        x: { grid: { display: false }, ticks: { maxTicksLimit: 8, color: muted,
-                             callback: (v, i) => { const d = labels[i]; if (!d) return "";
-                                 return hours <= 48 ? pad(d.getHours()) + ":" + pad(d.getMinutes()) : d.getDate() + "/" + (d.getMonth() + 1); } } },
+                        // A real time axis: every hour the same width. It was
+                        // one equal step per recorded point, so a quiet six
+                        // hours and a busy six minutes took the same room.
+                        x: { type: "linear", min: S.start * 1000, max: S.end * 1000,
+                             grid: { display: false },
+                             afterBuildTicks: axis => { axis.ticks = tickAt.map(v => ({ value: v })); },
+                             ticks: { color: muted, autoSkip: true, maxRotation: 0,
+                                      callback: v => { const d = new Date(v); return hours <= 48 ? clock(d) : dayOf(d); } } },
                         y: isBool ? { min: 0, max: 1, ticks: { stepSize: 1, color: muted, callback: v => (v ? "on" : "off") }, grid: { color: grid } }
                                   : { ticks: { color: muted }, grid: { color: grid } },
                     },
@@ -319,13 +414,15 @@
             const lo = known(mins).length ? Math.min(...known(mins)) : null;
             const hi = known(maxs).length ? Math.max(...known(maxs)) : null;
             const last = avg[avg.length - 1];
+            // The last figure is the last one RECORDED; say how long ago.
+            const sinceTxt = (S.lastAt && root.DashUI.ago) ? `, recorded ${esc(root.DashUI.ago(Math.max(0, (S.end - S.lastAt) * 1000)))}` : "";
             if (isBool) {
-                const on = avg.filter(v => v != null && v > 0.5).length, n = known(avg).length;
-                $(".stats").innerHTML = `<span>Now <b>${last == null ? "&mdash;" : (last > 0.5 ? "on" : "off")}</b></span>` +
-                    `<span>On for <b>${n ? Math.round(on / n * 100) : 0}%</b> of the range</span>`;
+                const share = onShare(pts);
+                $(".stats").innerHTML = `<span>Last <b>${last == null ? "&mdash;" : (last > 0.5 ? "on" : "off")}</b>${sinceTxt}</span>` +
+                    `<span>On for <b>${share == null ? "&mdash;" : Math.round(share * 100) + "%"}</b> of the range</span>`;
             } else {
                 const f = v => (v == null ? "&mdash;" : v.toFixed(1));
-                $(".stats").innerHTML = `<span>Latest <b>${f(last)}</b></span><span>Lowest <b>${f(lo)}</b></span><span>Highest <b>${f(hi)}</b></span>`;
+                $(".stats").innerHTML = `<span>Latest <b>${f(last)}</b>${sinceTxt}</span><span>Lowest <b>${f(lo)}</b></span><span>Highest <b>${f(hi)}</b></span>`;
             }
             setStatus((DEVICES.find(d => d.id === current.id) || {}).name || "");
         }
@@ -390,5 +487,6 @@
         };
     }
 
-    root.TimelineViews = { nights: Nights, chart: Chart_, diary: Diary };
+    root.TimelineViews = { nights: Nights, chart: Chart_, diary: Diary,
+                           _t: { presenceAge, chartSeries, onShare, timeTicks } };
 })(typeof window !== "undefined" ? window : globalThis);

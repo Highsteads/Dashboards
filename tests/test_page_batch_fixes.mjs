@@ -68,15 +68,16 @@ console.log("\nTimeline chart: the newest request paints, whatever order replies
     const view = ctx.TimelineViews.chart(el, () => {});
     const opening = view.open(7, "temperature");
     await new Promise(r => setTimeout(r, 10));
-    pending.shift().res({ points: [{ t: 1, avg: 1, min: 1, max: 1 }] });   // the first 24 h draw
+    const tNow = Math.floor(Date.now() / 1000) - 600;                       // inside any range asked for (3.73.13)
+    pending.shift().res({ hours: 24, points: [{ t: tNow, avg: 1, min: 1, max: 1 }] });   // the first 24 h draw
     await opening;
     const chip = h => ({ closest: () => ({ dataset: { h: String(h) } }) });
     handlers[".ranges:click"]({ target: chip(720) });                      // slow 30-day ask
     handlers[".ranges:click"]({ target: chip(24) });                       // then back to 24 h
     const slow = pending.find(p => p.h === 720), quick = pending.find(p => p.h === 24);
-    quick.res({ points: [{ t: 1, avg: 24, min: 24, max: 24 }] });
+    quick.res({ hours: 24, points: [{ t: tNow, avg: 24, min: 24, max: 24 }] });
     await new Promise(r => setTimeout(r, 5));
-    slow.res({ points: [{ t: 1, avg: 720, min: 720, max: 720 }] });
+    slow.res({ hours: 720, points: [{ t: tNow, avg: 720, min: 720, max: 720 }] });
     await new Promise(r => setTimeout(r, 5));
     check("the 24 h reply stays on screen after the older 30-day one lands",
           /Latest <b>24\.0<\/b>/.test(stubs[".stats"].innerHTML), stubs[".stats"].innerHTML);

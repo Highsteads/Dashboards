@@ -221,7 +221,52 @@ const tests = {
         DOC.hidden = false;
         NOW = (1e9 + 1000) * 1000;           // a real-looking epoch clock
         RESPONDER = async () => mkResp(200, { v: 1, boot: 10, ts: 1e9 + 1000 - 600, state: "run" });
+        g._setSleep(async () => {});         // the second look, without the wait
         assert.equal(await g.check(), "down");
+        assert.equal(FETCHES, 2, "it looked twice before saying so");
+    },
+
+    // 3.73.13 ----------------------------------------------------------
+    async "a device whose clock runs fast is not told the plugin is restarting"() {
+        const g = fresh();
+        NOW = (1e9 + 1000) * 1000;           // this device thinks it is ten minutes later than the server does
+        let ts = 1e9 + 1000 - 600;
+        RESPONDER = async () => mkResp(200, { v: 1, boot: 10, ts: (ts += 2), state: "run" });
+        g._setSleep(async () => {});
+        assert.equal(await g.check(), "ok", "the stamp moved between the two looks, so the writer is alive");
+    },
+
+    async "a page that looks every five minutes spots a writer that stopped in between"() {
+        const g = fresh();
+        NOW = (1e9 + 1000) * 1000;
+        let ts = 1e9 + 1000;                 // clocks agree
+        RESPONDER = async () => mkResp(200, { v: 1, boot: 10, ts, state: "run" });
+        assert.equal(await g.check(), "ok");
+        NOW += 300000;                       // five minutes on...
+        ts += 60;                            // ...and the stamp is only one minute on: it stopped four minutes ago
+        assert.equal(await g.check(), "down");
+    },
+
+    async "and is content with one that kept up"() {
+        const g = fresh();
+        NOW = (1e9 + 1000) * 1000;
+        let ts = 1e9 + 1000;
+        RESPONDER = async () => mkResp(200, { v: 1, boot: 10, ts, state: "run" });
+        await g.check();
+        NOW += 300000; ts += 299;            // written a second ago
+        assert.equal(await g.check(), "ok");
+        NOW += 900000; ts += 901;            // fifteen minutes, and a restart in between changes nothing
+        assert.equal(await g.check(), "ok");
+    },
+
+    async "a server clock stepped back is not read as a stopped writer"() {
+        const g = fresh();
+        NOW = (1e9 + 1000) * 1000;
+        let ts = 1e9 + 1000;
+        RESPONDER = async () => mkResp(200, { v: 1, boot: 10, ts, state: "run" });
+        await g.check();
+        NOW += 3000; ts -= 40;               // NTP pulled the server back
+        assert.equal(await g.check(), "ok");
     },
 };
 

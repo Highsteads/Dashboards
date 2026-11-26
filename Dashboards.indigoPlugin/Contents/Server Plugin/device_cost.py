@@ -144,6 +144,34 @@ def kwh_slices(rows):
     return out
 
 
+def first_reading_slice(rows, not_before):
+    """(epoch, kwh) for the first reading in `rows`, when it falls at or after
+    `not_before` and so has no reading before it to be measured from; else None.
+
+    The counter is a day's running total, so a first reading of 0.8 at ten in
+    the morning is 0.8 kWh used since that midnight. kwh_slices has nothing to
+    subtract it from and drops it, which lost a new plug's first day, or a
+    day's use up to the first reading after the SQL Logger had been off
+    (3.73.13). A reading from before `not_before` is only the starting line.
+    One that could not have passed since midnight (a lifetime total, or a
+    count in another unit) is not use and is left out."""
+    for epoch, kwh in rows:
+        try:
+            kwh = float(kwh)
+            epoch = int(epoch)
+            midnight = datetime.fromtimestamp(epoch).replace(hour=0, minute=0, second=0, microsecond=0)
+        except (TypeError, ValueError, OverflowError, OSError):
+            continue
+        if kwh != kwh or kwh < 0:
+            continue
+        if epoch < not_before or kwh <= 0:
+            return None
+        if not plausible(kwh, epoch - midnight.timestamp()):
+            return None
+        return (epoch, round(kwh, 4))
+    return None
+
+
 def kwh_between(slices, since_epoch, until_epoch=None):
     """kWh used in [since_epoch, until_epoch)."""
     return round(sum(used for epoch, used in slices

@@ -14,8 +14,10 @@ const ctx = {Date: Object.assign(function (ms) { return new Date(ms); }, {now: (
   window: {INDIGO_CONFIG: {heatingControls: true}},
   DashUI: {message: async () => reply, poll() {}}, setInterval() {}, _pad: n => String(n).padStart(2, "0"),
   escapeHtml: t => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"),
-  DashTile: {zone: {setpoint: d => d.setpointHeat}},
-  _zoneById: new Map([[11, {setpointHeat: 22}], [0, {setpointHeat: 14}], [2, {setpointHeat: 21}]])};
+  // notLive: 3.73.13, a radiator that cannot be heard confirms nothing.
+  DashTile: {zone: {setpoint: d => d.setpointHeat, notLive: d => (d.enabled === false ? "disabled" : "")}},
+  // Zone 9 (Dining Room) has taken its 12: "set to" is said only when the radiator says so itself.
+  _zoneById: new Map([[11, {setpointHeat: 22}], [0, {setpointHeat: 14}], [2, {setpointHeat: 21}], [9, {setpointHeat: 12}]])};
 vm.createContext(ctx);
 vm.runInContext(page.slice(page.indexOf("    let _evoToastTimer"), page.indexOf("    async function callEvoAction")), ctx);
 // Clock times are checked in the machine's own time, as the page shows them.

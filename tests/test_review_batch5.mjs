@@ -76,9 +76,9 @@ console.log("\nTimeline: today's view stops at now");
     const tl = read("timeline.html");
     const grab = name => { const i = tl.indexOf("function " + name + "("); let d = 0;
         for (let j = tl.indexOf("{", i); j < tl.length; j++) { if (tl[j] === "{") d++; else if (tl[j] === "}" && --d === 0) return tl.slice(i, j + 1); } };
-    const ctx = vm.createContext({ console });
+    const ctx = vm.createContext({ console, window: {} });    // no DashUI: houseNow falls back to this clock
     vm.runInContext("var selDate = new Date(); var DAY = { energy: { points: [{ m: 0, soc: 40 }, { m: 60, soc: 50 }] } };" +
-        "function ymd(d) { return d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate(); }\n" + grab("nowMinIfToday") + grab("energyAt"), ctx);
+        "function ymd(d) { return d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate(); }\n" + grab("houseNow") + grab("nowMinIfToday") + grab("energyAt"), ctx);
     const nowM = new Date().getHours() * 60 + new Date().getMinutes();
     checkEq("a minute that has happened has its reading", vm.runInContext("energyAt(0).soc", ctx), 40);
     if (nowM < 1430) checkEq("a minute that has not happened has none", vm.runInContext("energyAt(" + (nowM + 5) + ")", ctx), null);
