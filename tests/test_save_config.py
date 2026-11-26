@@ -489,3 +489,22 @@ def test_a_swap_out_left_at_its_default_needs_no_restart():
     assert status == 200 and body["cameraRestartNeeded"] is False
     body, _ = save(p, {"cameras": [dict(c) for c in cams], "swapOutHost": "10.0.0.5"})
     assert body["cameraRestartNeeded"] is True
+
+
+def test_a_save_whose_page_rebuild_failed_says_so():
+    """The store is written, then config.js, rooms.json and scenes.json are
+    rebuilt. One of those failing used to be a log line only, and the reply
+    still let the page say 'live on the pages now'."""
+    p, _ = make_plugin()
+
+    def boom():
+        raise OSError("disk full")
+    p._build_rooms_json = boom
+    body, status = save(p, {"cameras": []})
+    assert status == 200 and body["ok"] is True
+    assert body["refreshed"] is False and "rooms" in body["refreshError"] and "disk full" in body["refreshError"]
+    assert p._write_config_js.called and p._build_scenes_json.called      # the others still ran
+
+    p2, _ = make_plugin()
+    body, _ = save(p2, {"cameras": []})
+    assert body["refreshed"] is True and "refreshError" not in body

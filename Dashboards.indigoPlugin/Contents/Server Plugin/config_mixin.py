@@ -954,12 +954,18 @@ class ConfigMixin:
         running_cams      = _parse_cameras(old_cams)
         running_swap      = (self.swap_out_host or "") or (running_cams[-1]["host"] if running_cams else "")
         camera_restart    = (saved_cams != running_cams or effective_swap != running_swap)
-        try:
-            self._write_config_js()
-            self._build_rooms_json()
-            self._build_scenes_json()
-        except Exception as exc:
-            self.logger.warning(f"[Config] Post-save refresh failed: {exc}")
+        # Each rebuild by itself, and the reply says if one failed (review
+        # 26-11-2026). One try round all three stopped at the first failure,
+        # logged it, and the page still said "live on the pages now".
+        refresh_failed = []
+        for label, step in (("config.js", self._write_config_js),
+                            ("the rooms list", self._build_rooms_json),
+                            ("the scenes list", self._build_scenes_json)):
+            try:
+                step()
+            except Exception as exc:
+                refresh_failed.append(f"{label}: {exc}")
+                self.logger.warning(f"[Config] after the save, {label} could not be rebuilt: {exc}")
 
         # 3.46.0: a saved camera whose address was never approved in Configure
         # will be streamed without the shared login. Say so now, to whoever
@@ -974,5 +980,8 @@ class ConfigMixin:
                 f"[Cameras] not approved for the shared camera login: {', '.join(withheld)}. "
                 f"If you added or changed {'it' if len(withheld) == 1 else 'them'} yourself, "
                 f"open Plugins > Dashboards > Configure and press Save, then restart the plugin.")
-        return self._evo_reply({"ok": True, "cameraRestartNeeded": camera_restart,
-                                "cameraLoginWithheld": withheld})
+        reply = {"ok": True, "cameraRestartNeeded": camera_restart,
+                 "cameraLoginWithheld": withheld, "refreshed": not refresh_failed}
+        if refresh_failed:
+            reply["refreshError"] = "; ".join(refresh_failed)[:300]
+        return self._evo_reply(reply)

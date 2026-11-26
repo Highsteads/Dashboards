@@ -214,9 +214,14 @@
     }
 
     function describeState(d) {
-        if (d.onState !== true) return "Off";
+        // Three answers, not two (3.73.9): a device that gives no on/off
+        // reading is not "Off", and a dimmer that gives no brightness is not
+        // at "0%" beside a slider that says otherwise.
+        const on = DashTile.state(d.onState);
+        if (on === null) return "No reading";
+        if (!on) return "Off";
         const cls = (d.class || "").toLowerCase();
-        if (cls.includes("dimmer")) return `${d.brightness != null ? d.brightness : 0}% · ${classify(d)}`;
+        if (cls.includes("dimmer")) return `${d.brightness != null ? d.brightness + "%" : "On"} · ${classify(d)}`;
         return classify(d) === "lights" ? "Light on" : "On";
     }
 

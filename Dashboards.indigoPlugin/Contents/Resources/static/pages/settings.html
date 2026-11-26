@@ -1214,7 +1214,9 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
                 // form used to keep showing the un-cleaned values as saved.
                 await load();
                 const held = Array.isArray(res.cameraLoginWithheld) ? res.cameraLoginWithheld : [];
-                msg((res.cameraRestartNeeded
+                msg((res.refreshed === false
+                    ? "Saved, but the pages could not be updated (" + (res.refreshError || "no reason given") + "). Restart the Dashboards plugin."
+                    : res.cameraRestartNeeded
                     ? "Saved. Camera changes need a plugin restart to take effect."
                     : "Saved — live on the pages now.")
                     + (held.length ? " " + held.join(", ") + " will be streamed without the camera login"

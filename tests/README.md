@@ -183,6 +183,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_review_batch3.mjs` | Third group from the 25/26-Nov-2026 review (3.73.6): |
 | `test_review_batch4.mjs` | Fourth group from the 25/26-Nov-2026 review (3.73.7): |
 | `test_review_batch5.mjs` | Fifth group from the 25/26-Nov-2026 review (3.73.8): |
+| `test_review_batch6.mjs` | Sixth group from the 25/26-Nov-2026 review (3.73.9): |
 | `test_review_small_pages.mjs` | Small page faults from the 25/26-Nov-2026 review (3.73.5): |
 | `test_room_camera_keyboard.mjs` | A room page's camera card works from the keyboard (3.46.0). |
 | `test_room_door_device.mjs` | Contract test for the ROOM page's state-driven door tile |
