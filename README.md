@@ -2,11 +2,11 @@
 
 **Your house on a screen — energy, cameras, heating, every room, and the whole day replayed.**
 
-**Version:** 3.73.8 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
+**Version:** 3.73.9 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
 
 **[Read the full guide](https://highsteads.github.io/Dashboards/)** — setting up, a page of notes for every one of the 24 pages, and what to do when something goes wrong.
 
-<img src="https://img.shields.io/badge/version-3.73.8-5856d6" alt="Version 3.73.8">
+<img src="https://img.shields.io/badge/version-3.73.9-5856d6" alt="Version 3.73.9">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-24-0a84ff" alt="24 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
@@ -98,11 +98,11 @@ The [Getting started](https://highsteads.github.io/Dashboards/getting-started.ht
 
 ## What's new
 
+**3.73.9** (26-Nov-2026) - **Smaller faults from the review: "No reading" is not "Off", and a save that did not reach the pages says so.** The sixth release from the review of the whole plugin. On the Active page a device that gives no on or off reading now says "No reading", where it said "Off", and a dimmer that gives no brightness says "On", where it said "0%" beside a slider showing something else. Settings no longer says "Saved, live on the pages now" when the files the pages read could not be rebuilt after the save: it says what failed. The Heating page's top line turns amber when updates stop, as the room pages do. Tapping a radiator up and then straight back down sends nothing, where it sent a command for the setting the radiator already had. Stopping the plugin waits one second in all for its background workers, where it could wait eight. And a hand edit that left text where the alert rules keep their revision number no longer breaks the Alerts page.
+
 **3.73.8** (26-Nov-2026) - **The Flow page says when it has stopped updating, and today's Timeline stops at now.** The fifth release from the review of the whole plugin. On the Flow page the list of what the house is using leaves out a meter that is switched off in Indigo, in error or not answering, where it added in the last figure such a meter had sent. The page now says so when no new reading has come from SigenEnergyManager for half a minute, where it went on showing the last flows without a word. On the Timeline, today's view stops at the present: a light that is on now was drawn as a bar running to midnight, and the battery and solar figures were carried forward to any time the marker was dragged to. On the Savings page, days with no price on record are counted and said, and a period that cost more than it saved is no longer written as a saving. On the Air page the purifier plug's power shows a dash when the plug is not answering.
 
 **3.73.7** (26-Nov-2026) - **One camera without a picture no longer switches live video off for the rest.** The fourth release from the review of the whole plugin. The Cameras page and the hub decide how many cameras can play live by timing a download of their pictures. If one camera had no picture on the server the whole test failed, and every camera fell back to stills. The test now uses the pictures that answer. Camera health read from a file that is no longer being written stays marked as out of date until the file is written again, where it showed as out of date once and then as healthy. The Cameras page no longer starts live video in a tab that is in the background. And on the hub, a day that is behind a grid-only day is said as that, in amber, where the figure was printed in green under "Solar saved".
-
-**3.73.6** (26-Nov-2026) - **The Air page, the room pages and the Wi-Fi page stop passing old readings off as live.** The third release from the review of the whole plugin. On the Air page a purifier that is disabled in Indigo now reads "Disabled in Indigo" with its controls off, where it looked online. A filter life that has never been read shows a dash, where it read "0%" and said it was time to order a new filter. A connection error stays on the page until the connection is back, a chart that could not be loaded says so, and a slow reply for one range no longer draws under the other. On a room page and on the Active page the line at the top turns amber and says so when no update has arrived for fifteen seconds, where it sat at "Next refresh 0s" over states nobody was reading. On the Wi-Fi page an access point reads as not live when the UniFi controller device is disabled or in error. And a single interrupted update can no longer make a browser forget its key: three refused readings in one update counted as three strikes, and three strikes sign the browser out.
 
 ## Acknowledgements
 
