@@ -215,7 +215,7 @@ class ScriptsMixin:
                         "the overnight lights sweep needs Night_Lights_Sweep.py in "
                         "Python Scripts/ (repo scripts/ folder, edited for your rooms)"),
         "laundry":     ("Appliance_Scheduler.py", "[Laundry]",   {"APPLIANCE_SCHEDULER_QUIET": True},
-                        "the laundry half of the Energy page's When to run it card needs "
+                        "the laundry planner, which works out when to run the washer and dryer, needs "
                         "Appliance_Scheduler.py and appliance_planner.py in Python Scripts/ "
                         "(repo scripts/ folder)"),
         "fp300watch":  ("FP300_Config_Watch.py", "[FP300Watch]", {"FP300_CONFIG_WATCH_QUIET": True},

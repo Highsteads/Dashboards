@@ -953,6 +953,13 @@
             || !!(window.DashRTC && DashRTC.blockedCount && DashRTC.blockedCount() > 0);
         if (el) el.hidden = !waiting;
     }
+    /* May this tile open live video when the page is tapped? The same answer
+       the layout gives: the focused tile where only one stream is allowed,
+       else a tile the live pool has room for. */
+    function tapMayGoLive(host) {
+        return WEBRTC_FOCUS ? host === (focusedHost || hosts[0])
+                            : (LIVE_POOL_SIZE > 0 && mayHoldLive(host));
+    }
     function _waitForTap(host) {
         const st = camState[host]; if (!st) return;
         st.needsTap = true;
@@ -965,10 +972,16 @@
     // was waiting for it.
     if (window.DashRTC && DashRTC.onGesture) {
         DashRTC.onGesture(() => {
-            const waiting = Object.keys(camState).filter(h => camState[h] && camState[h].needsTap);
-            if (!waiting.length) return;
+            // Only tiles the page would still make live (3.73.14). A tile
+            // left waiting kept its claim through a change of policy, so the
+            // next tap opened live video on a link that had since been
+            // measured as too slow for it, or on more tiles than the pool.
+            const flagged = Object.keys(camState).filter(h => camState[h] && camState[h].needsTap);
+            flagged.forEach(h => { camState[h].needsTap = false; });
+            const waiting = flagged.filter(tapMayGoLive);
+            if (!waiting.length) { _liveTapNote(); return; }
             DashRTC.blessVideos(waiting.length);
-            waiting.forEach(h => { camState[h].needsTap = false; startWebrtc(h); });
+            waiting.forEach(h => { startWebrtc(h); });
             _liveTapNote();
         });
     }
@@ -1547,6 +1560,7 @@
                 st.retryAfterMs = 0;
                 st.webrtcFails   = 0;
                 st.webrtcRetryAt = 0;
+                st.needsTap      = false;   // a claim made under the old policy
             }
             // mayHoldLive, not DEFAULT_LIVE_SET: with a pool of one the live
             // entitlement FOLLOWS THE FOCUS, and a tab hide/show used to hand

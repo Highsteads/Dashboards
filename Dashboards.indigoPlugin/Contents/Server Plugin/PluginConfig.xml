@@ -78,7 +78,7 @@
 		</List>
 	</Field>
 	<Field id="hlpCarbon" type="label" fontSize="mini" alignWithControl="true">
-		<Label>Region for the grid-carbon half of the Energy page's When to run it card (the free Carbon Intensity API, no key needed — it covers Great Britain only). Pick the DNO region closest to you, or Off to hide it and stop the lookups. Needs SigenEnergyManager, like the Energy page.</Label>
+		<Label>Region for the grid-carbon lookup (the free Carbon Intensity API, no key needed — it covers Great Britain only). No page uses it at present: the Energy page's When to run it card, which did, was removed in 3.69.2, and nothing is looked up until a page asks. The setting is kept for when one does.</Label>
 	</Field>
 
 	<Field id="sep_boot" type="separator"/>
@@ -124,6 +124,10 @@
 		<Label>Stale hours: a battery device that has not changed state for this long is listed as quiet on the System Health page. Low battery %: devices at or below this level are listed as low.</Label>
 	</Field>
 
+	<Field id="sep_cameras" type="separator"/>
+	<Field id="label_cameras" type="label">
+		<Label>Cameras</Label>
+	</Field>
 	<Field id="go2rtcPath" type="textfield" defaultValue="">
 		<Label>go2rtc binary path (optional):</Label>
 	</Field>

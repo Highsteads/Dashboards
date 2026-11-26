@@ -185,6 +185,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_review_batch11.mjs` | Eleventh group from the 25/26-Nov-2026 review (3.73.13), the |
 | `test_review_batch11.py` | Server side of the Timeline fixes from the 25/26-Nov-2026 deep |
 | `test_review_batch12.mjs` | Twelfth group from the 25/26-Nov-2026 review (3.73.13): |
+| `test_review_batch13.mjs` | Thirteenth group from the 25/26-Nov-2026 review (3.73.14): |
 | `test_review_batch3.mjs` | Third group from the 25/26-Nov-2026 review (3.73.6): |
 | `test_review_batch4.mjs` | Fourth group from the 25/26-Nov-2026 review (3.73.7): |
 | `test_review_batch5.mjs` | Fifth group from the 25/26-Nov-2026 review (3.73.8): |
