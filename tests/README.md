@@ -180,12 +180,15 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_repo_notes_size.py` | The repo's CLAUDE.md holds CURRENT facts only. It had grown to |
 | `test_review_2026_10_02.py` | Three faults from the independent review of 3.58.1, each one a |
 | `test_review_2026_11_26.py` | Server-side fixes from the 25/26-Nov-2026 deep review that have |
+| `test_review_batch10.mjs` | Tenth group from the 25/26-Nov-2026 review (3.73.12), the |
+| `test_review_batch10.py` | Server-side camera fixes from the 25/26-Nov-2026 deep review |
 | `test_review_batch3.mjs` | Third group from the 25/26-Nov-2026 review (3.73.6): |
 | `test_review_batch4.mjs` | Fourth group from the 25/26-Nov-2026 review (3.73.7): |
 | `test_review_batch5.mjs` | Fifth group from the 25/26-Nov-2026 review (3.73.8): |
 | `test_review_batch6.mjs` | Sixth group from the 25/26-Nov-2026 review (3.73.9): |
 | `test_review_batch7.mjs` | Seventh group from the 25/26-Nov-2026 review (3.73.10): |
 | `test_review_batch8.mjs` | Eighth group from the 25/26-Nov-2026 review (3.73.11): |
+| `test_review_batch9.mjs` | Ninth group from the 25/26-Nov-2026 review (3.73.12): |
 | `test_review_small_pages.mjs` | Small page faults from the 25/26-Nov-2026 review (3.73.5): |
 | `test_room_camera_keyboard.mjs` | A room page's camera card works from the keyboard (3.46.0). |
 | `test_room_door_device.mjs` | Contract test for the ROOM page's state-driven door tile |

@@ -121,6 +121,7 @@
         @keyframes spin { to { transform: rotate(360deg); } }
     
         .ap.stale { opacity: .6; }
+        .summary.stale, .card.stale { opacity: .6; }
     </style>
     <link rel="stylesheet" href="dashboards-chrome.css">
 </head>
@@ -196,9 +197,36 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
     function parseJson(s, fallback) { try { const v = JSON.parse(s || ""); return v == null ? fallback : v; } catch (e) { return fallback; } }
 
     // ── Internet / WAN card (v0.5.0) ─────────────────────────────────────────
+    /* The controller's own figures are a photograph once it stops answering
+       (3.73.12): "Internet Online" stayed green through a controller outage.
+       Returns '' while live, else the words for the card's sub-heading. */
+    function controllerStaleNote(d) {
+        if (!d) return "";
+        const s = d.states || {};
+        const why = d.enabled === false ? "the controller is disabled in Indigo"
+            : String(d.errorState || "").trim() ? "the controller is reporting an error"
+            : String(s.status || "") !== "Connected" ? "the controller is not answering" : "";
+        if (!why) return "";
+        const when = formatWhen(d.lastChanged);
+        return "Not live: " + why + (when ? ", last read " + when : "");
+    }
+    function staleSub(note) { return note ? ` <span class="sub warn">${escapeHtml(note)}</span>` : ""; }
+
     function renderInternet(d) {
         const s = d.states || {};
         if (s.wanStatus === undefined && s.speedtestDown === undefined) return "";  // pre-0.5.0 plugin
+        const note = controllerStaleNote(d);
+        if (note) {
+            return `
+            <div class="summary stale">
+                <div class="card-title">Internet${staleSub(note)}</div>
+                <div class="summary-grid">
+                    <div class="metric"><div class="m-val">Not known</div><div class="m-lab">Status</div></div>
+                    <div class="metric"><div class="m-val">${fmtNum(s.speedtestDown)}</div><div class="m-lab">↓ Mbps, last test</div></div>
+                    <div class="metric"><div class="m-val">${fmtNum(s.speedtestUp)}</div><div class="m-lab">↑ Mbps, last test</div></div>
+                </div>
+            </div>`;
+        }
         const ok = s.wanStatus === "ok";
         const lat = num(s.internetLatencyMs);
         const age = num(s.speedtestAgeHours);
@@ -229,7 +257,8 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
         if (!hasMix && !(Array.isArray(worst) && worst.length)) return "";
         const wired = num(s.numWired), wireless = num(s.numWireless), legacy = num(s.numLegacyClients);
         const total = GENS.reduce((a, g) => a + (gen[g[0]] || 0), 0) || 1;
-        let html = `<div class="card"><div class="card-title">Clients <span class="sub">${wireless ?? 0} wireless · ${wired ?? 0} wired</span></div>`;
+        const note = controllerStaleNote(d);
+        let html = `<div class="card${note ? " stale" : ""}"><div class="card-title">Clients <span class="sub">${wireless ?? "—"} wireless · ${wired ?? "—"} wired</span>${staleSub(note)}</div>`;
         if (hasMix) {
             const segs = GENS.filter(g => gen[g[0]]).map(g =>
                 `<div class="genseg" style="width:${(gen[g[0]] / total * 100).toFixed(1)}%;background:${g[2]}"></div>`).join("");
@@ -263,7 +292,8 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
             const cls = n >= 40 ? "fill-bad" : (n >= 20 ? "fill-warn" : "fill-good");
             return `<div class="chrow"><span>ch ${escapeHtml(c)}</span><div class="chbar"><div class="chfill ${cls}" style="width:${pct}%"></div></div><span class="chn">${n}</span></div>`;
         }).join("");
-        return `<div class="card"><div class="card-title">RF neighbourhood · 2.4 GHz <span class="sub">${total} networks nearby</span></div>${rows}` +
+        const note = controllerStaleNote(d);
+        return `<div class="card${note ? " stale" : ""}"><div class="card-title">RF neighbourhood · 2.4 GHz <span class="sub">${total} networks nearby</span>${staleSub(note)}</div>${rows}` +
                `<div class="genlegend" style="margin-top:8px">More neighbours on a channel means more congestion — your APs do best on the quietest of 1 / 6 / 11.</div></div>`;
     }
 
@@ -336,6 +366,11 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
         bands += bandRow("2.4", s.band24Channel, s.band24Width, s.band24Utilisation, s.band24Satisfaction, s.band24Clients);
         bands += bandRow("5", s.band5Channel, s.band5Width, s.band5Utilisation, s.band5Satisfaction, s.band5Clients);
         bands += bandRow("6", s.band6Channel, s.band6Width, s.band6Utilisation, undefined, s.band6Clients);
+        // Offline, as against stale: UniFi Health writes only the on/off
+        // state and the summary when an AP drops, so its clients, uptime and
+        // band figures are the last ones it had while it was up (3.73.12).
+        const off = !stale && !online;
+        if (off) bands = "";
         const cls = stale ? "stale" : (!online ? "offline" : (flags.length ? "has-issues" : ""));
         const staleNote = stale ? ` · <span class="warn">${d.enabled === false ? "disabled" : (_staleAll ? "controller unreachable" : "in error")} — last update ${escapeHtml(formatWhen(d.lastChanged))}</span>` : "";
 
@@ -362,7 +397,7 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
                         <span class="ap-chevron" aria-hidden="true">›</span>
                     </div>
                 </div>
-                <div class="ap-meta">${escapeHtml(s.apModel || '')} · ${escapeHtml(s.uplinkType || '')} uplink · ${s.numClients ?? '—'} clients · up ${uptimeUi(s.uptimeSeconds)}${staleNote}</div>
+                <div class="ap-meta">${escapeHtml(s.apModel || '')} · ${escapeHtml(s.uplinkType || '')} uplink · ${off ? `<span class="warn">not answering${formatWhen(d.lastChanged) ? ", since " + escapeHtml(formatWhen(d.lastChanged)) : ""}</span>` : `${s.numClients ?? '—'} clients · up ${uptimeUi(s.uptimeSeconds)}`}${staleNote}</div>
                 ${hwLine}
                 ${bands}
                 ${flags.length ? '<div class="flags">' + flags.map(f => `<span class="flag">${escapeHtml(f)}</span>`).join('') + '</div>' : '<div class="ok">' + I("check") + ' Config OK</div>'}

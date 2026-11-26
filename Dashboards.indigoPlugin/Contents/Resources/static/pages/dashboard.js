@@ -325,7 +325,13 @@ class IndigoAPI {
             });
         }
         if (allOk && resp.ok) s.sinceTs = resp.now || 0;
-        return Array.from(s.devices.values());
+        const list = Array.from(s.devices.values());
+        // A device that could not be read again is still in this list, with
+        // the states it had before. The list says so (3.73.12), because a
+        // page that stamped "Updated" on it was vouching for a reading it
+        // did not have. One missed read is asked for again on the next poll.
+        if (!allOk) list.incomplete = true;
+        return list;
     }
 
     async getDevice(id) {
@@ -392,6 +398,10 @@ class IndigoAPI {
                         err.fromCache = true;
                         try { onErr(err); } catch {}
                     }
+                } else if (d && d.incomplete) {
+                    // Neither a failure nor a good poll: the page's clock
+                    // simply does not move, so a device that stays unreadable
+                    // turns the page's status line amber after its usual wait.
                 } else if (onOk) { try { onOk(d); } catch {} }
                 // Re-render when the SHARED store has moved since this
                 // observer last drew — whoever's cycle moved it. Until

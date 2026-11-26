@@ -698,6 +698,9 @@
         // and still linked from the tile wall — it fetches its own data.
         renderHero();
         setInterval(renderHero, 60 * 1000);   // greeting/date roll over on their own
+        // The chip is redrawn when a source answers. When they all stop,
+        // nothing redraws it, so it is looked at on a timer as well (3.73.12).
+        setInterval(() => { if (!document.hidden) { try { renderAttention(); } catch (_) { /* optional */ } } }, 15 * 1000);
         // Time the link. At home this upgrades to the full hub and starts the
         // heavy refreshers; away it never opens a stream or makes those calls
         // at all. A failed probe stays lean, which is the safe direction.
@@ -781,6 +784,45 @@
     let DEVCOUNTS = null;          // {lowBatt, errors} from the device poll
     let _attOpen = false;          // the list stays open across the 3 s re-render
     let _attBtn = null;
+    // When each source last answered (3.73.12). "All well" used to be green
+    // before anything had been asked, and stayed green for as long as the
+    // page was open after a source stopped answering, because each source
+    // kept its last reply for ever.
+    const _attAt = { log: 0, insights: 0, cams: 0 };
+    let _attGraceUntil = 0;        // just back from a hidden tab: the sources are being asked again
+    const ATT_MAX_AGE_MS = { devices: 30 * 1000, log: 11 * 60 * 1000,
+                             insights: 11 * 60 * 1000, cams: 3 * 60 * 1000 };
+    const ATT_NAMES = { devices: "devices and batteries", log: "the Indigo log",
+                        cams: "the cameras", insights: "each device against its usual behaviour" };
+
+    /* Pure: which of the expected sources cannot vouch for the house just
+       now. at is {source: ms of its last good answer}; a source that has
+       never answered is `never`. With grace set (the page has just come back
+       into view and is asking again) an old answer still counts for a few
+       seconds, so the chip does not flicker on every unlock. */
+    function attentionUnchecked(at, nowMs, expect, grace) {
+        return (expect || []).filter(k => {
+            const t = Number((at || {})[k]) || 0;
+            if (!(t > 0)) return true;
+            return !grace && nowMs - t > ATT_MAX_AGE_MS[k];
+        }).map(k => ({ key: k, name: ATT_NAMES[k], never: !((Number((at || {})[k]) || 0) > 0) }));
+    }
+
+    /* Pure: the chip's colour and words. Anything that needs a look wins;
+       otherwise green only when every expected source has answered lately. */
+    function attentionChip(items, unchecked) {
+        if (items.length) {
+            const bad = items.some(i => i.level === "bad");
+            const warn = items.some(i => i.level === "warn");
+            return { cls: bad ? "bad" : (warn ? "warn" : ""), icon: "warn",
+                     text: `${items.length} ${items.length === 1 ? "thing needs" : "things need"} a look` };
+        }
+        if (unchecked.length) {
+            return { cls: "", icon: "",
+                     text: unchecked.every(u => u.never) ? "Checking" : "Not all checked" };
+        }
+        return { cls: "good", icon: "check", text: "All well" };
+    }
 
     async function _refreshInsights() {
         if (document.hidden) return;
@@ -788,6 +830,7 @@
             const d = await _msg("homeInsights");
             if (d) {
                 INSIGHTS = d;
+                if (d.ok && !d.building) _attAt.insights = Date.now();
                 renderAttention();
                 // First call after a plugin restart answers {building:true}
                 // while the server assembles the norms — check back shortly
@@ -802,11 +845,15 @@
         try {
             const d = await _msg("logErrors");
             if (!d) return;
+            // A reply that says the feed could not be read is not a clean log.
+            if (d.ok === false) { LOGFEED = null; renderAttention(); return; }
             LOGFEED = (d && d.feed) || {};
+            _attAt.log = Date.now();
             renderAttention();
         } catch (_) { /* the watch is optional — never block the hub */ }
     }
 
+    let _camRecheck = null;
     async function _refreshCamHealth() {
         if (document.hidden) return;
         if (!((window.CAMERA_CONFIG || {}).mainCameras || []).length) return;
@@ -821,6 +868,12 @@
         const v = _camTracker.feed(data, Date.now());
         CAMHEALTH  = v.state === "ok" ? v.health : null;
         CAMSERVICE = v.state === "ok" ? null : v.state;
+        if (v.state === "ok") _attAt.cams = Date.now();
+        // A first read that cannot yet be believed: look again in a few
+        // seconds rather than at the next minute.
+        if (v.state === "checking" && !_camRecheck) {
+            _camRecheck = setTimeout(() => { _camRecheck = null; _refreshCamHealth(); }, 4000);
+        }
         renderAttention();
     }
 
@@ -897,11 +950,30 @@
         const items = attentionItems({ devices: DEVCOUNTS, log: LOGFEED, cams: CAMHEALTH,
                                        camService: CAMSERVICE,
                                        camNames: cc.names || {}, insights: INSIGHTS });
-        const bad = items.some(i => i.level === "bad");
-        const warn = items.some(i => i.level === "warn");
-        const cls = !items.length ? "good" : (bad ? "bad" : (warn ? "warn" : ""));
-        const text = !items.length ? "All well"
-            : `${items.length} ${items.length === 1 ? "thing needs" : "things need"} a look`;
+        // Which sources should have answered. The device poll always; the
+        // rest once their refreshers run. Insights cannot be built without
+        // SQL Logger, and says so with ok:false: that install is not waiting
+        // for it. The cameras only where some are set up.
+        const expect = ["devices"];
+        if (_heavyStarted) {
+            expect.push("log");
+            if (!(INSIGHTS && INSIGHTS.ok === false)) expect.push("insights");
+            // down, stale and unknown each put a line of their own in the list.
+            if ((cc.mainCameras || []).length && !["down", "stale", "unknown"].includes(CAMSERVICE)) expect.push("cams");
+        }
+        const nowMs = Date.now();
+        const unchecked = attentionUnchecked(
+            { devices: _lastUpdate, log: _attAt.log, insights: _attAt.insights, cams: _attAt.cams },
+            nowMs, expect, nowMs < _attGraceUntil);
+        const chipIs = attentionChip(items, unchecked);
+        const cls = chipIs.cls, text = chipIs.text;
+        // Nothing to say and the devices not yet read: no chip at all, where
+        // a green "All well" used to be drawn before anything had been asked.
+        if (!items.length && !(_lastUpdate > 0)) {
+            if (_attBtn && _attBtn.parentNode === row) row.removeChild(_attBtn);
+            panel.hidden = true;
+            return;
+        }
         // Held here, not looked up: the pulse row is redrawn every 3 s, which
         // detaches the button, and a fresh one each time would drop keyboard focus.
         let btn = _attBtn;
@@ -914,21 +986,28 @@
         }
         btn.className = `pulse-chip ${cls}`;
         btn.setAttribute("aria-expanded", _attOpen ? "true" : "false");
-        btn.innerHTML = `${DashIcons.svg(items.length ? "warn" : "check")} ${text} <span class="att-caret" aria-hidden="true">▾</span>`;
+        btn.innerHTML = `${chipIs.icon ? DashIcons.svg(chipIs.icon) + " " : ""}${text} <span class="att-caret" aria-hidden="true">▾</span>`;
         if (row.firstChild !== btn) row.insertBefore(btn, row.firstChild);
         if (!_attOpen) { panel.hidden = true; return; }
+        const stale = {};
+        unchecked.forEach(u => { stale[u.key] = true; });
+        const andList = list => list.length > 1 ? list.slice(0, -1).join(", ") + " and " + list[list.length - 1] : (list[0] || "");
         const checked = [];
-        if (DEVCOUNTS) checked.push("devices and batteries");
-        if (LOGFEED) checked.push("the Indigo log");
-        if (CAMHEALTH) checked.push("the cameras");
-        if (INSIGHTS && INSIGHTS.ok) checked.push("each device against its usual behaviour");
-        const joined = checked.length > 1 ? checked.slice(0, -1).join(", ") + " and " + checked[checked.length - 1] : (checked[0] || "");
+        if (DEVCOUNTS && !stale.devices) checked.push(ATT_NAMES.devices);
+        if (LOGFEED && !stale.log) checked.push(ATT_NAMES.log);
+        // Only when every camera has an answer: one never asked for a
+        // picture is not "nothing out of the ordinary".
+        if (CAMHEALTH && !stale.cams && !Object.values(CAMHEALTH).some(x => !x || x.state === "unknown")) checked.push(ATT_NAMES.cams);
+        if (INSIGHTS && INSIGHTS.ok && !INSIGHTS.building && !stale.insights) checked.push(ATT_NAMES.insights);
+        const joined = andList(checked);
+        const notChecked = andList(unchecked.map(u => u.name));
         panel.innerHTML = items.map(i => {
             const tag = i.href ? "a" : "div";
             const href = i.href ? ` href="${i.href}"` : "";
             return `<${tag} class="att-row ${i.level}"${href}><span class="att-dot" aria-hidden="true"></span>
                 <span><span class="att-title">${escapeAttr(i.title)}</span><span class="att-detail">${escapeAttr(i.detail)}</span></span></${tag}>`;
-        }).join("") + (joined ? `<div class="att-note">${items.length ? "Checked" : "Nothing out of the ordinary in"} ${escapeAttr(joined)}.</div>` : "");
+        }).join("") + (joined ? `<div class="att-note">${items.length ? "Checked" : "Nothing out of the ordinary in"} ${escapeAttr(joined)}.</div>` : "")
+          + (notChecked ? `<div class="att-note">Not checked just now: ${escapeAttr(notChecked)}.</div>` : "");
         panel.hidden = false;
     }
 
@@ -1020,6 +1099,9 @@
         // answering" with every flow at nought until the next poll, up to half
         // a minute later (3.73.10). Ask at once.
         try { _refreshSigen(); } catch (_) { /* optional */ }
+        // The sources below are asked again now; give their answers ten
+        // seconds before the chip says anything has gone unchecked.
+        _attGraceUntil = Date.now() + 10000;
         loadSummary();
         if (_heavyStarted) { _refreshInsights(); _refreshLogWatch(); _refreshCamHealth(); }
         _hubDecide();
@@ -1124,14 +1206,27 @@
             onLive: () => {
                 if (s.rtc !== rtc) return;
                 s.fails = 0;                        // a working stream forgives the past
+                s.wasLive = true;
                 frame.classList.add("is-live");
                 if (!Object.values(_hubLive).some(x => x.retry)) _hubNote(_hubVerdictNote(_hubVerdict));
             },
             onFail: (why) => { if (s.rtc === rtc) _hubLiveFailed(host, why); },
             // The browser would not start the video by itself (iOS in Low
             // Power Mode). It stays connected; the next tap starts it.
-            onBlocked: () => { if (s.rtc === rtc) _hubNote(HUB_TAP_NOTE); },
+            // A video the browser paused AFTER it had started kept the
+            // tile captioned "Live" over a frozen frame, with no still
+            // fetched under it (3.73.12). The tile goes back to its still,
+            // dated as a still, until the tap starts the video again.
+            onBlocked: () => {
+                if (s.rtc !== rtc) return;
+                _hubNote(HUB_TAP_NOTE);
+                frame.classList.remove("is-live");
+                const img = frame.querySelector("img[data-host]");
+                if (img && window._hubSwapIn) window._hubSwapIn(img, true);
+            },
+            onUnblocked: () => { if (s.rtc === rtc && s.wasLive) frame.classList.add("is-live"); },
         });
+        s.wasLive = false;
         s.rtc = rtc;
     }
     function _hubLiveFailed(host, why) {
@@ -1357,6 +1452,28 @@
             : `<div class="row"><span class="key">Solar saved</span><span class="val ok">£${v.toFixed(2)}</span></div>`;
     }
 
+    /* What the hub prints for a day's totals and for the battery (3.73.12).
+       A state the plugin has not filled is a dash: `|| 0` drew "0.0 kWh"
+       and "0.0%" for a reading that was never taken. And while the card is
+       not live the totals are the last ones known, which may be
+       yesterday's, so they are not called today's. Pure. */
+    function energyWords(s, capKwh, notLive) {
+        s = s || {};
+        const f = v => { const n = parseFloat(v); return isFinite(n) ? n : null; };
+        const kwh = (v, dp) => { const n = f(v); return n == null ? "—" : n.toFixed(dp == null ? 1 : dp) + " kWh"; };
+        const lead = notLive ? "last known " : "today ";
+        const sub = v => f(v) == null ? "no reading" : lead + kwh(v);
+        const soc = f(s.batterySoc);
+        const bat = soc == null ? "no reading"
+            : (notLive ? "last known " : "") + soc.toFixed(1) + "%"
+              + (capKwh ? ` · ${(soc * capKwh / 100).toFixed(1)} kWh` : "");
+        return { subs: { pv: sub(s.pvDailyKwh), home: sub(s.homeDailyKwh), bat },
+                 pv: kwh(s.pvDailyKwh), home: kwh(s.homeDailyKwh),
+                 exp: kwh(s.gridDailyExportKwh), imp: kwh(s.gridDailyImportKwh, 2),
+                 heading: notLive ? "Last known totals" : "Today",
+                 solarKey: notLive ? "Solar, last known" : "Solar today" };
+    }
+
     function renderEnergyCard(devices) {
         const el = document.getElementById("energy-detail");
         if (!el) return;
@@ -1420,6 +1537,7 @@
         }
 
         const notLive = energyFreshness(sigen, window.__SIGEN_AT, Date.now());
+        const W = energyWords(s, (m && m.capacityKwh) || 0, !!notLive);
         const flowEl  = document.getElementById("hub-flow");
         if (flowEl) flowEl.style.opacity = notLive ? "0.45" : "";
         const staleRow = notLive
@@ -1429,16 +1547,10 @@
             // Same sub-lines the energy page shows, so the two read alike.
             // Not live: every flow at zero, so nothing animates a power flow
             // that may have stopped hours ago.
-            const capKwh = (m && m.capacityKwh) || 0;
             const z = notLive ? 0 : 1;
             _energyFlow.update({
                 pv: pv * z, home: home * z, grid: grid * z, bat: battW * z, soc: soc,
-                subs: {
-                    pv:   `today ${pvToday.toFixed(1)} kWh`,
-                    home: `today ${homeToday.toFixed(1)} kWh`,
-                    bat:  capKwh ? `${soc.toFixed(1)}% · ${(soc * capKwh / 100).toFixed(1)} kWh`
-                                 : `${soc.toFixed(1)}%`,
-                },
+                subs: W.subs,
             });
         }
 
@@ -1464,7 +1576,7 @@
             // the number, and it is the first thing anyone asks the hub.
             rows.innerHTML = `
                 ${staleRow}
-                <div class="row"><span class="key">Solar today</span><span class="val ok">${pvToday.toFixed(1)} kWh</span></div>
+                <div class="row"><span class="key">${W.solarKey}</span><span class="val ${notLive ? "muted" : "ok"}">${W.pv}</span></div>
                 ${actionStr ? `<div class="row"><span class="key">Now</span><span class="val">${escapeAttr(actionStr)}</span></div>` : ""}
                 ${vppRow}
                 ${ssRow}
@@ -1480,11 +1592,11 @@
             ${actionStr ? `<div class="row"><span class="key">Now</span><span class="val">${escapeAttr(actionStr)}</span></div>` : ""}
             ${vppRow}
             ${ssRow}
-            <h3 style="margin-top:10px">Today</h3>
-            <div class="row"><span class="key">Solar produced</span><span class="val">${pvToday.toFixed(1)} kWh</span></div>
-            <div class="row"><span class="key">Home used</span><span class="val">${homeToday.toFixed(1)} kWh</span></div>
-            <div class="row"><span class="key">Exported</span><span class="val ok">${expToday.toFixed(1)} kWh</span></div>
-            <div class="row"><span class="key">Imported</span><span class="val ${impToday > 1 ? 'warn' : ''}">${impToday.toFixed(2)} kWh</span></div>
+            <h3 style="margin-top:10px">${W.heading}</h3>
+            <div class="row"><span class="key">Solar produced</span><span class="val ${notLive ? "muted" : ""}">${W.pv}</span></div>
+            <div class="row"><span class="key">Home used</span><span class="val ${notLive ? "muted" : ""}">${W.home}</span></div>
+            <div class="row"><span class="key">Exported</span><span class="val ${notLive ? "muted" : "ok"}">${W.exp}</span></div>
+            <div class="row"><span class="key">Imported</span><span class="val ${notLive ? "muted" : (impToday > 1 ? "warn" : "")}">${W.imp}</span></div>
             ${(benefitStr || ssStr || rateStr || vppMoneyRow) ? `<h3 style="margin-top:10px">Today's money</h3>` : ""}
             ${benefitRow(m)}
             ${vppMoneyRow}
@@ -1997,6 +2109,20 @@
         const tUnit    = WX.tempUnit(o);
         const tempCel  = WX.tempC(temp, o);
         const hum      = parseFloat(o.humidity);
+        // A station that has stopped is not the weather (3.73.12): say when
+        // it last reported and keep only its last temperature, marked as such.
+        // "Rain today: dry" from a gateway that left the Wi-Fi at breakfast
+        // was the worst of it.
+        const wxLive = WX.freshness(outdoor, Date.now());
+        if (wxLive.stale) {
+            el.style.display = "";
+            _ensureWeatherShell(el);
+            document.getElementById('weather-rows').innerHTML = `
+                <h3>Weather station</h3>
+                <div class="row"><span class="key">Not live</span><span class="val muted">${escapeAttr(wxLive.words)}</span></div>
+                ${isFinite(temp) ? `<div class="row"><span class="key">Last reading</span><span class="val muted">${temp.toFixed(1) + tUnit}</span></div>` : ""}`;
+            return;
+        }
         const windUnit = w.windSpeedUnit || "";
         const speedMph = WX.windMph(parseFloat(w.windSpeed), windUnit);
         const gustMph  = WX.windMph(parseFloat(w.windGust), windUnit);
@@ -2769,7 +2895,7 @@
             if (!devices.fromCache) _hubAuth.ok();
             // Served from cache while the plugin is down: the one outage
             // signal this page has is the clock going stale — keep it stale.
-            if (!devices.fromCache) markRefreshed();
+            if (!devices.fromCache && !devices.incomplete) markRefreshed();
             // Feed any in-flight action watch from the poll we already ran, so
             // confirming a door costs no extra network traffic.
             try { DashAction.tick(devices); } catch (e) { console.warn("action watch", e); }

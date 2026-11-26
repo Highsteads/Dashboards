@@ -72,20 +72,21 @@ console.log("\nthe 304 rule: nothing new means the picture keeps aging");
 {
     const still = fn("startStill");
     const s304 = still.indexOf("status === 304");
-    const promote = still.indexOf("st.frameModMs = st._mod200");
+    // 3.73.12: the date is adopted with the frame, once it is on screen.
+    const promote = still.indexOf("st.frameModMs = modMs");
     check(s304 >= 0 && promote > s304,
           "frameModMs is only promoted in the delivered-frame path, after the 304 return");
     const dateSites = countMatches(code, /st\.frameModMs\s*=(?!=)/g);
     check(dateSites === 1,
           "exactly one place may date a frame",
           `found ${dateSites} — a 304 or error re-dating the on-screen frame lies about freshness`);
-    check(/st\._mod200\s*!=\s*null\s*&&\s*!isNaN\(st\._mod200\)/.test(still),
+    check(/if \(modMs != null && !isNaN\(modMs\)\) st\.frameModMs = modMs;/.test(still),
           "an unparseable Last-Modified never becomes a date");
 }
 
 console.log("\nthe skew tell");
 {
-    check(/noteAgeAtReceipt\(st\.lastFrameAt - st\.frameModMs\)/.test(fn("startStill")),
+    check(/if \(modMs != null && !isNaN\(modMs\)\) noteAgeAtReceipt\(st\.lastFrameAt - modMs\);/.test(fn("startStill")),
           "every delivered frame feeds the rolling minimum");
     check(/Math\.min\(_minAgeAtReceipt,/.test(fn("noteAgeAtReceipt")),
           "the tell is a MINIMUM, not a latest",

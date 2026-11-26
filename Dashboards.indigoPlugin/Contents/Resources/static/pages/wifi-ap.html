@@ -173,7 +173,7 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
     function satClass(v) { const n = num(v); if (n === null || n < 0) return ""; if (n < 70) return "bad"; if (n < 90) return "warn"; return "good"; }
     function loadClass(v) { const n = num(v); if (n === null) return ""; if (n >= 90) return "bad"; if (n >= 75) return "warn"; return "good"; }
     function fmtSat(v) { const n = num(v); return (n === null || n < 0) ? "—" : String(n); }
-    function uptimeUi(s) { const n = num(s) || 0; const d = Math.floor(n/86400), h = Math.floor((n%86400)/3600), m = Math.floor((n%3600)/60); return d + "d " + h + "h " + m + "m"; }
+    function uptimeUi(s) { const n = num(s); if (n === null) return "—"; const d = Math.floor(n/86400), h = Math.floor((n%86400)/3600), m = Math.floor((n%3600)/60); return d + "d " + h + "h " + m + "m"; }
     function fmtWidth(w) { const n = num(w); return [20, 40, 80, 160, 240, 320].includes(n) ? n + "MHz" : (n === null ? "" : n + "MHz"); }
     function escapeHtml(t) { return DashUI.esc(t); }   // v3.25.0: escapes quotes too
     function fmtTxPower(v) { const s = String(v || "").trim(); return s ? s.charAt(0).toUpperCase() + s.slice(1) : "—"; }
@@ -218,6 +218,7 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
         const staleWhy = d.enabled === false ? "disabled"
                        : String(d.errorState || "").trim() ? "in error" : "controller unreachable";
         const online = d.onState === true && !stale;
+        const off = !stale && !online;   // dropped, as against not known
         const name = String(d.name || "").replace(/^UniFi AP /, "");
         document.title = name + " · WiFi";
         document.getElementById("ap-title").textContent = name;
@@ -235,19 +236,24 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
             <div class="summary ${banner}">
                 <div class="summary-grid">
                     <div class="metric"><div class="m-val ${online ? 'good' : stale ? 'warn' : 'bad'}">${stale ? '○ stale' : online ? '● online' : '○ offline'}</div><div class="m-lab">Status</div></div>
-                    <div class="metric"><div class="m-val">${s.numClients ?? 0}</div><div class="m-lab">Clients</div></div>
+                    <div class="metric"><div class="m-val">${off ? '—' : (s.numClients ?? '—')}</div><div class="m-lab">Clients</div></div>
                     <div class="metric"><div class="m-val">${escapeHtml(s.apModel || '—')}</div><div class="m-lab">Model</div></div>
-                    <div class="metric"><div class="m-val">${uptimeUi(s.uptimeSeconds)}</div><div class="m-lab">Uptime</div></div>
-                    <div class="metric"><div class="m-val ${utilClass(worstUtil)}">${worstUtil === null ? '—' : worstUtil + '%'}</div><div class="m-lab">Worst util</div></div>
+                    <div class="metric"><div class="m-val">${off ? '—' : uptimeUi(s.uptimeSeconds)}</div><div class="m-lab">Uptime</div></div>
+                    <div class="metric"><div class="m-val ${off ? '' : utilClass(worstUtil)}">${off || worstUtil === null ? '—' : worstUtil + '%'}</div><div class="m-lab">Worst util</div></div>
                 </div>
             </div>`;
 
         if (stale) {
             html += `<div class="card"><div class="warn">Not live: ${escapeHtml(staleWhy)} — last update ${escapeHtml(formatWhen(d.lastChanged))}. The figures below are from then.</div></div>`;
+        } else if (off) {
+            // 3.73.12: an AP that has dropped keeps the clients, uptime and
+            // band figures it had while it was up. Say so, and leave the
+            // client list out: nothing is connected to an AP that is down.
+            html += `<div class="card"><div class="warn">This access point is not answering${formatWhen(d.lastChanged) ? ", since " + escapeHtml(formatWhen(d.lastChanged)) : ""}. The radio and hardware figures below are the last ones it reported.</div></div>`;
         }
 
         // Connected devices — the headline: what's actually on this AP
-        html += renderClients(s);
+        if (!off) html += renderClients(s);
 
         // Audit
         html += `<div class="card"><div class="card-title">Config audit</div>`;

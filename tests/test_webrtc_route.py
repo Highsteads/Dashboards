@@ -144,6 +144,31 @@ def test_handler_gates_before_reading_body():
         "gate order must be: private source, allowlist, size cap, THEN read")
 
 
+def test_handler_refuses_a_post_no_page_of_ours_would_send():
+    """3.73.12: a text/plain POST is a "simple" request, sent by any web page
+    with no preflight, so the relay could be made to open camera sessions by
+    a page on another site. Only application/sdp is taken, a foreign Origin
+    is refused, and both before the body is read or go2rtc is asked."""
+    body = _do_post_source()
+    assert 'self.send_error(415, "application/sdp required")' in body
+    assert "_origin_is_same_host()" in body
+    ctype = body.index('!= "application/sdp"')
+    origin = body.index("_origin_is_same_host()")
+    read = body.index("self.rfile.read(length)")
+    fwd = body.index("_forward_whep(")
+    assert body.index("allowed_hosts") < ctype < origin < read < fwd
+
+
+def test_origin_rule_is_same_host_or_absent():
+    import inspect
+    src = inspect.getsource(cameras_mixin)
+    m = re.search(r"def _origin_is_same_host\(self\):(.*?)# ── WebRTC signalling", src, re.S)
+    assert m, "_origin_is_same_host not found"
+    fn = m.group(1)
+    assert "if not origin:" in fn and "return True" in fn        # curl, same-origin GET
+    assert "origin_host == req_host" in fn
+
+
 def test_handler_forwards_via_slug_map():
     body = _do_post_source()
     assert "_forward_whep(" in body

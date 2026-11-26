@@ -122,7 +122,17 @@ console.log("\nthe chip and its list");
         escapeAttr: s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;"),
     };
     vm.createContext(c);
+    // 3.73.12: the chip also asks whether its sources have answered lately.
+    // Here the device poll has just answered and the slower refreshers are
+    // not running, as on a hub that has only just opened.
     vm.runInContext(`let INSIGHTS = null, LOGFEED = null, CAMHEALTH = null, CAMSERVICE = null, DEVCOUNTS = null, _attOpen = false, _attBtn = null;
+        let _lastUpdate = Date.now(), _heavyStarted = false, _attGraceUntil = 0;
+        const _attAt = { log: 0, insights: 0, cams: 0 };
+        const ATT_MAX_AGE_MS = { devices: 30000, log: 660000, insights: 660000, cams: 180000 };
+        const ATT_NAMES = { devices: "devices and batteries", log: "the Indigo log",
+                            cams: "the cameras", insights: "each device against its usual behaviour" };
+        ${extractFn(src, "attentionUnchecked")}
+        ${extractFn(src, "attentionChip")}
         ${extractFn(src, "attentionItems")}
         ${extractFn(src, "renderAttention")}
         globalThis.set = (k, v) => { if (k === "dev") DEVCOUNTS = v; if (k === "log") LOGFEED = v; };

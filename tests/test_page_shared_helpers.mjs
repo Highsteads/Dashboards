@@ -171,7 +171,10 @@ console.log("\ncamera health — a frozen summary is not health OK");
     const T2 = U.cameraHealthTracker();
     checkEq("a first read an hour old is stale", T2.feed({ _writeTs: now / 1000 - 3600, _cameraHealth: h }, now).state, "stale");
     const T3 = U.cameraHealthTracker();
-    checkEq("a first read a minute off (clock skew) is trusted", T3.feed({ _writeTs: now / 1000 - 60, _cameraHealth: h }, now).state, "ok");
+    // 3.73.12: a minute off may be clock skew, or a writer that stopped a
+    // minute ago. The first read cannot tell, so it waits for the second.
+    checkEq("a first read a minute off is not believed at once", T3.feed({ _writeTs: now / 1000 - 60, _cameraHealth: h }, now).state, "checking");
+    checkEq("and is trusted once the file is seen to be written again", T3.feed({ _writeTs: now / 1000 - 56, _cameraHealth: h }, now + 4000).state, "ok");
 }
 
 console.log("\nweather units — the hub printed km/h as mph");

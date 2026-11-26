@@ -492,6 +492,19 @@ class CamerasMixin:
                     self.send_header("Access-Control-Allow-Origin", origin)
                     self.send_header("Vary", "Origin")
 
+            def _origin_is_same_host(self):
+                """True when the request names no Origin, or one served from
+                this same machine. The pages are (port 8176 posting to this
+                port); a page on another site, open in a browser on the home
+                network, is not (3.73.12)."""
+                from urllib.parse import urlparse as _up
+                origin = self.headers.get("Origin", "")
+                if not origin:
+                    return True
+                req_host = (self.headers.get("Host", "") or "").rsplit(":", 1)[0].strip("[]").lower()
+                origin_host = (_up(origin).hostname or "").lower()
+                return bool(req_host) and origin_host == req_host
+
             # ── WebRTC signalling (WHEP) — v2.68.0 ─────────────────
             # POST /webrtc/<host> forwards the browser's SDP offer to
             # go2rtc's loopback API and relays the answer. Security model:
@@ -543,6 +556,18 @@ class CamerasMixin:
                 host = parsed.path[len("/webrtc/"):]
                 if host not in allowed_hosts:
                     self.send_error(403, "host not allowed")
+                    return
+                # A text/plain POST needs no preflight, so any web page open
+                # in a browser on the home network could make this relay open
+                # a session to a camera (3.73.12). The pages send
+                # application/sdp, which a foreign page cannot without one,
+                # and a foreign Origin is refused outright.
+                ctype_in = (self.headers.get("Content-Type", "") or "").split(";")[0].strip().lower()
+                if ctype_in != "application/sdp":
+                    self.send_error(415, "application/sdp required")
+                    return
+                if not self._origin_is_same_host():
+                    self.send_error(403, "cross-origin request refused")
                     return
                 try:
                     length = int(self.headers.get("Content-Length", ""))
@@ -1788,12 +1813,18 @@ class CamerasMixin:
                 "_writeTs": time.time(),
                 "_go2rtcUp": streams is not None,
                 # Credential-free by construction: states, counts and times.
-                "_cameraHealth": self._camera_health_payload(self.cameras, self._cam_state),
+                "_cameraHealth": self._camera_health_payload(
+                    self.cameras, self._cam_state, now=time.time(),
+                    max_ok_age=self._camera_ok_max_age()),
             }
             path = os.path.join(self._public_dashboards_dir(), "streams.json")
             self._write_atomic(path, json.dumps(payload).encode("utf-8"))
         except Exception as exc:
-            log(f"[Cameras] streams.json write failed: {exc}", level="WARNING")
+            # Once, then once a minute: this runs on every two-second pass.
+            _now = time.time()
+            if _now - getattr(self, "_streams_warn_at", 0) > 60:
+                self._streams_warn_at = _now
+                log(f"[Cameras] streams.json write failed: {exc}", level="WARNING")
 
     # Fields a guest may see on a device or variable object. Everything the
     # pages read (id, name, class, states, on/brightness, timestamps, folder)
@@ -1860,14 +1891,31 @@ class CamerasMixin:
             return out
         return []
 
+    def _camera_ok_max_age(self):
+        """How old a camera's last good picture may be and still count as ok.
+
+        Three idle checks and a minute's slack where the idle check runs; two
+        minutes where it is switched off, since then only a watched camera is
+        asked, every couple of seconds."""
+        try:
+            idle = float(self._stills_idle_seconds())
+        except Exception:
+            idle = 0.0
+        return 3 * idle + 60 if idle > 0 else 120.0
+
     @staticmethod
-    def _camera_health_payload(cameras, states):
+    def _camera_health_payload(cameras, states, now=None, max_ok_age=None):
         """Return public-safe snapshot health, never upstream error details.
 
         The UI needs to distinguish a camera that is currently retrying from
         one that has not yet completed its first poll.  Timestamps are useful
         for age display but are not identifying information; URLs, exception
         messages and viewer data remain private.
+
+        A last good picture older than max_ok_age seconds is "unknown", not
+        "ok" (3.73.12): with the idle check switched off a camera nobody is
+        watching is never asked again, and its one good picture from hours
+        ago went on reading as healthy. Both arguments absent: no ageing.
         """
         out = {}
         for cam in cameras or []:
@@ -1886,6 +1934,9 @@ class CamerasMixin:
                 state = "retrying"
             else:
                 state = "ok"
+                if (now is not None and max_ok_age is not None and last_ok is not None
+                        and now - last_ok > max_ok_age):
+                    state = "unknown"
             out[host] = {
                 "state": state,
                 "consecutiveFailures": fails,
@@ -1936,7 +1987,17 @@ class CamerasMixin:
                         log(f"[Cameras] {cam['name']} ({host}) recovered after {st['fail_count']} failures")
                     st["fail_count"] = 0
                 except Exception as exc:
-                    log(f"[Cameras] Could not write snapshot for {host}: {exc}", level="ERROR")
+                    # A picture fetched but not stored is a failed snapshot
+                    # (3.73.12): the page goes on showing the old one, so the
+                    # camera's health must not stay "ok". And it is logged by
+                    # the same once-then-every-minute rule as a failed fetch;
+                    # on a full disk this line used to be written for every
+                    # camera every two seconds.
+                    st["fail_count"] += 1
+                    st["last_failure"] = now
+                    if st["fail_count"] == 1 or (now - st["last_log"]) > 60:
+                        log(f"[Cameras] Could not write snapshot for {host}: {exc}", level="ERROR")
+                        st["last_log"] = now
             else:
                 st["fail_count"] += 1
                 st["last_failure"] = now

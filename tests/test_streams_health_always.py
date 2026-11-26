@@ -52,6 +52,10 @@ def test_written_when_go2rtc_is_up(tmp_path):
 def test_an_outage_replaces_the_healthy_file(tmp_path):
     p = _plugin(tmp_path)
     p._cam_state["10.0.0.5"]["fail_count"] = 0
+    # A healthy camera has a recent picture: since 3.73.12 an old one reads
+    # "unknown", so the fixture's last_ok of 100.0 would no longer be "ok".
+    import time
+    p._cam_state["10.0.0.5"]["last_ok"] = time.time()
     p._write_streams_json({})
     assert _read(tmp_path)["_cameraHealth"]["10.0.0.5"]["state"] == "ok"
     p._cam_state["10.0.0.5"]["fail_count"] = 5

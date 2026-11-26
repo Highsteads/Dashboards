@@ -61,10 +61,10 @@ checkFn('Hub freshness follows the delivered picture, not unchanged HTTP respons
 });
 checkFn('Every tile exposes freshness and stale live video says it stopped',()=>{
  const words=()=>({textContent:'',classList:classes()});
- const c={Date:{now:()=>20000},hosts:['a','b','c'],debugAges:()=>false,STALE_MS:10000,_minAgeAtReceipt:null,frameAgeMs:(s,n)=>s.frameModMs==null?null:n-s.frameModMs,
- camState:{a:{mode:'still',frameModMs:15000,ageEl:words()},b:{mode:'webrtc',lastChangeAt:19000,ageEl:words()},c:{mode:'webrtc',lastChangeAt:1000,ageEl:words()}}};
+ const c={Date:{now:()=>20000},hosts:['a','b','c','d'],debugAges:()=>false,STALE_MS:10000,_minAgeAtReceipt:null,frameAgeMs:(s,n)=>s.frameModMs==null?null:n-s.frameModMs,
+ camState:{a:{mode:'still',frameModMs:15000,ageEl:words()},b:{mode:'webrtc',webrtcGotFrame:true,lastChangeAt:19000,ageEl:words()},c:{mode:'webrtc',webrtcGotFrame:true,lastChangeAt:1000,ageEl:words()},d:{mode:'webrtc',lastChangeAt:19000,ageEl:words()}}};
  vm.createContext(c);vm.runInContext(fn(camera,'tickAges'),c);c.tickAges();
- assert.equal(c.camState.a.ageEl.textContent,'Picture 5s old');assert.equal(c.camState.b.ageEl.textContent,'Live');assert.equal(c.camState.c.ageEl.textContent,'Video stopped');
+ assert.equal(c.camState.a.ageEl.textContent,'Picture 5s old');assert.equal(c.camState.b.ageEl.textContent,'Live');assert.equal(c.camState.c.ageEl.textContent,'Video stopped');assert.equal(c.camState.d.ageEl.textContent,'Connecting');   // 3.73.12: no first frame yet
 });
 checkFn('A short off-screen visit cancels the stop; a longer one stops and then resumes',()=>{
  let callback,queued,stops=0,resumes=0;

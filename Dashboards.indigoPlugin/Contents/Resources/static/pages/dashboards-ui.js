@@ -1579,12 +1579,19 @@
        'ok'      being written, go2rtc up — health is the summary
        'down'    written, but go2rtc (the camera service) is not answering
        'stale'   not rewritten for longer than staleMs
+       'checking' first read, not yet seen to advance: read again shortly
        'unknown' no file, or no write time in it                        */
   var CAM_HEALTH_STALE_MS = 60000;
   var CAM_HEALTH_FIRST_READ_SKEW_MS = 10 * 60000;
+  /* How new the file must be, by the two clocks, for the FIRST read to be
+     believed at once (3.73.12). Between this and the wide skew margin the
+     first read is 'checking': the page reads again a few seconds later and
+     an advanced _writeTs settles it. A file the writer abandoned up to ten
+     minutes ago used to read as health OK on a freshly opened page. */
+  var CAM_HEALTH_FIRST_FRESH_MS = 15000;
   function cameraHealthTracker(staleMs) {
     var limit = staleMs || CAM_HEALTH_STALE_MS;
-    var lastTs = null, seenAt = 0;
+    var lastTs = null, seenAt = 0, proven = false;
     return {
       feed: function (data, nowMs) {
         var now = nowMs == null ? Date.now() : nowMs;
@@ -1602,8 +1609,13 @@
             seenAt = now - limit - 1;
             return { state: 'stale', health: null };
           }
+          // Seen to advance, or new enough by the clocks: believed.
+          proven = !first || Math.abs(now - ts * 1000) <= CAM_HEALTH_FIRST_FRESH_MS;
+          if (!proven) return { state: 'checking', health: null };
         } else if (now - seenAt > limit) {
           return { state: 'stale', health: null };
+        } else if (!proven) {
+          return { state: 'checking', health: null };
         }
         if (data._go2rtcUp === false) return { state: 'down', health: null };
         var h = data._cameraHealth;
@@ -1625,6 +1637,28 @@
       if (v == null || !isFinite(v)) return null;
       var f = WIND_TO_MPH[String(unit || '').toLowerCase()];
       return f == null ? null : v * f;   // unknown unit: say nothing rather than a wrong number
+    },
+    /* Is this station reading weather, or history? (3.73.12) The Ecowitt
+       page had this rule and the hub had none, so a gateway that dropped
+       off the Wi-Fi hours ago went on being printed there as now, "dry"
+       included. One rule for both. why is '', 'disabled', 'error',
+       'offline' or 'old'; at is the last report in ms, or null. */
+    freshness: function (dev, nowMs) {
+      var st = (dev && dev.states) || {};
+      var online = String(st.deviceOnline == null ? 'true' : st.deviceOnline).toLowerCase() !== 'false';
+      var at = st.lastUpdate ? serverTime(st.lastUpdate) : NaN;
+      var ageMin = isFinite(at) ? Math.round((nowMs - at) / 60000) : null;
+      var why = '';
+      if (dev && dev.enabled === false) why = 'disabled';
+      else if (dev && String(dev.errorState || '').trim()) why = 'error';
+      else if (!online) why = 'offline';
+      else if (ageMin != null && ageMin > 30) why = 'old';
+      var last = isFinite(at) ? 'last report ' + ago(Math.max(0, nowMs - at)) : '';
+      var words = why === 'disabled' ? 'the station is disabled in Indigo'
+        : why === 'error' ? 'the station is reporting an error'
+        : why === 'offline' ? 'the station is offline' + (last ? ', ' + last : '')
+        : why === 'old' ? last : '';
+      return { stale: !!why, why: why, at: isFinite(at) ? at : null, ageMin: ageMin, words: words };
     },
     tempUnit: function (s) { return /f/i.test(String((s || {}).temperatureUnit || '')) ? '°F' : '°C'; },
     tempC: function (v, s) {

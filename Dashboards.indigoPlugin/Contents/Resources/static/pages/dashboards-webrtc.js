@@ -107,7 +107,12 @@
     waiting.forEach(function (h) {
       try {
         var p = h.video.play();   // synchronously, inside the gesture
-        var ok = function () { h.blocked = false; h.video._playRefused = null; };
+        var ok = function () {
+          h.blocked = false; h.video._playRefused = null;
+          // Tell the page the tap worked (3.73.12), so a tile that went back
+          // to its still while it waited can show the video again.
+          if (h._onUnblocked) { try { h._onUnblocked(); } catch (e) {} }
+        };
         if (p && p.then) p.then(ok, function () { if (!h.stopped) _blocked.push(h); });
         else ok();
       } catch (e) { if (!h.stopped) _blocked.push(h); }
@@ -284,6 +289,7 @@
     var block = function () {
       if (h.stopped || h.blocked) return;
       h.blocked = true;
+      h._onUnblocked = opts.onUnblocked || null;
       if (frameTimer) { clearTimeout(frameTimer); frameTimer = null; }
       _blocked.push(h);
       if (opts.onBlocked) opts.onBlocked();

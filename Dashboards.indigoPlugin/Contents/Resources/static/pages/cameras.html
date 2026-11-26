@@ -307,7 +307,7 @@
         </div>
         <div class="hdr-center">
             <h1>Cameras</h1>
-            <span class="topbar-status">Updated <span id="ts">—</span> · <span id="total-bw">0 kB/s</span></span>
+            <span class="topbar-status">Updated <span id="ts">—</span> · <span id="total-bw">—</span></span>
         </div>
         <div class="hdr-right"></div>
     </header>
@@ -328,7 +328,7 @@
                 <button type="button" id="camera-details" class="pair-btn" aria-expanded="false" aria-controls="camera-diagnostics">Details</button>
             </div>
             <div id="camera-diagnostics" class="camera-diagnostics">
-                <span class="foot-line">Updated <span id="ts-bot">—</span> · <span id="total-bw-bot">0 kB/s</span></span>
+                <span class="foot-line">Updated <span id="ts-bot">—</span> · <span id="total-bw-bot">—</span></span>
                 <p id="link-policy" class="link-policy">—</p>
                 <button type="button" id="pair-device" class="pair-btn">this device is: not set</button>
             </div>
@@ -780,7 +780,12 @@
             if (st.mode === "webrtc") {
                 // A live tile has no Last-Modified — show time since the
                 // watchdog last saw the picture CHANGE, and say so.
-                if (st.lastChangeAt) {
+                // Not before the first frame (3.73.12): a tile that was only
+                // connecting read "Live", or "Video stopped" from the time of
+                // the stream before it.
+                if (!st.webrtcGotFrame) {
+                    txt = "Connecting";
+                } else if (st.lastChangeAt) {
                     const a = now - st.lastChangeAt;
                     old = a > STALE_MS;
                     txt = old ? "Video stopped" : "Live";
@@ -853,6 +858,7 @@
             st.videoEl = null;
         }
         st.webrtcGotFrame = false;
+        st.lastRtcAt      = 0;      // and has no earlier reading to take a rate from
         st.lastRtcBytes   = 0;      // a fresh pc counts from zero — a stale
                                     // high-water mark would make every delta
                                     // negative and freeze the rate display
@@ -1062,7 +1068,13 @@
                         return null;
                     }
                     if (!r.ok) { _stillFailed(st, "HTTP " + r.status); return null; }   // keep the last good frame, but count it
-                    st.lastMod = r.headers.get("Last-Modified") || st.lastMod;
+                    // Held, not adopted (3.73.12): this header becomes the
+                    // "already have it" marker only when the frame is shown.
+                    // A frame skipped because a cross-fade was still running
+                    // used to be marked as held, so the tile kept the older
+                    // picture under the newer one's date until the camera
+                    // wrote another.
+                    st._lastMod200 = r.headers.get("Last-Modified") || null;
                     // Parsed copy for the age readout. Kept separate from
                     // st.lastMod (the conditional-request bookkeeping) and
                     // only promoted to frameModMs once the frame is actually
@@ -1085,10 +1097,8 @@
                     // A real frame arrived: date it, feed the skew tell, and
                     // stamp the page-wide Updated clock — this is the ONLY
                     // place a still may stamp it.
-                    if (st._mod200 != null && !isNaN(st._mod200)) {
-                        st.frameModMs = st._mod200;
-                        noteAgeAtReceipt(st.lastFrameAt - st.frameModMs);
-                    }
+                    const modMs = st._mod200, modHdr = st._lastMod200;
+                    if (modMs != null && !isNaN(modMs)) noteAgeAtReceipt(st.lastFrameAt - modMs);
                     markRefreshed();
                     if (st.mode !== "still" || st.paused) return;   // mode changed mid-fetch
                     const url = URL.createObjectURL(blob);
@@ -1097,6 +1107,9 @@
                         // showing, or the tile blanks between the two.
                         if (st.objUrl && st.objUrl !== url) URL.revokeObjectURL(st.objUrl);
                         st.objUrl = url;
+                        // Now it is on screen: date it, and remember it as held.
+                        if (modHdr) st.lastMod = modHdr;
+                        if (modMs != null && !isNaN(modMs)) st.frameModMs = modMs;
                     };
                     const ui = window.DashUI;
                     if (ui && ui.swapImage && img.getAttribute("src")) {
@@ -1572,12 +1585,28 @@
             el.style.color = "var(--bad)";
             return;
         }
+        if (v.state === "checking") {
+            // The first read, not yet seen to be still written (3.73.12):
+            // read again in about four seconds instead of thirty.
+            el.textContent = "health checking";
+            el.style.color = "";
+            _healthLastFetch = Date.now() - 30000 + 4000;
+            return;
+        }
         if (v.state !== "ok") {
             el.textContent = "health unknown";
             el.style.color = "var(--warn)";
             return;
         }
         paintCameraHealth(v.health);
+    }
+    /* Pure: the footer's health words. Offline first, then retrying, then
+       any camera not yet checked; "health OK" only when every one is. */
+    function cameraHealthWords(offline, retrying, unchecked) {
+        return offline ? `${offline} camera${offline === 1 ? "" : "s"} offline`
+            : retrying ? `${retrying} camera${retrying === 1 ? "" : "s"} retrying`
+            : unchecked ? `${unchecked} not checked`
+            : "health OK";
     }
     function paintCameraHealth(health) {
         const el = document.getElementById("camera-health-bot");
@@ -1586,10 +1615,11 @@
         if (!rows.length) return;
         const offline = rows.filter(x => x && x.state === "offline").length;
         const retrying = rows.filter(x => x && x.state === "retrying").length;
-        el.textContent = offline ? `${offline} camera${offline === 1 ? "" : "s"} offline`
-            : retrying ? `${retrying} camera${retrying === 1 ? "" : "s"} retrying`
-            : "health OK";
-        el.style.color = offline ? "var(--bad)" : retrying ? "var(--warn)" : "var(--on-color)";
+        // Not checked is not healthy (3.73.12): with the idle check switched
+        // off, a camera nobody is watching is never asked for a picture.
+        const unchecked = rows.filter(x => !x || x.state === "unknown").length;
+        el.textContent = cameraHealthWords(offline, retrying, unchecked);
+        el.style.color = offline ? "var(--bad)" : retrying ? "var(--warn)" : unchecked ? "" : "var(--on-color)";
     }
     /* One owner for both readouts. The top bar has room for the word, the
        footer has not — and the footer's line must not grow (see .foot-line). */
@@ -1598,6 +1628,24 @@
         if (top) top.textContent = rate + " total";
         const bot = document.getElementById("total-bw-bot");
         if (bot) bot.textContent = rate;
+    }
+
+    /* Pure: a live tile's rate in kB/s from two readings of its byte counter,
+       or null when there is no earlier reading to compare with. The tick
+       that calls this is meant to run once a second but is skipped while
+       the one before is still in flight, so the bytes are divided by the
+       time that really passed; they used to be labelled "per second" as
+       they stood, which read about double after a late tick and, on the
+       first, as every byte since the stream opened (3.73.12). */
+    function tileRateKb(prevBytes, prevAt, bytes, nowMs) {
+        if (!(prevAt > 0) || !(nowMs > prevAt)) return null;
+        const d = bytes - (prevBytes || 0);
+        if (!(d >= 0)) return null;             // a new connection counts from nought
+        return d / 1024 / ((nowMs - prevAt) / 1000);
+    }
+    function rateWords(kbs) {
+        if (kbs == null || !isFinite(kbs)) return "—";
+        return kbs > 1024 ? `${(kbs / 1024).toFixed(1)} MB/s` : `${kbs.toFixed(0)} kB/s`;
     }
 
     function startBandwidthPoll() {
@@ -1618,15 +1666,15 @@
                             if (s.type === "inbound-rtp" && s.kind === "video") inbound = s;
                         });
                         if (inbound && inbound.bytesReceived != null) {
+                            const tNow = Date.now();
                             const d = inbound.bytesReceived - (st.lastRtcBytes || 0);
+                            const k = tileRateKb(st.lastRtcBytes, st.lastRtcAt, inbound.bytesReceived, tNow);
                             st.lastRtcBytes = inbound.bytesReceived;
+                            st.lastRtcAt = tNow;
                             if (d > 0) _rxBytes += d;
                             if (st.bwEl) {
-                                const k = d / 1024;
                                 st.bwEl.style.visibility = "visible";
-                                st.bwEl.textContent = k > 1024
-                                    ? `${(k / 1024).toFixed(1)} MB/s`
-                                    : `${k.toFixed(0)} kB/s`;
+                                st.bwEl.textContent = rateWords(k);
                             }
                         }
                     } catch (e) { /* stats are best-effort */ }
@@ -1685,9 +1733,11 @@
                     } catch (e) { sj = null; }
                     paintCameraStatus(sj);
                 }
+                // No figure until there are two samples to take a rate from:
+                // "0 kB/s" on the first tick was not a reading (3.73.12).
+                const hadSample = !!_rxLastAt;
                 _rxLast = _rxBytes; _rxLastAt = nowMs0;
-                _setBw(ownKBs > 1024 ? `${(ownKBs/1024).toFixed(1)} MB/s`
-                                     : `${ownKBs.toFixed(0)} kB/s`);
+                _setBw(rateWords(hadSample ? ownKBs : null));
             } catch (e) { /* ignore */ }
         };
         tick();

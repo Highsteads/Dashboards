@@ -160,6 +160,10 @@ console.log("\nthe still refresh asks conditionally and reads the answer");
     check(first && !first.opts.headers["If-Modified-Since"], "the first request is unconditional");
     check(first && first.opts.cache === "no-store", "no-store, so the browser's cache cannot hide a 304");
     await sb.answer(first, 200, "Wed, 23 Sep 2026 10:00:00 GMT", 21000);
+    // 3.73.12: the time is held only once the picture is on screen, so a
+    // frame that is fetched and then not shown is asked for again.
+    check(sb.st.lastMod == null, "a 200 is not marked as held before its picture has loaded", String(sb.st.lastMod));
+    sb.img.fire("load");
     check(sb.st.lastMod === "Wed, 23 Sep 2026 10:00:00 GMT", "a 200 stores its Last-Modified");
     check(sb.ctx._rxBytes === 21000, "and counts the bytes this page downloaded", String(sb.ctx._rxBytes));
     check(sb.img.src === "blob:0", "and shows the new frame", sb.img.src);
@@ -386,7 +390,7 @@ console.log("\nthe bandwidth figure must describe THIS DEVICE");
     check(/\(Date\.now\(\) - _healthLastFetch\) > 30000/.test(fnBody),
           "streams.json is read at most every 30 s, for camera health only");
     check((fnBody.match(/_rxBytes\s*-\s*_rxLast/g) || []).length === 1
-          && /_setBw\(ownKBs/.test(fnBody),
+          && /_setBw\(rateWords\(hadSample \? ownKBs : null\)\)/.test(fnBody),
           "our own bytes are counted exactly once per tick");
 }
 

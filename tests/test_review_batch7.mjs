@@ -23,7 +23,7 @@ const read = f => fs.readFileSync(path.join(PAGES, f), "utf8");
 console.log("hub: coming back to the page asks for the Sigen reading at once");
 const hub = read("index.html");
 check("the visibility handler asks before it draws",
-      /if \(document\.hidden\) \{ _hubStopAllLive\(\); return; \}[\s\S]{0,420}try \{ _refreshSigen\(\); \} catch \(_\) \{[^}]*\}\s*loadSummary\(\);/.test(hub));
+      /if \(document\.hidden\) \{ _hubStopAllLive\(\); return; \}[\s\S]{0,420}try \{ _refreshSigen\(\); \} catch \(_\) \{[^}]*\}[\s\S]{0,260}?loadSummary\(\);/.test(hub));
 
 console.log("\nAlerts page: messages follow what is true");
 const alerts = read("alerts.html");

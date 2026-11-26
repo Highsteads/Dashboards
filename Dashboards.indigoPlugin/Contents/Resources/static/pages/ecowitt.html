@@ -456,15 +456,17 @@
         // hour ago is not weather; grey the card and say when it last spoke.
         const dev = (window.__lastDevices || []).find(x => x.id === deviceId);
         const st = (dev && dev.states) || {};
-        const online = String(st.deviceOnline == null ? "true" : st.deviceOnline).toLowerCase() !== "false";
-        const lu = st.lastUpdate ? new Date(String(st.lastUpdate).replace(" ", "T")) : null;
-        const ageMin = (lu && !isNaN(lu)) ? Math.round((Date.now() - lu.getTime()) / 60000) : null;
-        const stale = !online || (dev && dev.enabled === false) || (ageMin != null && ageMin > 30);
+        // The rule is DashUI.wx.freshness now (3.73.12), shared with the hub,
+        // and it reads the time in the server's zone and counts a device in error.
+        const fr = DashUI.wx.freshness(dev, Date.now());
+        const stale = fr.stale;
         const cls = (opts.cls || "") + (stale ? " stale" : "");
         if (stale) {
             metaRows = [...(metaRows || []),
-                        ["Last report", dev && dev.enabled === false ? "disabled in Indigo"
-                                        : (ageMin != null ? formatWhen(lu.toISOString()) : (online ? "unknown" : "offline"))]];
+                        ["Last report", fr.why === "disabled" ? "disabled in Indigo"
+                                        : fr.why === "error" ? "reporting an error"
+                                        : (fr.at != null ? DashUI.ago(Math.max(0, Date.now() - fr.at))
+                                           : (fr.why === "offline" ? "offline" : "unknown"))]];
         }
         const metaHtml = (metaRows || []).map(r => `
             <div class="wx-row">
