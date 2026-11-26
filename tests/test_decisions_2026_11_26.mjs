@@ -166,6 +166,18 @@ console.log("\nsmall wording");
     checkEq("a test that worked", w.S({ speedtestDown: 512.3, speedtestUp: 110 }), { down: "512.3", up: "110", failed: false });
     checkEq("0 down and 0 up is a failed test, not a dead line", w.S({ speedtestDown: 0, speedtestUp: 0 }), { down: "—", up: "—", failed: true });
     checkEq("the router's own word for it wins", w.S({ speedtestDown: 3, speedtestUp: 1, speedtestStatus: "Error" }).failed, true);
+    // 3.74.1: UniFi Health 0.10.0 sends the word, and where there is one the
+    // page no longer guesses from the figures.
+    checkEq("a word that is not a failure is believed over two noughts",
+        w.S({ speedtestDown: 0, speedtestUp: 0, speedtestStatus: "Success" }), { down: "0", up: "0", failed: false });
+    checkEq("the real failed record: Error with two noughts",
+        w.S({ speedtestDown: 0, speedtestUp: 0, speedtestStatus: "Error" }), { down: "—", up: "—", failed: true });
+    checkEq("a blank word is no word: an older UniFi Health is still judged on the figures",
+        w.S({ speedtestDown: 0, speedtestUp: 0, speedtestStatus: "" }).failed, true);
+    checkEq("a blank word with real figures is a test that worked",
+        w.S({ speedtestDown: 512.3, speedtestUp: 110, speedtestStatus: "  " }).failed, false);
+    check("the not-live card shows a failed last test as dashes too",
+        /const last = speedTestWords\(s\);/.test(wifi) && /\$\{last\.down\}/.test(wifi) && !/\$\{fmtNum\(s\.speedtestDown\)\}/.test(wifi));
     check("the card says the last test failed", /st\.failed \? 'Last test failed' : 'Tested'/.test(wifi));
 }
 

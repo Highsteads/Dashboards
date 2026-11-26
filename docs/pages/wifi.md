@@ -18,7 +18,7 @@ later). Nothing here talks to the controller directly.
 open audit issues, and firmware updates pending. Each figure is coloured by severity, so a red
 utilisation is visible before you read the label.
 
-**Internet.** WAN status, the last speed test down and up (dashes and "Last test failed" when the router's own test ended in an error, from 3.74.0), latency, how long ago it was tested, the
+**Internet.** WAN status, the last speed test down and up (dashes and "Last test failed" when the router's own test ended in an error; from 3.74.1 the page goes by the result UniFi Health 0.10.0 publishes, and with an older UniFi Health by two noughts), latency, how long ago it was tested, the
 gateway's CPU and memory, and the public address.
 
 **Clients.** Wireless and wired counts, then a stacked bar of the Wi-Fi generation mix — 7, 6, 5, 4

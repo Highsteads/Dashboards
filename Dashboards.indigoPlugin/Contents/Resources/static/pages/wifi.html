@@ -201,13 +201,17 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
        (3.73.12): "Internet Online" stayed green through a controller outage.
        Returns '' while live, else the words for the card's sub-heading. */
     /* Pure: the two speed figures, or dashes when the last test gave none.
-       Failed when UniFi Health says so (speedtestStatus, where it sends
-       one), or when both figures are exactly nought, which no working line
-       measures. */
+       UniFi Health 0.10.0 publishes the router's own word for the test
+       (speedtestStatus), and where there is a word it decides (3.74.1):
+       "Error" is a failed test whatever the figures say, and any other word
+       is a test that ran. Only an older UniFi Health, which sends no word,
+       is still judged on the figures: both exactly nought, which no working
+       line measures. */
     function speedTestWords(s) {
         s = s || {};
         const down = num(s.speedtestDown), up = num(s.speedtestUp);
-        const failed = /error|fail/i.test(String(s.speedtestStatus || "")) || (down === 0 && up === 0);
+        const word = String(s.speedtestStatus == null ? "" : s.speedtestStatus).trim();
+        const failed = word ? /error|fail/i.test(word) : (down === 0 && up === 0);
         return failed ? { down: "—", up: "—", failed: true }
                       : { down: fmtNum(s.speedtestDown), up: fmtNum(s.speedtestUp), failed: false };
     }
@@ -229,13 +233,14 @@ const I = (n) => (window.DashIcons ? DashIcons.svg(n) : "");
         if (s.wanStatus === undefined && s.speedtestDown === undefined) return "";  // pre-0.5.0 plugin
         const note = controllerStaleNote(d);
         if (note) {
+            const last = speedTestWords(s);   // a failed last test is dashes here too (3.74.1)
             return `
             <div class="summary stale">
                 <div class="card-title">Internet${staleSub(note)}</div>
                 <div class="summary-grid">
                     <div class="metric"><div class="m-val">Not known</div><div class="m-lab">Status</div></div>
-                    <div class="metric"><div class="m-val">${fmtNum(s.speedtestDown)}</div><div class="m-lab">↓ Mbps, last test</div></div>
-                    <div class="metric"><div class="m-val">${fmtNum(s.speedtestUp)}</div><div class="m-lab">↑ Mbps, last test</div></div>
+                    <div class="metric"><div class="m-val">${last.down}</div><div class="m-lab">↓ Mbps, ${last.failed ? 'last test failed' : 'last test'}</div></div>
+                    <div class="metric"><div class="m-val">${last.up}</div><div class="m-lab">↑ Mbps, ${last.failed ? 'last test failed' : 'last test'}</div></div>
                 </div>
             </div>`;
         }
