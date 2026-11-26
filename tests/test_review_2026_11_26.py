@@ -158,3 +158,20 @@ def test_hand_edited_store_values_of_the_wrong_type_do_not_stop_the_start():
     assert 'swap_pref = _swap.strip() if isinstance(_swap, str) else ""' in src
     assert "self.main_cameras = [h for h in _main if isinstance(h, str)] if isinstance(_main, (list, tuple)) else []" in src
     assert "self.pin_required = _safe_int_list(_pins) if isinstance(_pins, (list, tuple)) else []" in src
+
+
+# ---- third group ------------------------------------------------------------
+
+def test_a_bad_alert_revision_number_reads_as_nought():
+    load_plugin_module()
+    import alerts_mixin
+    f = alerts_mixin._rules_rev
+    assert f({"alertRulesRev": 7}) == 7 and f({"alertRulesRev": "7"}) == 7
+    assert f({"alertRulesRev": "seven"}) == 0 and f({"alertRulesRev": None}) == 0
+    assert f({"alertRulesRev": True}) == 0 and f({}) == 0 and f(None) == 0
+
+
+def test_the_worker_joins_share_one_second():
+    from conftest import plugin_source
+    src = plugin_source()
+    assert "t.join(timeout=max(0.0, deadline - time.time()))" in src

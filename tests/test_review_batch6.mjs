@@ -50,4 +50,34 @@ console.log("\nSettings: a save whose page rebuild failed says so");
     check("the message reads the reply", /res\.refreshed === false/.test(s) && /could not be updated/.test(s));
 }
 
+console.log("\nHeating: the top bar is a live bar too");
+{
+    const h = read("heating.html");
+    check("a live bar, marked on each good poll", /<span class="topbar-status" data-live>/.test(h) && /class="live-cadence"/.test(h)
+          && (h.split("_liveness.mark()").length - 1) === 1 && /const _liveness = DashUI\.liveness\(\{ staleAfterMs: 15000 \}\);/.test(h));
+}
+
+console.log("\nHeating tile: plus then minus sends nothing");
+{
+    const timers = [], sent = [];
+    const els = { "sp-7": { dataset: { sp: "18", gw: "online" }, textContent: "" }, "zone-note-7": { textContent: "x" } };
+    const box = { console, Promise, Math, JSON, String, Number, parseFloat, parseInt, isFinite, isNaN,
+        setTimeout: (fn) => { timers.push(fn); return timers.length; }, clearTimeout: () => {}, setInterval: () => 0, clearInterval: () => {},
+        document: { getElementById: id => els[id] || null, createElement: () => ({ style: {} }), head: { appendChild() {} }, querySelectorAll: () => [] },
+        DashUI: { esc: s => String(s), ago: () => "" }, DashIcons: { svg: () => "" } };
+    box.window = box; box.globalThis = box;
+    vm.createContext(box);
+    vm.runInContext(read("dashboards-action.js"), box);
+    vm.runInContext(read("dashboards-controls.js"), box);
+    box.DashTile.bind({ setHeatSetpoint: async (id, v) => { sent.push(v); }, getDevice: async () => ({ setpointHeat: 18, states: {} }) });
+    await box.DashTile.zone.bump(7, 1);
+    await box.DashTile.zone.bump(7, -1);
+    while (timers.length) { await timers.shift()(); await new Promise(r => setImmediate(r)); }
+    checkEq("no command goes out for a setting the radiator already has", sent, []);
+    checkEq("and nothing is left waiting", [!!box.DashTile.zone._pending[7], box.DashTile.zone._notices[7]], [false, ""]);
+    await box.DashTile.zone.bump(7, 1);
+    while (timers.length) { await timers.shift()(); await new Promise(r => setImmediate(r)); }
+    checkEq("a real change is still sent", sent, [19]);
+}
+
 done();

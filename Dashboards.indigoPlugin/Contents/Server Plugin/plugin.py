@@ -2152,8 +2152,11 @@ class Plugin(CamerasMixin, ConfigMixin, PublishMixin, HealthMixin, ScriptsMixin,
         for q in [st["queue"]] + list(st.get("lanes", {}).values()):
             for _ in st["threads"]:
                 q.put(None)            # a worker parked in get() needs waking
+        # One second for ALL of them (review 26-11-2026): a second each added
+        # up to eight, inside a shutdown Indigo gives about twenty.
+        deadline = time.time() + 1.0
         for t in st["threads"]:
-            t.join(timeout=1.0)
+            t.join(timeout=max(0.0, deadline - time.time()))
         st["threads"] = []
 
     def _offpath_worker_main(self, st, q=None):

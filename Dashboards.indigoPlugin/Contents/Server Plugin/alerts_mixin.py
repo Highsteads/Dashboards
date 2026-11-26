@@ -266,6 +266,17 @@ def plausible_email(text):
             and _EMAIL_RE.match(text) is not None)
 
 
+def _rules_rev(store):
+    """The stored revision of the alert rules, 0 when it is missing or not a
+    whole number. A hand edit that left text there raised in both the read
+    and the save, as a bare server error (review 26-11-2026)."""
+    try:
+        raw = (store or {}).get("alertRulesRev")
+        return 0 if isinstance(raw, bool) else int(raw or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
 def validate_rules(rules, default_channels):
     """(clean, errors) for a list of rules sent by a page or an old browser.
 
@@ -878,7 +889,7 @@ class AlertsMixin:
             "ok": True,
             "rules": rules,
             "active": self._alerts_active(),
-            "rev": int(store.get("alertRulesRev") or 0),
+            "rev": _rules_rev(store),
             "max": ALERT_RULES_MAX,
             "defaultEmail": str(store.get("alertEmail") or ""),
             # The IndigoSecrets fallback is named, not shown.
@@ -905,7 +916,7 @@ class AlertsMixin:
     def _alert_save(self, payload):
         store = dict(getattr(self, "cfg_store", None) or {})
         have = self._alert_rules()
-        rev = int(store.get("alertRulesRev") or 0)
+        rev = _rules_rev(store)
         want_rev = payload.get("rev")
         if want_rev is not None and (isinstance(want_rev, bool) or want_rev != rev):
             return self._evo_reply({"ok": False, "reason": "stale", "rev": rev,

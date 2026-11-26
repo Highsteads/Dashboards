@@ -470,6 +470,14 @@
     note('Waiting for ' + next.toFixed(0) + ' degrees to be confirmed.');
     root.setTimeout(function () {
       if (presses[id] !== mine) return;      // a later tap took over: it sends, not this one
+      // Plus then minus: back at what the radiator already has. Nothing to
+      // send, and nothing to wait for (3.73.9).
+      var settled = root.document.getElementById('sp-' + id) || el;
+      if (parseFloat(settled.dataset.sp) === next) {
+        delete pending[id];
+        note('');
+        return;
+      }
       return send();
     }, SEND_DELAY_MS);
     return Promise.resolve(true);
