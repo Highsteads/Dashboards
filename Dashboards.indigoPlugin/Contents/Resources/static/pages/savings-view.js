@@ -39,6 +39,13 @@
     return '£' + a.toFixed(2);
   }
 
+  // [figure, word after it] for a saving, which can be a loss (3.73.8). gbp()
+  // gives the size alone, so a loss used to read as "£12.34 saved".
+  function savedWords(x) {
+    if (x === null || x === undefined || !isFinite(x)) return ['—', 'saved'];
+    return [gbp(x), x < 0 ? 'more spent than' : 'saved'];
+  }
+
   function kwh(x) {
     if (x === null || x === undefined || !isFinite(x)) return '—';
     return commas(Math.round(x)) + ' kWh';
@@ -269,7 +276,7 @@
       '<div class="chart-box"><canvas id="weeks-chart" role="img" aria-label="Saved each week, with the solar made"></canvas></div>' +
       (best && worst ? '<div class="note">The best day was ' + dateWords(best.date) + ', ' + gbp(best.saved) +
         ' saved with ' + kwh(best.pv) + ' of solar. The poorest was ' + dateWords(worst.date) + ', ' +
-        gbp(worst.saved) + ' with ' + kwh(worst.pv) + '. The line is the solar made each week, so a poor week shows whether the sky was to blame.</div>' : '') +
+        (worst.saved < 0 ? 'cost ' + gbp(worst.saved) + ' more' : gbp(worst.saved)) + ' with ' + kwh(worst.pv) + '. The line is the solar made each week, so a poor week shows whether the sky was to blame.</div>' : '') +
       '</section>';
   }
 
@@ -345,6 +352,11 @@
       lines.push(plural(p.missingDays, 'day') + ' had records that do not add up (the solar is missing), so ' +
         (p.missingDays === 1 ? 'it is' : 'they are') + ' left out.');
     }
+    if (p.unpricedDays) {
+      lines.push(plural(p.unpricedDays, 'day') + ' could not be priced, because no price was on record for ' +
+        (p.unpricedDays === 1 ? 'it' : 'them') + ', and ' + (p.unpricedDays === 1 ? 'is' : 'are') +
+        ' counted as nothing in the money above.');
+    }
     if (p.billCheck) {
       var gap = Math.abs(p.billCheck.model - p.billCheck.octopus);
       lines.push('On the ' + plural(p.billedDays, 'day') + ' Octopus has billed, its own bill is used. Worked out ' +
@@ -373,8 +385,10 @@
         (x[0] === key) + '">' + x[1] + '</button>';
     }).join('');
     var hero = '<section class="card" aria-label="What was saved"><div class="chips">' + chips + '</div>' +
-      '<div class="hero"><div><div class="hero-big num">' + gbp(p.saved) + '</div>' +
-      '<div class="hero-sub">saved ' + periodWords(key, p) + ', against the same house with no solar or battery on the standard tariff.</div></div>' +
+      '<div class="hero"><div><div class="hero-big num">' + savedWords(p.saved)[0] + '</div>' +
+      '<div class="hero-sub">' + (p.saved < 0
+        ? 'more spent ' + periodWords(key, p) + ' than the same house would have with no solar or battery on the standard tariff.'
+        : 'saved ' + periodWords(key, p) + ', against the same house with no solar or battery on the standard tariff.') + '</div></div>' +
       '<div class="ring-wrap"><div class="ring-text"><b class="num">' + pct(p.selfSufficiencyPct) + '</b>of the electricity the house used came from its own panels.</div></div></div></section>';
     var steps = '<section class="card" aria-label="Step by step"><div class="card-title">Step by step</div>' +
       waterfall(p, step, narrow) +
@@ -433,5 +447,5 @@
   root.SavingsView = { page: page, drawWeeks: drawWeeks,
                        _t: { gbp: gbp, kwh: kwh, pence: pence, stepWords: stepWords, waterfall: waterfall,
                              tariffName: tariffName, dateWords: dateWords, plural: plural, listWords: listWords,
-                             payback: payback, notesCard: notesCard } };
+                             payback: payback, notesCard: notesCard, savedWords: savedWords } };
 })(typeof window !== 'undefined' ? window : globalThis);

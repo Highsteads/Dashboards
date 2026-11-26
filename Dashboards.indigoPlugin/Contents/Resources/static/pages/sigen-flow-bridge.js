@@ -101,11 +101,27 @@
     return { name: dev.name, watts: watts, words: words };
   }
 
+  /* Can a device's readings be believed now? The tiles' own rule
+     (DashTile.unknownReason), kept here so this file needs no other: not
+     disabled, no errorState, and none of the ways a plugin says it cannot
+     reach the device. A state is a last known value, and the HOME list was
+     adding up meters that had stopped answering (3.73.8). */
+  function believable(d) {
+    if (!d || d.enabled === false) return false;
+    if (String(d.errorState || '').trim()) return false;
+    var s = d.states || {};
+    var no = function (v) { return v === false || String(v).toLowerCase() === 'false'; };
+    if ('deviceOnline' in s && no(s.deviceOnline)) return false;
+    if ('connected' in s && no(s.connected)) return false;
+    if ('availability' in s && String(s.availability).toLowerCase() === 'offline') return false;
+    return true;
+  }
+
   /* ---- outdoor temperature (Ecowitt), in degrees C --------------------- */
   function outdoorC(devices, wx) {
     var hits = (devices || []).filter(function (d) {
       var s = (d && d.states) || {};
-      return s.temperature !== undefined && s.humidity !== undefined && s.dewPoint !== undefined;
+      return believable(d) && s.temperature !== undefined && s.humidity !== undefined && s.dewPoint !== undefined;
     });
     var dev = hits.length > 1 ? (hits.filter(function (d) { return /outdoor/i.test(d.name || ''); })[0] || hits[0]) : hits[0];
     if (!dev) return null;
@@ -123,7 +139,7 @@
   function homeLoads(devices) {
     var out = [];
     (devices || []).forEach(function (d) {
-      if (!d || d.enabled === false || d.pluginId === CHARGER_PLUGIN) return;
+      if (!believable(d) || d.pluginId === CHARGER_PLUGIN) return;
       if (/sigenergy/i.test(d.pluginId || '') || NOT_A_LOAD.test(d.name || '')) return;
       var s = d.states || {};
       for (var i = 0; i < POWER_KEYS.length; i++) {

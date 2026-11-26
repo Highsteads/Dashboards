@@ -76,7 +76,7 @@
         </div>
         <div class="hdr-center">
             <h1>Flow</h1>
-            <span class="topbar-status">Updated <span id="ts">—</span></span>
+            <span class="topbar-status" data-live>Updated <span id="ts">—</span><span class="live-cadence"></span></span>
         </div>
         <div class="hdr-right">
             <a class="nav-btn" href="energy.html">Energy</a>
@@ -166,13 +166,24 @@
         if (popKind) drawPop();
     }
 
+    // The bar says when the picture has stopped updating (3.73.8). After the
+    // first reading a failed poll used to be silent: the picture went on
+    // showing the last flows under a time that no longer moved.
+    const _liveness = DashUI.liveness({ staleAfterMs: 30000 });
+    let _statusAt = 0;
     async function pollStatus() {
         try {
             bridge.status = await DashUI.message("sigenApi", { path: "status", query: {} }, { pendingMs: 15000 });
+            _statusAt = Date.now();
             say("");
+            _liveness.mark();
             feed();
         } catch (e) {
-            if (!bridge.status) say("<strong>No reading from SigenEnergyManager yet.</strong><br>" + DashUI.esc((e && e.message) || String(e)));
+            const why = DashUI.esc((e && e.message) || String(e));
+            if (!bridge.status) say("<strong>No reading from SigenEnergyManager yet.</strong><br>" + why);
+            else if (Date.now() - _statusAt > 30000)
+                say("<strong>No new reading from SigenEnergyManager for " + DashUI.esc(DashUI.ago(Date.now() - _statusAt, { words: true }))
+                    + ".</strong> The picture shows the last one.<br>" + why);
         }
     }
     async function pollWeather() {

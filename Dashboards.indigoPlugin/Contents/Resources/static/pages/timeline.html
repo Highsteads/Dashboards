@@ -278,8 +278,13 @@ function render(){
     let segs = "";
     for (const dev of lane.devices){
       for (const s of dev.spans){
-        const x = (s[0]/1440*100), w = ((s[1]-s[0])/1440*100);
-        segs += `<div class="seg" style="left:${x}%;width:${w}%;background:${lane.colour}" title="${esc(dev.name)} ${hm(s[0])}–${hm(s[1])}"></div>`;
+        // Today's view stops at now (3.73.8): a device that is on now came
+        // from the server as a span to midnight, and was drawn across the
+        // hours that have not happened yet.
+        const end = Math.min(s[1], nowMin);
+        if (end <= s[0]) continue;
+        const x = (s[0]/1440*100), w = ((end-s[0])/1440*100);
+        segs += `<div class="seg" style="left:${x}%;width:${w}%;background:${lane.colour}" title="${esc(dev.name)} ${hm(s[0])}–${isToday && s[1] > nowMin ? "now" : hm(s[1])}"></div>`;
       }
     }
     if (!lane.devices.length) segs = `<div class="empty" style="padding-left:8px;line-height:20px">none today</div>`;
@@ -335,15 +340,25 @@ function drawEnergy(){
     (socline?`<path d="${socline}" fill="none" stroke="${soc}" stroke-width="2" vector-effect="non-scaling-stroke"/>`:"");
 }
 
+// The minute it is now when the day shown is today, else null.
+function nowMinIfToday(){
+  const n = new Date();
+  return ymd(selDate) === ymd(n) ? n.getHours()*60 + n.getMinutes() : null;
+}
 function energyAt(min){
   if (!DAY.energy || !DAY.energy.points.length) return null;
+  // Nothing is known about a minute that has not happened: the pills used
+  // to carry the last sample forward to any time the playhead was put.
+  const nowM = nowMinIfToday();
+  if (nowM !== null && min > nowM + 1) return null;
   let best=null;
   for (const p of DAY.energy.points){ if (p.m<=min) best=p; else break; }
   return best || DAY.energy.points[0];
 }
 
 function setPlayhead(min){
-  playMin = Math.max(0, Math.min(1440, min));
+  const cap = nowMinIfToday();                 // today's playhead cannot go past now
+  playMin = Math.max(0, Math.min(cap === null ? 1440 : cap, min));
   const scrub = document.getElementById("scrub");
   const lanes = document.getElementById("tllanes");
   if (scrub && lanes && lanes.querySelector(".lane")){

@@ -423,7 +423,11 @@
         const e = _energy[v.id];
         if (!e || !e.plug) return "";
         const plug = (window.__lastDevices || []).find(d => d.id === e.plug.id);
-        const w = plug && plug.states ? parseFloat(plug.states.powerWatts) : NaN;
+        // A plug that is disabled, in error or off the network keeps its last
+        // watts, which were shown as "now" (3.73.8).
+        const plugLive = !!plug && plug.enabled !== false && !String(plug.errorState || "").trim()
+            && String((plug.states || {}).deviceOnline).toLowerCase() !== "false";
+        const w = plugLive && plug.states ? parseFloat(plug.states.powerWatts) : NaN;
         const watts = isNaN(w) ? "\u2014" : (w < 10 ? w.toFixed(1) : Math.round(w)) + " W";
         const t = e.today || {}, wk = e.week;
         const note = e.rate
