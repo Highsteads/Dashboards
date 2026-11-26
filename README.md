@@ -2,11 +2,11 @@
 
 **Your house on a screen — energy, cameras, heating, every room, and the whole day replayed.**
 
-**Version:** 3.73.10 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
+**Version:** 3.73.11 | **Author:** CliveS & Claude | **Needs:** Indigo 2025.2
 
 **[Read the full guide](https://highsteads.github.io/Dashboards/)** — setting up, a page of notes for every one of the 24 pages, and what to do when something goes wrong.
 
-<img src="https://img.shields.io/badge/version-3.73.10-5856d6" alt="Version 3.73.10">
+<img src="https://img.shields.io/badge/version-3.73.11-5856d6" alt="Version 3.73.11">
 <img src="https://img.shields.io/badge/Indigo-2025.2-2a2a2e" alt="Indigo 2025.2">
 <img src="https://img.shields.io/badge/pages-24-0a84ff" alt="24 pages">
 <img src="https://img.shields.io/badge/licence-MIT-8e8e93" alt="MIT licence">
@@ -98,11 +98,11 @@ The [Getting started](https://highsteads.github.io/Dashboards/getting-started.ht
 
 ## What's new
 
+**3.73.11** (26-Nov-2026) - **The Plugs and Savings pages say when their figures have stopped updating.** The eighth release from the review of the whole plugin. On the Plugs and Savings pages the line at the top turns amber when updates have stopped, and shows the day as well as the time when the figures are not today's. They used to sit under "Updated 23:55" for as long as the page was open. The Meter page's chart calls its last figure "last logged", where it said "now". The Energy tile on the Menu no longer promises the "when to run it" card, which went in 3.69.2, and the Scenes page says that hidden scenes are chosen on the Settings page.
+
 **3.73.10** (26-Nov-2026) - **The hub no longer says the battery manager is not answering each time the phone is unlocked.** The seventh release from the review of the whole plugin. Coming back to the hub after the phone had been locked, the energy card read "SigenEnergyManager is not answering" and showed every flow at nought for up to half a minute. The hub now asks for a fresh reading the moment it is shown again. On the Alerts page a line saying the plugin could not be asked for the rules goes once the plugin has answered, a tick that could not be saved goes back to what is stored, and a rule's device that is in error reads "not answering, last locked" in place of its last value alone. After Dashboards restarts, an open page fetches every device again without having to notice the restart for itself.
 
 **3.73.9** (26-Nov-2026) - **Smaller faults from the review: "No reading" is not "Off", and a save that did not reach the pages says so.** The sixth release from the review of the whole plugin. On the Active page a device that gives no on or off reading now says "No reading", where it said "Off", and a dimmer that gives no brightness says "On", where it said "0%" beside a slider showing something else. Settings no longer says "Saved, live on the pages now" when the files the pages read could not be rebuilt after the save: it says what failed. The Heating page's top line turns amber when updates stop, as the room pages do. Tapping a radiator up and then straight back down sends nothing, where it sent a command for the setting the radiator already had. Stopping the plugin waits one second in all for its background workers, where it could wait eight. And a hand edit that left text where the alert rules keep their revision number no longer breaks the Alerts page.
-
-**3.73.8** (26-Nov-2026) - **The Flow page says when it has stopped updating, and today's Timeline stops at now.** The fifth release from the review of the whole plugin. On the Flow page the list of what the house is using leaves out a meter that is switched off in Indigo, in error or not answering, where it added in the last figure such a meter had sent. The page now says so when no new reading has come from SigenEnergyManager for half a minute, where it went on showing the last flows without a word. On the Timeline, today's view stops at the present: a light that is on now was drawn as a bar running to midnight, and the battery and solar figures were carried forward to any time the marker was dragged to. On the Savings page, days with no price on record are counted and said, and a period that cost more than it saved is no longer written as a saving. On the Air page the purifier plug's power shows a dash when the plug is not answering.
 
 ## Acknowledgements
 
