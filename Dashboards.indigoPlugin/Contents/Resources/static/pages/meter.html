@@ -282,7 +282,7 @@ function sparkline(points, colourVar, dp) {
     const last = ys[ys.length - 1];
     return `<div class="spark-head">
         <span>low <b>${num(lo, dp)}</b> &middot; high <b>${num(hi, dp)}</b></span>
-        <span>now <b>${num(last, dp)}</b></span>
+        <span>last logged <b>${num(last, dp)}</b></span>
       </div>
       <svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
         ${grid}

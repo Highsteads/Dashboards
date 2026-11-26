@@ -149,7 +149,7 @@
         </div>
         <div class="hdr-center">
             <h1>Savings</h1>
-            <span class="topbar-status">Updated <span id="ts">—</span></span>
+            <span class="topbar-status" data-live>Updated <span id="ts">—</span><span class="live-cadence"></span></span>
         </div>
         <div class="hdr-right">
             <a class="nav-btn" href="cost.html">Cost &rarr;</a>
@@ -186,6 +186,9 @@
         DashUI.poll(load, POLL_MS);
     }
 
+    // Three missed rounds and the bar says the figures have stopped updating
+    // (3.73.11): they used to stay under "Updated HH:MM" with no day and no mark.
+    const _liveness = DashUI.liveness({ staleAfterMs: 3 * POLL_MS + 30000 });
     async function load() {
         try {
             data = await DashUI.message("savingsReport", {}, { pendingMs: 180000 });
@@ -197,7 +200,10 @@
             return;                           // keep the last figures; the next round asks again
         }
         const d = new Date((data.at || Date.now() / 1000) * 1000);
-        document.getElementById("ts").textContent = pad(d.getHours()) + ":" + pad(d.getMinutes());
+        // The time, and the day too when the figures are not today's (3.73.11).
+        document.getElementById("ts").textContent = (d.toDateString() === new Date().toDateString() ? ""
+            : d.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }) + " ") + pad(d.getHours()) + ":" + pad(d.getMinutes());
+        _liveness.mark();
         render();
     }
 

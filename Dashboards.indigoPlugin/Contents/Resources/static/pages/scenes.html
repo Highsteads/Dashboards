@@ -168,7 +168,7 @@
                 total ? `${total} scenes in ${folders.length} folders` : "No scenes";
             if (!total) {
                 main.innerHTML = `<div class="empty">No action groups to show.<br>
-                    Hidden entries can be managed via DASHBOARDS_HIDDEN_SCENES.</div>`;
+                    Hidden scenes are chosen on the Settings page.</div>`;
                 return;
             }
             main.innerHTML = folders.map(f => `
