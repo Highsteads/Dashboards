@@ -60,3 +60,5 @@ UniFi controller.
   the signal is, and moving one stubborn device to 5 GHz usually helps more than moving the AP.
 - An AP going offline briefly during a firmware upgrade is normal. The plugin debounces it with a
   configurable grace period.
+- An access point reads as not live when the UniFi controller device is disabled or in error, as well
+  as when it is not connected (from 3.73.6).

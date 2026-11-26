@@ -96,3 +96,5 @@ the thing has actually happened, rather than assuming the command landed.
   so a green edge on the TV group means something is drawing power.
 - A missing device state is treated as unknown, never as a match: a sensor that has never reported
   cannot confirm a state it never saw.
+- The line at the top says when the page last updated. If no update has arrived for fifteen seconds it
+  turns amber and says so (from 3.73.6), so old states are not mistaken for live ones.

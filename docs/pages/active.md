@@ -50,3 +50,4 @@ browser sees the page read-only.
 - Some rows are things you would not want to toggle. A freezer's monitoring plug is a relay too,
   and switching it off is a bad afternoon. Put such devices on the PIN list, or hide them from the
   room pages with the room extras.
+- If no update has arrived for fifteen seconds the line at the top turns amber and says so (from 3.73.6).

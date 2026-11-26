@@ -38,3 +38,5 @@ Controls go through the same PIN and guest rules as every other control on the d
 
 - Readings come from VeSync, refreshed by the Levoit Purifier plugin every minute unless its settings say otherwise, so a number can be up to a minute old.
 - The page refreshes every three seconds, and the chart every five minutes.
+- A purifier that is disabled in Indigo reads "Disabled in Indigo" with its controls off (from 3.73.6;
+  it used to look online). A filter life that has never been read shows a dash, not 0%.
