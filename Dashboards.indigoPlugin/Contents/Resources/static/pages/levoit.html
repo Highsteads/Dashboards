@@ -220,7 +220,9 @@
         });
         // A press waiting for confirmation needs its note to move on to "not
         // confirmed" even if nothing on the purifier changes.
-        setInterval(() => { if (window.__lastDevices) render(window.__lastDevices); }, 5000);
+        // Not over a connection error: this timer used to paint the cards
+        // back five seconds after the error was shown, as though all was well.
+        setInterval(() => { if (!_errShown && window.__lastDevices) render(window.__lastDevices); }, 5000);
     }
 
     function render(devices) {
@@ -284,7 +286,7 @@
         const cls = (command, key, selected) => pending[command]
             ? (String(pending[command].value) === String(key) ? "waiting" : "") : (selected ? "on" : "");
         const sub = !v.online
-            ? `<div class="pur-sub bad">${esc(v.error ? "Not reachable (" + v.error + ")" : "Not connected to VeSync")}${v.lastUpdate ? ", last heard " + esc(V.updatedWords(v.lastUpdate, Date.now())) : ""}</div>`
+            ? `<div class="pur-sub bad">${esc(v.why ? v.why : v.error ? "Not reachable (" + v.error + ")" : "Not connected to VeSync")}${v.lastUpdate ? ", last heard " + esc(V.updatedWords(v.lastUpdate, Date.now())) : ""}</div>`
             : `<div class="pur-sub">${v.lastUpdate ? "Read " + esc(V.updatedWords(v.lastUpdate, Date.now())) : "Waiting for its first reading"}</div>`;
         const pm = v.pm25 === null ? "—" : String(v.pm25);
         const off = v.on ? "" : `<div class="off-note">Switched off, so this is the last reading before it stopped.</div>`;
@@ -337,9 +339,9 @@
         const lock = sw("childLock", v.childLock), disp = sw("display", v.display);
         return `
             <div>
-                <div class="filter-row"><span>Filter life</span><strong>${v.filter}%</strong></div>
-                <div class="filter-bar" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${v.filter}"
-                     aria-label="Filter life"><div class="filter-fill${v.filterLow ? " low" : ""}" style="width:${v.filter}%"></div></div>
+                <div class="filter-row"><span>Filter life</span><strong>${v.filter === null ? "—" : v.filter + "%"}</strong></div>
+                <div class="filter-bar" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${v.filter === null ? 0 : v.filter}"
+                     aria-label="Filter life"${v.filter === null ? ' aria-valuetext="not read yet"' : ""}><div class="filter-fill${v.filterLow ? " low" : ""}" style="width:${v.filter === null ? 0 : v.filter}%"></div></div>
                 ${v.filterLow ? `<div class="filter-warn">Time to order a new filter.</div>` : ""}
             </div>
             ${energyBlock(v)}
@@ -450,9 +452,13 @@
     }
 
     // ── PM2.5 history ──
+    const _histReq = {};          // purifier id -> number of the newest chart request
     async function loadHistory(id) {
         _histAt[id] = Date.now();
         const hours = _hours[id] || 24;
+        // Only the newest request for this purifier may draw: a slower Day
+        // reply used to land under the Week chip.
+        const mine = _histReq[id] = (_histReq[id] || 0) + 1;
         const canvas = document.getElementById(`pur-${id}-chart`);
         const note = document.getElementById(`pur-${id}-chartnote`);
         if (!canvas) return;
@@ -460,11 +466,15 @@
         let res;
         try { res = await indigo.getHistory(id, "pm25", hours, 240); }
         catch (e) {
-            const noDb = String((e && e.message) || "").indexOf("SQL Logger") !== -1;
+            if (mine !== _histReq[id]) return;
+            const why = String((e && e.message) || "");
+            const noDb = why.indexOf("SQL Logger") !== -1;
+            // A failure is not "nothing recorded": say what happened.
             say(noDb ? "The chart needs Indigo's SQL Logger plugin. Everything else works without it."
-                     : "Nothing recorded yet. The chart fills in as the purifier reports.");
+                     : "Could not load the chart" + (why ? " (" + why + ")" : "") + ". It is tried again shortly.");
             return;
         }
+        if (mine !== _histReq[id] || hours !== (_hours[id] || 24)) return;
         const pts = (res && res.points) || [];
         if (!pts.length) { say("Nothing recorded in this range yet."); return; }
         note.hidden = true; canvas.hidden = false;

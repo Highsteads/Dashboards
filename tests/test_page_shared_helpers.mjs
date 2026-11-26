@@ -42,7 +42,10 @@ console.log("\nauthStrikes — three in a row, and a reflector refusal is not a 
 {
     const trips = [], refused = [];
     const win = loadUi();
-    const a = win.DashUI.authStrikes({ onTrip: () => trips.push(1), onRefused: e => refused.push(e) });
+    // Each refusal here is its own poll, three seconds after the last (3.73.6 counts one strike a poll).
+    let clock = 0;
+    const tick = () => (clock += 3000);
+    const a = win.DashUI.authStrikes({ onTrip: () => trips.push(1), onRefused: e => refused.push(e), now: tick });
     const bad = { status: 401 };
     checkEq("first refusal is only counted", a.fail(bad), "counted");
     checkEq("second too", a.fail(bad), "counted");
@@ -61,7 +64,7 @@ console.log("\nauthStrikes — three in a row, and a reflector refusal is not a 
     // The default trip forgets the key and goes to the hub.
     let cleared = 0;
     const win2 = loadUi({ IndigoAPI: { clearConfig: () => { cleared++; } }, location: { href: "room.html" } });
-    const b = win2.DashUI.authStrikes();
+    const b = win2.DashUI.authStrikes({ now: tick });
     b.fail(bad); b.fail(bad);
     check("default: nothing forgotten after two", cleared === 0 && win2.location.href === "room.html");
     b.fail(bad);

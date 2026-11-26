@@ -1377,6 +1377,13 @@
     var o = opts || {};
     var limit = o.limit || 3;
     var fails = 0;
+    // One refused POLL is one strike (3.73.6). A poll re-reads every changed
+    // device at once, and each refused read came here on its own, so a single
+    // poll with three of them wiped the stored key. Refusals within
+    // STRIKE_GAP_MS of the last one counted are the same poll.
+    var STRIKE_GAP_MS = 1500;
+    var clock = typeof o.now === 'function' ? o.now : function () { return Date.now(); };
+    var lastStrike = -Infinity;
     function trip() {
       if (typeof o.onTrip === 'function') { o.onTrip(); return; }
       /* global IndigoAPI */
@@ -1391,13 +1398,16 @@
           try { (typeof o.onRefused === 'function' ? o.onRefused : showRefusal)(err); } catch (e) { /* presentation */ }
           return 'refused';
         }
+        var at = clock();
+        if (at - lastStrike < STRIKE_GAP_MS) return 'counted';
+        lastStrike = at;
         fails += 1;
         if (fails < limit) return 'counted';
         fails = 0;
         trip();
         return 'tripped';
       },
-      ok: function () { fails = 0; },
+      ok: function () { fails = 0; lastStrike = -Infinity; },
       count: function () { return fails; }
     };
   }
@@ -1716,6 +1726,9 @@
   function unifiStale(ap, controller) {
     if (!ap) return true;
     if (controller && String((controller.states || {}).status || '') !== 'Connected') return true;
+    // A controller that is disabled or in error keeps its last status word,
+    // "Connected" included, so the word alone proved nothing (3.73.6).
+    if (controller && (controller.enabled === false || String(controller.errorState || '').trim())) return true;
     return ap.enabled === false || !!String(ap.errorState || '').trim();
   }
 

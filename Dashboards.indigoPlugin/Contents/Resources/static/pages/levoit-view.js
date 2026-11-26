@@ -56,10 +56,20 @@
 
   function view(d) {
     var s = (d && d.states) || {};
-    var online = truthy(s.deviceOnline) && !(d && d.errorState);
+    // A purifier disabled in Indigo keeps deviceOnline true for good: the
+    // Levoit plugin only clears it from its own poll, which has stopped. It
+    // was drawn online, in live colours, with working controls (3.73.6).
+    var disabled = !!d && d.enabled === false;
+    var online = truthy(s.deviceOnline) && !(d && d.errorState) && !disabled;
+    // Read at least once? Indigo creates the Integer states at 0, so before
+    // the first reading a filter life of 0 and a PM2.5 of 0 are not readings.
+    var everRead = !!String(s.lastUpdate || '').trim();
     var mode = String(s.mode || 'unknown').toLowerCase();
     var air = airBand(s.airQuality);
-    var filter = Math.max(0, Math.min(100, int(s.filterLife, 0)));
+    var rawFilter = s.filterLife;
+    var filter = (rawFilter === undefined || rawFilter === null || rawFilter === ''
+                  || (!everRead && int(rawFilter, 0) === 0))
+      ? null : Math.max(0, Math.min(100, int(rawFilter, 0)));
     var on = d && d.onState !== undefined ? truthy(d.onState) : truthy(s.onOffState);
     return {
       id: d.id,
@@ -67,13 +77,15 @@
       on: on,
       online: online,
       error: (d && d.errorState) || '',
-      pm25: s.pm25 === undefined || s.pm25 === null || s.pm25 === '' ? null : int(s.pm25, null),
+      pm25: (s.pm25 === undefined || s.pm25 === null || s.pm25 === '' || (!everRead && int(s.pm25, 0) === 0))
+        ? null : int(s.pm25, null),
+      why: disabled ? 'Disabled in Indigo' : '',
       band: online ? air.band : 'unknown',
       bandWords: air.words,
       mode: mode,
       fan: int(s.fanLevel, 0),
       filter: filter,
-      filterLow: filter < FILTER_LOW,
+      filterLow: filter !== null && filter < FILTER_LOW,
       childLock: truthy(s.childLock),
       display: truthy(s.displayOn),
       autoPref: String(s.autoPreference || '').toLowerCase(),
