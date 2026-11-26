@@ -579,9 +579,12 @@
   var SS_HAPPY_HOUR = 'WEEKEND_HAPPY_HOUR';
   /* A session six days out is real but it is not news. Live always shows. */
   var SS_LOOKAHEAD_MS = 24 * 3600 * 1000;
-  /* A booked free hour is worth knowing about a day earlier than the rest: it is
-     electricity to plan the house around, not an alert (CliveS, 03-Oct-2026). */
-  var SS_HAPPY_LOOKAHEAD_MS = 48 * 3600 * 1000;
+  /* A booked free hour shows from the moment it is booked: it is electricity to
+     plan the house around, not an alert (CliveS, 03-Oct-2026 asked for a day
+     earlier than the rest, 48 hours; 26-Nov-2026 asked for as soon as booked).
+     Octopus announces on a Thursday for the weekend, so 8 days covers every
+     booking that can exist. */
+  var SS_HAPPY_LOOKAHEAD_MS = 8 * 24 * 3600 * 1000;
 
   /* "18:00-19:00", with a weekday in front when it is not today. Shared so the
      hub and the Energy page render the identical string — the one part of this

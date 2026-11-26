@@ -101,7 +101,7 @@ Generated from each file's `Description:` header (`ls tests/` is the truth; this
 | `test_flow_motion.mjs` | The power-flow diagram's motion (v3.38.0). The dots used to be |
 | `test_flow_popups.mjs` | Node contract test for FlowPopups (flow-popups.js), the Flow |
 | `test_footer_stable_height.mjs` | The cameras page footer must not change height (v2.99.1). |
-| `test_free_hours_past_lookahead.mjs` | A booked free hour that runs on from one inside the 24-hour |
+| `test_free_hours_past_lookahead.mjs` | A booked free hour shows from the moment it is booked, a free hour |
 | `test_freshness_indicator.mjs` | Contract test for the "not updating" status line on mains.html |
 | `test_getdevices.mjs` | Node contract test for dashboard.js getDevices() delta-merge — |
 | `test_glance_row_layout.mjs` | The hub's glance row holds THREE cards in a TWO-column grid, so |

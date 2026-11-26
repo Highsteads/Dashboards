@@ -135,7 +135,8 @@ for (const l of lines) {
 
 // ── savingSessions takes a longer look ahead for the card ──────
 const oct = { upcoming: [{ id: 9, start: "2026-10-04T12:00:00+00:00", end: "2026-10-04T13:00:00+00:00",
-                           direction: "WEEKEND_HAPPY_HOUR", joined: true }] };
+                           direction: "TURN_DOWN", joined: true }] };
+// A turn-down keeps the one-day window; a booked free hour shows at once (26-Nov-2026).
 check(DashCalc.savingSessions(oct, NOW).length === 0, "the alert bar still looks one day ahead");
 check(DashCalc.savingSessions(oct, NOW, 8 * 24 * 3600e3).length === 1, "the card looks eight days ahead");
 
